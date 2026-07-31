@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comptabilité IDEL Pro V5</title>
+<meta name="theme-color" content="#0A7373">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F7FA;line-height:1.5}
+.header{background:linear-gradient(135deg,#0A7373,#0D9494);color:white;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);position:sticky;top:0;z-index:100}
+.header h1{font-size:1.5rem;margin-bottom:0.5rem}
+.sync{font-size:0.85rem;opacity:0.9}
+.container{max-width:1200px;margin:0 auto;padding:1rem;padding-bottom:3rem}
+.card{background:white;border-radius:12px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.card h2{color:#0A7373;margin-bottom:1rem;font-size:1.2rem}
+.btn{padding:0.75rem 1.5rem;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:0.2s;font-size:0.95rem;margin:0.25rem}
+.btn-primary{background:#0A7373;color:white}
+.btn-primary:hover{background:#0D9494}
+.btn-secondary{background:#E8F5F5;color:#0A7373}
+.btn-danger{background:#F28B82;color:white;font-size:0.9rem;padding:0.5rem 1rem}
+.btn-success{background:#34A853;color:white}
+input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-radius:8px;font-size:1rem;margin-bottom:1rem;font-family:inherit}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.transaction{border-left:4px solid #0A7373;padding:1rem;margin-bottom:1rem;background:#f9f9f9;border-radius:4px;position:relative}
+.transaction.recette{border-left-color:#34A853}
+.transaction.depense{border-left-color:#F28B82}
+.transaction.encaisse{background:#e8f5e9}
+.transaction-actions{position:absolute;top:0.5rem;right:0.5rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem}
+.stat-card{background:linear-gradient(135deg,#E8F5F5,#fff);padding:1.5rem;border-radius:12px;border-left:4px solid #0A7373}
+.stat-label{color:#666;font-size:0.9rem;margin-bottom:0.5rem}
+.stat-value{font-size:1.8rem;font-weight:bold;color:#0A7373}
+.hidden{display:none}
+.loading{text-align:center;padding:2rem;color:#666}
+.message{padding:1rem;border-radius:8px;margin-bottom:1rem;animation:slideIn 0.3s}
+@keyframes slideIn{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.error{background:#fee;color:#c33}
+.success{background:#efe;color:#3c3}
+.warning{background:#fff3cd;color:#856404}
+.info{background:#d1ecf1;color:#0c5460}
+.tabs{display:flex;gap:1rem;margin-bottom:1rem;border-bottom:2px solid #eee;overflow-x:auto}
+.tab{padding:0.75rem 1.5rem;background:none;border:none;cursor:pointer;font-weight:600;color:#666;border-bottom:3px solid transparent;transition:0.2s;white-space:nowrap}
+.tab.active{color:#0A7373;border-bottom-color:#0A7373}
+.file-upload{border:2px dashed #0A7373;border-radius:8px;padding:2rem;text-align:center;cursor:pointer;transition:0.2s}
+.file-upload:hover{background:#E8F5F5}
+.file-preview{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem}
+.file-preview img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #ddd}
+.doc-item{background:#f9f9f9;border-radius:8px;padding:1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center}
+.ai-scan{background:linear-gradient(135deg,#4CAF50,#45a049);color:white;padding:1rem;border-radius:12px;margin-bottom:1rem}
+.ai-scan h3{margin-bottom:0.5rem}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center}
+.modal.show{display:flex}
+.modal-content{background:white;border-radius:12px;padding:2rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto}
+.modal-close{float:right;font-size:1.5rem;cursor:pointer;color:#999}
+.chart-container{height:250px;margin-bottom:1rem}
+.exercice-filter{background:#E8F5F5;padding:1rem;border-radius:8px;margin-bottom:1rem}
+.export-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:1rem}
+.recurrent-item{background:#fff3cd;border-left:4px solid #FBBC04;padding:1rem;margin-bottom:1rem;border-radius:4px;display:flex;justify-content:space-between;align-items:center}
+.bank-operation{background:#f9f9f9;padding:1rem;margin-bottom:0.5rem;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>💼 Comptabilité IDEL Pro V5</h1>
+<div class="sync" id="syncStatus">☁️ Synchronisation...</div>
+</div>
+<div class="container">
+<div id="loading" class="loading"><p>Connexion à Supabase...</p></div>
+<div id="app" class="hidden">
+<div id="messages"></div>
+<div class="tabs">
+<button class="tab active" onclick="showTab('profil')">👤 Profil</button>
+<button class="tab" onclick="showTab('operations')">💰 Opérations</button>
+<button class="tab" onclick="showTab('banque')">🏦 Banque</button>
+<button class="tab" onclick="showTab('recurrentes')">🔄 Récurrentes</button>
+<button class="tab" onclick="showTab('documents')">📑 Documents</button>
+<button class="tab" onclick="showTab('stats')">📊 Statistiques</button>
+</div>
+
+<div id="tab-profil">
+<div class="card">
+<h2>👤 Informations professionnelles</h2>
+<div class="form-row"><input type="text" id="nom" placeholder="Nom"><input type="text" id="prenom" placeholder="Prénom"></div>
+<div class="form-row"><input type="text" id="siret" placeholder="SIRET"><input type="text" id="rpps" placeholder="RPPS"></div>
+<div class="form-row"><input type="text" id="adeli" placeholder="ADELI"><input type="text" id="num_urssaf" placeholder="N° URSSAF"></div>
+<input type="text" id="adresse" placeholder="Adresse">
+<div class="form-row"><input type="text" id="code_postal" placeholder="Code postal"><input type="text" id="ville" placeholder="Ville"></div>
+<div class="form-row"><input type="tel" id="telephone" placeholder="Téléphone (06...)"><input type="email" id="email" placeholder="Email professionnel"></div>
+<button class="btn btn-primary" onclick="saveProfile()">💾 Enregistrer</button>
+</div>
+<div class="card">
+<h2>👨‍💼 Expert-comptable</h2>
+<input type="text" id="comptable_cabinet" placeholder="Nom du cabinet">
+<input type="text" id="comptable_adresse" placeholder="Adresse du cabinet">
+<div class="form-row"><input type="tel" id="comptable_tel" placeholder="Téléphone"><input type="email" id="comptable_email" placeholder="Email"></div>
+<button class="btn btn-primary" onclick="saveProfile()">💾 Enregistrer</button>
+</div>
+<div class="card">
+<h2>📅 Exercice comptable</h2>
+<div class="form-row">
+<div><label>Date d'ouverture</label><input type="date" id="exercice_debut"></div>
+<div><label>Date de clôture</label><input type="date" id="exercice_fin"></div>
+</div>
+<button class="btn btn-secondary" onclick="saveExercice()">💾 Enregistrer l'exercice</button>
+</div>
+</div>
+
+<div id="tab-operations" class="hidden">
+<div class="ai-scan">
+<h3>🤖 Scan intelligent avec IA</h3>
+<p style="margin-bottom:1rem;">Prenez une photo d'une facture, l'IA extrait automatiquement les informations !</p>
+<button class="btn btn-success" onclick="openAIScan()">📸 Scanner une facture</button>
+</div>
+<div class="card">
+<h2>➕ Nouvelle opération</h2>
+<input type="date" id="date">
+<select id="type" onchange="updateCategories()"><option value="recette">💚 Recette</option><option value="depense">🔴 Dépense</option></select>
+<select id="category"></select>
+<input type="text" id="description" placeholder="Description">
+<input type="number" id="amount" placeholder="Montant" step="0.01">
+<select id="paymentMethod"><option>Virement</option><option>Chèque</option><option>Espèces</option><option>Carte bancaire</option></select>
+<div class="file-upload" onclick="document.getElementById('fileInput').click()">📎 Cliquez pour ajouter des justificatifs</div>
+<input type="file" id="fileInput" multiple accept="image/*,application/pdf" style="display:none" onchange="previewFiles()">
+<div class="file-preview" id="filePreview"></div>
+<button class="btn btn-primary" onclick="addTransaction()">✅ Ajouter</button>
+</div>
+<div class="card">
+<h2>📋 Liste des opérations</h2>
+<div id="transactions"></div>
+</div>
+</div>
+
+<div id="tab-banque" class="hidden">
+<div class="card">
+<h2>🏦 Journal de banque</h2>
+<div class="stat-card" style="margin-bottom:1.5rem;">
+<div class="stat-label">Solde bancaire</div>
+<div class="stat-value" id="soldeBanque">0,00 €</div>
+</div>
+<h3 style="margin-bottom:1rem;">Opérations non encaissées</h3>
+<div id="nonEncaisses"></div>
+<h3 style="margin-bottom:1rem;margin-top:1.5rem;">Encaissements récents</h3>
+<div id="encaissements"></div>
+</div>
+</div>
+
+<div id="tab-recurrentes" class="hidden">
+<div class="card">
+<h2>🔄 Dépenses récurrentes</h2>
+<p style="margin-bottom:1rem;color:#666;">Automatisez vos dépenses mensuelles (loyer, assurance...)</p>
+<div class="form-row">
+<select id="recurCategory"></select>
+<input type="text" id="recurDescription" placeholder="Description">
+</div>
+<div class="form-row">
+<input type="number" id="recurAmount" placeholder="Montant" step="0.01">
+<input type="number" id="recurDay" placeholder="Jour du mois (1-31)" min="1" max="31">
+</div>
+<button class="btn btn-primary" onclick="addRecurrent()">➕ Ajouter une récurrence</button>
+<div id="recurrentsList" style="margin-top:1.5rem;"></div>
+</div>
+</div>
+
+<div id="tab-documents" class="hidden">
+<div class="card">
+<h2>📑 Documents sociaux</h2>
+<p style="margin-bottom:1rem;color:#666;">Stockez vos documents administratifs</p>
+<select id="docCategory" style="margin-bottom:1rem;">
+<option>URSSAF</option>
+<option>Assurance professionnelle</option>
+<option>Diplômes</option>
+<option>Contrats</option>
+<option>Attestations</option>
+<option>Autres</option>
+</select>
+<input type="text" id="docName" placeholder="Nom du document">
+<div class="file-upload" onclick="document.getElementById('docInput').click()">📄 Cliquez pour uploader</div>
+<input type="file" id="docInput" accept="image/*,application/pdf" style="display:none" onchange="uploadSocialDoc()">
+<div id="docsList"></div>
+</div>
+</div>
+
+<div id="tab-stats" class="hidden">
+<div class="exercice-filter">
+<h3 style="margin-bottom:0.5rem;">📅 Filtrer par exercice</h3>
+<select id="exerciceSelect" onchange="filterByExercice()" style="margin-bottom:0;">
+<option value="">Toutes les périodes</option>
+</select>
+</div>
+
+<div class="stats">
+<div class="stat-card"><div class="stat-label">Total Recettes</div><div class="stat-value" id="statRecettes">0,00 €</div></div>
+<div class="stat-card"><div class="stat-label">Total Dépenses</div><div class="stat-value" id="statDepenses">0,00 €</div></div>
+<div class="stat-card"><div class="stat-label">Balance</div><div class="stat-value" id="statBalance">0,00 €</div></div>
+<div class="stat-card"><div class="stat-label">Nb opérations</div><div class="stat-value" id="statNb">0</div></div>
+</div>
+
+<div class="card">
+<h2>📊 Graphique mensuel</h2>
+<div class="chart-container"><canvas id="chart"></canvas></div>
+</div>
+
+<div class="card">
+<h2>📥 Export pour expert-comptable</h2>
+<p style="margin-bottom:1rem;color:#666;">Formats professionnels avec mise en forme améliorée</p>
+<button class="btn btn-success" onclick="preparerEnvoiComptable()" style="width:100%;padding:1.5rem;font-size:1.1rem;margin-bottom:1.5rem;">📧 Préparer l'envoi au comptable</button>
+<details style="margin-top:1rem;">
+<summary style="cursor:pointer;color:#0A7373;font-weight:600;margin-bottom:1rem;">Exports individuels</summary>
+<div class="export-grid">
+<button class="btn btn-secondary" onclick="exportCompletComptable()">📊 Dossier complet (1 fichier)</button>
+<button class="btn btn-secondary" onclick="exportJustificatifs()">📦 ZIP justificatifs</button>
+</div>
+</details>
+</div>
+</div>
+</div>
+</div>
+
+<div id="aiModal" class="modal">
+<div class="modal-content">
+<span class="modal-close" onclick="closeAIScan()">×</span>
+<h2>🤖 Scan intelligent</h2>
+<p style="margin:1rem 0;">Image uniquement (JPG/PNG)</p>
+<div class="file-upload" onclick="document.getElementById('aiInput').click()">📸 Choisir une image</div>
+<input type="file" id="aiInput" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="analyzeWithAI()">
+<div id="aiResult"></div>
+</div>
+</div>
+
+<div id="emailModal" class="modal">
+<div class="modal-content" style="max-width:700px;">
+<span class="modal-close" onclick="closeEmailModal()">×</span>
+<h2>📧 Envoi au comptable</h2>
+<div id="emailContent"></div>
+</div>
+</div>
+
+<script>
+const SUPABASE_URL='https://lyexchltawaxiryatmbt.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZXhjaGx0YXdheGlyeWF0bWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0ODA5OTUsImV4cCI6MjEwMTA1Njk5NX0.eA7KflJOvoNv9YO-OFuUxvszRtH3b2BUU-vmAxyFDIc';
+const CATEGORIES={recette:['Soins infirmiers','Actes techniques','Indemnités kilométriques','Remplacements','Forfaits','Autres recettes'],depense:['Carburant','Fournitures médicales','Téléphone/Internet','Assurance professionnelle','Formation','Comptable','Entretien véhicule','Loyer cabinet','Autres dépenses']};
+const PLAN_COMPTABLE={'Soins infirmiers':'706100','Actes techniques':'706200','Indemnités kilométriques':'706300','Remplacements':'706400','Forfaits':'706500','Autres recettes':'708000','Carburant':'606100','Fournitures médicales':'606200','Téléphone/Internet':'626000','Assurance professionnelle':'616000','Formation':'618500','Comptable':'622600','Entretien véhicule':'615500','Loyer cabinet':'613000','Autres dépenses':'628000'};
+let profile=null,transactions=[],allTransactions=[],attachedFiles=[],socialDocs=[],currentExercice='',recurrents=[],bankOps=[];
+
+function fmt(n){return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'}
+
+async function api(e,t={}){const a=await fetch(`${SUPABASE_URL}/rest/v1/${e}`,{...t,headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json',Prefer:'return=representation',...t.headers}});if(!a.ok)throw new Error(await a.text());const r=await a.text();return r?JSON.parse(r):null}
+
+async function uploadFile(file,transactionId){
+const path=`${transactionId}/${Date.now()}_${file.name}`;
+const res=await fetch(`${SUPABASE_URL}/storage/v1/object/justificatifs/${path}`,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`},body:file});
+if(!res.ok)throw new Error('Upload failed');
+return{storage_path:path,file_name:file.name,file_type:file.type,file_size:file.size};
+}
+
+async function init(){
+try{
+const profiles=await api('profile?select=*');
+if(profiles&&profiles.length>0){
+profile=profiles[0];
+Object.keys(profile).forEach(key=>{
+const el=document.getElementById(key);
+if(el)el.value=profile[key]||'';
+});
+updateExerciceSelect();
+}
+allTransactions=await api('transactions?select=*&order=date.desc')||[];
+transactions=allTransactions;
+recurrents=JSON.parse(localStorage.getItem('recurrents')||'[]');
+bankOps=JSON.parse(localStorage.getItem('bankOps')||'[]');
+displayTransactions();
+displayRecurrents();
+displayBankOps();
+updateStats();
+document.getElementById('loading').classList.add('hidden');
+document.getElementById('app').classList.remove('hidden');
+showMessage('✅ Connecté','success');
+updateCategories();
+checkRecurrents();
+}catch(error){
+document.getElementById('loading').innerHTML=`<div class="error">❌ ${error.message}</div>`;
+}
+}
+
+function updateExerciceSelect(){
+const select=document.getElementById('exerciceSelect');
+select.innerHTML='<option value="">Toutes les périodes</option>';
+if(profile&&profile.exercice_debut&&profile.exercice_fin){
+const debut=profile.exercice_debut;
+const fin=profile.exercice_fin;
+select.innerHTML+=`<option value="${debut}|${fin}">Exercice ${debut} - ${fin}</option>`;
+}
+}
+
+function filterByExercice(){
+const val=document.getElementById('exerciceSelect').value;
+if(!val){
+transactions=allTransactions;
+currentExercice='';
+}else{
+const[debut,fin]=val.split('|');
+transactions=allTransactions.filter(t=>t.date>=debut&&t.date<=fin);
+currentExercice=`${debut}_${fin}`;
+}
+displayTransactions();
+updateStats();
+}
+
+async function saveProfile(){
+const data={nom:document.getElementById('nom').value,prenom:document.getElementById('prenom').value,siret:document.getElementById('siret').value,rpps:document.getElementById('rpps').value,adeli:document.getElementById('adeli').value,num_urssaf:document.getElementById('num_urssaf').value,adresse:document.getElementById('adresse').value,code_postal:document.getElementById('code_postal').value,ville:document.getElementById('ville').value,telephone:document.getElementById('telephone').value,email:document.getElementById('email').value,comptable_cabinet:document.getElementById('comptable_cabinet').value,comptable_adresse:document.getElementById('comptable_adresse').value,comptable_tel:document.getElementById('comptable_tel').value,comptable_email:document.getElementById('comptable_email').value};
+try{
+if(profile){await api(`profile?id=eq.${profile.id}`,{method:'PATCH',body:JSON.stringify(data)})}
+else{profile=(await api('profile',{method:'POST',body:JSON.stringify(data)}))[0]}
+showMessage('✅ Profil enregistré','success');
+}catch(error){showMessage('❌ '+error.message,'error')}
+}
+
+async function saveExercice(){
+const data={exercice_debut:document.getElementById('exercice_debut').value,exercice_fin:document.getElementById('exercice_fin').value};
+try{
+await api(`profile?id=eq.${profile.id}`,{method:'PATCH',body:JSON.stringify(data)});
+profile={...profile,...data};
+updateExerciceSelect();
+showMessage('✅ Exercice enregistré','success');
+}catch(error){showMessage('❌ '+error.message,'error')}
+}
+
+async function addTransaction(){
+const data={date:document.getElementById('date').value,type:document.getElementById('type').value,category:document.getElementById('category').value,description:document.getElementById('description').value,amount:parseFloat(document.getElementById('amount').value),payment_method:document.getElementById('paymentMethod').value,has_attachments:attachedFiles.length>0,encaisse:false};
+try{
+const transaction=(await api('transactions',{method:'POST',body:JSON.stringify(data)}))[0];
+for(const file of attachedFiles){
+const fileData=await uploadFile(file,transaction.id);
+await api('attachments',{method:'POST',body:JSON.stringify({transaction_id:transaction.id,...fileData})});
+}
+allTransactions.unshift(transaction);
+transactions=allTransactions;
+displayTransactions();
+updateStats();
+document.getElementById('description').value='';
+document.getElementById('amount').value='';
+document.getElementById('filePreview').innerHTML='';
+attachedFiles=[];
+showMessage('✅ Opération ajoutée','success');
+}catch(error){showMessage('❌ '+error.message,'error')}
+}
+
+function previewFiles(){
+const files=document.getElementById('fileInput').files;
+attachedFiles=Array.from(files);
+const preview=document.getElementById('filePreview');
+preview.innerHTML='';
+attachedFiles.forEach(file=>{
+if(file.type.startsWith('image/')){
+const img=document.createElement('img');
+img.src=URL.createObjectURL(file);
+preview.appendChild(img);
+}else{
+const div=document.createElement('div');
+div.textContent=`📄 ${file.name}`;
+div.style.padding='0.5rem';
+preview.appendChild(div);
+}
+});
+}
+
+function updateCategories(){
+const type=document.getElementById('type').value;
+const select=document.getElementById('category');
+const recurSelect=document.getElementById('recurCategory');
+select.innerHTML=CATEGORIES[type].map(c=>`<option>${c}</option>`).join('');
+if(recurSelect)recurSelect.innerHTML=CATEGORIES.depense.map(c=>`<option>${c}</option>`).join('');
+}
+
+function displayTransactions(){
+const html=transactions.map(t=>`
+<div class="transaction ${t.type} ${t.encaisse?'encaisse':''}">
+<div class="transaction-actions">
+${t.type==='recette'&&!t.encaisse?`<button class="btn-success" onclick="marquerEncaisse('${t.id}')" style="margin-right:0.5rem;">✓ Encaisser</button>`:''}
+<button class="btn-danger" onclick="deleteTransaction('${t.id}')">🗑️</button>
+</div>
+<strong>${t.date}</strong> | ${t.category}<br>${t.description}<br>
+<span style="color:${t.type==='recette'?'#34A853':'#F28B82'};font-weight:bold;font-size:1.2rem;">${t.type==='recette'?'+':'-'}${fmt(t.amount)}</span> 
+${t.has_attachments?'📎':''}
+${t.encaisse?'<span style="color:#34A853;font-weight:bold;margin-left:1rem;">✓ Encaissé</span>':''}
+</div>
+`).join('');
+document.getElementById('transactions').innerHTML=html||'<p style="color:#999;">Aucune opération</p>';
+}
+
+async function marquerEncaisse(id){
+try{
+await api(`transactions?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({encaisse:true})});
+const t=allTransactions.find(t=>t.id===id);
+if(t){
+t.encaisse=true;
+bankOps.push({id,date:new Date().toISOString().split('T')[0],desc:t.description,amount:t.amount});
+localStorage.setItem('bankOps',JSON.stringify(bankOps));
+}
+displayTransactions();
+displayBankOps();
+updateStats();
+showMessage('✅ Marqué comme encaissé','success');
+}catch(error){showMessage('❌ '+error.message,'error')}
+}
+
+function displayBankOps(){
+const nonEnc=allTransactions.filter(t=>t.type==='recette'&&!t.encaisse);
+const html1=nonEnc.map(t=>`
+<div class="bank-operation">
+<div><strong>${t.date}</strong> - ${t.description}<br><small>${t.category}</small></div>
+<div style="text-align:right;">
+<strong style="color:#34A853;">${fmt(t.amount)}</strong><br>
+<button class="btn-success" onclick="marquerEncaisse('${t.id}')">✓ Encaisser</button>
+</div>
+</div>
+`).join('');
+document.getElementById('nonEncaisses').innerHTML=html1||'<p style="color:#999;">Tout est encaissé !</p>';
+
+const html2=bankOps.slice(0,10).map(op=>`
+<div class="bank-operation">
+<div><strong>${op.date}</strong> - ${op.desc}</div>
+<div><strong style="color:#34A853;">${fmt(op.amount)}</strong></div>
+</div>
+`).join('');
+document.getElementById('encaissements').innerHTML=html2||'<p style="color:#999;">Aucun encaissement</p>';
+
+const solde=bankOps.reduce((s,op)=>s+op.amount,0);
+document.getElementById('soldeBanque').textContent=fmt(solde);
+}
+
+function addRecurrent(){
+const recur={
+category:document.getElementById('recurCategory').value,
+description:document.getElementById('recurDescription').value,
+amount:parseFloat(document.getElementById('recurAmount').value),
+day:parseInt(document.getElementById('recurDay').value)
+};
+recurrents.push(recur);
+localStorage.setItem('recurrents',JSON.stringify(recurrents));
+document.getElementById('recurDescription').value='';
+document.getElementById('recurAmount').value='';
+document.getElementById('recurDay').value='';
+displayRecurrents();
+showMessage('✅ Récurrence ajoutée','success');
+}
+
+function displayRecurrents(){
+const html=recurrents.map((r,i)=>`
+<div class="recurrent-item">
+<div><strong>${r.description}</strong><br>
+<small>${r.category} - ${fmt(r.amount)} - Jour ${r.day} du mois</small></div>
+<button class="btn-danger" onclick="deleteRecurrent(${i})">🗑️</button>
+</div>
+`).join('');
+document.getElementById('recurrentsList').innerHTML=html||'<p style="color:#999;">Aucune récurrence</p>';
+}
+
+function deleteRecurrent(i){
+recurrents.splice(i,1);
+localStorage.setItem('recurrents',JSON.stringify(recurrents));
+displayRecurrents();
+showMessage('✅ Récurrence supprimée','success');
+}
+
+async function checkRecurrents(){
+const today=new Date();
+const day=today.getDate();
+for(const r of recurrents){
+if(r.day===day){
+const thisMonth=today.toISOString().substring(0,7);
+const exists=allTransactions.some(t=>t.description===r.description&&t.date.startsWith(thisMonth));
+if(!exists){
+const data={date:today.toISOString().split('T')[0],type:'depense',category:r.category,description:r.description,amount:r.amount,payment_method:'Virement',has_attachments:false};
+try{
+const transaction=(await api('transactions',{method:'POST',body:JSON.stringify(data)}))[0];
+allTransactions.unshift(transaction);
+transactions=allTransactions;
+displayTransactions();
+updateStats();
+showMessage(`✅ Dépense automatique: ${r.description}`,'success');
+}catch(error){console.error(error)}
+}
+}
+}
+}
+
+async function deleteTransaction(id){
+if(!confirm('Supprimer ?'))return;
+try{
+await api(`transactions?id=eq.${id}`,{method:'DELETE'});
+allTransactions=allTransactions.filter(t=>t.id!==id);
+transactions=allTransactions;
+displayTransactions();
+updateStats();
+showMessage('✅ Supprimé','success');
+}catch(error){showMessage('❌ '+error.message,'error')}
+}
+
+function updateStats(){
+const recettes=transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0);
+const depenses=transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0);
+document.getElementById('statRecettes').textContent=fmt(recettes);
+document.getElementById('statDepenses').textContent=fmt(depenses);
+document.getElementById('statBalance').textContent=fmt(recettes-depenses);
+document.getElementById('statNb').textContent=transactions.length;
+updateChart();
+}
+
+function updateChart(){
+const ctx=document.getElementById('chart');
+if(window.myChart)window.myChart.destroy();
+const months={};
+transactions.forEach(t=>{
+const month=t.date.substring(0,7);
+if(!months[month])months[month]={recettes:0,depenses:0};
+if(t.type==='recette')months[month].recettes+=t.amount;
+else months[month].depenses+=t.amount;
+});
+const labels=Object.keys(months).sort();
+const recettes=labels.map(m=>months[m].recettes);
+const depenses=labels.map(m=>months[m].depenses);
+window.myChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Recettes',data:recettes,backgroundColor:'#34A853'},{label:'Dépenses',data:depenses,backgroundColor:'#F28B82'}]},options:{responsive:true,maintainAspectRatio:true}});
+}
+
+function exportFECPro(){
+const wb=XLSX.utils.book_new();
+const data=[['JournalCode','JournalLib','EcritureNum','EcritureDate','CompteNum','CompteLib','CompAuxNum','CompAuxLib','PieceRef','PieceDate','EcritureLib','Debit','Credit','EcritureLet','DateLet','ValidDate','Montantdevise','Idevise']];
+transactions.forEach((t,i)=>{
+const compte=PLAN_COMPTABLE[t.category]||'708000';
+const montant=t.amount.toFixed(2);
+const date=t.date.replace(/-/g,'');
+if(t.type==='recette'){
+data.push(['VE','Ventes',i+1,date,compte,t.category,'','',t.id,date,t.description,montant,'0','','','','','']);
+data.push(['VE','Ventes',i+1,date,'411000','Clients','','',t.id,date,t.description,'0',montant,'','','','','']);
+}else{
+data.push(['AC','Achats',i+1,date,compte,t.category,'','',t.id,date,t.description,montant,'0','','','','','']);
+data.push(['AC','Achats',i+1,date,'401000','Fournisseurs','','',t.id,date,t.description,'0',montant,'','','','','']);
+}
+});
+const ws=XLSX.utils.aoa_to_sheet(data);
+ws['!cols']=[{wch:10},{wch:15},{wch:10},{wch:10},{wch:10},{wch:25},{wch:10},{wch:15},{wch:15},{wch:10},{wch:30},{wch:12},{wch:12},{wch:5},{wch:10},{wch:10},{wch:10},{wch:5}];
+XLSX.utils.book_append_sheet(wb,ws,'FEC');
+const filename=currentExercice?`FEC_${currentExercice}.xlsx`:`FEC_${new Date().toISOString().split('T')[0]}.xlsx`;
+XLSX.writeFile(wb,filename);
+showMessage('✅ FEC professionnel téléchargé','success');
+}
+
+function exportGrandLivrePro(){
+const wb=XLSX.utils.book_new();
+const comptes={};
+transactions.forEach(t=>{
+const compte=PLAN_COMPTABLE[t.category]||'708000';
+if(!comptes[compte])comptes[compte]={lib:t.category,ops:[]};
+comptes[compte].ops.push({date:t.date,lib:t.description,debit:t.type==='depense'?t.amount:0,credit:t.type==='recette'?t.amount:0});
+});
+Object.keys(comptes).sort().forEach(num=>{
+const c=comptes[num];
+const data=[[`COMPTE ${num} - ${c.lib.toUpperCase()}`],[],['Date','Libellé','Débit','Crédit','Solde']];
+let solde=0;
+c.ops.forEach(op=>{
+solde+=op.credit-op.debit;
+data.push([op.date,op.lib,op.debit?op.debit.toFixed(2):'',op.credit?op.credit.toFixed(2):'',solde.toFixed(2)]);
+});
+data.push([],[`SOLDE FINAL: ${solde.toFixed(2)} €`]);
+const ws=XLSX.utils.aoa_to_sheet(data);
+ws['!cols']=[{wch:12},{wch:40},{wch:15},{wch:15},{wch:15}];
+const range=XLSX.utils.decode_range(ws['!ref']);
+for(let R=0;R<=range.e.r;R++){
+for(let C=0;C<=range.e.c;C++){
+const cell_address={c:C,r:R};
+const cell_ref=XLSX.utils.encode_cell(cell_address);
+if(!ws[cell_ref])continue;
+if(R===0||R===2||R===range.e.r-1){ws[cell_ref].s={font:{bold:true},fill:{fgColor:{rgb:"34A853"}},alignment:{horizontal:"center"}}}
+if(R>2&&R<range.e.r-1&&(C===2||C===3||C===4)){ws[cell_ref].z='#,##0.00 "€"'}
+}
+}
+XLSX.utils.book_append_sheet(wb,ws,num.substring(0,30));
+});
+const filename=currentExercice?`GrandLivre_${currentExercice}.xlsx`:`GrandLivre_${new Date().toISOString().split('T')[0]}.xlsx`;
+XLSX.writeFile(wb,filename);
+showMessage('✅ Grand livre professionnel téléchargé','success');
+}
+
+function exportBalancePro(){
+const data=[['N° Compte','Libellé','Total Débit','Total Crédit','Solde']];
+const comptes={};
+transactions.forEach(t=>{
+const compte=PLAN_COMPTABLE[t.category]||'708000';
+if(!comptes[compte])comptes[compte]={lib:t.category,debit:0,credit:0};
+if(t.type==='depense')comptes[compte].debit+=t.amount;
+else comptes[compte].credit+=t.amount;
+});
+Object.keys(comptes).sort().forEach(num=>{
+const c=comptes[num];
+const solde=c.credit-c.debit;
+data.push([num,c.lib,c.debit.toFixed(2),c.credit.toFixed(2),solde.toFixed(2)]);
+});
+const totD=Object.values(comptes).reduce((s,c)=>s+c.debit,0);
+const totC=Object.values(comptes).reduce((s,c)=>s+c.credit,0);
+data.push(['','TOTAUX',totD.toFixed(2),totC.toFixed(2),(totC-totD).toFixed(2)]);
+const ws=XLSX.utils.aoa_to_sheet(data);
+ws['!cols']=[{wch:12},{wch:30},{wch:18},{wch:18},{wch:18}];
+const range=XLSX.utils.decode_range(ws['!ref']);
+for(let R=0;R<=range.e.r;R++){
+for(let C=0;C<=range.e.c;C++){
+const cell_address={c:C,r:R};
+const cell_ref=XLSX.utils.encode_cell(cell_address);
+if(!ws[cell_ref])continue;
+if(R===0||R===range.e.r){ws[cell_ref].s={font:{bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"0A7373"}},alignment:{horizontal:"center"}}}
+if(R>0&&(C===2||C===3||C===4)){ws[cell_ref].z='#,##0.00 "€"'}
+}
+}
+const wb=XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb,ws,'Balance');
+const filename=currentExercice?`Balance_${currentExercice}.xlsx`:`Balance_${new Date().toISOString().split('T')[0]}.xlsx`;
+XLSX.writeFile(wb,filename);
+showMessage('✅ Balance professionnelle téléchargée','success');
+}
+
+function exportCompletComptable(){
+showMessage('⏳ Génération du dossier comptable...','warning');
+const wb=XLSX.utils.book_new();
+const periode=currentExercice?currentExercice.replace('_',' au '):`Période complète`;
+
+// ONGLET 1: RÉSUMÉ
+const resume=[
+['DOSSIER COMPTABLE IDEL'],
+[profile?`${profile.prenom} ${profile.nom}`:''],
+[profile?`SIRET: ${profile.siret}`:''],
+[`Période: ${periode}`],
+[],
+['SYNTHÈSE'],
+['Total Recettes',transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0).toFixed(2)+' €'],
+['Total Dépenses',transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0).toFixed(2)+' €'],
+['Balance',(transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0)-transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0)).toFixed(2)+' €'],
+['Nombre d\'opérations',transactions.length],
+[],
+['CONTENU DU DOSSIER'],
+['- Balance des comptes'],
+['- Grand Livre détaillé'],
+['- Fichier FEC (norme fiscale)'],
+['- Justificatifs (fichier ZIP séparé)']
+];
+const wsResume=XLSX.utils.aoa_to_sheet(resume);
+wsResume['!cols']=[{wch:30},{wch:20}];
+XLSX.utils.book_append_sheet(wb,wsResume,'Résumé');
+
+// ONGLET 2: BALANCE
+const dataBalance=[['N° Compte','Libellé','Total Débit','Total Crédit','Solde']];
+const comptes={};
+transactions.forEach(t=>{
+const compte=PLAN_COMPTABLE[t.category]||'708000';
+if(!comptes[compte])comptes[compte]={lib:t.category,debit:0,credit:0};
+if(t.type==='depense')comptes[compte].debit+=t.amount;
+else comptes[compte].credit+=t.amount;
+});
+Object.keys(comptes).sort().forEach(num=>{
+const c=comptes[num];
+const solde=c.credit-c.debit;
+dataBalance.push([num,c.lib,c.debit.toFixed(2),c.credit.toFixed(2),solde.toFixed(2)]);
+});
+const totD=Object.values(comptes).reduce((s,c)=>s+c.debit,0);
+const totC=Object.values(comptes).reduce((s,c)=>s+c.credit,0);
+dataBalance.push(['','TOTAUX',totD.toFixed(2),totC.toFixed(2),(totC-totD).toFixed(2)]);
+const wsBalance=XLSX.utils.aoa_to_sheet(dataBalance);
+wsBalance['!cols']=[{wch:12},{wch:30},{wch:18},{wch:18},{wch:18}];
+XLSX.utils.book_append_sheet(wb,wsBalance,'Balance');
+
+// ONGLETS 3+: GRAND LIVRE (un onglet par compte)
+const comptesGL={};
+transactions.forEach(t=>{
+const compte=PLAN_COMPTABLE[t.category]||'708000';
+if(!comptesGL[compte])comptesGL[compte]={lib:t.category,ops:[]};
+comptesGL[compte].ops.push({date:t.date,lib:t.description,debit:t.type==='depense'?t.amount:0,credit:t.type==='recette'?t.amount:0});
+});
+Object.keys(comptesGL).sort().forEach(num=>{
+const c=comptesGL[num];
+const data=[[`COMPTE ${num} - ${c.lib.toUpperCase()}`],[],['Date','Libellé','Débit','Crédit','Solde']];
+let solde=0;
+c.ops.forEach(op=>{
+solde+=op.credit-op.debit;
+data.push([op.date,op.lib,op.debit?op.debit.toFixed(2):'',op.credit?op.credit.toFixed(2):'',solde.toFixed(2)]);
+});
+data.push([],[`SOLDE FINAL: ${solde.toFixed(2)} €`]);
+const ws=XLSX.utils.aoa_to_sheet(data);
+ws['!cols']=[{wch:12},{wch:40},{wch:15},{wch:15},{wch:15}];
+XLSX.utils.book_append_sheet(wb,ws,`GL_${num}`.substring(0,31));
+});
+
+// ONGLET FINAL: FEC
+const dataFEC=[['JournalCode','JournalLib','EcritureNum','EcritureDate','CompteNum','CompteLib','CompAuxNum','CompAuxLib','PieceRef','PieceDate','EcritureLib','Debit','Credit','EcritureLet','DateLet','ValidDate','Montantdevise','Idevise']];
+transactions.forEach((t,i)=>{
+const compte=PLAN_COMPTABLE[t.category]||'708000';
+const montant=t.amount.toFixed(2);
+const date=t.date.replace(/-/g,'');
+if(t.type==='recette'){
+dataFEC.push(['VE','Ventes',i+1,date,compte,t.category,'','',t.id,date,t.description,montant,'0','','','','','']);
+dataFEC.push(['VE','Ventes',i+1,date,'411000','Clients','','',t.id,date,t.description,'0',montant,'','','','','']);
+}else{
+dataFEC.push(['AC','Achats',i+1,date,compte,t.category,'','',t.id,date,t.description,montant,'0','','','','','']);
+dataFEC.push(['AC','Achats',i+1,date,'401000','Fournisseurs','','',t.id,date,t.description,'0',montant,'','','','','']);
+}
+});
+const wsFEC=XLSX.utils.aoa_to_sheet(dataFEC);
+wsFEC['!cols']=[{wch:10},{wch:15},{wch:10},{wch:10},{wch:10},{wch:25},{wch:10},{wch:15},{wch:15},{wch:10},{wch:30},{wch:12},{wch:12},{wch:5},{wch:10},{wch:10},{wch:10},{wch:5}];
+XLSX.utils.book_append_sheet(wb,wsFEC,'FEC');
+
+const filename=currentExercice?`Comptabilite_${currentExercice}.xlsx`:`Comptabilite_${new Date().toISOString().split('T')[0]}.xlsx`;
+XLSX.writeFile(wb,filename);
+showMessage('✅ Dossier comptable complet téléchargé','success');
+return filename;
+}
+
+async function preparerEnvoiComptable(){
+showMessage('⏳ Préparation de l\'envoi...','warning');
+try{
+// Générer le fichier Excel
+const excelFilename=exportCompletComptable();
+
+// Générer le ZIP (en arrière-plan)
+const zipGenerated=await generateZipInBackground();
+
+// Préparer l'email
+const periode=currentExercice?currentExercice.replace('_',' au '):`toute la période`;
+const nom=profile?`${profile.prenom} ${profile.nom}`:'';
+const siret=profile?profile.siret:'';
+const emailComptable=profile?.comptable_email||'';
+const cabinetComptable=profile?.comptable_cabinet||'Cabinet comptable';
+
+const emailBody=`Bonjour,
+
+Veuillez trouver ci-joint les documents comptables pour ${periode}.
+
+DOCUMENTS JOINTS :
+✅ ${excelFilename} - Dossier comptable complet
+   (Balance + Grand Livre + FEC)
+✅ Justificatifs_${currentExercice||'complet'}.zip - Toutes les pièces justificatives
+
+DÉTAILS :
+- Professionnel : ${nom}
+- SIRET : ${siret}
+- Période : ${periode}
+- Nombre d'opérations : ${transactions.length}
+
+Les fichiers sont prêts à être joints à cet email.
+
+Cordialement,
+${nom}`;
+
+const emailSubject=`Comptabilité IDEL - ${periode}`;
+
+// Afficher le modal avec l'email pré-rempli
+document.getElementById('emailContent').innerHTML=`
+<div style="background:#f9f9f9;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<p style="margin-bottom:0.5rem;"><strong>📎 Fichiers générés :</strong></p>
+<p style="margin:0.25rem 0;color:#34A853;">✅ ${excelFilename}</p>
+${zipGenerated?'<p style="margin:0.25rem 0;color:#34A853;">✅ Justificatifs_'+(currentExercice||'complet')+'.zip</p>':'<p style="margin:0.25rem 0;color:#F28B82;">⏳ ZIP en cours de génération...</p>'}
+</div>
+
+<div style="margin-bottom:1rem;">
+<label style="font-weight:600;display:block;margin-bottom:0.5rem;">Destinataire :</label>
+<input type="email" id="emailTo" value="${emailComptable}" placeholder="comptable@exemple.fr" style="width:100%;padding:0.75rem;border:1px solid #ddd;border-radius:8px;">
+</div>
+
+<div style="margin-bottom:1rem;">
+<label style="font-weight:600;display:block;margin-bottom:0.5rem;">Sujet :</label>
+<input type="text" id="emailSubject" value="${emailSubject}" style="width:100%;padding:0.75rem;border:1px solid #ddd;border-radius:8px;">
+</div>
+
+<div style="margin-bottom:1rem;">
+<label style="font-weight:600;display:block;margin-bottom:0.5rem;">Message :</label>
+<textarea id="emailBody" rows="12" style="width:100%;font-family:monospace;font-size:0.9rem;padding:0.75rem;border:1px solid #ddd;border-radius:8px;">${emailBody}</textarea>
+</div>
+
+<div style="background:#fff3cd;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<p style="margin:0;"><strong>⚠️ Important :</strong> Les fichiers ont été téléchargés. Vous devez les joindre manuellement à votre email.</p>
+</div>
+
+<button class="btn btn-primary" onclick="ouvrirEmail()" style="width:100%;">📧 Ouvrir mon client email</button>
+<button class="btn btn-secondary" onclick="copierEmail()" style="width:100%;margin-top:0.5rem;">📋 Copier le message</button>
+`;
+
+document.getElementById('emailModal').classList.add('show');
+showMessage('✅ Email préparé ! Joignez les fichiers téléchargés.','success');
+}catch(error){
+showMessage('❌ '+error.message,'error');
+}
+}
+
+async function generateZipInBackground(){
+try{
+const transWithFiles=transactions.filter(t=>t.has_attachments);
+if(transWithFiles.length===0)return false;
+const transIds=transWithFiles.map(t=>t.id);
+const allAttachments=await api('attachments?select=*');
+const attachments=allAttachments.filter(att=>transIds.includes(att.transaction_id));
+if(!attachments||attachments.length===0)return false;
+const zip=new JSZip();
+let added=0;
+for(const att of attachments){
+try{
+const url=`${SUPABASE_URL}/storage/v1/object/public/justificatifs/${att.storage_path}`;
+const response=await fetch(url);
+if(response.ok){
+const blob=await response.blob();
+zip.file(att.file_name,blob);
+added++;
+}
+}catch(err){console.error(err)}
+}
+if(added===0)return false;
+const content=await zip.generateAsync({type:'blob'});
+const link=document.createElement('a');
+link.href=URL.createObjectURL(content);
+const filename=currentExercice?`Justificatifs_${currentExercice}.zip`:`Justificatifs_${new Date().toISOString().split('T')[0]}.zip`;
+link.download=filename;
+link.click();
+return true;
+}catch(error){
+console.error(error);
+return false;
+}
+}
+
+function ouvrirEmail(){
+const to=document.getElementById('emailTo').value;
+const subject=encodeURIComponent(document.getElementById('emailSubject').value);
+const body=encodeURIComponent(document.getElementById('emailBody').value);
+window.location.href=`mailto:${to}?subject=${subject}&body=${body}`;
+}
+
+function copierEmail(){
+const text=document.getElementById('emailBody').value;
+navigator.clipboard.writeText(text).then(()=>{
+showMessage('✅ Message copié !','success');
+});
+}
+
+function closeEmailModal(){
+document.getElementById('emailModal').classList.remove('show');
+}
+
+async function exportJustificatifs(){
+showMessage('⏳ Préparation du ZIP...','warning');
+try{
+console.log('=== DEBUG EXPORT ZIP ===');
+console.log('1. Transactions affichées:',transactions.length);
+console.log('2. Transactions complètes:',transactions.map(t=>({id:t.id,date:t.date,desc:t.description,hasFiles:t.has_attachments})));
+
+const transWithFiles=transactions.filter(t=>t.has_attachments);
+console.log('3. Transactions AVEC fichiers:',transWithFiles.length,transWithFiles);
+
+if(transWithFiles.length===0){
+showMessage('❌ Aucune opération avec justificatif dans cette période','error');
+console.log('ERREUR: Aucune transaction n a has_attachments=true');
+return;
+}
+
+const transIds=transWithFiles.map(t=>t.id);
+console.log('4. IDs des transactions:',transIds);
+
+const allAttachments=await api('attachments?select=*');
+console.log('5. TOUS les attachments en base:',allAttachments.length,allAttachments);
+
+const attachments=allAttachments.filter(att=>transIds.includes(att.transaction_id));
+console.log('6. Attachments filtrés pour cette période:',attachments.length,attachments);
+
+if(!attachments||attachments.length===0){
+showMessage('❌ Aucun fichier trouvé pour cette période','error');
+console.log('ERREUR: Attachments existent mais transaction_id ne correspond pas');
+return;
+}
+
+const zip=new JSZip();
+let added=0;
+for(const att of attachments){
+console.log('7. Téléchargement:',att.file_name,'depuis',att.storage_path);
+try{
+const url=`${SUPABASE_URL}/storage/v1/object/public/justificatifs/${att.storage_path}`;
+console.log('URL:',url);
+const response=await fetch(url);
+console.log('Response status:',response.status,response.ok);
+if(response.ok){
+const blob=await response.blob();
+console.log('Blob size:',blob.size);
+zip.file(att.file_name,blob);
+added++;
+console.log('✓ Fichier ajouté:',att.file_name);
+}else{
+console.log('✗ Erreur HTTP:',response.status);
+}
+}catch(err){
+console.error('✗ Erreur téléchargement:',att.file_name,err);
+}
+}
+
+console.log('8. Total fichiers ajoutés au ZIP:',added);
+
+if(added===0){
+showMessage('❌ Aucun fichier n a pu être téléchargé','error');
+return;
+}
+
+const content=await zip.generateAsync({type:'blob'});
+console.log('9. ZIP généré, taille:',content.size);
+const link=document.createElement('a');
+link.href=URL.createObjectURL(content);
+const filename=currentExercice?`Justificatifs_${currentExercice}.zip`:`Justificatifs_${new Date().toISOString().split('T')[0]}.zip`;
+link.download=filename;
+link.click();
+showMessage(`✅ ZIP téléchargé (${added} fichiers sur ${attachments.length})`,'success');
+console.log('=== FIN DEBUG ===');
+}catch(error){
+console.error('ERREUR FATALE:',error);
+showMessage('❌ Erreur: '+error.message,'error');
+}
+}
+
+function openAIScan(){document.getElementById('aiModal').classList.add('show')}
+function closeAIScan(){document.getElementById('aiModal').classList.remove('show');document.getElementById('aiResult').innerHTML=''}
+
+async function analyzeWithAI(){
+const file=document.getElementById('aiInput').files[0];
+if(!file)return;
+if(!file.type.startsWith('image/')){showMessage('❌ Images uniquement','error');return}
+document.getElementById('aiResult').innerHTML='<p>🤖 Analyse...</p>';
+try{
+const reader=new FileReader();
+reader.onload=async(e)=>{
+try{
+const base64=e.target.result.split(',')[1];
+const response=await fetch('https://api.anthropic.com/v1/messages',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+model:'claude-sonnet-4-20250514',
+max_tokens:1000,
+messages:[{role:'user',content:[
+{type:'image',source:{type:'base64',media_type:file.type,data:base64}},
+{type:'text',text:'Analyse cette facture: date (YYYY-MM-DD), montant TTC, catégorie (Carburant/Fournitures médicales/Téléphone/Assurance/Formation/Comptable/Entretien véhicule/Loyer/Autres), description. JSON: {"date":"","amount":0,"category":"","description":""}'}
+]}]
+})
+});
+const data=await response.json();
+const result=JSON.parse(data.content[0].text);
+document.getElementById('date').value=result.date;
+document.getElementById('amount').value=result.amount;
+document.getElementById('type').value='depense';
+updateCategories();
+document.getElementById('category').value=result.category;
+document.getElementById('description').value=result.description;
+closeAIScan();
+showTab('operations');
+showMessage('✅ Analysé !','success');
+}catch(err){document.getElementById('aiResult').innerHTML=`<div class="error">❌ ${err.message}</div>`}
+};
+reader.readAsDataURL(file);
+}catch(error){document.getElementById('aiResult').innerHTML=`<div class="error">❌ ${error.message}</div>`}
+}
+
+async function uploadSocialDoc(){
+const file=document.getElementById('docInput').files[0];
+if(!file)return;
+try{
+const category=document.getElementById('docCategory').value;
+const name=document.getElementById('docName').value||file.name;
+const path=`social/${Date.now()}_${file.name}`;
+await fetch(`${SUPABASE_URL}/storage/v1/object/justificatifs/${path}`,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`},body:file});
+socialDocs.push({name,category,path});
+document.getElementById('docName').value='';
+showMessage('✅ Document ajouté','success');
+displayDocs();
+}catch(error){showMessage('❌ '+error.message,'error')}
+}
+
+function displayDocs(){
+const html=socialDocs.map((d,i)=>`
+<div class="doc-item">
+<div><strong>${d.name}</strong><br><small>${d.category}</small></div>
+<button class="btn-secondary" onclick="downloadDoc(${i})">📥</button>
+</div>
+`).join('');
+document.getElementById('docsList').innerHTML=html||'<p style="color:#999;">Aucun document</p>';
+}
+
+function downloadDoc(i){
+window.open(`${SUPABASE_URL}/storage/v1/object/public/justificatifs/${socialDocs[i].path}`);
+}
+
+function showTab(name){
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
+event.target.classList.add('active');
+document.getElementById(`tab-${name}`).classList.remove('hidden');
+}
+
+function showMessage(msg,type){
+const div=document.createElement('div');
+div.className=`message ${type}`;
+div.textContent=msg;
+document.getElementById('messages').appendChild(div);
+setTimeout(()=>div.remove(),3000);
+}
+
+document.getElementById('date').value=new Date().toISOString().split('T')[0];
+init();
+</script>
+</body>
+</html>
