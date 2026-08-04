@@ -240,23 +240,27 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 
 <!-- URSSAF -->
 <div class="card" style="border-left:4px solid #1976D2;margin:0;">
-<h3 style="color:#1976D2;margin-bottom:1rem;">🏛️ URSSAF</h3>
+<h3 style="color:#1976D2;margin-bottom:1rem;">🏛️ URSSAF <small style="font-weight:400;font-size:0.85rem;">(Micro-entreprise BNC)</small></h3>
 <div style="display:grid;gap:0.5rem;">
-<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Maladie-maternité <small style="color:#999;">(6,5% × R)</small></span>
-<strong id="sim_maladie">0,00 €</strong>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#e3f2fd;border-radius:4px;">
+<span>Chiffre d'affaires</span>
+<strong id="sim_ca">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Allocations familiales <small style="color:#999;">(3,1% × R)</small></span>
-<strong id="sim_af">0,00 €</strong>
+<span>Abattement forfaitaire</span>
+<strong id="sim_abattement">0,00 € (34%)</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Invalidité-décès <small style="color:#999;">(0,3% × R)</small></span>
-<strong id="sim_invalidite">0,00 €</strong>
+<span>Base imposable <small style="color:#999;">(CA × 66%)</small></span>
+<strong id="sim_base_imposable">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Formation professionnelle <small style="color:#999;">(0,25% × R)</small></span>
-<strong id="sim_formation">0,00 €</strong>
+<span>Cotisations sociales <small style="color:#999;">(23,1% × CA)</small></span>
+<strong id="sim_urssaf_taux">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Formation professionnelle <small style="color:#999;">(0,2% × CA)</small></span>
+<strong id="sim_cfp">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.75rem;background:#1976D2;color:white;border-radius:4px;margin-top:0.25rem;">
 <span><strong>TOTAL URSSAF</strong></span>
@@ -1168,44 +1172,51 @@ calculerCharges();
 }
 
 function calculerCharges(){
-const R=parseFloat(document.getElementById('simRecettes').value)||0;
+const CA=parseFloat(document.getElementById('simRecettes').value)||0;
 const fmt=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 
-// URSSAF
-const maladie=R*0.065;
-const af=R*0.031;
-const invalidite=R*0.003;
-const formation=R*0.0025;
-const urssaf_total=maladie+af+invalidite+formation;
+// MICRO-ENTREPRISE BNC
+// Abattement forfaitaire 34%
+const abattement=CA*0.34;
+const base_imposable=CA*0.66;
+
+// URSSAF micro-entreprise BNC libéral : 23,1% sur CA
+const urssaf_total=CA*0.231;
+const cfp=CA*0.002; // Formation pro
+const urssaf_avec_cfp=urssaf_total+cfp;
 
 // CARPIMKO - taux réels 2026
-const plafond=47253; // Plafond SS 2026
-const retraite_base_t1=Math.min(R,plafond)*0.0877; // Tranche 1 : 8,77%
-const retraite_base_t2=Math.min(R,plafond)*0.0187; // Tranche 2 : 1,87%
-const retraite_comp=Math.min(R,34033)*0.0870;       // Complémentaire : 8,70%
-const avantage_social=224;                           // Forfait ASV
-const cot_prop=Math.min(R,13913)*0.004;             // Proportionnelle : 0,40%
-const inv_deces=1022;                                // Forfait invalidité-décès
+const plafond=47253;
+const retraite_base_t1=Math.min(CA,plafond)*0.0877;
+const retraite_base_t2=Math.min(CA,plafond)*0.0187;
+const retraite_comp=Math.min(CA,34033)*0.0870;
+const avantage_social=224;
+const cot_prop=Math.min(CA,13913)*0.004;
+const inv_deces=1022;
 const carpimko_total=retraite_base_t1+retraite_base_t2+retraite_comp+avantage_social+cot_prop+inv_deces;
 
-// CSG/CRDS
-const base_csg=R*0.9825;
+// CSG/CRDS sur base micro (CA × 98,25%)
+const base_csg=CA*0.9825;
 const csg_ded=base_csg*0.068;
 const csg_nded=base_csg*0.024;
 const crds=base_csg*0.005;
 const csg_total=csg_ded+csg_nded+crds;
 
+// Impôt sur le revenu (estimation sur base abattue)
+const ir_base=base_imposable;
+
 // TOTAL
-const total=urssaf_total+carpimko_total+csg_total;
-const net=R-total;
-const taux=R>0?(total/R*100).toFixed(1):0;
+const total=urssaf_avec_cfp+carpimko_total+csg_total;
+const net=CA-total;
+const taux=CA>0?(total/CA*100).toFixed(1):0;
 
 // Mise à jour URSSAF
-document.getElementById('sim_maladie').textContent=fmt(maladie);
-document.getElementById('sim_af').textContent=fmt(af);
-document.getElementById('sim_invalidite').textContent=fmt(invalidite);
-document.getElementById('sim_formation').textContent=fmt(formation);
-document.getElementById('sim_urssaf_total').textContent=fmt(urssaf_total);
+document.getElementById('sim_ca').textContent=fmt(CA);
+document.getElementById('sim_abattement').textContent=fmt(abattement)+' (34%)';
+document.getElementById('sim_base_imposable').textContent=fmt(base_imposable);
+document.getElementById('sim_urssaf_taux').textContent=fmt(urssaf_total);
+document.getElementById('sim_cfp').textContent=fmt(cfp);
+document.getElementById('sim_urssaf_total').textContent=fmt(urssaf_avec_cfp);
 
 // Mise à jour CARPIMKO
 document.getElementById('sim_retraite_base').textContent=fmt(retraite_base_t1+retraite_base_t2);
@@ -1222,8 +1233,8 @@ document.getElementById('sim_crds').textContent=fmt(crds);
 document.getElementById('sim_csg_total').textContent=fmt(csg_total);
 
 // Mise à jour récapitulatif
-document.getElementById('sim_recap_recettes').textContent=fmt(R);
-document.getElementById('sim_recap_urssaf').textContent=fmt(urssaf_total);
+document.getElementById('sim_recap_recettes').textContent=fmt(CA);
+document.getElementById('sim_recap_urssaf').textContent=fmt(urssaf_avec_cfp);
 document.getElementById('sim_recap_carpimko').textContent=fmt(carpimko_total);
 document.getElementById('sim_recap_csg').textContent=fmt(csg_total);
 document.getElementById('sim_total_charges').textContent=fmt(total);
