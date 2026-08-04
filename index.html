@@ -270,20 +270,20 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 <h3 style="color:#7B1FA2;margin-bottom:1rem;">🏥 CARPIMKO</h3>
 <div style="display:grid;gap:0.5rem;">
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Retraite de base <small style="color:#999;">(8,23% × R plafonné)</small></span>
+<span>Retraite de base <small style="color:#999;">(T1: 8,77% + T2: 1,87% plafonné 47 253€)</small></span>
 <strong id="sim_retraite_base">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Retraite complémentaire <small style="color:#999;">(10% × R)</small></span>
+<span>Retraite complémentaire <small style="color:#999;">(8,70% plafonné 34 033€)</small></span>
 <strong id="sim_retraite_comp">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Prévoyance complémentaire <small style="color:#999;">(forfait)</small></span>
-<strong id="sim_prevoyance">756,00 €</strong>
+<span>ASV + Cot. proportionnelle <small style="color:#999;">(224€ forfait + 0,40%)</small></span>
+<strong id="sim_prevoyance">224,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Invalidité-décès <small style="color:#999;">(forfait)</small></span>
-<strong id="sim_inv_deces">1 260,00 €</strong>
+<span>Invalidité-décès <small style="color:#999;">(forfait 2026)</small></span>
+<strong id="sim_inv_deces">1 022,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.75rem;background:#7B1FA2;color:white;border-radius:4px;margin-top:0.25rem;">
 <span><strong>TOTAL CARPIMKO</strong></span>
@@ -1178,13 +1178,15 @@ const invalidite=R*0.003;
 const formation=R*0.0025;
 const urssaf_total=maladie+af+invalidite+formation;
 
-// CARPIMKO - plafond SS 2026 = 46368€
-const plafond=46368;
-const retraite_base=Math.min(R,plafond)*0.0823;
-const retraite_comp=R*0.10;
-const prevoyance=756;
-const inv_deces=1260;
-const carpimko_total=retraite_base+retraite_comp+prevoyance+inv_deces;
+// CARPIMKO - taux réels 2026
+const plafond=47253; // Plafond SS 2026
+const retraite_base_t1=Math.min(R,plafond)*0.0877; // Tranche 1 : 8,77%
+const retraite_base_t2=Math.min(R,plafond)*0.0187; // Tranche 2 : 1,87%
+const retraite_comp=Math.min(R,34033)*0.0870;       // Complémentaire : 8,70%
+const avantage_social=224;                           // Forfait ASV
+const cot_prop=Math.min(R,13913)*0.004;             // Proportionnelle : 0,40%
+const inv_deces=1022;                                // Forfait invalidité-décès
+const carpimko_total=retraite_base_t1+retraite_base_t2+retraite_comp+avantage_social+cot_prop+inv_deces;
 
 // CSG/CRDS
 const base_csg=R*0.9825;
@@ -1206,9 +1208,9 @@ document.getElementById('sim_formation').textContent=fmt(formation);
 document.getElementById('sim_urssaf_total').textContent=fmt(urssaf_total);
 
 // Mise à jour CARPIMKO
-document.getElementById('sim_retraite_base').textContent=fmt(retraite_base);
+document.getElementById('sim_retraite_base').textContent=fmt(retraite_base_t1+retraite_base_t2);
 document.getElementById('sim_retraite_comp').textContent=fmt(retraite_comp);
-document.getElementById('sim_prevoyance').textContent=fmt(prevoyance);
+document.getElementById('sim_prevoyance').textContent=fmt(avantage_social+cot_prop);
 document.getElementById('sim_inv_deces').textContent=fmt(inv_deces);
 document.getElementById('sim_carpimko_total').textContent=fmt(carpimko_total);
 
