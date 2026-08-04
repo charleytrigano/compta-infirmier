@@ -243,8 +243,39 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 <script>
 const SUPABASE_URL='https://qfwhzuhwldurnmhirgil.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
-const CATEGORIES={recette:['Soins infirmiers','Actes techniques','Indemnités kilométriques','Remplacements','Forfaits','Autres recettes'],depense:['Carburant','Fournitures médicales','Téléphone/Internet','Assurance professionnelle','Formation','Comptable','Entretien véhicule','Loyer cabinet','Autres dépenses']};
-const PLAN_COMPTABLE={'Soins infirmiers':'706100','Actes techniques':'706200','Indemnités kilométriques':'706300','Remplacements':'706400','Forfaits':'706500','Autres recettes':'708000','Carburant':'606100','Fournitures médicales':'606200','Téléphone/Internet':'626000','Assurance professionnelle':'616000','Formation':'618500','Comptable':'622600','Entretien véhicule':'615500','Loyer cabinet':'613000','Autres dépenses':'628000'};
+const CATEGORIES={
+recette:['Soins infirmiers','Actes techniques','Indemnités kilométriques','Remplacements','Forfaits','Autres recettes'],
+depense:['CARPIMKO','URSSAF','Matmut (RC Pro)','Prévoyance','Mutuelle santé','Cotisation INFIRMIERS','CSG/CRDS','Autres charges sociales','Carburant','Fournitures médicales','Matériel médical','Téléphone/Internet','Assurance professionnelle','Formation','Comptable','Entretien véhicule','Loyer cabinet','Frais bancaires','Documentation','Frais postaux','Autres dépenses']
+};
+const PLAN_COMPTABLE={
+'Soins infirmiers':'706100',
+'Actes techniques':'706200',
+'Indemnités kilométriques':'706300',
+'Remplacements':'706400',
+'Forfaits':'706500',
+'Autres recettes':'708000',
+'Carburant':'606100',
+'Fournitures médicales':'606200',
+'Téléphone/Internet':'626000',
+'Assurance professionnelle':'616000',
+'Formation':'618500',
+'Comptable':'622600',
+'Entretien véhicule':'615500',
+'Loyer cabinet':'613000',
+'Frais bancaires':'627000',
+'Documentation':'618100',
+'Frais postaux':'626100',
+'Matériel médical':'606300',
+'CARPIMKO':'646100',
+'URSSAF':'646200',
+'Matmut (RC Pro)':'616100',
+'Prévoyance':'616200',
+'Mutuelle santé':'616300',
+'Cotisation INFIRMIERS':'646300',
+'CSG/CRDS':'646400',
+'Autres charges sociales':'646000',
+'Autres dépenses':'628000'
+};
 let profile=null,transactions=[],allTransactions=[],attachedFiles=[],socialDocs=[],currentExercice='',recurrents=[],bankOps=[];
 
 function fmt(n){return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'}
