@@ -80,6 +80,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 <button class="tab" onclick="showTab('recurrentes')">🔄 Récurrentes</button>
 <button class="tab" onclick="showTab('documents')">📑 Documents</button>
 <button class="tab" onclick="showTab('stats')">📊 Statistiques</button>
+<button class="tab" onclick="showTab('simulateur')">🧮 Simulateur</button>
 </div>
 
 <div id="tab-profil">
@@ -221,7 +222,143 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="aiModal" class="modal">
+<div id="tab-simulateur" class="hidden">
+<div class="card">
+<h2>🧮 Simulateur de charges sociales 2026</h2>
+<p style="color:#666;margin-bottom:1.5rem;">Calculez vos charges en fonction de vos recettes annuelles</p>
+
+<div style="background:#e8f5e9;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
+<label style="font-weight:700;font-size:1.1rem;display:block;margin-bottom:0.5rem;">💰 Recettes brutes annuelles :</label>
+<div style="display:flex;gap:1rem;align-items:center;">
+<input type="number" id="simRecettes" placeholder="Ex: 60000" style="flex:1;font-size:1.2rem;padding:0.75rem;" oninput="calculerCharges()">
+<span style="font-size:1.2rem;font-weight:700;">€</span>
+</div>
+<p style="margin-top:0.5rem;color:#666;font-size:0.85rem;">💡 Vos recettes actuelles : <span id="simRecettesAuto" style="color:#0A7373;font-weight:700;cursor:pointer;" onclick="importerRecettes()">Cliquez pour importer</span></p>
+</div>
+
+<div style="display:grid;gap:1rem;margin-bottom:1.5rem;">
+
+<!-- URSSAF -->
+<div class="card" style="border-left:4px solid #1976D2;margin:0;">
+<h3 style="color:#1976D2;margin-bottom:1rem;">🏛️ URSSAF</h3>
+<div style="display:grid;gap:0.5rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Maladie-maternité <small style="color:#999;">(6,5% × R)</small></span>
+<strong id="sim_maladie">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Allocations familiales <small style="color:#999;">(3,1% × R)</small></span>
+<strong id="sim_af">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Invalidité-décès <small style="color:#999;">(0,3% × R)</small></span>
+<strong id="sim_invalidite">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Formation professionnelle <small style="color:#999;">(0,25% × R)</small></span>
+<strong id="sim_formation">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#1976D2;color:white;border-radius:4px;margin-top:0.25rem;">
+<span><strong>TOTAL URSSAF</strong></span>
+<strong id="sim_urssaf_total">0,00 €</strong>
+</div>
+</div>
+</div>
+
+<!-- CARPIMKO -->
+<div class="card" style="border-left:4px solid #7B1FA2;margin:0;">
+<h3 style="color:#7B1FA2;margin-bottom:1rem;">🏥 CARPIMKO</h3>
+<div style="display:grid;gap:0.5rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Retraite de base <small style="color:#999;">(8,23% × R plafonné)</small></span>
+<strong id="sim_retraite_base">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Retraite complémentaire <small style="color:#999;">(10% × R)</small></span>
+<strong id="sim_retraite_comp">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Prévoyance complémentaire <small style="color:#999;">(forfait)</small></span>
+<strong id="sim_prevoyance">756,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Invalidité-décès <small style="color:#999;">(forfait)</small></span>
+<strong id="sim_inv_deces">1 260,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#7B1FA2;color:white;border-radius:4px;margin-top:0.25rem;">
+<span><strong>TOTAL CARPIMKO</strong></span>
+<strong id="sim_carpimko_total">0,00 €</strong>
+</div>
+</div>
+</div>
+
+<!-- CSG/CRDS -->
+<div class="card" style="border-left:4px solid #F57C00;margin:0;">
+<h3 style="color:#F57C00;margin-bottom:1rem;">📋 CSG / CRDS</h3>
+<div style="display:grid;gap:0.5rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Base de calcul <small style="color:#999;">(98,25% × R)</small></span>
+<strong id="sim_base_csg">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CSG déductible <small style="color:#999;">(6,8%)</small></span>
+<strong id="sim_csg_ded">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CSG non déductible <small style="color:#999;">(2,4%)</small></span>
+<strong id="sim_csg_nded">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CRDS <small style="color:#999;">(0,5%)</small></span>
+<strong id="sim_crds">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#F57C00;color:white;border-radius:4px;margin-top:0.25rem;">
+<span><strong>TOTAL CSG/CRDS</strong></span>
+<strong id="sim_csg_total">0,00 €</strong>
+</div>
+</div>
+</div>
+
+</div>
+
+<!-- RÉCAPITULATIF -->
+<div style="background:#0A7373;color:white;padding:1.5rem;border-radius:12px;">
+<h3 style="margin-bottom:1rem;font-size:1.2rem;">📊 RÉCAPITULATIF ANNUEL</h3>
+<div style="display:grid;gap:0.75rem;">
+<div style="display:flex;justify-content:space-between;font-size:1rem;">
+<span>Recettes brutes</span>
+<strong id="sim_recap_recettes">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>URSSAF</span>
+<span id="sim_recap_urssaf">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>CARPIMKO</span>
+<span id="sim_recap_carpimko">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>CSG/CRDS</span>
+<span id="sim_recap_csg">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.3);padding-top:0.75rem;">
+<span>Total charges sociales</span>
+<strong id="sim_total_charges">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:1.3rem;border-top:2px solid white;padding-top:0.75rem;">
+<span><strong>💵 Revenu net estimé</strong></span>
+<strong id="sim_revenu_net">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:0.9rem;opacity:0.8;">
+<span>Taux de charges</span>
+<span id="sim_taux">0 %</span>
+</div>
+</div>
+</div>
+
+<p style="margin-top:1rem;color:#999;font-size:0.8rem;">⚠️ Calcul indicatif basé sur les taux 2026. Les montants réels peuvent varier selon votre situation. Consultez votre comptable pour confirmation.</p>
+</div>
+</div>
 <div class="modal-content">
 <span class="modal-close" onclick="closeAIScan()">×</span>
 <h2>🤖 Scan intelligent</h2>
@@ -545,7 +682,7 @@ updateChart();
 
 function updateChart(){
 const ctx=document.getElementById('chart');
-if(window.myChart)window.myChart.destroy();0000
+if(window.myChart)window.myChart.destroy();
 const months={};
 transactions.forEach(t=>{
 const month=t.date.substring(0,7);
@@ -1022,6 +1159,78 @@ document.getElementById('docsList').innerHTML=html||'<p style="color:#999;">Aucu
 
 function downloadDoc(i){
 window.open(`${SUPABASE_URL}/storage/v1/object/public/justificatifs/${socialDocs[i].path}`);
+}
+
+function importerRecettes(){
+const r=transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0);
+document.getElementById('simRecettes').value=r.toFixed(0);
+calculerCharges();
+}
+
+function calculerCharges(){
+const R=parseFloat(document.getElementById('simRecettes').value)||0;
+const fmt=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+
+// URSSAF
+const maladie=R*0.065;
+const af=R*0.031;
+const invalidite=R*0.003;
+const formation=R*0.0025;
+const urssaf_total=maladie+af+invalidite+formation;
+
+// CARPIMKO - plafond SS 2026 = 46368€
+const plafond=46368;
+const retraite_base=Math.min(R,plafond)*0.0823;
+const retraite_comp=R*0.10;
+const prevoyance=756;
+const inv_deces=1260;
+const carpimko_total=retraite_base+retraite_comp+prevoyance+inv_deces;
+
+// CSG/CRDS
+const base_csg=R*0.9825;
+const csg_ded=base_csg*0.068;
+const csg_nded=base_csg*0.024;
+const crds=base_csg*0.005;
+const csg_total=csg_ded+csg_nded+crds;
+
+// TOTAL
+const total=urssaf_total+carpimko_total+csg_total;
+const net=R-total;
+const taux=R>0?(total/R*100).toFixed(1):0;
+
+// Mise à jour URSSAF
+document.getElementById('sim_maladie').textContent=fmt(maladie);
+document.getElementById('sim_af').textContent=fmt(af);
+document.getElementById('sim_invalidite').textContent=fmt(invalidite);
+document.getElementById('sim_formation').textContent=fmt(formation);
+document.getElementById('sim_urssaf_total').textContent=fmt(urssaf_total);
+
+// Mise à jour CARPIMKO
+document.getElementById('sim_retraite_base').textContent=fmt(retraite_base);
+document.getElementById('sim_retraite_comp').textContent=fmt(retraite_comp);
+document.getElementById('sim_prevoyance').textContent=fmt(prevoyance);
+document.getElementById('sim_inv_deces').textContent=fmt(inv_deces);
+document.getElementById('sim_carpimko_total').textContent=fmt(carpimko_total);
+
+// Mise à jour CSG/CRDS
+document.getElementById('sim_base_csg').textContent=fmt(base_csg);
+document.getElementById('sim_csg_ded').textContent=fmt(csg_ded);
+document.getElementById('sim_csg_nded').textContent=fmt(csg_nded);
+document.getElementById('sim_crds').textContent=fmt(crds);
+document.getElementById('sim_csg_total').textContent=fmt(csg_total);
+
+// Mise à jour récapitulatif
+document.getElementById('sim_recap_recettes').textContent=fmt(R);
+document.getElementById('sim_recap_urssaf').textContent=fmt(urssaf_total);
+document.getElementById('sim_recap_carpimko').textContent=fmt(carpimko_total);
+document.getElementById('sim_recap_csg').textContent=fmt(csg_total);
+document.getElementById('sim_total_charges').textContent=fmt(total);
+document.getElementById('sim_revenu_net').textContent=fmt(net);
+document.getElementById('sim_taux').textContent=taux+' %';
+
+// Afficher recettes actuelles
+const recettesActuelles=transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0);
+document.getElementById('simRecettesAuto').textContent=fmt(recettesActuelles)+' → cliquez pour importer';
 }
 
 function showTab(name){
