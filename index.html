@@ -947,73 +947,200 @@ function exportCompletComptable(){
 showMessage('⏳ Génération du dossier comptable...','warning');
 const wb=XLSX.utils.book_new();
 const periode=currentExercice?currentExercice.replace('_',' au '):`Période complète`;
+const nom=profile?`${profile.prenom} ${profile.nom}`:'';
+const siret=profile?`SIRET: ${profile.siret}`:'';
+const fmt=n=>parseFloat(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const totRec=transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0);
+const totDep=transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0);
 
-// ONGLET 1: RÉSUMÉ
+// ══════════════════════════════════════
+// ONGLET 1 : RÉSUMÉ
+// ══════════════════════════════════════
 const resume=[
-['DOSSIER COMPTABLE IDEL'],
-[profile?`${profile.prenom} ${profile.nom}`:''],
-[profile?`SIRET: ${profile.siret}`:''],
-[`Période: ${periode}`],
-[],
+['DOSSIER COMPTABLE - INFIRMIER LIBÉRAL'],
+[nom],[siret],[`Période: ${periode}`],[],
 ['SYNTHÈSE'],
-['Total Recettes',transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0).toFixed(2)+' €'],
-['Total Dépenses',transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0).toFixed(2)+' €'],
-['Balance',(transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0)-transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0)).toFixed(2)+' €'],
-['Nombre d\'opérations',transactions.length],
-[],
+['Total Recettes',fmt(totRec)+' €'],
+['Total Dépenses',fmt(totDep)+' €'],
+['Résultat (Recettes - Dépenses)',fmt(totRec-totDep)+' €'],
+['Nombre d\'opérations',transactions.length],[],
 ['CONTENU DU DOSSIER'],
-['- Balance des comptes'],
-['- Grand Livre détaillé'],
-['- Fichier FEC (norme fiscale)'],
-['- Justificatifs (fichier ZIP séparé)']
+['1. Résumé (cette feuille)'],
+['2. Compte d\'Exploitation (CE)'],
+['3. Journal des Recettes'],
+['4. Journal des Dépenses'],
+['5. Journal de Banque'],
+['6. Grand Livre (toutes écritures)'],
+['7. Balance des comptes'],
+['8. FEC (norme fiscale)'],
 ];
 const wsResume=XLSX.utils.aoa_to_sheet(resume);
-wsResume['!cols']=[{wch:30},{wch:20}];
+wsResume['!cols']=[{wch:35},{wch:20}];
 XLSX.utils.book_append_sheet(wb,wsResume,'Résumé');
 
-// ONGLET 2: BALANCE
-const dataBalance=[['N° Compte','Libellé','Total Débit','Total Crédit','Solde']];
-const comptes={};
+// ══════════════════════════════════════
+// ONGLET 2 : COMPTE D'EXPLOITATION (CE)
+// ══════════════════════════════════════
+const parCat={};
+transactions.forEach(t=>{
+if(!parCat[t.type]) parCat[t.type]={};
+if(!parCat[t.type][t.category]) parCat[t.type][t.category]=0;
+parCat[t.type][t.category]+=t.amount;
+});
+
+const dataCE=[
+['COMPTE D\'EXPLOITATION'],
+[nom],[siret],[`Période: ${periode}`],[],
+['══════════════════════════════════════════'],
+['PRODUITS (RECETTES)'],
+['══════════════════════════════════════════'],
+['Catégorie','Montant','%'],
+];
+const recettes=parCat['recette']||{};
+Object.entries(recettes).sort((a,b)=>b[1]-a[1]).forEach(([cat,mt])=>{
+dataCE.push([cat,fmt(mt)+' €',totRec>0?(mt/totRec*100).toFixed(1)+'%':'']);
+});
+dataCE.push(['TOTAL PRODUITS',fmt(totRec)+' €','100%']);
+dataCE.push([]);
+dataCE.push(['══════════════════════════════════════════']);
+dataCE.push(['CHARGES (DÉPENSES)']);
+dataCE.push(['══════════════════════════════════════════']);
+dataCE.push(['Catégorie','Montant','% des recettes']);
+const depenses=parCat['depense']||{};
+Object.entries(depenses).sort((a,b)=>b[1]-a[1]).forEach(([cat,mt])=>{
+dataCE.push([cat,fmt(mt)+' €',totRec>0?(mt/totRec*100).toFixed(1)+'%':'']);
+});
+dataCE.push(['TOTAL CHARGES',fmt(totDep)+' €',totRec>0?(totDep/totRec*100).toFixed(1)+'%':'']);
+dataCE.push([]);
+dataCE.push(['══════════════════════════════════════════']);
+dataCE.push(['RÉSULTAT NET']);
+dataCE.push(['══════════════════════════════════════════']);
+dataCE.push(['Résultat (Produits - Charges)',fmt(totRec-totDep)+' €','']);
+dataCE.push(['Taux de marge',totRec>0?((totRec-totDep)/totRec*100).toFixed(1)+'%':'','']);
+const wsCE=XLSX.utils.aoa_to_sheet(dataCE);
+wsCE['!cols']=[{wch:35},{wch:18},{wch:15}];
+XLSX.utils.book_append_sheet(wb,wsCE,'Compte d\'Exploitation');
+
+// ══════════════════════════════════════
+// ONGLET 3 : JOURNAL DES RECETTES
+// ══════════════════════════════════════
+const txRec=transactions.filter(t=>t.type==='recette').sort((a,b)=>a.date.localeCompare(b.date));
+const dataJR=[
+['JOURNAL DES RECETTES'],
+[nom],[siret],[`Période: ${periode}`],[],
+['N°','Date','Description','Catégorie','Compte','Montant HT','Mode paiement'],
+];
+txRec.forEach((t,i)=>{
+dataJR.push([i+1,t.date,t.description,t.category,PLAN_COMPTABLE[t.category]||'706100',fmt(t.amount)+' €',t.payment_method||'']);
+});
+dataJR.push([]);
+dataJR.push(['','','','','TOTAL',fmt(totRec)+' €','']);
+const wsJR=XLSX.utils.aoa_to_sheet(dataJR);
+wsJR['!cols']=[{wch:5},{wch:12},{wch:35},{wch:25},{wch:10},{wch:15},{wch:15}];
+XLSX.utils.book_append_sheet(wb,wsJR,'Journal Recettes');
+
+// ══════════════════════════════════════
+// ONGLET 4 : JOURNAL DES DÉPENSES
+// ══════════════════════════════════════
+const txDep=transactions.filter(t=>t.type==='depense').sort((a,b)=>a.date.localeCompare(b.date));
+const dataJD=[
+['JOURNAL DES DÉPENSES'],
+[nom],[siret],[`Période: ${periode}`],[],
+['N°','Date','Description','Catégorie','Compte','Montant','Mode paiement'],
+];
+txDep.forEach((t,i)=>{
+dataJD.push([i+1,t.date,t.description,t.category,PLAN_COMPTABLE[t.category]||'628000',fmt(t.amount)+' €',t.payment_method||'']);
+});
+dataJD.push([]);
+dataJD.push(['','','','','TOTAL',fmt(totDep)+' €','']);
+const wsJD=XLSX.utils.aoa_to_sheet(dataJD);
+wsJD['!cols']=[{wch:5},{wch:12},{wch:35},{wch:25},{wch:10},{wch:15},{wch:15}];
+XLSX.utils.book_append_sheet(wb,wsJD,'Journal Dépenses');
+
+// ══════════════════════════════════════
+// ONGLET 5 : JOURNAL DE BANQUE
+// ══════════════════════════════════════
+const txBanque=transactions.filter(t=>t.encaisse).sort((a,b)=>a.date.localeCompare(b.date));
+const totBanque=txBanque.reduce((s,t)=>s+(t.type==='recette'?t.amount:-t.amount),0);
+const dataJB=[
+['JOURNAL DE BANQUE'],
+[nom],[siret],[`Période: ${periode}`],[],
+['N°','Date','Description','Débit','Crédit','Solde cumulé'],
+];
+let soldeCumul=0;
+txBanque.forEach((t,i)=>{
+const debit=t.type==='depense'?t.amount:0;
+const credit=t.type==='recette'?t.amount:0;
+soldeCumul+=credit-debit;
+dataJB.push([i+1,t.date,t.description,debit?fmt(debit)+' €':'',credit?fmt(credit)+' €':'',fmt(soldeCumul)+' €']);
+});
+dataJB.push([]);
+dataJB.push(['','','SOLDE FINAL','','',fmt(soldeCumul)+' €']);
+const wsJB=XLSX.utils.aoa_to_sheet(dataJB);
+wsJB['!cols']=[{wch:5},{wch:12},{wch:35},{wch:15},{wch:15},{wch:15}];
+XLSX.utils.book_append_sheet(wb,wsJB,'Journal Banque');
+
+// ══════════════════════════════════════
+// ONGLET 6 : GRAND LIVRE (consolidé)
+// ══════════════════════════════════════
+const txTri=transactions.slice().sort((a,b)=>a.date.localeCompare(b.date));
+const dataGL=[
+['GRAND LIVRE - TOUTES ÉCRITURES'],
+[nom],[siret],[`Période: ${periode}`],[],
+['Date','N° Compte','Libellé compte','Description','Débit','Crédit','Solde cumulé'],
+];
+let soldeGL=0;
+// Regrouper par compte puis par date
+const comptesGL={};
+txTri.forEach(t=>{
+const compte=PLAN_COMPTABLE[t.category]||'628000';
+if(!comptesGL[compte])comptesGL[compte]={lib:t.category,ops:[]};
+comptesGL[compte].ops.push(t);
+});
+Object.keys(comptesGL).sort().forEach(num=>{
+const c=comptesGL[num];
+dataGL.push([`── COMPTE ${num} - ${c.lib.toUpperCase()} ──`,'','','','','','']);
+let soldeCompte=0;
+c.ops.forEach(t=>{
+const d=t.type==='depense'?t.amount:0;
+const cr=t.type==='recette'?t.amount:0;
+soldeCompte+=cr-d;
+soldeGL+=cr-d;
+dataGL.push([t.date,num,c.lib,t.description,d?fmt(d)+' €':'',cr?fmt(cr)+' €':'',fmt(soldeCompte)+' €']);
+});
+dataGL.push(['','','','Solde compte '+num,'',fmt(soldeCompte)+' €','']);
+dataGL.push([]);
+});
+const wsGL=XLSX.utils.aoa_to_sheet(dataGL);
+wsGL['!cols']=[{wch:12},{wch:10},{wch:25},{wch:35},{wch:15},{wch:15},{wch:15}];
+XLSX.utils.book_append_sheet(wb,wsGL,'Grand Livre');
+
+// ══════════════════════════════════════
+// ONGLET 7 : BALANCE
+// ══════════════════════════════════════
+const dataBalance=[['BALANCE DES COMPTES'],[nom],[siret],[`Période: ${periode}`],[],
+['N° Compte','Libellé','Total Débit','Total Crédit','Solde']];
+const comptesB={};
 transactions.forEach(t=>{
 const compte=PLAN_COMPTABLE[t.category]||'708000';
-if(!comptes[compte])comptes[compte]={lib:t.category,debit:0,credit:0};
-if(t.type==='depense')comptes[compte].debit+=t.amount;
-else comptes[compte].credit+=t.amount;
+if(!comptesB[compte])comptesB[compte]={lib:t.category,debit:0,credit:0};
+if(t.type==='depense')comptesB[compte].debit+=t.amount;
+else comptesB[compte].credit+=t.amount;
 });
-Object.keys(comptes).sort().forEach(num=>{
-const c=comptes[num];
-const solde=c.credit-c.debit;
-dataBalance.push([num,c.lib,c.debit.toFixed(2),c.credit.toFixed(2),solde.toFixed(2)]);
+Object.keys(comptesB).sort().forEach(num=>{
+const c=comptesB[num];
+dataBalance.push([num,c.lib,fmt(c.debit)+' €',fmt(c.credit)+' €',fmt(c.credit-c.debit)+' €']);
 });
-const totD=Object.values(comptes).reduce((s,c)=>s+c.debit,0);
-const totC=Object.values(comptes).reduce((s,c)=>s+c.credit,0);
-dataBalance.push(['','TOTAUX',totD.toFixed(2),totC.toFixed(2),(totC-totD).toFixed(2)]);
+const totD=Object.values(comptesB).reduce((s,c)=>s+c.debit,0);
+const totC=Object.values(comptesB).reduce((s,c)=>s+c.credit,0);
+dataBalance.push(['','TOTAUX',fmt(totD)+' €',fmt(totC)+' €',fmt(totC-totD)+' €']);
 const wsBalance=XLSX.utils.aoa_to_sheet(dataBalance);
 wsBalance['!cols']=[{wch:12},{wch:30},{wch:18},{wch:18},{wch:18}];
 XLSX.utils.book_append_sheet(wb,wsBalance,'Balance');
 
-// ONGLETS 3+: GRAND LIVRE (un onglet par compte)
-const comptesGL={};
-transactions.forEach(t=>{
-const compte=PLAN_COMPTABLE[t.category]||'708000';
-if(!comptesGL[compte])comptesGL[compte]={lib:t.category,ops:[]};
-comptesGL[compte].ops.push({date:t.date,lib:t.description,debit:t.type==='depense'?t.amount:0,credit:t.type==='recette'?t.amount:0});
-});
-Object.keys(comptesGL).sort().forEach(num=>{
-const c=comptesGL[num];
-const data=[[`COMPTE ${num} - ${c.lib.toUpperCase()}`],[],['Date','Libellé','Débit','Crédit','Solde']];
-let solde=0;
-c.ops.forEach(op=>{
-solde+=op.credit-op.debit;
-data.push([op.date,op.lib,op.debit?op.debit.toFixed(2):'',op.credit?op.credit.toFixed(2):'',solde.toFixed(2)]);
-});
-data.push([],[`SOLDE FINAL: ${solde.toFixed(2)} €`]);
-const ws=XLSX.utils.aoa_to_sheet(data);
-ws['!cols']=[{wch:12},{wch:40},{wch:15},{wch:15},{wch:15}];
-XLSX.utils.book_append_sheet(wb,ws,`GL_${num}`.substring(0,31));
-});
-
-// ONGLET FINAL: FEC
+// ══════════════════════════════════════
+// ONGLET 8 : FEC
+// ══════════════════════════════════════
 const dataFEC=[['JournalCode','JournalLib','EcritureNum','EcritureDate','CompteNum','CompteLib','CompAuxNum','CompAuxLib','PieceRef','PieceDate','EcritureLib','Debit','Credit','EcritureLet','DateLet','ValidDate','Montantdevise','Idevise']];
 transactions.forEach((t,i)=>{
 const compte=PLAN_COMPTABLE[t.category]||'708000';
@@ -1033,7 +1160,7 @@ XLSX.utils.book_append_sheet(wb,wsFEC,'FEC');
 
 const filename=currentExercice?`Comptabilite_${currentExercice}.xlsx`:`Comptabilite_${new Date().toISOString().split('T')[0]}.xlsx`;
 XLSX.writeFile(wb,filename);
-showMessage('✅ Dossier comptable complet téléchargé','success');
+showMessage('✅ Dossier comptable complet téléchargé (8 onglets)','success');
 return filename;
 }
 
