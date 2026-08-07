@@ -448,7 +448,16 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 
 <div class="card">
-<h2>⚖️ Comparateur Micro-entreprise vs BNC Réel</h2>
+<h2>📑 Liasse fiscale</h2>
+<p style="color:#666;margin-bottom:1rem;">Génère les documents fiscaux pré-remplis avec vos données</p>
+<div style="background:#fff3cd;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<p style="margin:0;font-size:0.9rem;">⚠️ Documents indicatifs à vérifier avec votre comptable avant dépôt.</p>
+</div>
+<div style="display:grid;gap:0.75rem;">
+<button class="btn btn-primary" onclick="genererLiasseFiscale()" style="padding:1rem;font-size:1rem;">📊 Générer la liasse fiscale complète</button>
+<p style="color:#666;font-size:0.85rem;margin:0;">Contient : <strong>2042-C PRO</strong> (micro BNC) + <strong>2035</strong> (BNC réel simulé) + <strong>Récapitulatif comptable</strong></p>
+</div>
+</div>
 <p style="color:#666;margin-bottom:1.5rem;">Découvrez quel régime est le plus avantageux pour vous</p>
 
 <div style="background:#e8f5e9;padding:1rem;border-radius:8px;margin-bottom:1rem;">
@@ -1302,6 +1311,215 @@ document.getElementById('docsList').innerHTML=html||'<p style="color:#999;">Aucu
 
 function downloadDoc(i){
 window.open(`${SUPABASE_URL}/storage/v1/object/public/justificatifs/${socialDocs[i].path}`);
+}
+
+function genererLiasseFiscale(){
+const CA=parseFloat(document.getElementById('simRecettes').value)||transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0);
+const parts=parseFloat(document.getElementById('sim_parts').value)||2;
+const depenses=transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0);
+const annee=new Date().getFullYear()-1;
+const nom=profile?`${profile.prenom} ${profile.nom}`:'';
+const siret=profile?profile.siret:'';
+const adresse=profile?`${profile.adresse} ${profile.code_postal} ${profile.ville}`:'';
+const fmt2=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const wb=XLSX.utils.book_new();
+
+// ================================================
+// FEUILLE 1 : 2042-C PRO (Micro-entreprise BNC)
+// ================================================
+const abat=CA*0.34;
+const base_micro=CA*0.66;
+const urssaf_micro=CA*0.233;
+const plafond=47253;
+const carpimko=Math.min(CA,plafond)*0.0877+Math.min(CA,plafond)*0.0187+Math.min(CA,34033)*0.087+224+Math.min(CA,13913)*0.004+1022;
+const base_csg=CA*0.9825;
+const csg_ded=base_csg*0.068;
+const ir_liberatoire=CA*0.022;
+
+const data2042=[
+['DÉCLARATION COMPLÉMENTAIRE DES REVENUS 2042-C PRO'],
+[`Année des revenus : ${annee}`],
+[''],
+['IDENTIFICATION'],
+['Nom et prénom',nom],
+['SIRET',siret],
+['Adresse',adresse],
+[''],
+['═══════════════════════════════════════════════════'],
+['RÉGIME MICRO BNC - PROFESSIONS NON SALARIÉES'],
+['═══════════════════════════════════════════════════'],
+[''],
+['CASE','LIBELLÉ','MONTANT À REPORTER'],
+['5HQ','Revenus BNC - Micro (CA brut)',fmt2(CA)+' €'],
+['','⚠️  Saisir ce montant case 5HQ sur impots.gouv.fr',''],
+[''],
+['MEMO CALCUL AUTOMATIQUE (informatif)'],
+['CA brut déclaré (case 5HQ)',fmt2(CA)+' €'],
+['Abattement forfaitaire 34%',fmt2(abat)+' €'],
+['Bénéfice imposable estimé',fmt2(base_micro)+' €'],
+[''],
+['═══════════════════════════════════════════════════'],
+['OPTION VERSEMENT LIBÉRATOIRE (si applicable)'],
+['═══════════════════════════════════════════════════'],
+[''],
+['CASE','LIBELLÉ','MONTANT'],
+['5TA','Versement libératoire (2,2% × CA)',fmt2(ir_liberatoire)+' €'],
+['','(Si option activée - à vérifier avec votre comptable)',''],
+[''],
+['═══════════════════════════════════════════════════'],
+['CHARGES SOCIALES DÉDUCTIBLES'],
+['═══════════════════════════════════════════════════'],
+[''],
+['CASE','LIBELLÉ','MONTANT'],
+['6DE','CSG déductible (6,8% × 98,25% × CA)',fmt2(csg_ded)+' €'],
+[''],
+['═══════════════════════════════════════════════════'],
+['PROCÉDURE'],
+['═══════════════════════════════════════════════════'],
+['1. Connectez-vous sur impots.gouv.fr'],
+['2. Déclaration de revenus → Déclaration annexe 2042-C PRO'],
+['3. Section "Revenus non commerciaux professionnels"'],
+['4. Régime micro BNC → Reportez le CA brut case 5HQ : '+fmt2(CA)+' €'],
+['5. La déduction de 34% est automatique'],
+];
+const ws2042=XLSX.utils.aoa_to_sheet(data2042);
+ws2042['!cols']=[{wch:8},{wch:50},{wch:20}];
+ws2042['A1'].s={font:{bold:true,sz:14},fill:{fgColor:{rgb:'003087'}}};
+XLSX.utils.book_append_sheet(wb,ws2042,'2042-C PRO');
+
+// ================================================
+// FEUILLE 2 : 2035 (BNC Réel - simulation)
+// ================================================
+const benefice_reel=Math.max(0,CA-depenses);
+const urssaf_reel=benefice_reel*0.231;
+const carpimko_reel=Math.min(benefice_reel,plafond)*0.0877+Math.min(benefice_reel,plafond)*0.0187+Math.min(benefice_reel,34033)*0.087+224+Math.min(benefice_reel,13913)*0.004+1022;
+const csg_reel=benefice_reel*0.9825*0.097;
+
+// Dépenses par catégorie
+const parCat={};
+transactions.filter(t=>t.type==='depense').forEach(t=>{
+if(!parCat[t.category])parCat[t.category]=0;
+parCat[t.category]+=t.amount;
+});
+
+const data2035=[
+['DÉCLARATION 2035 - BNC RÉGIME DE LA DÉCLARATION CONTRÔLÉE (SIMULATION)'],
+[`Exercice : ${annee} - Document indicatif - Régime réel simulé`],
+[''],
+['IDENTIFICATION'],
+['Nom et prénom',nom],
+['SIRET',siret],
+['Adresse',adresse],
+[''],
+['═══════════════════════════════════════════════════'],
+['CADRE A - RECETTES PROFESSIONNELLES'],
+['═══════════════════════════════════════════════════'],
+[''],
+['LIGNE','NATURE','MONTANT'],
+['AA','Honoraires et recettes brutes',fmt2(CA)+' €'],
+['AB','Débours (remboursements)','0,00 €'],
+['AC','Recettes nettes (AA - AB)',fmt2(CA)+' €'],
+];
+
+// Recettes par catégorie
+transactions.filter(t=>t.type==='recette').forEach(t=>{
+data2035.push(['','  '+t.date+' - '+t.description,fmt2(t.amount)+' €']);
+});
+
+data2035.push(['']);
+data2035.push(['═══════════════════════════════════════════════════']);
+data2035.push(['CADRE B - DÉPENSES PROFESSIONNELLES']);
+data2035.push(['═══════════════════════════════════════════════════']);
+data2035.push(['']);
+data2035.push(['LIGNE','NATURE','MONTANT']);
+data2035.push(['BA','Achats (fournitures médicales)',fmt2(parCat['Fournitures médicales']||0)+' €']);
+data2035.push(['BB','Frais de véhicule (carburant + entretien)',fmt2((parCat['Carburant']||0)+(parCat['Entretien véhicule']||0))+' €']);
+data2035.push(['BC','Loyer et charges locatives',fmt2(parCat['Loyer cabinet']||0)+' €']);
+data2035.push(['BD','Assurances professionnelles',fmt2((parCat['Assurance professionnelle']||0)+(parCat['Matmut (RC Pro)']||0))+' €']);
+data2035.push(['BE','Téléphone / Internet',fmt2(parCat['Téléphone/Internet']||0)+' €']);
+data2035.push(['BF','Frais de formation',fmt2(parCat['Formation']||0)+' €']);
+data2035.push(['BG','Honoraires comptable',fmt2(parCat['Comptable']||0)+' €']);
+data2035.push(['BH','Frais bancaires',fmt2(parCat['Frais bancaires']||0)+' €']);
+data2035.push(['BI','Cotisations sociales (URSSAF)',fmt2(parCat['URSSAF']||0)+' €']);
+data2035.push(['BJ','Cotisations CARPIMKO',fmt2(parCat['CARPIMKO']||0)+' €']);
+data2035.push(['BK','Prévoyance / Mutuelle',fmt2((parCat['Prévoyance']||0)+(parCat['Mutuelle santé']||0))+' €']);
+data2035.push(['BL','CSG/CRDS',fmt2(parCat['CSG/CRDS']||0)+' €']);
+data2035.push(['BM','Autres charges',fmt2(parCat['Autres dépenses']||0)+' €']);
+data2035.push(['','TOTAL DÉPENSES',fmt2(depenses)+' €']);
+data2035.push(['']);
+data2035.push(['═══════════════════════════════════════════════════']);
+data2035.push(['CADRE C - RÉSULTAT FISCAL (SIMULATION BNC RÉEL)']);
+data2035.push(['═══════════════════════════════════════════════════']);
+data2035.push(['']);
+data2035.push(['Recettes nettes',fmt2(CA)+' €']);
+data2035.push(['Total dépenses',fmt2(depenses)+' €']);
+data2035.push(['BÉNÉFICE BRUT (CA - Dépenses)',fmt2(benefice_reel)+' €']);
+data2035.push(['CSG déductible (6,8%)','-'+fmt2(benefice_reel*0.9825*0.068)+' €']);
+data2035.push(['BÉNÉFICE NET IMPOSABLE',fmt2(benefice_reel-benefice_reel*0.9825*0.068)+' €']);
+data2035.push(['']);
+data2035.push(['⚠️ Document de simulation uniquement']);
+data2035.push(['⚠️ À faire valider par votre expert-comptable avant dépôt']);
+
+const ws2035=XLSX.utils.aoa_to_sheet(data2035);
+ws2035['!cols']=[{wch:8},{wch:50},{wch:20}];
+XLSX.utils.book_append_sheet(wb,ws2035,'2035 (simulation réel)');
+
+// ================================================
+// FEUILLE 3 : RÉCAPITULATIF COMPTABLE COMPLET
+// ================================================
+const csg_micro_ded=base_csg*0.068;
+const ir_micro=calculerIR(base_micro-csg_micro_ded,parts);
+const ir_reel=calculerIR(benefice_reel-benefice_reel*0.9825*0.068,parts);
+
+const dataRecap=[
+['RÉCAPITULATIF COMPTABLE COMPLET'],
+[`${nom} - SIRET: ${siret} - Exercice ${annee}`],
+[''],
+['═══════════════════════════════════════════════════'],
+['RÉSULTATS COMPARATIFS'],
+['═══════════════════════════════════════════════════'],
+['','MICRO-ENTREPRISE','BNC RÉEL (simulé)'],
+['Chiffre d\'affaires',fmt2(CA)+' €',fmt2(CA)+' €'],
+['Abattement / Dépenses',fmt2(abat)+' €',fmt2(depenses)+' €'],
+['Base imposable',fmt2(base_micro)+' €',fmt2(benefice_reel)+' €'],
+['URSSAF',fmt2(urssaf_micro)+' €',fmt2(urssaf_reel)+' €'],
+['CARPIMKO',fmt2(carpimko)+' €',fmt2(carpimko_reel)+' €'],
+['CSG/CRDS',fmt2(base_csg*0.097)+' €',fmt2(csg_reel)+' €'],
+['Impôt sur le revenu (estimé)',fmt2(ir_micro)+' €',fmt2(ir_reel)+' €'],
+['TOTAL PRÉLÈVEMENTS',fmt2(urssaf_micro+carpimko+base_csg*0.097+ir_micro)+' €',fmt2(urssaf_reel+carpimko_reel+csg_reel+ir_reel)+' €'],
+['REVENU NET FINAL',fmt2(CA-urssaf_micro-carpimko-base_csg*0.097-ir_micro)+' €',fmt2(benefice_reel-urssaf_reel-carpimko_reel-csg_reel-ir_reel)+' €'],
+[''],
+['═══════════════════════════════════════════════════'],
+['DÉTAIL DES OPÉRATIONS'],
+['═══════════════════════════════════════════════════'],
+[''],
+['RECETTES'],
+['Date','Description','Catégorie','Montant'],
+...transactions.filter(t=>t.type==='recette').map(t=>[t.date,t.description,t.category,fmt2(t.amount)+' €']),
+['','','TOTAL RECETTES',fmt2(CA)+' €'],
+[''],
+['DÉPENSES'],
+['Date','Description','Catégorie','Montant'],
+...transactions.filter(t=>t.type==='depense').map(t=>[t.date,t.description,t.category,fmt2(t.amount)+' €']),
+['','','TOTAL DÉPENSES',fmt2(depenses)+' €'],
+[''],
+['═══════════════════════════════════════════════════'],
+['INFORMATIONS FISCALES À REPORTER'],
+['═══════════════════════════════════════════════════'],
+[''],
+['Document','Case','Valeur'],
+['2042-C PRO - Déclaration principale','5HQ',fmt2(CA)+' €'],
+['2042-C PRO - CSG déductible','6DE',fmt2(csg_micro_ded)+' €'],
+['(Option) Versement libératoire','5TA',fmt2(ir_liberatoire)+' €'],
+];
+
+const wsRecap=XLSX.utils.aoa_to_sheet(dataRecap);
+wsRecap['!cols']=[{wch:40},{wch:25},{wch:25}];
+XLSX.utils.book_append_sheet(wb,wsRecap,'Récapitulatif complet');
+
+const filename=`Liasse_fiscale_${annee}_${nom.replace(' ','_')}.xlsx`;
+XLSX.writeFile(wb,filename);
+showMessage('✅ Liasse fiscale générée : '+filename,'success');
 }
 
 function lancerComparatif(){
