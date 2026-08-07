@@ -446,6 +446,61 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 
 <p style="margin-top:1rem;color:#999;font-size:0.8rem;">⚠️ Calcul indicatif basé sur les taux 2026. Les montants réels peuvent varier selon votre situation. Consultez votre comptable pour confirmation.</p>
 </div>
+
+<div class="card">
+<h2>⚖️ Comparateur Micro-entreprise vs BNC Réel</h2>
+<p style="color:#666;margin-bottom:1.5rem;">Découvrez quel régime est le plus avantageux pour vous</p>
+
+<div style="background:#e8f5e9;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<p style="margin:0;font-weight:600;">📊 Données importées automatiquement :</p>
+<p style="margin:0.5rem 0 0;color:#666;font-size:0.9rem;">CA du simulateur + dépenses de l'onglet Opérations</p>
+<button class="btn btn-primary" onclick="lancerComparatif()" style="margin-top:0.75rem;width:100%;">🔄 Calculer le comparatif</button>
+</div>
+
+<div id="comparatif_result" style="display:none;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+
+<div style="background:#1976D2;color:white;padding:1.25rem;border-radius:12px;">
+<h3 style="margin-bottom:1rem;font-size:1rem;">🏪 MICRO-ENTREPRISE</h3>
+<div style="display:grid;gap:0.5rem;font-size:0.9rem;">
+<div style="display:flex;justify-content:space-between;"><span>CA</span><span id="cmp_micro_ca">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Abattement 34%</span><span id="cmp_micro_abat">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>URSSAF</span><span id="cmp_micro_urssaf">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CARPIMKO</span><span id="cmp_micro_carpimko">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CSG/CRDS</span><span id="cmp_micro_csg">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Impôt IR</span><span id="cmp_micro_ir">0 €</span></div>
+<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.4);padding-top:0.5rem;margin-top:0.25rem;">
+<strong>Revenu net</strong><strong id="cmp_micro_net">0 €</strong>
+</div>
+</div>
+</div>
+
+<div style="background:#2E7D32;color:white;padding:1.25rem;border-radius:12px;">
+<h3 style="margin-bottom:1rem;font-size:1rem;">📋 BNC RÉEL</h3>
+<div style="display:grid;gap:0.5rem;font-size:0.9rem;">
+<div style="display:flex;justify-content:space-between;"><span>CA</span><span id="cmp_reel_ca">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Dépenses réelles</span><span id="cmp_reel_depenses">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>URSSAF (TNS)</span><span id="cmp_reel_urssaf">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CARPIMKO</span><span id="cmp_reel_carpimko">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CSG/CRDS</span><span id="cmp_reel_csg">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Impôt IR</span><span id="cmp_reel_ir">0 €</span></div>
+<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.4);padding-top:0.5rem;margin-top:0.25rem;">
+<strong>Revenu net</strong><strong id="cmp_reel_net">0 €</strong>
+</div>
+</div>
+</div>
+</div>
+
+<div id="comparatif_verdict" style="padding:1.5rem;border-radius:12px;text-align:center;margin-bottom:1rem;">
+<h3 id="verdict_titre" style="font-size:1.3rem;margin-bottom:0.5rem;"></h3>
+<p id="verdict_detail" style="margin:0;"></p>
+<p id="verdict_gain" style="margin:0.5rem 0 0;font-size:1.5rem;font-weight:700;"></p>
+</div>
+
+<h3 style="margin-bottom:0.75rem;">📋 Dépenses prises en compte (régime réel)</h3>
+<div id="cmp_detail_depenses" style="background:#f5f5f5;padding:1rem;border-radius:8px;font-size:0.9rem;"></div>
+</div>
+</div>
 </div>
 <div class="modal-content">
 <span class="modal-close" onclick="closeAIScan()">×</span>
@@ -1247,6 +1302,108 @@ document.getElementById('docsList').innerHTML=html||'<p style="color:#999;">Aucu
 
 function downloadDoc(i){
 window.open(`${SUPABASE_URL}/storage/v1/object/public/justificatifs/${socialDocs[i].path}`);
+}
+
+function lancerComparatif(){
+const CA=parseFloat(document.getElementById('simRecettes').value)||0;
+const parts=parseFloat(document.getElementById('sim_parts').value)||2;
+const autres_revenus=parseFloat(document.getElementById('sim_autres_revenus').value)||0;
+if(CA===0){showMessage('⚠️ Entrez d\'abord votre CA dans le simulateur','warning');return;}
+const fmt=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:0})+' €';
+
+// ===== MICRO-ENTREPRISE =====
+const micro_abat=CA*0.34;
+const micro_base=CA*0.66;
+const micro_urssaf=CA*0.231+CA*0.002;
+const plafond=47253;
+const micro_carpimko=Math.min(CA,plafond)*0.0877+Math.min(CA,plafond)*0.0187+Math.min(CA,34033)*0.087+224+Math.min(CA,13913)*0.004+1022;
+const micro_base_csg=CA*0.9825;
+const micro_csg=micro_base_csg*0.097;
+const micro_csg_ded=micro_base_csg*0.068;
+const micro_rni=micro_base-micro_csg_ded+autres_revenus;
+const micro_ir=calculerIR(micro_rni,parts);
+const micro_total=micro_urssaf+micro_carpimko+micro_csg+micro_ir;
+const micro_net=CA-micro_total;
+
+// ===== BNC RÉEL =====
+const depenses=transactions.filter(t=>t.type==='depense').reduce((s,t)=>s+t.amount,0);
+const benefice=Math.max(0,CA-depenses);
+// URSSAF TNS réel : ~23% sur bénéfice
+const reel_urssaf=benefice*0.231;
+const reel_carpimko=Math.min(benefice,plafond)*0.0877+Math.min(benefice,plafond)*0.0187+Math.min(benefice,34033)*0.087+224+Math.min(benefice,13913)*0.004+1022;
+const reel_base_csg=benefice*0.9825;
+const reel_csg=reel_base_csg*0.097;
+const reel_csg_ded=reel_base_csg*0.068;
+const reel_rni=benefice-reel_csg_ded+autres_revenus;
+const reel_ir=calculerIR(reel_rni,parts);
+const reel_total=reel_urssaf+reel_carpimko+reel_csg+reel_ir;
+const reel_net=CA-depenses-reel_total;
+
+// Mise à jour UI MICRO
+document.getElementById('cmp_micro_ca').textContent=fmt(CA);
+document.getElementById('cmp_micro_abat').textContent='-'+fmt(micro_abat);
+document.getElementById('cmp_micro_urssaf').textContent='-'+fmt(micro_urssaf);
+document.getElementById('cmp_micro_carpimko').textContent='-'+fmt(micro_carpimko);
+document.getElementById('cmp_micro_csg').textContent='-'+fmt(micro_csg);
+document.getElementById('cmp_micro_ir').textContent='-'+fmt(micro_ir);
+document.getElementById('cmp_micro_net').textContent=fmt(micro_net);
+
+// Mise à jour UI RÉEL
+document.getElementById('cmp_reel_ca').textContent=fmt(CA);
+document.getElementById('cmp_reel_depenses').textContent='-'+fmt(depenses);
+document.getElementById('cmp_reel_urssaf').textContent='-'+fmt(reel_urssaf);
+document.getElementById('cmp_reel_carpimko').textContent='-'+fmt(reel_carpimko);
+document.getElementById('cmp_reel_csg').textContent='-'+fmt(reel_csg);
+document.getElementById('cmp_reel_ir').textContent='-'+fmt(reel_ir);
+document.getElementById('cmp_reel_net').textContent=fmt(reel_net);
+
+// VERDICT
+const diff=reel_net-micro_net;
+const verdict=document.getElementById('comparatif_verdict');
+const vGain=document.getElementById('verdict_gain');
+if(diff>0){
+verdict.style.background='#e8f5e9';
+verdict.style.color='#2E7D32';
+document.getElementById('verdict_titre').textContent='✅ Le BNC Réel est plus avantageux !';
+document.getElementById('verdict_detail').textContent='Vos dépenses réelles ('+fmt(depenses)+') dépassent l\'abattement forfaitaire ('+fmt(micro_abat)+')';
+vGain.textContent='Gain : +'+fmt(diff)+' de revenu net';
+}else if(diff<0){
+verdict.style.background='#e3f2fd';
+verdict.style.color='#1976D2';
+document.getElementById('verdict_titre').textContent='✅ La Micro-entreprise est plus avantageuse !';
+document.getElementById('verdict_detail').textContent='L\'abattement forfaitaire ('+fmt(micro_abat)+') est supérieur à vos dépenses réelles ('+fmt(depenses)+')';
+vGain.textContent='Gain : +'+fmt(Math.abs(diff))+' de revenu net';
+}else{
+verdict.style.background='#f5f5f5';
+document.getElementById('verdict_titre').textContent='🟰 Les deux régimes sont équivalents';
+document.getElementById('verdict_detail').textContent='';
+vGain.textContent='';
+}
+
+// Détail dépenses par catégorie
+const parCategorie={};
+transactions.filter(t=>t.type==='depense').forEach(t=>{
+if(!parCategorie[t.category])parCategorie[t.category]=0;
+parCategorie[t.category]+=t.amount;
+});
+let html='<table style="width:100%;border-collapse:collapse;">';
+html+='<tr style="font-weight:700;border-bottom:1px solid #ddd;"><td>Catégorie</td><td style="text-align:right;">Montant</td></tr>';
+Object.entries(parCategorie).sort((a,b)=>b[1]-a[1]).forEach(([cat,mt])=>{
+html+=`<tr style="border-bottom:1px solid #eee;"><td style="padding:0.3rem 0;">${cat}</td><td style="text-align:right;font-weight:600;">${fmt(mt)}</td></tr>`;
+});
+html+=`<tr style="font-weight:700;border-top:2px solid #333;"><td>TOTAL</td><td style="text-align:right;">${fmt(depenses)}</td></tr>`;
+html+='</table>';
+document.getElementById('cmp_detail_depenses').innerHTML=html;
+document.getElementById('comparatif_result').style.display='block';
+}
+
+function calculerIR(revenu_net_imposable,parts){
+const q=revenu_net_imposable/parts;
+const t11=Math.max(0,Math.min(q,28797)-11294)*0.11;
+const t30=Math.max(0,Math.min(q,82341)-28797)*0.30;
+const t41=Math.max(0,Math.min(q,177106)-82341)*0.41;
+const t45=Math.max(0,q-177106)*0.45;
+return(t11+t30+t41+t45)*parts;
 }
 
 function importerRecettes(){
