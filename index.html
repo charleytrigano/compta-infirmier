@@ -109,6 +109,75 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 <button class="btn btn-secondary" onclick="saveExercice()">💾 Enregistrer l'exercice</button>
 </div>
+
+<div class="card">
+<h2>📊 Barèmes fiscaux et sociaux</h2>
+<p style="color:#666;margin-bottom:1rem;">Mettez à jour chaque année avec les nouveaux taux officiels</p>
+
+<div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+<select id="bareme_annee" onchange="chargerBareme()" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #ddd;">
+<option value="2025">2025</option>
+<option value="2026" selected>2026</option>
+<option value="2027">2027</option>
+<option value="2028">2028</option>
+</select>
+<button class="btn btn-secondary" onclick="sauvegarderBareme()">💾 Sauvegarder</button>
+<button class="btn btn-secondary" onclick="resetBareme()">↺ Défaut</button>
+</div>
+
+<h3 style="color:#1976D2;margin-bottom:0.75rem;">🏛️ URSSAF (Micro-entreprise BNC)</h3>
+<div class="form-row">
+<div><label>Cotisations sociales (%)</label><input type="number" id="b_urssaf_taux" value="23.1" step="0.1" min="0" max="50"></div>
+<div><label>Formation pro (%)</label><input type="number" id="b_urssaf_cfp" value="0.2" step="0.1" min="0" max="5"></div>
+</div>
+<div class="form-row">
+<div><label>Abattement BNC (%)</label><input type="number" id="b_abattement" value="34" step="1" min="0" max="100"></div>
+<div><label>Versement libératoire (%)</label><input type="number" id="b_liberatoire" value="2.2" step="0.1" min="0" max="10"></div>
+</div>
+
+<h3 style="color:#7B1FA2;margin-top:1rem;margin-bottom:0.75rem;">🏥 CARPIMKO</h3>
+<div class="form-row">
+<div><label>Plafond Sécu (€)</label><input type="number" id="b_plafond_ss" value="47253" step="1"></div>
+<div><label>Plafond complémentaire (€)</label><input type="number" id="b_plafond_comp" value="34033" step="1"></div>
+</div>
+<div class="form-row">
+<div><label>Retraite base T1 (%)</label><input type="number" id="b_retraite_t1" value="8.77" step="0.01"></div>
+<div><label>Retraite base T2 (%)</label><input type="number" id="b_retraite_t2" value="1.87" step="0.01"></div>
+</div>
+<div class="form-row">
+<div><label>Retraite complémentaire (%)</label><input type="number" id="b_retraite_comp" value="8.70" step="0.01"></div>
+<div><label>ASV forfait (€)</label><input type="number" id="b_asv" value="224" step="1"></div>
+</div>
+<div class="form-row">
+<div><label>Cot. proportionnelle (%)</label><input type="number" id="b_cot_prop_taux" value="0.40" step="0.01"></div>
+<div><label>Plafond cot. prop. (€)</label><input type="number" id="b_cot_prop_plafond" value="13913" step="1"></div>
+</div>
+<div class="form-row">
+<div><label>Invalidité-décès forfait (€)</label><input type="number" id="b_inv_deces" value="1022" step="1"></div>
+</div>
+
+<h3 style="color:#F57C00;margin-top:1rem;margin-bottom:0.75rem;">📋 CSG / CRDS</h3>
+<div class="form-row">
+<div><label>Assiette CSG (%)</label><input type="number" id="b_assiette_csg" value="98.25" step="0.01"></div>
+<div><label>CSG déductible (%)</label><input type="number" id="b_csg_ded" value="6.8" step="0.01"></div>
+</div>
+<div class="form-row">
+<div><label>CSG non déductible (%)</label><input type="number" id="b_csg_nded" value="2.4" step="0.01"></div>
+<div><label>CRDS (%)</label><input type="number" id="b_crds" value="0.5" step="0.01"></div>
+</div>
+
+<h3 style="color:#c62828;margin-top:1rem;margin-bottom:0.75rem;">💶 Impôt sur le revenu - Tranches</h3>
+<div style="display:grid;gap:0.5rem;">
+<div class="form-row">
+<div><label>Tranche 0% jusqu'à (€)</label><input type="number" id="b_ir_t0" value="11294" step="1"></div>
+<div><label>Tranche 11% jusqu'à (€)</label><input type="number" id="b_ir_t11" value="28797" step="1"></div>
+</div>
+<div class="form-row">
+<div><label>Tranche 30% jusqu'à (€)</label><input type="number" id="b_ir_t30" value="82341" step="1"></div>
+<div><label>Tranche 41% jusqu'à (€)</label><input type="number" id="b_ir_t41" value="177106" step="1"></div>
+</div>
+<p style="color:#666;font-size:0.85rem;">Tranche 45% : au-delà de la tranche 41%</p>
+</div>
 </div>
 
 <div id="tab-operations" class="hidden">
@@ -1757,89 +1826,63 @@ document.getElementById('simRecettes').value=r.toFixed(0);
 calculerCharges();
 }
 
+
+// ══════════════════════════════════════
+// SIMULATEUR DE CHARGES
+// ══════════════════════════════════════
+
 function calculerCharges(){
 const CA=parseFloat(document.getElementById('simRecettes').value)||0;
 const fmt=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const anneeEl=document.getElementById('bareme_annee');
+const annee=anneeEl?anneeEl.value:'2026';
+const b=getBareme(annee);
 
-// MICRO-ENTREPRISE BNC
-// Abattement forfaitaire 34%
-const abattement=CA*0.34;
-const base_imposable=CA*0.66;
-
-// URSSAF micro-entreprise BNC libéral : 23,1% sur CA
-const urssaf_total=CA*0.231;
-const cfp=CA*0.002; // Formation pro
+const abattement=CA*(b.abattement/100);
+const base_imposable=CA*(1-b.abattement/100);
+const urssaf_total=CA*(b.urssaf_taux/100);
+const cfp=CA*(b.urssaf_cfp/100);
 const urssaf_avec_cfp=urssaf_total+cfp;
-
-// CARPIMKO - taux réels 2026
-const plafond=47253;
-const retraite_base_t1=Math.min(CA,plafond)*0.0877;
-const retraite_base_t2=Math.min(CA,plafond)*0.0187;
-const retraite_comp=Math.min(CA,34033)*0.0870;
-const avantage_social=224;
-const cot_prop=Math.min(CA,13913)*0.004;
-const inv_deces=1022;
-const carpimko_total=retraite_base_t1+retraite_base_t2+retraite_comp+avantage_social+cot_prop+inv_deces;
-
-// CSG/CRDS sur base micro (CA × 98,25%)
-const base_csg=CA*0.9825;
-const csg_ded=base_csg*0.068;
-const csg_nded=base_csg*0.024;
-const crds=base_csg*0.005;
+const retraite_base_t1=Math.min(CA,b.plafond_ss)*(b.retraite_t1/100);
+const retraite_base_t2=Math.min(CA,b.plafond_ss)*(b.retraite_t2/100);
+const retraite_comp=Math.min(CA,b.plafond_comp)*(b.retraite_comp/100);
+const cot_prop=Math.min(CA,b.cot_prop_plafond)*(b.cot_prop_taux/100);
+const carpimko_total=retraite_base_t1+retraite_base_t2+retraite_comp+b.asv+cot_prop+b.inv_deces;
+const base_csg=CA*(b.assiette_csg/100);
+const csg_ded=base_csg*(b.csg_ded/100);
+const csg_nded=base_csg*(b.csg_nded/100);
+const crds=base_csg*(b.crds/100);
 const csg_total=csg_ded+csg_nded+crds;
-
-// Impôt sur le revenu (estimation sur base abattue)
-const ir_base=base_imposable;
-
-// TOTAL
-const total=urssaf_avec_cfp+carpimko_total+csg_total;
+const parts=parseFloat(document.getElementById('sim_parts').value)||2;
+const autres_revenus=parseFloat(document.getElementById('sim_autres_revenus').value)||0;
+const revenu_net_imposable=base_imposable-csg_ded+autres_revenus;
+const quotient=revenu_net_imposable/parts;
+const t11=Math.max(0,Math.min(quotient,b.ir_t11)-b.ir_t0)*0.11;
+const t30=Math.max(0,Math.min(quotient,b.ir_t30)-b.ir_t11)*0.30;
+const t41=Math.max(0,Math.min(quotient,b.ir_t41)-b.ir_t30)*0.41;
+const t45=Math.max(0,quotient-b.ir_t41)*0.45;
+const ir_total=(t11+t30+t41+t45)*parts;
+const ir_liberatoire=CA*(b.liberatoire/100);
+const tmi=quotient<=b.ir_t0?0:quotient<=b.ir_t11?11:quotient<=b.ir_t30?30:quotient<=b.ir_t41?41:45;
+const total=urssaf_avec_cfp+carpimko_total+csg_total+ir_total;
 const net=CA-total;
-const taux=CA>0?(total/CA*100).toFixed(1):0;
 
-// Mise à jour URSSAF
 document.getElementById('sim_ca').textContent=fmt(CA);
-document.getElementById('sim_abattement').textContent=fmt(abattement)+' (34%)';
+document.getElementById('sim_abattement').textContent=fmt(abattement)+' ('+b.abattement+'%)';
 document.getElementById('sim_base_imposable').textContent=fmt(base_imposable);
 document.getElementById('sim_urssaf_taux').textContent=fmt(urssaf_total);
 document.getElementById('sim_cfp').textContent=fmt(cfp);
 document.getElementById('sim_urssaf_total').textContent=fmt(urssaf_avec_cfp);
-
-// Mise à jour CARPIMKO
 document.getElementById('sim_retraite_base').textContent=fmt(retraite_base_t1+retraite_base_t2);
 document.getElementById('sim_retraite_comp').textContent=fmt(retraite_comp);
-document.getElementById('sim_prevoyance').textContent=fmt(avantage_social+cot_prop);
-document.getElementById('sim_inv_deces').textContent=fmt(inv_deces);
+document.getElementById('sim_prevoyance').textContent=fmt(b.asv+cot_prop);
+document.getElementById('sim_inv_deces').textContent=fmt(b.inv_deces);
 document.getElementById('sim_carpimko_total').textContent=fmt(carpimko_total);
-
-// Mise à jour CSG/CRDS
 document.getElementById('sim_base_csg').textContent=fmt(base_csg);
 document.getElementById('sim_csg_ded').textContent=fmt(csg_ded);
 document.getElementById('sim_csg_nded').textContent=fmt(csg_nded);
 document.getElementById('sim_crds').textContent=fmt(crds);
 document.getElementById('sim_csg_total').textContent=fmt(csg_total);
-
-// IMPÔT SUR LE REVENU - Barème progressif 2026
-const parts=parseFloat(document.getElementById('sim_parts').value)||2;
-const autres_revenus=parseFloat(document.getElementById('sim_autres_revenus').value)||0;
-const revenu_net_imposable=base_imposable-csg_ded+autres_revenus;
-const quotient=revenu_net_imposable/parts;
-
-// Calcul par tranches sur le quotient
-const t0=Math.min(quotient,11294)*0;
-const t11=Math.max(0,Math.min(quotient,28797)-11294)*0.11;
-const t30=Math.max(0,Math.min(quotient,82341)-28797)*0.30;
-const t41=Math.max(0,Math.min(quotient,177106)-82341)*0.41;
-const t45=Math.max(0,quotient-177106)*0.45;
-const ir_par_part=t0+t11+t30+t41+t45;
-const ir_total=ir_par_part*parts;
-
-// Versement libératoire
-const ir_liberatoire=CA*0.022;
-
-// Taux marginal
-const tmi=quotient<=11294?0:quotient<=28797?11:quotient<=82341?30:quotient<=177106?41:45;
-
-// Mise à jour IR
 document.getElementById('ir_base_bnc').textContent=fmt(base_imposable);
 document.getElementById('ir_csg_ded').textContent='- '+fmt(csg_ded);
 document.getElementById('ir_revenu_net_imposable').textContent=fmt(revenu_net_imposable);
@@ -1851,24 +1894,102 @@ document.getElementById('ir_t41').textContent=fmt(t41*parts);
 document.getElementById('ir_t45').textContent=fmt(t45*parts);
 document.getElementById('ir_total').textContent=fmt(ir_total);
 document.getElementById('ir_liberatoire').textContent=fmt(ir_liberatoire);
-
-// TOTAL avec IR
-const total_avec_ir=urssaf_avec_cfp+carpimko_total+csg_total+ir_total;
-const net_apres_ir=CA-total_avec_ir;
-
-// Mise à jour récapitulatif
 document.getElementById('sim_recap_recettes').textContent=fmt(CA);
 document.getElementById('sim_recap_urssaf').textContent=fmt(urssaf_avec_cfp);
 document.getElementById('sim_recap_carpimko').textContent=fmt(carpimko_total);
 document.getElementById('sim_recap_csg').textContent=fmt(csg_total);
 document.getElementById('sim_recap_ir').textContent=fmt(ir_total);
-document.getElementById('sim_total_charges').textContent=fmt(total_avec_ir);
-document.getElementById('sim_revenu_net').textContent=fmt(net_apres_ir);
-document.getElementById('sim_taux').textContent=(CA>0?(total_avec_ir/CA*100).toFixed(1):0)+' %';
-
-// Afficher recettes actuelles
+document.getElementById('sim_total_charges').textContent=fmt(total);
+document.getElementById('sim_revenu_net').textContent=fmt(net);
+document.getElementById('sim_taux').textContent=(CA>0?(total/CA*100).toFixed(1):0)+' %';
 const recettesActuelles=transactions.filter(t=>t.type==='recette').reduce((s,t)=>s+t.amount,0);
 document.getElementById('simRecettesAuto').textContent=fmt(recettesActuelles)+' → cliquez pour importer';
+}
+
+// ══════════════════════════════════════
+// GESTION DES BARÈMES FISCAUX
+// ══════════════════════════════════════
+
+const BAREMES_DEFAUT={
+'2025':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:46368,plafond_comp:33007,retraite_t1:8.23,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
+'2026':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:47253,plafond_comp:34033,retraite_t1:8.77,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
+'2027':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:47253,plafond_comp:34033,retraite_t1:8.77,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
+'2028':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:47253,plafond_comp:34033,retraite_t1:8.77,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
+};
+
+function getBareme(annee){
+const anneeStr=String(annee||new Date().getFullYear());
+const saved=localStorage.getItem('bareme_'+anneeStr);
+if(saved)return JSON.parse(saved);
+return BAREMES_DEFAUT[anneeStr]||BAREMES_DEFAUT['2026'];
+}
+
+function chargerBareme(){
+const annee=document.getElementById('bareme_annee').value;
+const b=getBareme(annee);
+document.getElementById('b_urssaf_taux').value=b.urssaf_taux;
+document.getElementById('b_urssaf_cfp').value=b.urssaf_cfp;
+document.getElementById('b_abattement').value=b.abattement;
+document.getElementById('b_liberatoire').value=b.liberatoire;
+document.getElementById('b_plafond_ss').value=b.plafond_ss;
+document.getElementById('b_plafond_comp').value=b.plafond_comp;
+document.getElementById('b_retraite_t1').value=b.retraite_t1;
+document.getElementById('b_retraite_t2').value=b.retraite_t2;
+document.getElementById('b_retraite_comp').value=b.retraite_comp;
+document.getElementById('b_asv').value=b.asv;
+document.getElementById('b_cot_prop_taux').value=b.cot_prop_taux;
+document.getElementById('b_cot_prop_plafond').value=b.cot_prop_plafond;
+document.getElementById('b_inv_deces').value=b.inv_deces;
+document.getElementById('b_assiette_csg').value=b.assiette_csg;
+document.getElementById('b_csg_ded').value=b.csg_ded;
+document.getElementById('b_csg_nded').value=b.csg_nded;
+document.getElementById('b_crds').value=b.crds;
+document.getElementById('b_ir_t0').value=b.ir_t0;
+document.getElementById('b_ir_t11').value=b.ir_t11;
+document.getElementById('b_ir_t30').value=b.ir_t30;
+document.getElementById('b_ir_t41').value=b.ir_t41;
+showMessage('✅ Barème '+annee+' chargé','success');
+}
+
+function sauvegarderBareme(){
+const annee=document.getElementById('bareme_annee').value;
+const b={
+urssaf_taux:parseFloat(document.getElementById('b_urssaf_taux').value),
+urssaf_cfp:parseFloat(document.getElementById('b_urssaf_cfp').value),
+abattement:parseFloat(document.getElementById('b_abattement').value),
+liberatoire:parseFloat(document.getElementById('b_liberatoire').value),
+plafond_ss:parseFloat(document.getElementById('b_plafond_ss').value),
+plafond_comp:parseFloat(document.getElementById('b_plafond_comp').value),
+retraite_t1:parseFloat(document.getElementById('b_retraite_t1').value),
+retraite_t2:parseFloat(document.getElementById('b_retraite_t2').value),
+retraite_comp:parseFloat(document.getElementById('b_retraite_comp').value),
+asv:parseFloat(document.getElementById('b_asv').value),
+cot_prop_taux:parseFloat(document.getElementById('b_cot_prop_taux').value),
+cot_prop_plafond:parseFloat(document.getElementById('b_cot_prop_plafond').value),
+inv_deces:parseFloat(document.getElementById('b_inv_deces').value),
+assiette_csg:parseFloat(document.getElementById('b_assiette_csg').value),
+csg_ded:parseFloat(document.getElementById('b_csg_ded').value),
+csg_nded:parseFloat(document.getElementById('b_csg_nded').value),
+crds:parseFloat(document.getElementById('b_crds').value),
+ir_t0:parseFloat(document.getElementById('b_ir_t0').value),
+ir_t11:parseFloat(document.getElementById('b_ir_t11').value),
+ir_t30:parseFloat(document.getElementById('b_ir_t30').value),
+ir_t41:parseFloat(document.getElementById('b_ir_t41').value),
+};
+localStorage.setItem('bareme_'+annee,JSON.stringify(b));
+showMessage('✅ Barème '+annee+' sauvegardé !','success');
+}
+
+function resetBareme(){
+const annee=document.getElementById('bareme_annee').value;
+localStorage.removeItem('bareme_'+annee);
+chargerBareme();
+showMessage('↺ Barème '+annee+' réinitialisé aux valeurs par défaut','warning');
+}
+
+function getBareParam(key){
+const annee=document.getElementById('bareme_annee')?document.getElementById('bareme_annee').value:'2026';
+return getBareme(annee)[key];
 }
 
 function showTab(name){
