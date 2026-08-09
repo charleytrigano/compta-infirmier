@@ -1459,8 +1459,10 @@ return getBareme(annee)[key];
 function showTab(name){
 document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
 document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
-event.target.classList.add('active');
-document.getElementById(`tab-${name}`).classList.remove('hidden');
+const tabEl=document.getElementById(`tab-${name}`);
+if(tabEl)tabEl.classList.remove('hidden');
+const btn=document.querySelector(`[onclick="showTab('${name}')"]`);
+if(btn)btn.classList.add('active');
 }
 
 function showMessage(msg,type){
