@@ -669,16 +669,16 @@ allTransactions=await api('transactions?select=*&order=date.desc')||[];
 transactions=allTransactions;
 recurrents=JSON.parse(localStorage.getItem('recurrents')||'[]');
 bankOps=JSON.parse(localStorage.getItem('bankOps')||'[]');
-displayTransactions();
-displayRecurrents();
-displayBankOps();
-updateStats();
+try{displayTransactions();}catch(e){console.error('displayTransactions:',e);}
+try{displayRecurrents();}catch(e){console.error('displayRecurrents:',e);}
+try{displayBankOps();}catch(e){console.error('displayBankOps:',e);}
+try{updateStats();}catch(e){console.error('updateStats:',e);}
 document.getElementById('loading').classList.add('hidden');
 document.getElementById('app').classList.remove('hidden');
 showMessage('✅ Connecté - '+allTransactions.length+' opérations chargées','success');
-updateCategories();
-checkRecurrents();
-chargerBareme(true);
+try{updateCategories();}catch(e){console.error('updateCategories:',e);}
+try{checkRecurrents();}catch(e){console.error('checkRecurrents:',e);}
+try{chargerBareme(true);}catch(e){console.error('chargerBareme:',e);}
 }catch(error){
 document.getElementById('loading').innerHTML=`
 <div style="text-align:center;padding:2rem;">
@@ -916,7 +916,9 @@ updateChart();
 }
 
 function updateChart(){
+try{
 const ctx=document.getElementById('chart');
+if(!ctx)return;
 if(window.myChart)window.myChart.destroy();
 const months={};
 transactions.forEach(t=>{
@@ -928,7 +930,9 @@ else months[month].depenses+=t.amount;
 const labels=Object.keys(months).sort();
 const recettes=labels.map(m=>months[m].recettes);
 const depenses=labels.map(m=>months[m].depenses);
+if(typeof Chart==='undefined')return;
 window.myChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Recettes',data:recettes,backgroundColor:'#34A853'},{label:'Dépenses',data:depenses,backgroundColor:'#F28B82'}]},options:{responsive:true,maintainAspectRatio:true}});
+}catch(e){console.warn('Chart error:',e);}
 }
 
 function exportFECPro(){
