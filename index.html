@@ -136,24 +136,27 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 
 <h3 style="color:#7B1FA2;margin-top:1rem;margin-bottom:0.75rem;">🏥 CARPIMKO</h3>
-<div class="form-row">
-<div><label>Plafond Sécu (€)</label><input type="number" id="b_plafond_ss" value="47253" step="1"></div>
-<div><label>Plafond complémentaire (€)</label><input type="number" id="b_plafond_comp" value="34033" step="1"></div>
+<div style="background:#fff3e0;padding:0.75rem;border-radius:8px;margin-bottom:0.75rem;">
+<p style="margin:0;font-size:0.85rem;color:#E65100;">⚡ <strong>Réforme 2026</strong> : Complémentaire 100% proportionnel (8,70% min 2 091€ / max 12 544€)</p>
 </div>
 <div class="form-row">
-<div><label>Retraite base T1 (%)</label><input type="number" id="b_retraite_t1" value="8.77" step="0.01"></div>
+<div><label>PASS (€)</label><input type="number" id="b_plafond_ss" value="48060" step="1"></div>
+<div><label>Retraite base T1 (%)</label><input type="number" id="b_retraite_t1" value="8.73" step="0.01"></div>
+</div>
+<div class="form-row">
 <div><label>Retraite base T2 (%)</label><input type="number" id="b_retraite_t2" value="1.87" step="0.01"></div>
+<div><label>Complémentaire taux (%)</label><input type="number" id="b_retraite_comp" value="8.70" step="0.01"></div>
 </div>
 <div class="form-row">
-<div><label>Retraite complémentaire (%)</label><input type="number" id="b_retraite_comp" value="8.70" step="0.01"></div>
-<div><label>ASV forfait (€)</label><input type="number" id="b_asv" value="224" step="1"></div>
+<div><label>Complémentaire min (€)</label><input type="number" id="b_cot_prop_taux" value="2091" step="1"></div>
+<div><label>Complémentaire max (€)</label><input type="number" id="b_cot_prop_plafond" value="12544" step="1"></div>
 </div>
 <div class="form-row">
-<div><label>Cot. proportionnelle (%)</label><input type="number" id="b_cot_prop_taux" value="0.40" step="0.01"></div>
-<div><label>Plafond cot. prop. (€)</label><input type="number" id="b_cot_prop_plafond" value="13913" step="1"></div>
+<div><label>ASV forfait praticien (€)</label><input type="number" id="b_asv" value="224" step="1"></div>
+<div><label>ASV proportionnel (%)</label><input type="number" id="b_asv_prop" value="0.16" step="0.01"></div>
 </div>
 <div class="form-row">
-<div><label>Invalidité-décès forfait (€)</label><input type="number" id="b_inv_deces" value="1022" step="1"></div>
+<div><label>Invalidité-décès (€)</label><input type="number" id="b_inv_deces" value="1022" step="1"></div>
 </div>
 
 <h3 style="color:#F57C00;margin-top:1rem;margin-bottom:0.75rem;">📋 CSG / CRDS</h3>
@@ -343,16 +346,16 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 <h3 style="color:#7B1FA2;margin-bottom:1rem;">🏥 CARPIMKO</h3>
 <div style="display:grid;gap:0.5rem;">
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Retraite de base <small style="color:#999;">(T1: 8,77% + T2: 1,87% plafonné 47 253€)</small></span>
+<span>Retraite de base <small style="color:#999;">(T1: 8,73% ≤ PASS + T2: 1,87% > PASS)</small></span>
 <strong id="sim_retraite_base">0,00 €</strong>
 </div>
-<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>Retraite complémentaire <small style="color:#999;">(8,70% plafonné 34 033€)</small></span>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#fff3e0;border-radius:4px;border-left:3px solid #F57C00;">
+<span>Complémentaire <small style="color:#F57C00;">⚡ Réforme 2026 : 8,70% (min 2 091€ / max 12 544€)</small></span>
 <strong id="sim_retraite_comp">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
-<span>ASV + Cot. proportionnelle <small style="color:#999;">(224€ forfait + 0,40%)</small></span>
-<strong id="sim_prevoyance">224,00 €</strong>
+<span>ASV <small style="color:#999;">(224€ + 0,16% × CA - part praticien)</small></span>
+<strong id="sim_prevoyance">0,00 €</strong>
 </div>
 <div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
 <span>Invalidité-décès <small style="color:#999;">(forfait 2026)</small></span>
@@ -1843,11 +1846,14 @@ const base_imposable=CA*(1-b.abattement/100);
 const urssaf_total=CA*(b.urssaf_taux/100);
 const cfp=CA*(b.urssaf_cfp/100);
 const urssaf_avec_cfp=urssaf_total+cfp;
-const retraite_base_t1=Math.min(CA,b.plafond_ss)*(b.retraite_t1/100);
-const retraite_base_t2=Math.min(CA,b.plafond_ss)*(b.retraite_t2/100);
-const retraite_comp=Math.min(CA,b.plafond_comp)*(b.retraite_comp/100);
-const cot_prop=Math.min(CA,b.cot_prop_plafond)*(b.cot_prop_taux/100);
-const carpimko_total=retraite_base_t1+retraite_base_t2+retraite_comp+b.asv+cot_prop+b.inv_deces;
+const retraite_base_t1=Math.min(CA,b.pass)*(b.retraite_t1/100);
+const retraite_base_t2=Math.max(0,CA-b.pass)*(b.retraite_t2/100);
+// Complémentaire 2026 : 100% proportionnel avec plancher/plafond
+const comp_brute=CA*(b.comp_taux/100);
+const retraite_comp=Math.max(b.comp_min,Math.min(b.comp_max,comp_brute));
+// ASV : forfait + proportionnel (part praticien)
+const asv=b.asv_forfait+(CA*(b.asv_prop/100));
+const carpimko_total=retraite_base_t1+retraite_base_t2+retraite_comp+asv+b.inv_deces;
 const base_csg=CA*(b.assiette_csg/100);
 const csg_ded=base_csg*(b.csg_ded/100);
 const csg_nded=base_csg*(b.csg_nded/100);
@@ -1875,7 +1881,7 @@ document.getElementById('sim_cfp').textContent=fmt(cfp);
 document.getElementById('sim_urssaf_total').textContent=fmt(urssaf_avec_cfp);
 document.getElementById('sim_retraite_base').textContent=fmt(retraite_base_t1+retraite_base_t2);
 document.getElementById('sim_retraite_comp').textContent=fmt(retraite_comp);
-document.getElementById('sim_prevoyance').textContent=fmt(b.asv+cot_prop);
+document.getElementById('sim_prevoyance').textContent=fmt(asv);
 document.getElementById('sim_inv_deces').textContent=fmt(b.inv_deces);
 document.getElementById('sim_carpimko_total').textContent=fmt(carpimko_total);
 document.getElementById('sim_base_csg').textContent=fmt(base_csg);
@@ -1911,10 +1917,50 @@ document.getElementById('simRecettesAuto').textContent=fmt(recettesActuelles)+' 
 // ══════════════════════════════════════
 
 const BAREMES_DEFAUT={
-'2025':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:46368,plafond_comp:33007,retraite_t1:8.23,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
-'2026':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:47253,plafond_comp:34033,retraite_t1:8.77,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
-'2027':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:47253,plafond_comp:34033,retraite_t1:8.77,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
-'2028':{urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,plafond_ss:47253,plafond_comp:34033,retraite_t1:8.77,retraite_t2:1.87,retraite_comp:8.70,asv:224,cot_prop_taux:0.40,cot_prop_plafond:13913,inv_deces:1022,assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106},
+// 2025 : ancien système CARPIMKO (forfait + proportionnel)
+'2025':{
+urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,
+pass:46368,
+retraite_t1:8.23,retraite_t2:1.87,
+// Ancien régime complémentaire 2025
+comp_taux:8.70,comp_plafond_min:23184,comp_plafond_max:138918,comp_min:2091,comp_max:12544,
+asv_forfait:224,asv_prop:0.16,
+inv_deces:1022,
+assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,
+ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106
+},
+// 2026 : RÉFORME CARPIMKO - système 100% proportionnel
+'2026':{
+urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,
+pass:48060,
+retraite_t1:8.73,retraite_t2:1.87,
+// Nouveau régime complémentaire 2026 : 8,70% avec plancher/plafond
+comp_taux:8.70,comp_plafond_min:24030,comp_plafond_max:144180,comp_min:2091,comp_max:12544,
+asv_forfait:224,asv_prop:0.16,
+inv_deces:1022,
+assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,
+ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106
+},
+'2027':{
+urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,
+pass:48060,
+retraite_t1:8.73,retraite_t2:1.87,
+comp_taux:8.70,comp_plafond_min:24030,comp_plafond_max:144180,comp_min:2091,comp_max:12544,
+asv_forfait:224,asv_prop:0.16,
+inv_deces:1022,
+assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,
+ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106
+},
+'2028':{
+urssaf_taux:23.1,urssaf_cfp:0.2,abattement:34,liberatoire:2.2,
+pass:48060,
+retraite_t1:8.73,retraite_t2:1.87,
+comp_taux:8.70,comp_plafond_min:24030,comp_plafond_max:144180,comp_min:2091,comp_max:12544,
+asv_forfait:224,asv_prop:0.16,
+inv_deces:1022,
+assiette_csg:98.25,csg_ded:6.8,csg_nded:2.4,crds:0.5,
+ir_t0:11294,ir_t11:28797,ir_t30:82341,ir_t41:177106
+},
 };
 
 function getBareme(annee){
@@ -1931,14 +1977,14 @@ document.getElementById('b_urssaf_taux').value=b.urssaf_taux;
 document.getElementById('b_urssaf_cfp').value=b.urssaf_cfp;
 document.getElementById('b_abattement').value=b.abattement;
 document.getElementById('b_liberatoire').value=b.liberatoire;
-document.getElementById('b_plafond_ss').value=b.plafond_ss;
-document.getElementById('b_plafond_comp').value=b.plafond_comp;
+document.getElementById('b_plafond_ss').value=b.pass;
 document.getElementById('b_retraite_t1').value=b.retraite_t1;
 document.getElementById('b_retraite_t2').value=b.retraite_t2;
-document.getElementById('b_retraite_comp').value=b.retraite_comp;
-document.getElementById('b_asv').value=b.asv;
-document.getElementById('b_cot_prop_taux').value=b.cot_prop_taux;
-document.getElementById('b_cot_prop_plafond').value=b.cot_prop_plafond;
+document.getElementById('b_retraite_comp').value=b.comp_taux;
+document.getElementById('b_cot_prop_taux').value=b.comp_min;
+document.getElementById('b_cot_prop_plafond').value=b.comp_max;
+document.getElementById('b_asv').value=b.asv_forfait;
+document.getElementById('b_asv_prop').value=b.asv_prop;
 document.getElementById('b_inv_deces').value=b.inv_deces;
 document.getElementById('b_assiette_csg').value=b.assiette_csg;
 document.getElementById('b_csg_ded').value=b.csg_ded;
@@ -1958,14 +2004,16 @@ urssaf_taux:parseFloat(document.getElementById('b_urssaf_taux').value),
 urssaf_cfp:parseFloat(document.getElementById('b_urssaf_cfp').value),
 abattement:parseFloat(document.getElementById('b_abattement').value),
 liberatoire:parseFloat(document.getElementById('b_liberatoire').value),
-plafond_ss:parseFloat(document.getElementById('b_plafond_ss').value),
-plafond_comp:parseFloat(document.getElementById('b_plafond_comp').value),
+pass:parseFloat(document.getElementById('b_plafond_ss').value),
 retraite_t1:parseFloat(document.getElementById('b_retraite_t1').value),
 retraite_t2:parseFloat(document.getElementById('b_retraite_t2').value),
-retraite_comp:parseFloat(document.getElementById('b_retraite_comp').value),
-asv:parseFloat(document.getElementById('b_asv').value),
-cot_prop_taux:parseFloat(document.getElementById('b_cot_prop_taux').value),
-cot_prop_plafond:parseFloat(document.getElementById('b_cot_prop_plafond').value),
+comp_taux:parseFloat(document.getElementById('b_retraite_comp').value),
+comp_min:parseFloat(document.getElementById('b_cot_prop_taux').value),
+comp_max:parseFloat(document.getElementById('b_cot_prop_plafond').value),
+comp_plafond_min:parseFloat(document.getElementById('b_cot_prop_taux').value)/parseFloat(document.getElementById('b_retraite_comp').value)*100,
+comp_plafond_max:parseFloat(document.getElementById('b_cot_prop_plafond').value)/parseFloat(document.getElementById('b_retraite_comp').value)*100,
+asv_forfait:parseFloat(document.getElementById('b_asv').value),
+asv_prop:parseFloat(document.getElementById('b_asv_prop').value),
 inv_deces:parseFloat(document.getElementById('b_inv_deces').value),
 assiette_csg:parseFloat(document.getElementById('b_assiette_csg').value),
 csg_ded:parseFloat(document.getElementById('b_csg_ded').value),
