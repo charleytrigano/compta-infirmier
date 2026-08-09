@@ -655,6 +655,7 @@ return{storage_path:path,file_name:file.name,file_type:file.type,file_size:file.
 
 async function init(){
 try{
+showMessage('⏳ Connexion à Supabase...','warning');
 const profiles=await api('profile?select=*');
 if(profiles&&profiles.length>0){
 profile=profiles[0];
@@ -674,11 +675,18 @@ displayBankOps();
 updateStats();
 document.getElementById('loading').classList.add('hidden');
 document.getElementById('app').classList.remove('hidden');
-showMessage('✅ Connecté','success');
+showMessage('✅ Connecté - '+allTransactions.length+' opérations chargées','success');
 updateCategories();
 checkRecurrents();
+chargerBareme();
 }catch(error){
-document.getElementById('loading').innerHTML=`<div class="error">❌ ${error.message}</div>`;
+document.getElementById('loading').innerHTML=`
+<div style="text-align:center;padding:2rem;">
+<p style="font-size:1.5rem;margin-bottom:1rem;">❌ Erreur de connexion</p>
+<p style="color:#666;margin-bottom:1rem;">${error.message}</p>
+<p style="color:#999;font-size:0.85rem;">Vérifiez votre connexion internet et que Supabase est actif</p>
+<button onclick="init()" style="margin-top:1rem;padding:0.75rem 2rem;background:#0A7373;color:white;border:none;border-radius:8px;cursor:pointer;font-size:1rem;">🔄 Réessayer</button>
+</div>`;
 }
 }
 
