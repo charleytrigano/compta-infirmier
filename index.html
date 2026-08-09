@@ -678,7 +678,7 @@ document.getElementById('app').classList.remove('hidden');
 showMessage('✅ Connecté - '+allTransactions.length+' opérations chargées','success');
 updateCategories();
 checkRecurrents();
-chargerBareme();
+chargerBareme(true);
 }catch(error){
 document.getElementById('loading').innerHTML=`
 <div style="text-align:center;padding:2rem;">
@@ -1981,31 +1981,34 @@ if(saved)return JSON.parse(saved);
 return BAREMES_DEFAUT[anneeStr]||BAREMES_DEFAUT['2026'];
 }
 
-function chargerBareme(){
-const annee=document.getElementById('bareme_annee').value;
+function chargerBareme(silent=false){
+const el=document.getElementById('bareme_annee');
+if(!el)return;
+const annee=el.value;
 const b=getBareme(annee);
-document.getElementById('b_urssaf_taux').value=b.urssaf_taux;
-document.getElementById('b_urssaf_cfp').value=b.urssaf_cfp;
-document.getElementById('b_abattement').value=b.abattement;
-document.getElementById('b_liberatoire').value=b.liberatoire;
-document.getElementById('b_plafond_ss').value=b.pass;
-document.getElementById('b_retraite_t1').value=b.retraite_t1;
-document.getElementById('b_retraite_t2').value=b.retraite_t2;
-document.getElementById('b_retraite_comp').value=b.comp_taux;
-document.getElementById('b_cot_prop_taux').value=b.comp_min;
-document.getElementById('b_cot_prop_plafond').value=b.comp_max;
-document.getElementById('b_asv').value=b.asv_forfait;
-document.getElementById('b_asv_prop').value=b.asv_prop;
-document.getElementById('b_inv_deces').value=b.inv_deces;
-document.getElementById('b_assiette_csg').value=b.assiette_csg;
-document.getElementById('b_csg_ded').value=b.csg_ded;
-document.getElementById('b_csg_nded').value=b.csg_nded;
-document.getElementById('b_crds').value=b.crds;
-document.getElementById('b_ir_t0').value=b.ir_t0;
-document.getElementById('b_ir_t11').value=b.ir_t11;
-document.getElementById('b_ir_t30').value=b.ir_t30;
-document.getElementById('b_ir_t41').value=b.ir_t41;
-showMessage('✅ Barème '+annee+' chargé','success');
+const set=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val;};
+set('b_urssaf_taux',b.urssaf_taux);
+set('b_urssaf_cfp',b.urssaf_cfp);
+set('b_abattement',b.abattement);
+set('b_liberatoire',b.liberatoire);
+set('b_plafond_ss',b.pass);
+set('b_retraite_t1',b.retraite_t1);
+set('b_retraite_t2',b.retraite_t2);
+set('b_retraite_comp',b.comp_taux);
+set('b_cot_prop_taux',b.comp_min);
+set('b_cot_prop_plafond',b.comp_max);
+set('b_asv',b.asv_forfait);
+set('b_asv_prop',b.asv_prop);
+set('b_inv_deces',b.inv_deces);
+set('b_assiette_csg',b.assiette_csg);
+set('b_csg_ded',b.csg_ded);
+set('b_csg_nded',b.csg_nded);
+set('b_crds',b.crds);
+set('b_ir_t0',b.ir_t0);
+set('b_ir_t11',b.ir_t11);
+set('b_ir_t30',b.ir_t30);
+set('b_ir_t41',b.ir_t41);
+if(!silent)showMessage('✅ Barème '+annee+' chargé','success');
 }
 
 function sauvegarderBareme(){
