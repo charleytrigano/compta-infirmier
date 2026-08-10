@@ -1,477 +1,90 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compta Infirmier - Exercices, Déclarations & Comptabilité</title>
-    <!-- Chargement de la bibliothèque Supabase puis de l'application -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-    <script src="app.js" defer></script>
-    <style>
-        :root {
-            --primary-color: #007bff;
-            --success-color: #28a745;
-            --danger-color: #dc3545;
-            --warning-color: #ffc107;
-            --info-color: #17a2b8;
-            --bg-color: #f4f6f9;
-            --card-bg: #ffffff;
-        }
+<!-- 5. ESTIMATION ET DETAIL CARPIMKO -->
+<div id="tab-carpimko" style="display: none;">
+    <h2>🏥 Simulation & Déclaration CARPIMKO</h2>
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            margin: 0;
-            padding: 20px;
-            color: #333;
-        }
-
-        .container { max-width: 1100px; margin: 0 auto; }
-
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; background: var(--card-bg); padding: 15px 20px;
-            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        nav.tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-
-        .tab {
-            padding: 10px 18px; background: #e9ecef; border: none;
-            border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s;
-        }
-
-        .tab.active { background: var(--primary-color); color: white; }
-
-        .card {
-            background: var(--card-bg); padding: 20px; border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 20px;
-        }
-
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: 600; }
-        input, select {
-            width: 100%; padding: 8px 12px; border: 1px solid #ced4da;
-            border-radius: 4px; box-sizing: border-box;
-        }
-
-        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; }
-        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-
-        .btn {
-            padding: 10px 18px; border: none; border-radius: 4px;
-            cursor: pointer; font-weight: bold; transition: opacity 0.2s;
-        }
-        .btn:hover { opacity: 0.9; }
-        .btn-primary { background-color: var(--primary-color); color: white; }
-        .btn-success { background-color: var(--success-color); color: white; }
-        .btn-danger { background-color: var(--danger-color); color: white; }
-        .btn-warning { background-color: var(--warning-color); color: #212529; }
-
-        .hidden { display: none; }
-
-        .transaction {
-            padding: 12px; border-left: 5px solid #ccc; background: #fff;
-            margin-bottom: 8px; border-radius: 4px; display: flex;
-            justify-content: space-between; align-items: center;
-        }
-        .transaction.recette { border-left-color: var(--success-color); }
-        .transaction.depense { border-left-color: var(--danger-color); }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
-        th { background: #f8f9fa; }
-
-        .section-title {
-            border-bottom: 2px solid var(--primary-color);
-            padding-bottom: 5px; margin-top: 0; color: var(--primary-color);
-        }
-
-        .kpi-card {
-            background: #e8f4f8; padding: 15px; border-radius: 6px;
-            border-left: 5px solid var(--info-color); text-align: center;
-        }
-        .kpi-value { font-size: 1.5em; font-weight: bold; color: var(--info-color); }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <header>
-        <h1>🩺 Compta Infirmier Libéral</h1>
-        <span id="syncStatus" style="font-size: 0.9em; color: #666;">🔄 Connexion...</span>
-    </header>
-
-    <div id="loading">Chargement de votre application...</div>
-
-    <div id="app" class="hidden">
-        <!-- BARRE DE NAVIGATION (6 ONGLETS) -->
-        <nav class="tabs">
-            <button class="tab active" onclick="showTab('profil')">👤 Profil</button>
-            <button class="tab" onclick="showTab('transactions')">💶 Transactions</button>
-            <button class="tab" onclick="showTab('bilan')">📊 Bilan & Résultat</button>
-            <button class="tab" onclick="showTab('declarations')">📋 URSSAF & Impôts</button>
-            <button class="tab" onclick="showTab('carpimko')">🏥 CARPIMKO</button>
-            <button class="tab" onclick="showTab('journal')">📖 Livre-Journal & Balance</button>
-        </nav>
-
-        <!-- 1. PROFIL -->
-        <div id="tab-profil">
-            <div class="card">
-                <h2 class="section-title">Informations Générales</h2>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label for="nom">Nom :</label>
-                        <input type="text" id="nom">
-                    </div>
-                    <div class="form-group">
-                        <label for="prenom">Prénom :</label>
-                        <input type="text" id="prenom">
-                    </div>
-                    <div class="form-group">
-                        <label for="siret">SIRET :</label>
-                        <input type="text" id="siret">
-                    </div>
-                    <div class="form-group">
-                        <label for="rpps">N° RPPS :</label>
-                        <input type="text" id="rpps">
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email :</label>
-                        <input type="email" id="email">
-                    </div>
-                </div>
-                <button class="btn btn-success" onclick="saveProfile()">💾 Enregistrer le profil</button>
+    <div class="card">
+        <h3 class="section-title">1. Paramètres Financiers & Ancienneté</h3>
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="carpBnc">Bénéfice Non Commercial (BNC N-2) en € :</label>
+                <input type="number" id="carpBnc" value="18272" step="100" oninput="calculerCarpimkoTab()" onchange="calculerCarpimkoTab()">
+                <small style="color:#666;">Bénéfice net (Recettes - Dépenses) retenu par la CARPIMKO.</small>
             </div>
-        </div>
-
-        <!-- 2. TRANSACTIONS -->
-        <div id="tab-transactions" style="display: none;">
-            <div class="card">
-                <h2 class="section-title">Nouvelle Opération</h2>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label for="date">Date :</label>
-                        <input type="date" id="date">
-                    </div>
-                    <div class="form-group">
-                        <label for="type">Type d'opération :</label>
-                        <select id="type" onchange="updateCategories()">
-                            <option value="recette">Recette (Entrée)</option>
-                            <option value="depense">Dépense (Sortie)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="category">Catégorie :</label>
-                        <select id="category"></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="amount">Montant (€) :</label>
-                        <input type="number" id="amount" step="0.01" placeholder="0.00">
-                    </div>
-                    <div class="form-group" style="grid-column: span 2;">
-                        <label for="description">Libellé / Intitulé (Obligatoire) :</label>
-                        <input type="text" id="description" placeholder="Ex: Consommables, Carburant, Honoraires SNIR...">
-                    </div>
-                    <div class="form-group" style="grid-column: span 2;">
-                        <label for="attachment">📎 Pièce jointe / Scan :</label>
-                        <input type="file" id="attachment" accept="image/*,application/pdf">
-                    </div>
-                </div>
-                <button class="btn btn-primary" onclick="addTransaction()">➕ Enregistrer la transaction</button>
-            </div>
-
-            <div class="card">
-                <h3>Historique des opérations</h3>
-                <div id="transactions"></div>
-            </div>
-        </div>
-
-        <!-- 3. BILAN ET COMPTE D'EXPLOITATION -->
-        <div id="tab-bilan" style="display: none;">
-            <h2>📈 Etats Financiers (Bilan & Compte d'Exploitation)</h2>
-            
-            <div class="card" style="background:#e9ecef;">
-                <div class="grid-2">
-                    <div class="form-group" style="margin:0;">
-                        <label for="exerciceSelect">Sélectionner l'Exercice Comptable :</label>
-                        <select id="exerciceSelect" onchange="genererBilanEtCE()">
-                            <option value="all">Toutes les années (Cumul)</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; align-items:flex-end;">
-                        <button class="btn btn-warning" onclick="window.print()">🖨️ Imprimer les Etats Comptables</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3 class="section-title">Compte d'Exploitation (Compte de Résultat)</h3>
-                <table>
-                    <thead>
-                        <tr><th>Poste Comptable</th><th>Montant (€)</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr style="background:#e8f5e9;">
-                            <td><strong>PRODUITS (Chiffre d'Affaires Brut)</strong></td>
-                            <td id="ceProduits" style="font-weight:bold; color:var(--success-color);">0.00 €</td>
-                        </tr>
-                        <tr><td>-- Honoraires Soins / PAI / Mutuelles</td><td id="ceHonoraires">0.00 €</td></tr>
-                        <tr><td>-- Autres Recettes</td><td id="ceAutresRecettes">0.00 €</td></tr>
-                        <tr style="background:#ffebee;">
-                            <td><strong>CHARGES D'EXPLOITATION (Total Dépenses)</strong></td>
-                            <td id="ceCharges" style="font-weight:bold; color:var(--danger-color);">0.00 €</td>
-                        </tr>
-                        <tr><td>-- Cotisations Sociales (URSSAF / CARPIMKO)</td><td id="ceCotis">0.00 €</td></tr>
-                        <tr><td>-- Consommables & Matériel Médical</td><td id="ceMateriel">0.00 €</td></tr>
-                        <tr><td>-- Frais de Déplacement / Véhicule</td><td id="ceFraisDeplacement">0.00 €</td></tr>
-                        <tr><td>-- Assurances Professionnelles</td><td id="ceAssurances">0.00 €</td></tr>
-                        <tr><td>-- Autres Charges & Dépenses</td><td id="ceAutresCharges">0.00 €</td></tr>
-                        <tr style="background:#f1f3f5; font-size:1.1em; font-weight:bold;">
-                            <td>RÉSULTAT DE L'EXERCICE (Bénéfice ou Perte)</td>
-                            <td id="ceResultat">0.00 €</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="card">
-                <h3 class="section-title">Bilan Comptable Simplifié</h3>
-                <div class="grid-2">
-                    <div>
-                        <h4>ACTIF (Patrimoine)</h4>
-                        <table>
-                            <thead><tr><th>Elément</th><th>Montant (€)</th></tr></thead>
-                            <tbody>
-                                <tr><td>Trésorerie / Banque</td><td id="bilanActifTresorerie">0.00 €</td></tr>
-                                <tr style="font-weight:bold; background:#f8f9fa;"><td>TOTAL ACTIF</td><td id="bilanTotalActif">0.00 €</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div>
-                        <h4>PASSIF (Ressources)</h4>
-                        <table>
-                            <thead><tr><th>Elément</th><th>Montant (€)</th></tr></thead>
-                            <tbody>
-                                <tr><td>Résultat de l'Exercice</td><td id="bilanPassifResultat">0.00 €</td></tr>
-                                <tr style="font-weight:bold; background:#f8f9fa;"><td>TOTAL PASSIF</td><td id="bilanTotalPassif">0.00 €</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. DÉCLARATIONS SOCIALES ET FISCALES -->
-        <div id="tab-declarations" style="display: none;">
-            <h2>📋 Déclarations URSSAF (Trimestrielles), CARPIMKO & Impôts</h2>
-
-            <div class="card" style="background:#e9ecef;">
-                <label for="exerciceDeclSelect">Choisir l'Année de Déclaration :</label>
-                <select id="exerciceDeclSelect" onchange="genererDeclarations()">
-                    <option value="all">Toutes les années (Cumul)</option>
+            <div class="form-group">
+                <label for="carpStatut">Statut / Ancienneté d'Installation :</label>
+                <select id="carpStatut" onchange="calculerCarpimkoTab()">
+                    <option value="croisiere">Régime de Croisière (Année 3 et +)</option>
+                    <option value="annee1" selected>1ère Année d'installation (Forfait)</option>
+                    <option value="annee2">2ème Année d'installation (Forfait)</option>
                 </select>
             </div>
+        </div>
+        <div class="form-group">
+            <label style="cursor:pointer;">
+                <input type="checkbox" id="carpConventionne" onchange="calculerCarpimkoTab()"> 
+                Infirmier Libéral Conventionné (Prise en charge de 66% du régime ASV par la CPAM)
+            </label>
+        </div>
+    </div>
 
-            <div class="card" style="border-left: 5px solid var(--primary-color);">
-                <h3 class="section-title">1. Déclaration URSSAF Trimestrielle & CARPIMKO</h3>
-                <p><strong>Recettes Totales Réalisées :</strong> <strong id="declCA">0.00 €</strong></p>
-
-                <h4>Ventilation du CA par Trimestre (URSSAF) :</h4>
-                <div class="grid-4">
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
-                        <small><strong>Trimestre 1 (Jan-Mar)</strong></small>
-                        <div id="caT1" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
-                        <small>URSSAF Est. (~14.5%): <span id="urssafT1">0.00 €</span></small>
-                    </div>
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
-                        <small><strong>Trimestre 2 (Avr-Juin)</strong></small>
-                        <div id="caT2" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
-                        <small>URSSAF Est. (~14.5%): <span id="urssafT2">0.00 €</span></small>
-                    </div>
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
-                        <small><strong>Trimestre 3 (Juil-Sept)</strong></small>
-                        <div id="caT3" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
-                        <small>URSSAF Est. (~14.5%): <span id="urssafT3">0.00 €</span></small>
-                    </div>
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
-                        <small><strong>Trimestre 4 (Oct-Déc)</strong></small>
-                        <div id="caT4" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
-                        <small>URSSAF Est. (~14.5%): <span id="urssafT4">0.00 €</span></small>
-                    </div>
-                </div>
-
-                <div style="margin-top:15px; background:#e8f4f8; padding:12px; border-radius:6px;">
-                    <strong>CARPIMKO Estimé (Retraite/Prévoyance) :</strong> <span id="estCARPIMKO" style="font-size:1.1em; font-weight:bold; color:var(--info-color);">0.00 €</span>
-                </div>
+    <div class="card">
+        <h3 class="section-title">2. Synthèse de Trésorerie Annuelles</h3>
+        <div class="grid-4">
+            <div class="kpi-card">
+                <small>Total Annuel Dû</small>
+                <div class="kpi-value" id="carpTotal">0.00 €</div>
             </div>
-
-            <div class="card" style="border-left: 5px solid var(--success-color);">
-                <h3 class="section-title">2. Déclaration d'Impôt sur le Revenu (Comparatif 2 Régimes)</h3>
-                <div class="grid-2">
-                    <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
-                        <h4 style="color:var(--primary-color); margin-top:0;">Option A : Micro-BNC (Case 5HQ)</h4>
-                        <ul>
-                            <li><strong>Montant brut à déclarer :</strong> <span id="microCA">0.00 €</span></li>
-                            <li><strong>Abattement forfaitaire (34%) :</strong> -<span id="microAbattement">0.00 €</span></li>
-                            <li><strong>Revenu imposable retenu :</strong> <strong id="microImposable" style="color:var(--success-color);">0.00 €</strong></li>
-                        </ul>
-                    </div>
-
-                    <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
-                        <h4 style="color:var(--success-color); margin-top:0;">Option B : Réel / 2035 (Case 5QC)</h4>
-                        <ul>
-                            <li><strong>Recettes brutes :</strong> <span id="reelCA">0.00 €</span></li>
-                            <li><strong>Dépenses déductibles :</strong> -<span id="reelDepenses">0.00 €</span></li>
-                            <li><strong>Bénéfice imposable retenu :</strong> <strong id="reelBenefice" style="color:var(--success-color);">0.00 €</strong></li>
-                        </ul>
-                    </div>
-                </div>
+            <div class="kpi-card">
+                <small>Mensualité (12 mois)</small>
+                <div class="kpi-value" id="carpMensuel">0.00 €</div>
+            </div>
+            <div class="kpi-card">
+                <small>Prélèvement Trimestriel</small>
+                <div class="kpi-value" id="carpTrim">0.00 €</div>
+            </div>
+            <div class="kpi-card">
+                <small>Taux Effectif / BNC</small>
+                <div class="kpi-value" id="carpTaux">0.0 %</div>
             </div>
         </div>
+    </div>
 
-        <!-- 5. ESTIMATION ET DETAIL CARPIMKO -->
-        <div id="tab-carpimko" style="display: none;">
-            <h2>🏥 Simulation & Déclaration CARPIMKO</h2>
-
-            <div class="card">
-                <h3 class="section-title">1. Paramètres Financiers & Ancienneté</h3>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label for="carpBnc">Bénéfice Non Commercial (BNC N-2) en € :</label>
-                        <input type="number" id="carpBnc" value="40000" step="500" oninput="calculerCarpimkoTab()">
-                        <small style="color:#666;">Bénéfice net (Recettes - Dépenses) retenu par la CARPIMKO.</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="carpStatut">Statut / Ancienneté d'Installation :</label>
-                        <select id="carpStatut" onchange="calculerCarpimkoTab()">
-                            <option value="croisiere">Régime de Croisière (Année 3 et +)</option>
-                            <option value="annee1">1ère Année d'installation (Forfait)</option>
-                            <option value="annee2">2ème Année d'installation (Forfait)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="carpConventionne" checked onchange="calculerCarpimkoTab()"> 
-                        Infirmier Libéral Conventionné (Prise en charge de 66% du régime ASV par la CPAM)
-                    </label>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3 class="section-title">2. Synthèse de Trésorerie Annuelles</h3>
-                <div class="grid-4">
-                    <div class="kpi-card">
-                        <small>Total Annuel Dû</small>
-                        <div class="kpi-value" id="carpTotal">0.00 €</div>
-                    </div>
-                    <div class="kpi-card">
-                        <small>Mensualité (12 mois)</small>
-                        <div class="kpi-value" id="carpMensuel">0.00 €</div>
-                    </div>
-                    <div class="kpi-card">
-                        <small>Prélèvement Trimestriel</small>
-                        <div class="kpi-value" id="carpTrim">0.00 €</div>
-                    </div>
-                    <div class="kpi-card">
-                        <small>Taux Effectif / BNC</small>
-                        <div class="kpi-value" id="carpTaux">0.0 %</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3 class="section-title">3. Ventilation Détaillée par Régime Obligatoire</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Régime</th>
-                            <th>Détail du mode de calcul</th>
-                            <th style="text-align:right;">Montant Dû (€)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>1. Régime de Base</strong></td>
-                            <td>Calculé sur Tranche 1 (8.23% jusqu'à PASS) + Tranche 2 (1.87% au-delà)</td>
-                            <td style="text-align:right;" id="carpRegimeBase">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>2. Régime Complémentaire</strong></td>
-                            <td>Forfait fixe (1 856€) + Part proportionnelle au BNC</td>
-                            <td style="text-align:right;" id="carpRegimeComp">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>3. Prévoyance (Incapacité / Décès)</strong></td>
-                            <td>Forfait annuel pour la couverture arrêt de travail et invalidité</td>
-                            <td style="text-align:right;" id="carpRegimePrev">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>4. ASV (Avantages Sociaux)</strong></td>
-                            <td>Forfait + Part proportionnelle (Réduit si conventionné)</td>
-                            <td style="text-align:right;" id="carpRegimeASV">0.00 €</td>
-                        </tr>
-                        <tr style="background:#e9ecef; font-weight:bold;">
-                            <td colspan="2">TOTAL COTISATIONS CARPIMKO</td>
-                            <td style="text-align:right; color:var(--info-color);" id="carpTableTotal">0.00 €</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- 6. LIVRE-JOURNAL ET BALANCE COMPTABLE -->
-        <div id="tab-journal" style="display: none;">
-            <h2>📖 Livre-Journal & Balance Comptable (Plan PCG)</h2>
-
-            <div class="card" style="background:#e9ecef;">
-                <label for="exerciceJournalSelect">Choisir l'Année Comptable :</label>
-                <select id="exerciceJournalSelect" onchange="afficherJournalEtBalance()">
-                    <option value="all">Toutes les années (Cumul)</option>
-                </select>
-            </div>
-
-            <div class="card">
-                <h3 class="section-title">1. Grand Livre / Livre-Journal des Écritures</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Compte PCG</th>
-                            <th>Libellé de l'Opération</th>
-                            <th style="text-align:right;">Débit (€)</th>
-                            <th style="text-align:right;">Crédit (€)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbodyJournal">
-                        <tr><td colspan="5" style="text-align:center;">Chargement du journal...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="card">
-                <h3 class="section-title">2. Balance Comptable Générale</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Compte</th>
-                            <th>Intitulé du Compte</th>
-                            <th style="text-align:right;">Total Débit (€)</th>
-                            <th style="text-align:right;">Total Crédit (€)</th>
-                            <th style="text-align:right;">Solde Débit (€)</th>
-                            <th style="text-align:right;">Solde Crédit (€)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbodyBalance">
-                        <tr><td colspan="6" style="text-align:center;">Chargement de la balance...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
+    <div class="card">
+        <h3 class="section-title">3. Ventilation Détaillée par Régime Obligatoire</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Régime</th>
+                    <th>Détail du mode de calcul</th>
+                    <th style="text-align:right;">Montant Dû (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>1. Régime de Base</strong></td>
+                    <td>Calculé sur Tranche 1 (8.23% jusqu'à PASS) + Tranche 2 (1.87% au-delà)</td>
+                    <td style="text-align:right;" id="carpRegimeBase">0.00 €</td>
+                </tr>
+                <tr>
+                    <td><strong>2. Régime Complémentaire</strong></td>
+                    <td>Forfait fixe (1 856€) + Part proportionnelle au BNC</td>
+                    <td style="text-align:right;" id="carpRegimeComp">0.00 €</td>
+                </tr>
+                <tr>
+                    <td><strong>3. Prévoyance (Incapacité / Décès)</strong></td>
+                    <td>Forfait annuel pour la couverture arrêt de travail et invalidité</td>
+                    <td style="text-align:right;" id="carpRegimePrev">0.00 €</td>
+                </tr>
+                <tr>
+                    <td><strong>4. ASV (Avantages Sociaux)</strong></td>
+                    <td>Forfait + Part proportionnelle (Réduit si conventionné)</td>
+                    <td style="text-align:right;" id="carpRegimeASV">0.00 €</td>
+                </tr>
+                <tr style="background:#e9ecef; font-weight:bold;">
+                    <td colspan="2">TOTAL COTISATIONS CARPIMKO</td>
+                    <td style="text-align:right; color:var(--info-color);" id="carpTableTotal">0.00 €</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
-
-</body>
-</html>
