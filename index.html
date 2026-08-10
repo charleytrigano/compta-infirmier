@@ -187,9 +187,7 @@
                     <div class="form-group" style="margin:0;">
                         <label for="exerciceSelect">Sélectionner l'Exercice Comptable :</label>
                         <select id="exerciceSelect" onchange="genererBilanEtCE()">
-                            <option value="2026">Exercice 2026 (01/01/2026 au 31/12/2026)</option>
-                            <option value="2025">Exercice 2025 (01/01/2025 au 31/12/2025)</option>
-                            <option value="all">Tous les exercices cumulés</option>
+                            <option value="all">Toutes les années (Cumul)</option>
                         </select>
                     </div>
                     <div style="display:flex; align-items:flex-end;">
@@ -264,15 +262,14 @@
             <div class="card" style="background:#e9ecef;">
                 <label for="exerciceDeclSelect">Choisir l'Année de Déclaration :</label>
                 <select id="exerciceDeclSelect" onchange="genererDeclarations()">
-                    <option value="2026">Exercice 2026</option>
-                    <option value="2025">Exercice 2025</option>
+                    <option value="all">Toutes les années (Cumul)</option>
                 </select>
             </div>
 
             <!-- URSSAF TRIMESTRIEL -->
             <div class="card" style="border-left: 5px solid var(--primary-color);">
                 <h3 class="section-title">1. Déclaration URSSAF Trimestrielle & CARPIMKO</h3>
-                <p><strong>Recettes Totales de l'Année :</strong> <strong id="declCA">0.00 €</strong></p>
+                <p><strong>Recettes Totales Réalisées :</strong> <strong id="declCA">0.00 €</strong></p>
 
                 <h4>Ventilation du CA par Trimestre (URSSAF) :</h4>
                 <div class="grid-4">
@@ -299,7 +296,7 @@
                 </div>
 
                 <div style="margin-top:15px; background:#e8f4f8; padding:12px; border-radius:6px;">
-                    <strong>CARPIMKO Annuel Estimé (Retraite/Prévoyance) :</strong> <span id="estCARPIMKO" style="font-size:1.1em; font-weight:bold; color:var(--info-color);">0.00 €</span>
+                    <strong>CARPIMKO Estimé (Retraite/Prévoyance) :</strong> <span id="estCARPIMKO" style="font-size:1.1em; font-weight:bold; color:var(--info-color);">0.00 €</span>
                 </div>
             </div>
 
