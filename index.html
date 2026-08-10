@@ -83,7 +83,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 <button class="tab" onclick="showTab('simulateur')">🧮 Simulateur</button>
 </div>
 
-<div id="tab-profil">
+<div id="tab-profil" style="display:none">
 <div class="card">
 <h2>👤 Informations professionnelles</h2>
 <div class="form-row"><input type="text" id="nom" placeholder="Nom"><input type="text" id="prenom" placeholder="Prénom"></div>
@@ -183,7 +183,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="tab-operations" class="hidden">
+<div id="tab-operations" style="display:none">
 <div class="ai-scan">
 <h3>🤖 Scan intelligent avec IA</h3>
 <p style="margin-bottom:1rem;">Prenez une photo d'une facture, l'IA extrait automatiquement les informations !</p>
@@ -208,7 +208,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="tab-banque" class="hidden">
+<div id="tab-banque" style="display:none">
 <div class="card">
 <h2>🏦 Journal de banque</h2>
 <div class="stat-card" style="margin-bottom:1.5rem;">
@@ -222,7 +222,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="tab-recurrentes" class="hidden">
+<div id="tab-recurrentes" style="display:none">
 <div class="card">
 <h2>🔄 Dépenses récurrentes</h2>
 <p style="margin-bottom:1rem;color:#666;">Automatisez vos dépenses mensuelles (loyer, assurance...)</p>
@@ -239,7 +239,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="tab-documents" class="hidden">
+<div id="tab-documents" style="display:none">
 <div class="card">
 <h2>📑 Documents sociaux</h2>
 <p style="margin-bottom:1rem;color:#666;">Stockez vos documents administratifs</p>
@@ -258,7 +258,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="tab-stats" class="hidden">
+<div id="tab-stats" style="display:none">
 <div class="exercice-filter">
 <h3 style="margin-bottom:0.5rem;">📅 Filtrer par exercice</h3>
 <select id="exerciceSelect" onchange="filterByExercice()" style="margin-bottom:0;">
@@ -292,7 +292,7 @@ input,select,textarea{width:100%;padding:0.75rem;border:1px solid #ddd;border-ra
 </div>
 </div>
 
-<div id="tab-simulateur" class="hidden">
+<div id="tab-simulateur" style="display:none">
 <div class="card">
 <h2>🧮 Simulateur de charges sociales 2026</h2>
 <p style="color:#666;margin-bottom:1.5rem;">Calculez vos charges en fonction de vos recettes annuelles</p>

@@ -63,15 +63,14 @@ transactions=allTransactions;
 recurrents=JSON.parse(localStorage.getItem('recurrents')||'[]');
 bankOps=JSON.parse(localStorage.getItem('bankOps')||'[]');
 
-// Afficher l'app EN PREMIER
-document.getElementById('loading').classList.add('hidden');
-document.getElementById('app').classList.remove('hidden');
-// Forcer l'affichage de l'onglet opérations
-document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
-document.getElementById('tab-operations').classList.remove('hidden');
-document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-document.querySelector('[onclick*="operations"]').classList.add('active');
-document.getElementById('syncStatus').textContent='✅ '+allTransactions.length+' opérations';
+// Afficher app
+document.getElementById("loading").style.display="none";
+document.getElementById("app").style.display="block";
+document.querySelectorAll("[id^=tab-]").forEach(t=>t.style.display="none");
+document.getElementById("tab-operations").style.display="block";
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t=>{if(t.getAttribute("onclick")&&t.getAttribute("onclick").includes("operations"))t.classList.add("active");});
+document.getElementById("syncStatus").textContent="✅ "+allTransactions.length+" opérations";
 
 // Puis remplir les onglets
 try{displayTransactions();}catch(e){console.error('displayTransactions:',e);}
@@ -1463,11 +1462,10 @@ return getBareme(annee)[key];
 
 function showTab(name){
 document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
-const tabEl=document.getElementById(`tab-${name}`);
-if(tabEl)tabEl.classList.remove('hidden');
-const btn=document.querySelector(`[onclick="showTab('${name}')"]`);
-if(btn)btn.classList.add('active');
+document.querySelectorAll('[id^="tab-"]').forEach(t=>t.style.display='none');
+document.getElementById('tab-'+name).style.display='block';
+const btn=document.querySelector('[onclick*="showTab(\''+name+'\'"]') || document.querySelector('[onclick*="showTab(\\"'+name+'\\""]');
+document.querySelectorAll('.tab').forEach(t=>{if(t.getAttribute('onclick')&&t.getAttribute('onclick').includes("'"+name+"'"))t.classList.add('active');});
 }
 
 function showMessage(msg,type){
