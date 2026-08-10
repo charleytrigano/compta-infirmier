@@ -8,11 +8,13 @@ let supabaseClient = null;
 let currentTransactions = [];
 let currentProfile = {};
 
+// Fonction utilitaire pour mettre à jour du texte HTML de manière sécurisée
 function setTxt(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
 }
 
+// Extraction robuste de l'année et du mois
 function parseDate(dateStr) {
     if (!dateStr) return { year: null, month: null };
     if (dateStr.includes('-')) {
@@ -33,7 +35,7 @@ window.addEventListener('load', async () => {
         if (window.supabase && window.supabase.createClient) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         } else {
-            throw new Error("La bibliothèque Supabase n'est pas chargée.");
+            throw new Error("La bibliothèque Supabase n'est pas disponible.");
         }
 
         if (loadingEl) loadingEl.classList.add('hidden');
@@ -48,13 +50,13 @@ window.addEventListener('load', async () => {
     } catch (err) {
         console.error('Erreur d\'initialisation :', err);
         if (loadingEl) {
-            loadingEl.innerHTML = `<p style="color:red; font-weight:bold;">⚠️ Erreur lors du chargement : ${err.message}</p>`;
+            loadingEl.innerHTML = `<p style="color:red; font-weight:bold;">⚠️ Erreur de connexion : ${err.message}</p>`;
         }
     }
 });
 
 // ==========================================
-// 2. NAVIGATION ET INTERFACE
+// 2. NAVIGATION ET GESTION DES ONGLETS
 // ==========================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
@@ -71,6 +73,7 @@ function showTab(tabName) {
     );
     if (activeBtn) activeBtn.classList.add('active');
 
+    // Rafraîchissement automatique des vues à chaque changement d'onglet
     if (tabName === 'bilan') genererBilanEtCE();
     if (tabName === 'declarations') genererDeclarations();
     if (tabName === 'carpimko') calculerCarpimkoTab();
@@ -78,7 +81,7 @@ function showTab(tabName) {
 }
 
 // ==========================================
-// 3. PROFIL
+// 3. PROFIL INFIRMIER
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -106,7 +109,7 @@ async function saveProfile() {
 
     const { error } = await supabaseClient.from('profile').upsert(profilData);
     if (error) {
-        alert('Erreur lors de l\'enregistrement : ' + error.message);
+        alert('Erreur de sauvegarde : ' + error.message);
     } else {
         alert('✅ Profil mis à jour avec succès !');
         currentProfile = profilData;
@@ -187,7 +190,7 @@ function afficherTransactions(liste) {
             <div>
                 <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
                 <small><em>${t.category || ''}</em></small>
-                ${t.receipt_url ? `<br><a href="${t.receipt_url}" target="_blank">📎 Voir le scan / justificatif</a>` : ''}
+                ${t.receipt_url ? `<br><a href="${t.receipt_url}" target="_blank">📎 Voir la pièce jointe</a>` : ''}
             </div>
             <div>
                 <strong style="font-size: 1.1em;">${Number(t.amount || 0).toFixed(2)} €</strong>
@@ -208,7 +211,7 @@ async function addTransaction() {
     const fileInput = document.getElementById('attachment');
 
     if (!date || isNaN(amount) || !description) {
-        alert('Veuillez saisir la date, le montant ET le libellé.');
+        alert('Veuillez remplir la date, le montant ET le libellé.');
         return;
     }
 
@@ -250,7 +253,7 @@ async function addTransaction() {
         if (fileInput) fileInput.value = '';
         await chargerTransactions();
     } else {
-        alert('Erreur lors de l\'enregistrement : ' + error.message);
+        alert('Erreur d\'enregistrement : ' + error.message);
     }
 }
 
@@ -447,7 +450,91 @@ function calculerCarpimkoTab() {
 }
 
 // ==========================================
-// 8. JOURNAUX & BALANCE COMPTABLES
+// 8. INCORPORATION AUTOMATIQUE DES CHARGES
+// ==========================================
+async function incorporerChargesSociales(typeOrganisme) {
+    if (!supabaseClient) {
+        alert("Erreur : La connexion à Supabase n'est pas établie.");
+        return;
+    }
+
+    const nouvellesOperations = [];
+
+    if (typeOrganisme === 'URSSAF') {
+        const selectEl = document.getElementById('exerciceDeclSelect');
+        const annee = (selectEl && selectEl.value !== 'all') ? selectEl.value : new Date().getFullYear().toString();
+
+        const t1 = parseFloat(document.getElementById('urssafT1')?.textContent) || 0;
+        const t2 = parseFloat(document.getElementById('urssafT2')?.textContent) || 0;
+        const t3 = parseFloat(document.getElementById('urssafT3')?.textContent) || 0;
+        const t4 = parseFloat(document.getElementById('urssafT4')?.textContent) || 0;
+
+        const echeances = [
+            { nom: 'Trimestre 1', date: `${annee}-03-31`, montant: t1 },
+            { nom: 'Trimestre 2', date: `${annee}-06-30`, montant: t2 },
+            { nom: 'Trimestre 3', date: `${annee}-09-30`, montant: t3 },
+            { nom: 'Trimestre 4', date: `${annee}-12-31`, montant: t4 }
+        ];
+
+        echeances.forEach(e => {
+            if (e.montant > 0) {
+                nouvellesOperations.push({
+                    date: e.date,
+                    type: 'depense',
+                    category: 'cotisations',
+                    description: `Cotisation URSSAF ${e.nom} ${annee}`,
+                    amount: e.montant
+                });
+            }
+        });
+
+    } else if (typeOrganisme === 'CARPIMKO') {
+        const totalAnnuel = parseFloat(document.getElementById('carpTotal')?.textContent) || 0;
+        const trimestriel = totalAnnuel / 4;
+        const anneeCourante = new Date().getFullYear();
+
+        if (trimestriel > 0) {
+            const echeances = [
+                { nom: 'Échéance T1', date: `${anneeCourante}-02-05` },
+                { nom: 'Échéance T2', date: `${anneeCourante}-05-05` },
+                { nom: 'Échéance T3', date: `${anneeCourante}-08-05` },
+                { nom: 'Échéance T4', date: `${anneeCourante}-11-05` }
+            ];
+
+            echeances.forEach(e => {
+                nouvellesOperations.push({
+                    date: e.date,
+                    type: 'depense',
+                    category: 'cotisations',
+                    description: `Cotisation CARPIMKO ${e.nom} ${anneeCourante}`,
+                    amount: Number(trimestriel.toFixed(2))
+                });
+            });
+        }
+    }
+
+    if (nouvellesOperations.length === 0) {
+        alert(`Aucun montant calculé à intégrer pour ${typeOrganisme}. Saisissez d'abord des recettes.`);
+        return;
+    }
+
+    const confirmation = confirm(`Voulez-vous intégrer automatiquement ${nouvellesOperations.length} écritures de cotisations ${typeOrganisme} dans votre comptabilité ?`);
+    if (!confirmation) return;
+
+    const { error } = await supabaseClient
+        .from('transactions')
+        .insert(nouvellesOperations);
+
+    if (!error) {
+        alert(`✅ Les écritures ${typeOrganisme} ont été ajoutées avec succès !`);
+        await chargerTransactions();
+    } else {
+        alert(`Erreur d'enregistrement : ${error.message}`);
+    }
+}
+
+// ==========================================
+// 9. LIVRE-JOURNAL & BALANCE COMPTABLE
 // ==========================================
 function genererLivreJournal(exercice = 'all') {
     const entries = [];
@@ -464,8 +551,17 @@ function genererLivreJournal(exercice = 'all') {
             entries.push({ date: t.date, compte: '706000', libelle: `[Recette] ${t.description}`, debit: 0, credit: m });
         } else if (t.type === 'depense') {
             let compte = '658000';
-            if (t.category === 'cotisations') compte = '645000';
-            else if (t.category === 'materiel') compte = '606000';
+            
+            if (t.category === 'cotisations') {
+                const descLower = (t.description || '').toLowerCase();
+                if (descLower.includes('urssaf')) {
+                    compte = '645100'; // Compte PCG Cotisations URSSAF
+                } else if (descLower.includes('carpimko')) {
+                    compte = '645200'; // Compte PCG Cotisations CARPIMKO
+                } else {
+                    compte = '645000'; // Charges Sociales Générales
+                }
+            } else if (t.category === 'materiel') compte = '606000';
             else if (t.category === 'deplacement') compte = '625000';
             else if (t.category === 'assurance') compte = '616000';
 
@@ -486,7 +582,9 @@ function genererBalanceComptable(exercice = 'all') {
         '606000': 'Matériel & Consommables Médicaux',
         '616000': 'Assurances Professionnelles',
         '625000': 'Frais de Déplacement',
-        '645000': 'Cotisations Sociales (URSSAF/CARPIMKO)',
+        '645000': 'Cotisations Sociales Générales',
+        '645100': 'Cotisations URSSAF',
+        '645200': 'Cotisations CARPIMKO (Retraite/Prévoyance)',
         '658000': 'Autres Charges de Gestion',
         '706000': 'Honoraires & Prestations de Soins'
     };
