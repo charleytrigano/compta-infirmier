@@ -1,10 +1,9 @@
 // ==========================================
-// 1. CONFIGURATION & INITIALISATION SUPABASE
+// 1. CONFIGURATION SUPABASE
 // ==========================================
-// URL exacte de votre projet compta-infirmier
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
 
-// ⚠️ REMPLACEZ CETTE CLÉ PAR VOTRE CLÉ "anon public" RÉCUPÉRÉE DANS SUPABASE (Settings > API)
+// ⚠️ REMPLACEZ CETTE VALEUR PAR VOTRE CLÉ "anon public" RÉCUPÉRÉE DANS SUPABASE (Settings > API)
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
 
 let supabaseClient = null;
@@ -12,16 +11,13 @@ let currentTransactions = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Vérification de la présence de la bibliothèque Supabase dans la page HTML
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         } else {
-            console.error('La bibliothèque Supabase n\'est pas chargée dans la page.');
             afficherErreur('La bibliothèque Supabase est introuvable.');
             return;
         }
 
-        // Masquer l'écran de chargement et afficher l'application
         const loadingEl = document.getElementById('loading');
         const appEl = document.getElementById('app');
         if (loadingEl) loadingEl.classList.add('hidden');
@@ -34,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         showTab('profil');
         updateCategories();
 
-        // Chargement des données
+        // Chargement initial des données
         await chargerProfil();
         await chargerTransactions();
 
@@ -45,7 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// 2. GESTION DE L'AFFICHAGE ET NAVIGATION
+// 2. NAVIGATION ENTRE ONGLETS
 // ==========================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
@@ -55,29 +51,25 @@ function showTab(tabName) {
     buttons.forEach(btn => btn.classList.remove('active'));
 
     const target = document.getElementById(`tab-${tabName}`);
-    if (target) {
-        target.style.display = 'block';
-    }
+    if (target) target.style.display = 'block';
 
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
-    if (activeBtn) {
-        activeBtn.classList.add('active');
-    }
+    if (activeBtn) activeBtn.classList.add('active');
 }
 
 function afficherErreur(message) {
     const container = document.getElementById('transactions');
     if (container) {
-        container.innerHTML = `<div style="color: #d9534f; background: #fdf7f7; padding: 15px; border-radius: 6px; border: 1px solid #d9534f;">
+        container.innerHTML = `<div style="color: #dc3545; background: #fdf7f7; padding: 15px; border-radius: 6px; border: 1px solid #dc3545;">
             <strong>Erreur :</strong> ${message}
         </div>`;
     }
 }
 
 // ==========================================
-// 3. CHARGEMENT ET SAUVEGARDE DU PROFIL
+// 3. GESTION DU PROFIL
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -93,12 +85,7 @@ async function chargerProfil() {
     }
 
     if (data) {
-        const fields = [
-            'nom', 'prenom', 'siret', 'rpps', 'adeli', 'num_urssaf',
-            'adresse', 'code_postal', 'ville', 'telephone', 'email',
-            'comptable_cabinet', 'comptable_adresse', 'comptable_tel', 'comptable_email'
-        ];
-
+        const fields = ['nom', 'prenom', 'siret', 'rpps', 'telephone', 'email'];
         fields.forEach(field => {
             const el = document.getElementById(field);
             if (el && data[field] !== undefined && data[field] !== null) {
@@ -116,17 +103,8 @@ async function saveProfile() {
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || null,
         rpps: document.getElementById('rpps')?.value || null,
-        adeli: document.getElementById('adeli')?.value || null,
-        num_urssaf: document.getElementById('num_urssaf')?.value || null,
-        adresse: document.getElementById('adresse')?.value || '',
-        code_postal: document.getElementById('code_postal')?.value || '',
-        ville: document.getElementById('ville')?.value || '',
         telephone: document.getElementById('telephone')?.value || '',
-        email: document.getElementById('email')?.value || '',
-        comptable_cabinet: document.getElementById('comptable_cabinet')?.value || '',
-        comptable_adresse: document.getElementById('comptable_adresse')?.value || '',
-        comptable_tel: document.getElementById('comptable_tel')?.value || '',
-        comptable_email: document.getElementById('comptable_email')?.value || ''
+        email: document.getElementById('email')?.value || ''
     };
 
     const { error } = await supabaseClient
@@ -141,7 +119,7 @@ async function saveProfile() {
 }
 
 // ==========================================
-// 4. CHARGEMENT ET GESTION DES TRANSACTIONS
+// 4. GESTION DES TRANSACTIONS
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -152,7 +130,6 @@ async function chargerTransactions() {
         .order('date', { ascending: false });
 
     if (error) {
-        console.error('Erreur Supabase transactions :', error.message);
         afficherErreur(error.message);
         return;
     }
@@ -171,25 +148,18 @@ function afficherTransactions(liste) {
         return;
     }
 
-    container.innerHTML = liste.map(t => {
-        const isEncaisse = t.encaisse ? 'encaisse' : '';
-        const modePaiement = t.payment_method ? ` (${t.payment_method})` : '';
-
-        return `
-            <div class="transaction ${t.type} ${isEncaisse}">
-                <div class="transaction-actions">
-                    <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
-                </div>
-                <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span>
-                <div>
-                    <strong>${Number(t.amount).toFixed(2)} €</strong> 
-                    [${t.type.toUpperCase()}] 
-                    <em>${t.category || ''}</em>
-                    <small style="color:#666;">${modePaiement}</small>
-                </div>
+    container.innerHTML = liste.map(t => `
+        <div class="transaction ${t.type}">
+            <div>
+                <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
+                <small><em>${t.category || ''}</em></small>
             </div>
-        `;
-    }).join('');
+            <div>
+                <strong style="font-size: 1.1em;">${Number(t.amount).toFixed(2)} €</strong>
+                <button class="btn btn-danger" style="padding: 4px 8px; margin-left: 10px;" onclick="supprimerTransaction('${t.id}')">🗑️</button>
+            </div>
+        </div>
+    `).join('');
 }
 
 async function addTransaction() {
@@ -202,7 +172,7 @@ async function addTransaction() {
     const amount = parseFloat(document.getElementById('amount')?.value);
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez saisir une date et un montant valide.');
+        alert('Veuillez saisir au moins une date et un montant valide.');
         return;
     }
 
@@ -211,10 +181,7 @@ async function addTransaction() {
         type,
         category,
         description,
-        amount,
-        payment_method: document.getElementById('paymentMethod')?.value || 'Virement',
-        has_attachments: false,
-        encaisse: false
+        amount
     };
 
     const { error } = await supabaseClient
@@ -231,21 +198,16 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous vraiment supprimer cette ligne ?')) return;
+    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
 
     const { error } = await supabaseClient
         .from('transactions')
         .delete()
         .eq('id', id);
 
-    if (!error) {
-        await chargerTransactions();
-    }
+    if (!error) await chargerTransactions();
 }
 
-// ==========================================
-// 5. STATISTIQUES ET CATÉGORIES
-// ==========================================
 function calculerStatistiques(liste) {
     let recettes = 0;
     let depenses = 0;
@@ -256,13 +218,8 @@ function calculerStatistiques(liste) {
         if (t.type === 'depense') depenses += val;
     });
 
-    const balance = recettes - depenses;
-
     if (document.getElementById('statRecettes')) document.getElementById('statRecettes').textContent = recettes.toFixed(2) + ' €';
     if (document.getElementById('statDepenses')) document.getElementById('statDepenses').textContent = depenses.toFixed(2) + ' €';
-    if (document.getElementById('statBalance')) document.getElementById('statBalance').textContent = balance.toFixed(2) + ' €';
-    if (document.getElementById('statNb')) document.getElementById('statNb').textContent = liste.length;
-    if (document.getElementById('soldeBanque')) document.getElementById('soldeBanque').textContent = balance.toFixed(2) + ' €';
 }
 
 function updateCategories() {
@@ -272,21 +229,140 @@ function updateCategories() {
 
     if (type === 'recette') {
         catSelect.innerHTML = `
-            <option>Soins infirmiers</option>
-            <option>Honoraires PAI</option>
+            <option>Honoraires Soins / PAI</option>
             <option>Honoraires Mutuelles</option>
-            <option>Honoraires Patients</option>
+            <option>Honoraires Patients Directs</option>
             <option>Autre recette</option>
         `;
     } else {
         catSelect.innerHTML = `
-            <option>CARPIMKO</option>
-            <option>URSSAF</option>
-            <option>Matériel médical</option>
-            <option>Loyer professionnel</option>
+            <option>Cotisations URSSAF</option>
+            <option>Matériel / Consommables</option>
+            <option>Frais de déplacement / Carburant</option>
             <option>Assurance Pro</option>
-            <option>Carburant / Déplacements</option>
             <option>Autre dépense</option>
         `;
     }
+}
+
+// ==========================================
+// 5. SIMULATEUR DE CHARGES MICRO-ENTREPRISE
+// ==========================================
+function changerModeImpot() {
+    const mode = document.getElementById('modeImpot')?.value;
+    const groupLiberatoire = document.getElementById('groupLiberatoire');
+    const groupAbattement = document.getElementById('groupAbattement');
+    const groupParts = document.getElementById('groupParts');
+    const groupBaremeTable = document.getElementById('groupBaremeTable');
+
+    if (mode === 'liberatoire') {
+        if (groupLiberatoire) groupLiberatoire.style.display = 'block';
+        if (groupAbattement) groupAbattement.style.display = 'none';
+        if (groupParts) groupParts.style.display = 'none';
+        if (groupBaremeTable) groupBaremeTable.style.display = 'none';
+    } else {
+        if (groupLiberatoire) groupLiberatoire.style.display = 'none';
+        if (groupAbattement) groupAbattement.style.display = 'block';
+        if (groupParts) groupParts.style.display = 'block';
+        if (groupBaremeTable) groupBaremeTable.style.display = 'block';
+    }
+}
+
+function calculerSimulationMicro() {
+    const ca = parseFloat(document.getElementById('simuRecettes')?.value || 0);
+    const depenses = parseFloat(document.getElementById('simuDepenses')?.value || 0);
+
+    if (ca <= 0) {
+        document.getElementById('resCotisations').textContent = '0.00 €';
+        document.getElementById('resImpot').textContent = '0.00 €';
+        document.getElementById('resTotalPrélèvements').textContent = '0.00 €';
+        document.getElementById('resRevenuNet').textContent = '0.00 €';
+        return;
+    }
+
+    // 1. Calcul Cotisations Sociales + Formation Professionnelle
+    const tauxSocial = parseFloat(document.getElementById('tauxSocial')?.value || 0) / 100;
+    const tauxCFP = parseFloat(document.getElementById('tauxCFP')?.value || 0) / 100;
+    const cotisationsSociales = ca * (tauxSocial + tauxCFP);
+
+    // 2. Calcul Impôt sur le Revenu
+    const mode = document.getElementById('modeImpot')?.value || 'bareme';
+    let impotRevenu = 0;
+
+    if (mode === 'liberatoire') {
+        const tauxLib = parseFloat(document.getElementById('tauxLiberatoire')?.value || 0) / 100;
+        impotRevenu = ca * tauxLib;
+    } else {
+        const abattementPct = parseFloat(document.getElementById('tauxAbattement')?.value || 0) / 100;
+        const montantAbattement = Math.max(305, ca * abattementPct);
+        const revenuImposableFoyer = Math.max(0, ca - montantAbattement);
+
+        const parts = parseFloat(document.getElementById('nbParts')?.value || 1);
+        const quotientFamilial = revenuImposableFoyer / parts;
+
+        const t1_max = parseFloat(document.getElementById('t1_max')?.value || 11294);
+        const t2_max = parseFloat(document.getElementById('t2_max')?.value || 28797);
+        const t3_max = parseFloat(document.getElementById('t3_max')?.value || 82341);
+        const t4_max = parseFloat(document.getElementById('t4_max')?.value || 177106);
+
+        const r1 = parseFloat(document.getElementById('t1_rate')?.value || 0) / 100;
+        const r2 = parseFloat(document.getElementById('t2_rate')?.value || 11) / 100;
+        const r3 = parseFloat(document.getElementById('t3_rate')?.value || 30) / 100;
+        const r4 = parseFloat(document.getElementById('t4_rate')?.value || 41) / 100;
+        const r5 = parseFloat(document.getElementById('t5_rate')?.value || 45) / 100;
+
+        let impotParPart = 0;
+
+        if (quotientFamilial > 0) {
+            const assiette1 = Math.min(quotientFamilial, t1_max);
+            impotParPart += assiette1 * r1;
+
+            if (quotientFamilial > t1_max) {
+                const assiette2 = Math.min(quotientFamilial, t2_max) - t1_max;
+                impotParPart += assiette2 * r2;
+            }
+            if (quotientFamilial > t2_max) {
+                const assiette3 = Math.min(quotientFamilial, t3_max) - t2_max;
+                impotParPart += assiette3 * r3;
+            }
+            if (quotientFamilial > t3_max) {
+                const assiette4 = Math.min(quotientFamilial, t4_max) - t3_max;
+                impotParPart += assiette4 * r4;
+            }
+            if (quotientFamilial > t4_max) {
+                const assiette5 = quotientFamilial - t4_max;
+                impotParPart += assiette5 * r5;
+            }
+        }
+
+        impotRevenu = impotParPart * parts;
+    }
+
+    // 3. Synthèse des calculs
+    const totalPrélèvements = cotisationsSociales + impotRevenu;
+    const revenuNetFinal = ca - cotisationsSociales - impotRevenu - depenses;
+
+    document.getElementById('resCotisations').textContent = cotisationsSociales.toFixed(2) + ' €';
+    document.getElementById('resImpot').textContent = impotRevenu.toFixed(2) + ' €';
+    document.getElementById('resTotalPrélèvements').textContent = totalPrélèvements.toFixed(2) + ' €';
+    document.getElementById('resRevenuNet').textContent = revenuNetFinal.toFixed(2) + ' €';
+}
+
+function importerDonneesReelles() {
+    let totalRecettes = 0;
+    let totalDepenses = 0;
+
+    currentTransactions.forEach(t => {
+        const amount = Number(t.amount || 0);
+        if (t.type === 'recette') totalRecettes += amount;
+        if (t.type === 'depense') totalDepenses += amount;
+    });
+
+    const inputRecettes = document.getElementById('simuRecettes');
+    const inputDepenses = document.getElementById('simuDepenses');
+
+    if (inputRecettes) inputRecettes.value = totalRecettes.toFixed(2);
+    if (inputDepenses) inputDepenses.value = totalDepenses.toFixed(2);
+
+    calculerSimulationMicro();
 }
