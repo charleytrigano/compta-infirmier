@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compta Infirmier - Exercices & Déclarations</title>
+    <title>Compta Infirmier - Exercices, Déclarations & Comptabilité</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -100,9 +100,10 @@
         <!-- BARRE DE NAVIGATION -->
         <nav class="tabs">
             <button class="tab active" onclick="showTab('profil')">👤 Profil</button>
-            <button class="tab" onclick="showTab('transactions')">💶 Transactions & Scans</button>
-            <button class="tab" onclick="showTab('bilan')">📊 Bilan & Compte d'Exploitation</button>
-            <button class="tab" onclick="showTab('declarations')">📄 URSSAF (Trimestre) & Impôts (IR/2035)</button>
+            <button class="tab" onclick="showTab('transactions')">💶 Transactions</button>
+            <button class="tab" onclick="showTab('bilan')">📊 Bilan & Résultat</button>
+            <button class="tab" onclick="showTab('declarations')">📋 URSSAF & Impôts</button>
+            <button class="tab" onclick="showTab('journal')">📖 Livre-Journal & Balance</button>
         </nav>
 
         <!-- 1. PROFIL -->
@@ -181,7 +182,6 @@
         <div id="tab-bilan" style="display: none;">
             <h2>📈 Etats Financiers (Bilan & Compte d'Exploitation)</h2>
             
-            <!-- SÉLECTEUR D'EXERCICE -->
             <div class="card" style="background:#e9ecef;">
                 <div class="grid-2">
                     <div class="form-group" style="margin:0;">
@@ -196,7 +196,6 @@
                 </div>
             </div>
 
-            <!-- COMPTE D'EXPLOITATION -->
             <div class="card">
                 <h3 class="section-title">Compte d'Exploitation (Compte de Résultat)</h3>
                 <table>
@@ -227,7 +226,6 @@
                 </table>
             </div>
 
-            <!-- BILAN SIMPLIFIÉ -->
             <div class="card">
                 <h3 class="section-title">Bilan Comptable Simplifié</h3>
                 <div class="grid-2">
@@ -266,7 +264,6 @@
                 </select>
             </div>
 
-            <!-- URSSAF TRIMESTRIEL -->
             <div class="card" style="border-left: 5px solid var(--primary-color);">
                 <h3 class="section-title">1. Déclaration URSSAF Trimestrielle & CARPIMKO</h3>
                 <p><strong>Recettes Totales Réalisées :</strong> <strong id="declCA">0.00 €</strong></p>
@@ -300,11 +297,9 @@
                 </div>
             </div>
 
-            <!-- COMPARAISON DES 2 RÉGIMES FISCAUX (MICRO vs RÉEL 2035) -->
             <div class="card" style="border-left: 5px solid var(--success-color);">
                 <h3 class="section-title">2. Déclaration d'Impôt sur le Revenu (Comparatif 2 Régimes)</h3>
                 <div class="grid-2">
-                    <!-- OPTION A: MICRO-BNC -->
                     <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
                         <h4 style="color:var(--primary-color); margin-top:0;">Option A : Micro-BNC (Case 5HQ)</h4>
                         <ul>
@@ -314,7 +309,6 @@
                         </ul>
                     </div>
 
-                    <!-- OPTION B: RÉEL 2035 -->
                     <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
                         <h4 style="color:var(--success-color); margin-top:0;">Option B : Réel / 2035 (Case 5QC)</h4>
                         <ul>
@@ -324,6 +318,57 @@
                         </ul>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 5. LIVRE-JOURNAL ET BALANCE COMPTABLE -->
+        <div id="tab-journal" style="display: none;">
+            <h2>📖 Livre-Journal & Balance Comptable (Plan PCG)</h2>
+
+            <div class="card" style="background:#e9ecef;">
+                <label for="exerciceJournalSelect">Choisir l'Année Comptable :</label>
+                <select id="exerciceJournalSelect" onchange="afficherJournalEtBalance()">
+                    <option value="all">Toutes les années (Cumul)</option>
+                </select>
+            </div>
+
+            <!-- TABLEAU DU LIVRE-JOURNAL -->
+            <div class="card">
+                <h3 class="section-title">1. Grand Livre / Livre-Journal des Écritures</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Compte PCG</th>
+                            <th>Libellé de l'Opération</th>
+                            <th style="text-align:right;">Débit (€)</th>
+                            <th style="text-align:right;">Crédit (€)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyJournal">
+                        <tr><td colspan="5" style="text-align:center;">Chargement du journal...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TABLEAU DE LA BALANCE COMPTABLE -->
+            <div class="card">
+                <h3 class="section-title">2. Balance Comptable Générale</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Compte</th>
+                            <th>Intitulé du Compte</th>
+                            <th style="text-align:right;">Total Débit (€)</th>
+                            <th style="text-align:right;">Total Crédit (€)</th>
+                            <th style="text-align:right;">Solde Débit (€)</th>
+                            <th style="text-align:right;">Solde Crédit (€)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyBalance">
+                        <tr><td colspan="6" style="text-align:center;">Chargement de la balance...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
