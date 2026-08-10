@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compta Infirmier - Etats Comptables & Déclarations</title>
+    <title>Compta Infirmier - Exercices & Déclarations</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -54,6 +54,7 @@
         }
 
         .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 
         .btn {
             padding: 10px 18px; border: none; border-radius: 4px;
@@ -98,16 +99,16 @@
     <div id="app" class="hidden">
         <!-- BARRE DE NAVIGATION -->
         <nav class="tabs">
-            <button class="tab active" onclick="showTab('profil')">👤 Profil & Statut</button>
+            <button class="tab active" onclick="showTab('profil')">👤 Profil</button>
             <button class="tab" onclick="showTab('transactions')">💶 Transactions & Scans</button>
             <button class="tab" onclick="showTab('bilan')">📊 Bilan & Compte d'Exploitation</button>
-            <button class="tab" onclick="showTab('declarations')">📄 Déclarations URSSAF / CARPIMKO / IR</button>
+            <button class="tab" onclick="showTab('declarations')">📄 URSSAF (Trimestre) & Impôts (IR/2035)</button>
         </nav>
 
         <!-- 1. PROFIL -->
         <div id="tab-profil">
             <div class="card">
-                <h2 class="section-title">Informations & Régime Fiscal</h2>
+                <h2 class="section-title">Informations Générales</h2>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="nom">Nom :</label>
@@ -116,13 +117,6 @@
                     <div class="form-group">
                         <label for="prenom">Prénom :</label>
                         <input type="text" id="prenom">
-                    </div>
-                    <div class="form-group">
-                        <label for="regimeFiscal">Régime Fiscal :</label>
-                        <select id="regimeFiscal">
-                            <option value="micro">Micro-Entreprise (Micro-BNC)</option>
-                            <option value="reel">Déclaration Contrôlée (2035 / Réel)</option>
-                        </select>
                     </div>
                     <div class="form-group">
                         <label for="siret">SIRET :</label>
@@ -167,10 +161,10 @@
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label for="description">Libellé / Intitulé (Obligatoire) :</label>
-                        <input type="text" id="description" placeholder="Ex: Consommables médical, Essence, Honoraires...">
+                        <input type="text" id="description" placeholder="Ex: Consommables, Carburant, Honoraires SNIR...">
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
-                        <label for="attachment">📎 Pièce jointe / Scan (PDF, Image) :</label>
+                        <label for="attachment">📎 Pièce jointe / Scan (Envoyé vers 'justificatifs') :</label>
                         <input type="file" id="attachment" accept="image/*,application/pdf">
                     </div>
                 </div>
@@ -186,7 +180,23 @@
         <!-- 3. BILAN ET COMPTE D'EXPLOITATION -->
         <div id="tab-bilan" style="display: none;">
             <h2>📈 Etats Financiers (Bilan & Compte d'Exploitation)</h2>
-            <button class="btn btn-warning" onclick="window.print()" style="margin-bottom: 15px;">🖨️ Imprimer le Bilan / CE</button>
+            
+            <!-- SÉLECTEUR D'EXERCICE -->
+            <div class="card" style="background:#e9ecef;">
+                <div class="grid-2">
+                    <div class="form-group" style="margin:0;">
+                        <label for="exerciceSelect">Sélectionner l'Exercice Comptable :</label>
+                        <select id="exerciceSelect" onchange="genererBilanEtCE()">
+                            <option value="2026">Exercice 2026 (01/01/2026 au 31/12/2026)</option>
+                            <option value="2025">Exercice 2025 (01/01/2025 au 31/12/2025)</option>
+                            <option value="all">Tous les exercices cumulés</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                        <button class="btn btn-warning" onclick="window.print()">🖨️ Imprimer les Etats Comptables</button>
+                    </div>
+                </div>
+            </div>
 
             <!-- COMPTE D'EXPLOITATION -->
             <div class="card">
@@ -210,7 +220,7 @@
                         <tr><td>-- Consommables & Matériel Médical</td><td id="ceMateriel">0.00 €</td></tr>
                         <tr><td>-- Frais de Déplacement / Véhicule</td><td id="ceFraisDeplacement">0.00 €</td></tr>
                         <tr><td>-- Assurances Professionnelles</td><td id="ceAssurances">0.00 €</td></tr>
-                        <tr><td>-- Autres Charges Dépenses</td><td id="ceAutresCharges">0.00 €</td></tr>
+                        <tr><td>-- Autres Charges & Dépenses</td><td id="ceAutresCharges">0.00 €</td></tr>
                         <tr style="background:#f1f3f5; font-size:1.1em; font-weight:bold;">
                             <td>RÉSULTAT DE L'EXERCICE (Bénéfice ou Perte)</td>
                             <td id="ceResultat">0.00 €</td>
@@ -219,26 +229,25 @@
                 </table>
             </div>
 
-            <!-- BILAN COMPTABLE SIMPLIFIÉ -->
+            <!-- BILAN SIMPLIFIÉ -->
             <div class="card">
                 <h3 class="section-title">Bilan Comptable Simplifié</h3>
                 <div class="grid-2">
                     <div>
-                        <h4>ACTIF (Ce que vous possédez)</h4>
+                        <h4>ACTIF (Patrimoine)</h4>
                         <table>
                             <thead><tr><th>Elément</th><th>Montant (€)</th></tr></thead>
                             <tbody>
-                                <tr><td>Trésorerie / Solde Banque disponible</td><td id="bilanActifTresorerie">0.00 €</td></tr>
+                                <tr><td>Trésorerie / Banque</td><td id="bilanActifTresorerie">0.00 €</td></tr>
                                 <tr style="font-weight:bold; background:#f8f9fa;"><td>TOTAL ACTIF</td><td id="bilanTotalActif">0.00 €</td></tr>
                             </tbody>
                         </table>
                     </div>
                     <div>
-                        <h4>PASSIF (Origine des ressources)</h4>
+                        <h4>PASSIF (Ressources)</h4>
                         <table>
                             <thead><tr><th>Elément</th><th>Montant (€)</th></tr></thead>
                             <tbody>
-                                <tr><td>Capitaux Propres / Apports</td><td id="bilanPassifCapitaux">0.00 €</td></tr>
                                 <tr><td>Résultat de l'Exercice</td><td id="bilanPassifResultat">0.00 €</td></tr>
                                 <tr style="font-weight:bold; background:#f8f9fa;"><td>TOTAL PASSIF</td><td id="bilanTotalPassif">0.00 €</td></tr>
                             </tbody>
@@ -250,34 +259,74 @@
 
         <!-- 4. DÉCLARATIONS SOCIALES ET FISCALES -->
         <div id="tab-declarations" style="display: none;">
-            <h2>📋 Fiches de Déclaration (URSSAF, CARPIMKO & Impôts)</h2>
+            <h2>📋 Déclarations URSSAF (Trimestrielles), CARPIMKO & Impôts</h2>
 
-            <!-- URSSAF & CARPIMKO -->
+            <div class="card" style="background:#e9ecef;">
+                <label for="exerciceDeclSelect">Choisir l'Année de Déclaration :</label>
+                <select id="exerciceDeclSelect" onchange="genererDeclarations()">
+                    <option value="2026">Exercice 2026</option>
+                    <option value="2025">Exercice 2025</option>
+                </select>
+            </div>
+
+            <!-- URSSAF TRIMESTRIEL -->
             <div class="card" style="border-left: 5px solid var(--primary-color);">
-                <h3 class="section-title">1. Déclaration Sociale (URSSAF & CARPIMKO)</h3>
-                <p><strong>Base de calcul retenue (CA Brut) :</strong> <span id="declCA">0.00 €</span></p>
-                <div class="grid-2">
-                    <div style="background:#f8f9fa; padding:15px; border-radius:6px;">
-                        <h4>🏛️ URSSAF (Allocations, Maladie, CSG/CRDS, CFP)</h4>
-                        <p>Cotisations estimées : <strong id="estURSSAF" style="color:var(--primary-color);">0.00 €</strong></p>
-                        <small>Taux moyen estimé BNC/Micro : ~14.5% sur le CA ou Bénéfice.</small>
+                <h3 class="section-title">1. Déclaration URSSAF Trimestrielle & CARPIMKO</h3>
+                <p><strong>Recettes Totales de l'Année :</strong> <strong id="declCA">0.00 €</strong></p>
+
+                <h4>Ventilation du CA par Trimestre (URSSAF) :</h4>
+                <div class="grid-4">
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 1 (Jan-Mar)</strong></small>
+                        <div id="caT1" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT1">0.00 €</span></small>
                     </div>
-                    <div style="background:#f8f9fa; padding:15px; border-radius:6px;">
-                        <h4>🏥 CARPIMKO (Retraite & Prévoyance Infirmier)</h4>
-                        <p>Cotisations estimées : <strong id="estCARPIMKO" style="color:var(--info-color);">0.00 €</strong></p>
-                        <small>Inclut Régime de base, Régime complémentaire et ASV.</small>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 2 (Avr-Juin)</strong></small>
+                        <div id="caT2" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT2">0.00 €</span></small>
+                    </div>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 3 (Juil-Sept)</strong></small>
+                        <div id="caT3" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT3">0.00 €</span></small>
+                    </div>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 4 (Oct-Déc)</strong></small>
+                        <div id="caT4" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT4">0.00 €</span></small>
                     </div>
                 </div>
+
                 <div style="margin-top:15px; background:#e8f4f8; padding:12px; border-radius:6px;">
-                    <strong>Total Cotisations Sociales Estimées :</strong> <span id="estTotalSocial" style="font-size:1.2em; font-weight:bold; color:var(--primary-color);">0.00 €</span>
+                    <strong>CARPIMKO Annuel Estimé (Retraite/Prévoyance) :</strong> <span id="estCARPIMKO" style="font-size:1.1em; font-weight:bold; color:var(--info-color);">0.00 €</span>
                 </div>
             </div>
 
-            <!-- IMPÔT SUR LE REVENU -->
+            <!-- COMPARAISON DES 2 RÉGIMES FISCAUX (MICRO vs RÉEL 2035) -->
             <div class="card" style="border-left: 5px solid var(--success-color);">
-                <h3 class="section-title">2. Déclaration d'Impôt sur le Revenu (IR - 2042 C PRO / 2035)</h3>
-                <p><strong>Régime fiscal configuré :</strong> <span id="declRegimeText" style="font-weight:bold;">Micro-BNC</span></p>
-                <div id="detailsImpotContainer"></div>
+                <h3 class="section-title">2. Déclaration d'Impôt sur le Revenu (Comparatif 2 Régimes)</h3>
+                <div class="grid-2">
+                    <!-- OPTION A: MICRO-BNC -->
+                    <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
+                        <h4 style="color:var(--primary-color); margin-top:0;">Option A : Micro-BNC (Case 5HQ)</h4>
+                        <ul>
+                            <li><strong>Montant brut à déclarer :</strong> <span id="microCA">0.00 €</span></li>
+                            <li><strong>Abattement forfaitaire (34%) :</strong> -<span id="microAbattement">0.00 €</span></li>
+                            <li><strong>Revenu imposable retenu :</strong> <strong id="microImposable" style="color:var(--success-color);">0.00 €</strong></li>
+                        </ul>
+                    </div>
+
+                    <!-- OPTION B: RÉEL 2035 -->
+                    <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
+                        <h4 style="color:var(--success-color); margin-top:0;">Option B : Réel / 2035 (Case 5QC)</h4>
+                        <ul>
+                            <li><strong>Recettes brutes :</strong> <span id="reelCA">0.00 €</span></li>
+                            <li><strong>Dépenses déductibles :</strong> -<span id="reelDepenses">0.00 €</span></li>
+                            <li><strong>Bénéfice imposable retenu :</strong> <strong id="reelBenefice" style="color:var(--success-color);">0.00 €</strong></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
 
