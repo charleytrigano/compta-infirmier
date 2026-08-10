@@ -8,13 +8,11 @@ let supabaseClient = null;
 let currentTransactions = [];
 let currentProfile = {};
 
-// Helper pour modifier le texte d'un élément DOM en toute sécurité
 function setTxt(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
 }
 
-// Helper pour extraire l'année et le mois
 function parseDate(dateStr) {
     if (!dateStr) return { year: null, month: null };
     if (dateStr.includes('-')) {
@@ -27,7 +25,6 @@ function parseDate(dateStr) {
     return { year: null, month: null };
 }
 
-// Initialisation sécurisée au chargement complet de la page
 window.addEventListener('load', async () => {
     const loadingEl = document.getElementById('loading');
     const appEl = document.getElementById('app');
@@ -51,8 +48,7 @@ window.addEventListener('load', async () => {
     } catch (err) {
         console.error('Erreur d\'initialisation :', err);
         if (loadingEl) {
-            loadingEl.innerHTML = `<p style="color:red; font-weight:bold;">⚠️ Erreur lors du chargement : ${err.message}</p>
-            <p>Veuillez rafraîchir la page (F5) ou vérifier votre connexion internet.</p>`;
+            loadingEl.innerHTML = `<p style="color:red; font-weight:bold;">⚠️ Erreur lors du chargement : ${err.message}</p>`;
         }
     }
 });
@@ -369,7 +365,6 @@ function genererDeclarations() {
 
     setTxt('declCA', totalRecettes.toFixed(2) + ' €');
 
-    // URSSAF Trimestriel (~14.5%)
     setTxt('caT1', caT1.toFixed(2) + ' €');
     setTxt('urssafT1', (caT1 * 0.145).toFixed(2) + ' €');
 
@@ -382,15 +377,12 @@ function genererDeclarations() {
     setTxt('caT4', caT4.toFixed(2) + ' €');
     setTxt('urssafT4', (caT4 * 0.145).toFixed(2) + ' €');
 
-    // CARPIMKO Estimé (~8.8%)
     setTxt('estCARPIMKO', (totalRecettes * 0.088).toFixed(2) + ' €');
 
-    // OPTION A : MICRO-BNC
     setTxt('microCA', totalRecettes.toFixed(2) + ' €');
     setTxt('microAbattement', (totalRecettes * 0.34).toFixed(2) + ' €');
     setTxt('microImposable', (totalRecettes * 0.66).toFixed(2) + ' €');
 
-    // OPTION B : RÉEL / 2035
     setTxt('reelCA', totalRecettes.toFixed(2) + ' €');
     setTxt('reelDepenses', totalDepenses.toFixed(2) + ' €');
     setTxt('reelBenefice', Math.max(0, totalRecettes - totalDepenses).toFixed(2) + ' €');
@@ -400,12 +392,18 @@ function genererDeclarations() {
 // 7. SIMULATION & DÉCLARATION CARPIMKO
 // ==========================================
 function calculerCarpimkoTab() {
-    const bncInput = document.getElementById('carpBnc');
-    const bnc = parseFloat(bncInput ? bncInput.value : 40000) || 0;
-    const statut = document.getElementById('carpStatut')?.value || 'croisiere';
-    const conventionne = document.getElementById('carpConventionne')?.checked ?? true;
+    const elBnc = document.getElementById('carpBnc');
+    const elStatut = document.getElementById('carpStatut');
+    const elConv = document.getElementById('carpConventionne');
 
-    let totalBase = 0, totalComp = 0, totalPrev = 890, totalASV = 0;
+    const bnc = elBnc ? (parseFloat(elBnc.value) || 0) : 0;
+    const statut = elStatut ? elStatut.value : 'annee1';
+    const conventionne = elConv ? elConv.checked : false;
+
+    let totalBase = 0;
+    let totalComp = 0;
+    let totalPrev = 890; 
+    let totalASV = 0;
 
     if (statut === 'annee1') {
         totalBase = 840;
@@ -428,10 +426,13 @@ function calculerCarpimkoTab() {
         totalComp = partFixeComp + partPropComp;
 
         const asvBrut = 1950 + (bnc * 0.008);
-        totalASV = conventionne ? asvBrut * 0.33 : asvBrut;
+        totalASV = conventionne ? (asvBrut * 0.33) : asvBrut;
     }
 
     const totalAnnuel = totalBase + totalComp + totalPrev + totalASV;
+    const mensuel = totalAnnuel / 12;
+    const trimestriel = totalAnnuel / 4;
+    const tauxEffectif = bnc > 0 ? (totalAnnuel / bnc) * 100 : 0;
 
     setTxt('carpRegimeBase', totalBase.toFixed(2) + ' €');
     setTxt('carpRegimeComp', totalComp.toFixed(2) + ' €');
@@ -440,9 +441,9 @@ function calculerCarpimkoTab() {
 
     setTxt('carpTotal', totalAnnuel.toFixed(2) + ' €');
     setTxt('carpTableTotal', totalAnnuel.toFixed(2) + ' €');
-    setTxt('carpMensuel', (totalAnnuel / 12).toFixed(2) + ' €');
-    setTxt('carpTrim', (totalAnnuel / 4).toFixed(2) + ' €');
-    setTxt('carpTaux', (bnc > 0 ? (totalAnnuel / bnc) * 100 : 0).toFixed(1) + ' %');
+    setTxt('carpMensuel', mensuel.toFixed(2) + ' €');
+    setTxt('carpTrim', trimestriel.toFixed(2) + ' €');
+    setTxt('carpTaux', tauxEffectif.toFixed(1) + ' %');
 }
 
 // ==========================================
@@ -517,7 +518,6 @@ function afficherJournalEtBalance() {
     const selectEl = document.getElementById('exerciceJournalSelect');
     const anneeSelect = selectEl ? selectEl.value : 'all';
 
-    // 1. Livre Journal
     const journalData = genererLivreJournal(anneeSelect);
     const tbodyJournal = document.getElementById('tbodyJournal');
 
@@ -548,7 +548,6 @@ function afficherJournalEtBalance() {
         }
     }
 
-    // 2. Balance Comptable
     const balanceData = genererBalanceComptable(anneeSelect);
     const tbodyBalance = document.getElementById('tbodyBalance');
 
