@@ -1,27 +1,27 @@
 // ==========================================
-// 1. CONFIGURATION SUPABASE
+// 1. CONFIGURATION & INITIALISATION SUPABASE
 // ==========================================
 // URL exacte de votre projet compta-infirmier
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudGtmY3pmeGVoZ2RzcnVoYWJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTkzMzU0NSwiZXhwIjoyMDg3NTA5NTQ1fQ.hMpVK2ky6uoU7mauBeoTOR8THCUpycmUogBKyO8Wsmg';
+
+// ⚠️ REMPLACEZ CETTE CLÉ PAR VOTRE CLÉ "anon public" RÉCUPÉRÉE DANS SUPABASE (Settings > API)
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
 
 let supabaseClient = null;
 let currentTransactions = [];
 
-// ==========================================
-// 2. INITIALISATION AU CHARGEMENT DE LA PAGE
-// ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Vérification de la présence de la bibliothèque Supabase
+        // Vérification de la présence de la bibliothèque Supabase dans la page HTML
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         } else {
-            console.error('La bibliothèque Supabase CDN n\'est pas chargée.');
+            console.error('La bibliothèque Supabase n\'est pas chargée dans la page.');
+            afficherErreur('La bibliothèque Supabase est introuvable.');
             return;
         }
 
-        // Masquer l'écran d'attente et afficher l'application
+        // Masquer l'écran de chargement et afficher l'application
         const loadingEl = document.getElementById('loading');
         const appEl = document.getElementById('app');
         if (loadingEl) loadingEl.classList.add('hidden');
@@ -30,40 +30,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const syncStatus = document.getElementById('syncStatus');
         if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
 
-        // Activer l'onglet profil par défaut
+        // Vue par défaut
         showTab('profil');
         updateCategories();
 
-        // Charger les données depuis la base
+        // Chargement des données
         await chargerProfil();
         await chargerTransactions();
 
     } catch (err) {
-        console.error('Erreur lors de l\'initialisation :', err);
-        const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion';
+        console.error('Erreur au démarrage :', err);
+        afficherErreur('Erreur lors de la connexion à la base de données.');
     }
 });
 
 // ==========================================
-// 3. GESTION DE LA NAVIGATION PAR ONGLETS
+// 2. GESTION DE L'AFFICHAGE ET NAVIGATION
 // ==========================================
 function showTab(tabName) {
-    // Masquer tous les conteneurs d'onglets
     const allTabs = document.querySelectorAll('[id^="tab-"]');
     allTabs.forEach(tab => tab.style.display = 'none');
 
-    // Réinitialiser les boutons du menu
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
-    // Afficher l'onglet sélectionné
     const target = document.getElementById(`tab-${tabName}`);
     if (target) {
         target.style.display = 'block';
     }
 
-    // Mettre en surbrillance le bouton actif
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
@@ -72,8 +67,17 @@ function showTab(tabName) {
     }
 }
 
+function afficherErreur(message) {
+    const container = document.getElementById('transactions');
+    if (container) {
+        container.innerHTML = `<div style="color: #d9534f; background: #fdf7f7; padding: 15px; border-radius: 6px; border: 1px solid #d9534f;">
+            <strong>Erreur :</strong> ${message}
+        </div>`;
+    }
+}
+
 // ==========================================
-// 4. LECTURE & ÉCRITURE DU PROFIL
+// 3. CHARGEMENT ET SAUVEGARDE DU PROFIL
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -84,7 +88,7 @@ async function chargerProfil() {
         .maybeSingle();
 
     if (error) {
-        console.warn('Erreur de lecture du profil :', error.message);
+        console.warn('Erreur lors du chargement du profil :', error.message);
         return;
     }
 
@@ -137,7 +141,7 @@ async function saveProfile() {
 }
 
 // ==========================================
-// 5. LECTURE & ÉCRITURE DES TRANSACTIONS
+// 4. CHARGEMENT ET GESTION DES TRANSACTIONS
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -148,11 +152,8 @@ async function chargerTransactions() {
         .order('date', { ascending: false });
 
     if (error) {
-        console.error('Erreur récupération transactions :', error.message);
-        const container = document.getElementById('transactions');
-        if (container) {
-            container.innerHTML = `<p style="color:red;">Erreur Supabase : ${error.message}</p>`;
-        }
+        console.error('Erreur Supabase transactions :', error.message);
+        afficherErreur(error.message);
         return;
     }
 
@@ -166,7 +167,7 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée pour le moment.</p>';
+        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée.</p>';
         return;
     }
 
@@ -201,7 +202,7 @@ async function addTransaction() {
     const amount = parseFloat(document.getElementById('amount')?.value);
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez renseigner une date et un montant valide.');
+        alert('Veuillez saisir une date et un montant valide.');
         return;
     }
 
@@ -230,7 +231,7 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Confirmer la suppression de cette ligne ?')) return;
+    if (!supabaseClient || !confirm('Voulez-vous vraiment supprimer cette ligne ?')) return;
 
     const { error } = await supabaseClient
         .from('transactions')
@@ -243,7 +244,7 @@ async function supprimerTransaction(id) {
 }
 
 // ==========================================
-// 6. CALCUL DES STATISTIQUES
+// 5. STATISTIQUES ET CATÉGORIES
 // ==========================================
 function calculerStatistiques(liste) {
     let recettes = 0;
