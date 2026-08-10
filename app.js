@@ -2,46 +2,37 @@
 // 1. CONFIGURATION SUPABASE
 // ==========================================
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-
-// ⚠️ REMPLACEZ CETTE VALEUR PAR VOTRE CLÉ "anon public" RÉCUPÉRÉE DANS SUPABASE (Settings > API)
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg'; // Colle ta clé anon ici
 
 let supabaseClient = null;
 let currentTransactions = [];
+let currentProfile = {};
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         } else {
-            afficherErreur('La bibliothèque Supabase est introuvable.');
+            afficherErreur('Bibliothèque Supabase manquante.');
             return;
         }
 
-        const loadingEl = document.getElementById('loading');
-        const appEl = document.getElementById('app');
-        if (loadingEl) loadingEl.classList.add('hidden');
-        if (appEl) appEl.classList.remove('hidden');
+        document.getElementById('loading')?.classList.add('hidden');
+        document.getElementById('app')?.classList.remove('hidden');
+        document.getElementById('syncStatus').textContent = '☁️ Connecté à Supabase';
 
-        const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
-
-        // Vue par défaut
         showTab('profil');
         updateCategories();
-
-        // Chargement initial des données
         await chargerProfil();
         await chargerTransactions();
 
     } catch (err) {
-        console.error('Erreur au démarrage :', err);
-        afficherErreur('Erreur lors de la connexion à la base de données.');
+        console.error('Erreur initialisation :', err);
     }
 });
 
 // ==========================================
-// 2. NAVIGATION ENTRE ONGLETS
+// 2. NAVIGATION ET UTILITAIRES
 // ==========================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
@@ -57,40 +48,26 @@ function showTab(tabName) {
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
     if (activeBtn) activeBtn.classList.add('active');
+
+    if (tabName === 'bilan') genererEtatsComptables();
 }
 
-function afficherErreur(message) {
-    const container = document.getElementById('transactions');
-    if (container) {
-        container.innerHTML = `<div style="color: #dc3545; background: #fdf7f7; padding: 15px; border-radius: 6px; border: 1px solid #dc3545;">
-            <strong>Erreur :</strong> ${message}
-        </div>`;
-    }
+function afficherErreur(msg) {
+    alert(msg);
 }
 
 // ==========================================
-// 3. GESTION DU PROFIL
+// 3. PROFIL ET REGIME FISCAL
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
-    const { data, error } = await supabaseClient
-        .from('profile')
-        .select('*')
-        .maybeSingle();
-
-    if (error) {
-        console.warn('Erreur lors du chargement du profil :', error.message);
-        return;
-    }
-
+    const { data } = await supabaseClient.from('profile').select('*').maybeSingle();
     if (data) {
-        const fields = ['nom', 'prenom', 'siret', 'rpps', 'telephone', 'email'];
-        fields.forEach(field => {
+        currentProfile = data;
+        ['nom', 'prenom', 'siret', 'rpps', 'email', 'regimeFiscal'].forEach(field => {
             const el = document.getElementById(field);
-            if (el && data[field] !== undefined && data[field] !== null) {
-                el.value = data[field];
-            }
+            if (el && data[field]) el.value = data[field];
         });
     }
 }
@@ -101,25 +78,23 @@ async function saveProfile() {
     const profilData = {
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
-        siret: document.getElementById('siret')?.value || null,
-        rpps: document.getElementById('rpps')?.value || null,
-        telephone: document.getElementById('telephone')?.value || '',
-        email: document.getElementById('email')?.value || ''
+        siret: document.getElementById('siret')?.value || '',
+        rpps: document.getElementById('rpps')?.value || '',
+        email: document.getElementById('email')?.value || '',
+        regimeFiscal: document.getElementById('regimeFiscal')?.value || 'micro'
     };
 
-    const { error } = await supabaseClient
-        .from('profile')
-        .upsert(profilData);
-
+    const { error } = await supabaseClient.from('profile').upsert(profilData);
     if (error) {
-        alert('Erreur enregistrement profil : ' + error.message);
+        alert('Erreur enregistrement : ' + error.message);
     } else {
-        alert('✅ Profil enregistré avec succès !');
+        alert('✅ Profil et Régime enregistrés !');
+        currentProfile = profilData;
     }
 }
 
 // ==========================================
-// 4. GESTION DES TRANSACTIONS
+// 4. TRANSACTIONS ET JUSTIFICATIFS (SCANS)
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -129,14 +104,11 @@ async function chargerTransactions() {
         .select('*')
         .order('date', { ascending: false });
 
-    if (error) {
-        afficherErreur(error.message);
-        return;
+    if (!error) {
+        currentTransactions = data || [];
+        afficherTransactions(currentTransactions);
+        calculerStatistiques(currentTransactions);
     }
-
-    currentTransactions = data || [];
-    afficherTransactions(currentTransactions);
-    calculerStatistiques(currentTransactions);
 }
 
 function afficherTransactions(liste) {
@@ -144,7 +116,7 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée.</p>';
+        container.innerHTML = '<p style="color:#666;">Aucune transaction enregistrée.</p>';
         return;
     }
 
@@ -153,10 +125,11 @@ function afficherTransactions(liste) {
             <div>
                 <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
                 <small><em>${t.category || ''}</em></small>
+                ${t.receipt_url ? `<br><a href="${t.receipt_url}" target="_blank">📎 Voir le justificatif</a>` : ''}
             </div>
             <div>
                 <strong style="font-size: 1.1em;">${Number(t.amount).toFixed(2)} €</strong>
-                <button class="btn btn-danger" style="padding: 4px 8px; margin-left: 10px;" onclick="supprimerTransaction('${t.id}')">🗑️</button>
+                <button class="btn btn-danger" style="padding:4px 8px; margin-left:10px;" onclick="supprimerTransaction('${t.id}')">🗑️</button>
             </div>
         </div>
     `).join('');
@@ -170,52 +143,68 @@ async function addTransaction() {
     const category = document.getElementById('category')?.value;
     const description = document.getElementById('description')?.value;
     const amount = parseFloat(document.getElementById('amount')?.value);
+    const fileInput = document.getElementById('attachment');
 
-    if (!date || isNaN(amount)) {
-        alert('Veuillez saisir au moins une date et un montant valide.');
+    if (!date || isNaN(amount) || !description) {
+        alert('Veuillez renseigner au minimum la date, le montant ET le libellé.');
         return;
     }
 
-    const nouvelleOperation = {
+    let receiptUrl = null;
+
+    // Gestion de l'envoi du fichier/scan sur Supabase Storage
+    if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const fileName = `${Date.now()}_${file.name}`;
+
+        const { data: uploadData, error: uploadError } = await supabaseClient
+            .storage
+            .from('attachments')
+            .upload(fileName, file);
+
+        if (!uploadError && uploadData) {
+            const { data: publicUrlData } = supabaseClient
+                .storage
+                .from('attachments')
+                .getPublicUrl(fileName);
+
+            receiptUrl = publicUrlData.publicUrl;
+        }
+    }
+
+    const nouvelleOp = {
         date,
         type,
         category,
         description,
-        amount
+        amount,
+        receipt_url: receiptUrl
     };
 
-    const { error } = await supabaseClient
-        .from('transactions')
-        .insert([nouvelleOperation]);
+    const { error } = await supabaseClient.from('transactions').insert([nouvelleOp]);
 
-    if (error) {
-        alert('Erreur lors de l\'ajout : ' + error.message);
-    } else {
+    if (!error) {
         document.getElementById('description').value = '';
         document.getElementById('amount').value = '';
+        if (fileInput) fileInput.value = '';
         await chargerTransactions();
+    } else {
+        alert('Erreur lors de l\'enregistrement : ' + error.message);
     }
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
-
-    const { error } = await supabaseClient
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
-    if (!error) await chargerTransactions();
+    if (!confirm('Supprimer cette ligne ?')) return;
+    await supabaseClient.from('transactions').delete().eq('id', id);
+    await chargerTransactions();
 }
 
 function calculerStatistiques(liste) {
-    let recettes = 0;
-    let depenses = 0;
-
+    let recettes = 0, depenses = 0;
     liste.forEach(t => {
-        const val = Number(t.amount || 0);
-        if (t.type === 'recette') recettes += val;
-        if (t.type === 'depense') depenses += val;
+        const m = Number(t.amount || 0);
+        if (t.type === 'recette') recettes += m;
+        if (t.type === 'depense') depenses += m;
     });
 
     if (document.getElementById('statRecettes')) document.getElementById('statRecettes').textContent = recettes.toFixed(2) + ' €';
@@ -236,9 +225,9 @@ function updateCategories() {
         `;
     } else {
         catSelect.innerHTML = `
-            <option>Cotisations URSSAF</option>
+            <option>Cotisations Sociale / URSSAF</option>
             <option>Matériel / Consommables</option>
-            <option>Frais de déplacement / Carburant</option>
+            <option>Frais de Déplacement / Carburant</option>
             <option>Assurance Pro</option>
             <option>Autre dépense</option>
         `;
@@ -246,123 +235,95 @@ function updateCategories() {
 }
 
 // ==========================================
-// 5. SIMULATEUR DE CHARGES MICRO-ENTREPRISE
+// 5. SIMULATEUR DE CHARGES
 // ==========================================
-function changerModeImpot() {
-    const mode = document.getElementById('modeImpot')?.value;
-    const groupLiberatoire = document.getElementById('groupLiberatoire');
-    const groupAbattement = document.getElementById('groupAbattement');
-    const groupParts = document.getElementById('groupParts');
-    const groupBaremeTable = document.getElementById('groupBaremeTable');
-
-    if (mode === 'liberatoire') {
-        if (groupLiberatoire) groupLiberatoire.style.display = 'block';
-        if (groupAbattement) groupAbattement.style.display = 'none';
-        if (groupParts) groupParts.style.display = 'none';
-        if (groupBaremeTable) groupBaremeTable.style.display = 'none';
-    } else {
-        if (groupLiberatoire) groupLiberatoire.style.display = 'none';
-        if (groupAbattement) groupAbattement.style.display = 'block';
-        if (groupParts) groupParts.style.display = 'block';
-        if (groupBaremeTable) groupBaremeTable.style.display = 'block';
-    }
-}
-
-function calculerSimulationMicro() {
+function calculerSimulation() {
     const ca = parseFloat(document.getElementById('simuRecettes')?.value || 0);
     const depenses = parseFloat(document.getElementById('simuDepenses')?.value || 0);
 
-    if (ca <= 0) {
-        document.getElementById('resCotisations').textContent = '0.00 €';
-        document.getElementById('resImpot').textContent = '0.00 €';
-        document.getElementById('resTotalPrélèvements').textContent = '0.00 €';
-        document.getElementById('resRevenuNet').textContent = '0.00 €';
-        return;
-    }
+    const isMicro = (currentProfile.regimeFiscal || 'micro') === 'micro';
+    let cotis = 0, impot = 0;
 
-    // 1. Calcul Cotisations Sociales + Formation Professionnelle
-    const tauxSocial = parseFloat(document.getElementById('tauxSocial')?.value || 0) / 100;
-    const tauxCFP = parseFloat(document.getElementById('tauxCFP')?.value || 0) / 100;
-    const cotisationsSociales = ca * (tauxSocial + tauxCFP);
-
-    // 2. Calcul Impôt sur le Revenu
-    const mode = document.getElementById('modeImpot')?.value || 'bareme';
-    let impotRevenu = 0;
-
-    if (mode === 'liberatoire') {
-        const tauxLib = parseFloat(document.getElementById('tauxLiberatoire')?.value || 0) / 100;
-        impotRevenu = ca * tauxLib;
+    if (isMicro) {
+        cotis = ca * 0.214; // ~21.4% Micro BNC
+        impot = ca * 0.022; // ~2.2% Versement libératoire
     } else {
-        const abattementPct = parseFloat(document.getElementById('tauxAbattement')?.value || 0) / 100;
-        const montantAbattement = Math.max(305, ca * abattementPct);
-        const revenuImposableFoyer = Math.max(0, ca - montantAbattement);
-
-        const parts = parseFloat(document.getElementById('nbParts')?.value || 1);
-        const quotientFamilial = revenuImposableFoyer / parts;
-
-        const t1_max = parseFloat(document.getElementById('t1_max')?.value || 11294);
-        const t2_max = parseFloat(document.getElementById('t2_max')?.value || 28797);
-        const t3_max = parseFloat(document.getElementById('t3_max')?.value || 82341);
-        const t4_max = parseFloat(document.getElementById('t4_max')?.value || 177106);
-
-        const r1 = parseFloat(document.getElementById('t1_rate')?.value || 0) / 100;
-        const r2 = parseFloat(document.getElementById('t2_rate')?.value || 11) / 100;
-        const r3 = parseFloat(document.getElementById('t3_rate')?.value || 30) / 100;
-        const r4 = parseFloat(document.getElementById('t4_rate')?.value || 41) / 100;
-        const r5 = parseFloat(document.getElementById('t5_rate')?.value || 45) / 100;
-
-        let impotParPart = 0;
-
-        if (quotientFamilial > 0) {
-            const assiette1 = Math.min(quotientFamilial, t1_max);
-            impotParPart += assiette1 * r1;
-
-            if (quotientFamilial > t1_max) {
-                const assiette2 = Math.min(quotientFamilial, t2_max) - t1_max;
-                impotParPart += assiette2 * r2;
-            }
-            if (quotientFamilial > t2_max) {
-                const assiette3 = Math.min(quotientFamilial, t3_max) - t2_max;
-                impotParPart += assiette3 * r3;
-            }
-            if (quotientFamilial > t3_max) {
-                const assiette4 = Math.min(quotientFamilial, t4_max) - t3_max;
-                impotParPart += assiette4 * r4;
-            }
-            if (quotientFamilial > t4_max) {
-                const assiette5 = quotientFamilial - t4_max;
-                impotParPart += assiette5 * r5;
-            }
-        }
-
-        impotRevenu = impotParPart * parts;
+        const benefice = Math.max(0, ca - depenses);
+        cotis = benefice * 0.40; // ~40% BNC réel
+        impot = benefice * 0.11;
     }
 
-    // 3. Synthèse des calculs
-    const totalPrélèvements = cotisationsSociales + impotRevenu;
-    const revenuNetFinal = ca - cotisationsSociales - impotRevenu - depenses;
-
-    document.getElementById('resCotisations').textContent = cotisationsSociales.toFixed(2) + ' €';
-    document.getElementById('resImpot').textContent = impotRevenu.toFixed(2) + ' €';
-    document.getElementById('resTotalPrélèvements').textContent = totalPrélèvements.toFixed(2) + ' €';
-    document.getElementById('resRevenuNet').textContent = revenuNetFinal.toFixed(2) + ' €';
+    document.getElementById('resCotisations').textContent = cotis.toFixed(2) + ' €';
+    document.getElementById('resImpot').textContent = impot.toFixed(2) + ' €';
+    document.getElementById('resRevenuNet').textContent = (ca - cotisations - impot - depenses).toFixed(2) + ' €';
 }
 
 function importerDonneesReelles() {
-    let totalRecettes = 0;
-    let totalDepenses = 0;
-
+    let rec = 0, dep = 0;
     currentTransactions.forEach(t => {
-        const amount = Number(t.amount || 0);
-        if (t.type === 'recette') totalRecettes += amount;
-        if (t.type === 'depense') totalDepenses += amount;
+        const a = Number(t.amount || 0);
+        if (t.type === 'recette') rec += a;
+        if (t.type === 'depense') dep += a;
     });
 
-    const inputRecettes = document.getElementById('simuRecettes');
-    const inputDepenses = document.getElementById('simuDepenses');
+    document.getElementById('simuRecettes').value = rec.toFixed(2);
+    document.getElementById('simuDepenses').value = dep.toFixed(2);
+    calculerSimulation();
+}
 
-    if (inputRecettes) inputRecettes.value = totalRecettes.toFixed(2);
-    if (inputDepenses) inputDepenses.value = totalDepenses.toFixed(2);
+// ==========================================
+// 6. ETATS COMPTABLES & JOURNAUX
+// ==========================================
+function genererEtatsComptables() {
+    let rec = 0, dep = 0;
 
-    calculerSimulationMicro();
+    let htmlJournal = `<table><thead><tr><th>Date</th><th>Type</th><th>Catégorie</th><th>Libellé</th><th>Montant (€)</th><th>Justificatif</th></tr></thead><tbody>`;
+
+    currentTransactions.forEach(t => {
+        const m = Number(t.amount || 0);
+        if (t.type === 'recette') rec += m;
+        if (t.type === 'depense') dep += m;
+
+        htmlJournal += `<tr>
+            <td>${t.date}</td>
+            <td>${t.type.toUpperCase()}</td>
+            <td>${t.category || ''}</td>
+            <td>${t.description || ''}</td>
+            <td>${m.toFixed(2)} €</td>
+            <td>${t.receipt_url ? `<a href="${t.receipt_url}" target="_blank">Oui</a>` : 'Non'}</td>
+        </tr>`;
+    });
+
+    htmlJournal += `</tbody></table>`;
+
+    document.getElementById('compteCA').textContent = rec.toFixed(2) + ' €';
+    document.getElementById('compteDepenses').textContent = dep.toFixed(2) + ' €';
+    document.getElementById('compteResultat').textContent = (rec - dep).toFixed(2) + ' €';
+
+    document.getElementById('journalTableContainer').innerHTML = htmlJournal;
+
+    // Fiche déclarative
+    const regime = currentProfile.regimeFiscal === 'reel' ? 'Déclaration Contrôlée (2035 / Réel)' : 'Micro-Entreprise (Micro-BNC)';
+    document.getElementById('ficheRegime').textContent = regime;
+
+    if (currentProfile.regimeFiscal === 'reel') {
+        document.getElementById('ficheDetails').innerHTML = `
+            <ul>
+                <li><strong>Base à déclarer sur la 2035 :</strong> Recettes Brutes: <strong>${rec.toFixed(2)} €</strong> | Dépenses: <strong>${dep.toFixed(2)} €</strong></li>
+                <li><strong>Bénéfice Imposable (BNC) :</strong> <strong>${(rec - dep).toFixed(2)} €</strong></li>
+            </ul>
+        `;
+    } else {
+        document.getElementById('ficheDetails').innerHTML = `
+            <ul>
+                <li><strong>Chiffre d'affaires à déclarer à l'URSSAF :</strong> <strong>${rec.toFixed(2)} €</strong></li>
+                <li><strong>Abattement forfaitaire BNC (34%) :</strong> <strong>${(rec * 0.34).toFixed(2)} €</strong></li>
+                <li><strong>Revenu Net imposable estimé :</strong> <strong>${(rec * 0.66).toFixed(2)} €</strong></li>
+            </ul>
+        `;
+    }
+}
+
+function imprimerJournal() {
+    window.print();
 }
