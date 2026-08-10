@@ -339,58 +339,92 @@ function genererBilanEtCE() {
 // ==========================================
 // 6. DÉCLARATIONS TRIMESTRIELLES ET COMPARATIF
 // ==========================================
-function genererDeclarations() {
+/**
+ * Calcule et met à jour l'ensemble du tableau URSSAF et des impôts
+ * @param {boolean} saisieManuelle - Indique si l'utilisateur a tapé une valeur à la main
+ */
+function genererDeclarations(saisieManuelle = false) {
     const selectEl = document.getElementById('exerciceDeclSelect');
+    const inputBnc = document.getElementById('inputBncUrssaf');
     const anneeSelect = selectEl ? selectEl.value : 'all';
+    const estRemplacant = document.getElementById('urssafRemplacant')?.checked || false;
 
-    let caT1 = 0, caT2 = 0, caT3 = 0, caT4 = 0;
-    let totalRecettes = 0;
-    let totalDepenses = 0;
+    let bncFinal = 0;
 
+    if (saisieManuelle && inputBnc && inputBnc.value !== '') {
+        // L'utilisateur saisit directement une valeur dans le champ
+        bncFinal = parseFloat(inputBnc.value) || 0;
+    } else {
+        // Sinon, on calcule automatiquement la différence Recettes - Dépenses
+        let totalRecettes = 0;
+        let totalDepenses = 0;
+
+        currentTransactions.forEach(t => {
+            if (!t.date) return;
+            const { year } = parseDate(t.date);
+
+            if (anneeSelect !== 'all' && year !== anneeSelect) return;
+
+            const m = Number(t.amount || 0);
+            if (t.type === 'recette') totalRecettes += m;
+            else if (t.type === 'depense') totalDepenses += m;
+        });
+
+        bncFinal = Math.max(0, totalRecettes - totalDepenses);
+        if (inputBnc) inputBnc.value = bncFinal > 0 ? bncFinal : '';
+    }
+
+    // Calcul détaillé via le moteur de calcul URSSAF
+    const res = calculerDetailURSSAF(bncFinal, estRemplacant);
+
+    // Mettre à jour les affichages
+    setTxt('urssafBncAssiette', res.bncAssiette.toFixed(2) + ' €');
+
+    setTxt('uBaseCsg', res.baseCsg.toFixed(2) + ' €');
+    setTxt('uMontantCsg', res.mCsg.toFixed(2) + ' €');
+
+    setTxt('uBaseMaladie', res.baseMaladie.toFixed(2) + ' €');
+    setTxt('uMontantMaladie', res.mMaladie.toFixed(2) + ' €');
+
+    setTxt('uBaseIj', res.baseIj.toFixed(2) + ' €');
+    setTxt('uMontantIj', res.mIj.toFixed(2) + ' €');
+
+    setTxt('uBaseAlloc', res.baseAlloc.toFixed(2) + ' €');
+    setTxt('uTauxAlloc', (res.tauxAlloc * 100).toFixed(2) + ' %');
+    setTxt('uMontantAlloc', res.mAlloc.toFixed(2) + ' €');
+
+    setTxt('uBaseCurps', res.baseCurps.toFixed(2) + ' €');
+    setTxt('uMontantCurps', res.mCurps.toFixed(2) + ' €');
+
+    setTxt('uMontantCfp', res.mCfp.toFixed(2) + ' €');
+
+    setTxt('uTotalAnnuel', res.totalAnnuel.toFixed(2) + ' €');
+
+    // Échéances trimestrielles
+    const trim = res.totalTrimestriel;
+    setTxt('urssafT1', trim.toFixed(2) + ' €');
+    setTxt('urssafT2', trim.toFixed(2) + ' €');
+    setTxt('urssafT3', trim.toFixed(2) + ' €');
+    setTxt('urssafT4', trim.toFixed(2) + ' €');
+
+    // Section Fiscale (Imposition)
+    let caBrut = 0;
     currentTransactions.forEach(t => {
-        if (!t.date) return;
-        const { year, month } = parseDate(t.date);
-
-        if (anneeSelect !== 'all' && year !== anneeSelect) return;
-
-        const m = Number(t.amount || 0);
-
-        if (t.type === 'recette') {
-            totalRecettes += m;
-            if (month >= 1 && month <= 3) caT1 += m;
-            else if (month >= 4 && month <= 6) caT2 += m;
-            else if (month >= 7 && month <= 9) caT3 += m;
-            else if (month >= 10 && month <= 12) caT4 += m;
-        } else if (t.type === 'depense') {
-            totalDepenses += m;
-        }
+        if (t.type === 'recette') caBrut += Number(t.amount || 0);
     });
+    
+    setTxt('microCA', caBrut.toFixed(2) + ' €');
+    setTxt('microAbattement', (caBrut * 0.34).toFixed(2) + ' €');
+    setTxt('microImposable', (caBrut * 0.66).toFixed(2) + ' €');
 
-    setTxt('declCA', totalRecettes.toFixed(2) + ' €');
-
-    setTxt('caT1', caT1.toFixed(2) + ' €');
-    setTxt('urssafT1', (caT1 * 0.145).toFixed(2) + ' €');
-
-    setTxt('caT2', caT2.toFixed(2) + ' €');
-    setTxt('urssafT2', (caT2 * 0.145).toFixed(2) + ' €');
-
-    setTxt('caT3', caT3.toFixed(2) + ' €');
-    setTxt('urssafT3', (caT3 * 0.145).toFixed(2) + ' €');
-
-    setTxt('caT4', caT4.toFixed(2) + ' €');
-    setTxt('urssafT4', (caT4 * 0.145).toFixed(2) + ' €');
-
-    setTxt('estCARPIMKO', (totalRecettes * 0.088).toFixed(2) + ' €');
-
-    setTxt('microCA', totalRecettes.toFixed(2) + ' €');
-    setTxt('microAbattement', (totalRecettes * 0.34).toFixed(2) + ' €');
-    setTxt('microImposable', (totalRecettes * 0.66).toFixed(2) + ' €');
-
-    setTxt('reelCA', totalRecettes.toFixed(2) + ' €');
-    setTxt('reelDepenses', totalDepenses.toFixed(2) + ' €');
-    setTxt('reelBenefice', Math.max(0, totalRecettes - totalDepenses).toFixed(2) + ' €');
+    setTxt('reelCA', caBrut.toFixed(2) + ' €');
+    setTxt('reelDepenses', (caBrut - bncFinal).toFixed(2) + ' €');
+    setTxt('reelBenefice', bncFinal.toFixed(2) + ' €');
 }
 
+function actualiserCalculsUrssaf() {
+    genererDeclarations(false);
+}
 // ==========================================
 // 7. SIMULATION & DÉCLARATION CARPIMKO
 // ==========================================
