@@ -533,6 +533,78 @@ async function incorporerChargesSociales(typeOrganisme) {
     }
 }
 
+/**
+ * Calcule le détail complet des cotisations URSSAF pour un auxiliaire médical (PAMC)
+ * @param {number} bncRevenu - Bénéfice Non Commercial (Recettes - Dépenses)
+ * @param {Object} options - Options d'exonération ou statut (ex: estRemplacant, passAnnuel)
+ * @returns {Object} Détail des rubriques et total des cotisations
+ */
+function calculerDetailURSSAF(bncRevenu, options = {}) {
+    // Valeurs de référence (PASS - Plafond Annuel de la Sécurité Sociale)
+    const PASS = options.passAnnuel || 48060; 
+    const estRemplacant = options.estRemplacant || false;
+
+    // Assiette avec abattement social de 26% (plafonné)
+    const abattementMax = PASS * 1.3;
+    const montantAbattement = Math.min(bncRevenu * 0.26, abattementMax);
+    const assietteSocialeCSG = Math.max(0, bncRevenu - montantAbattement);
+
+    // 1. CSG / CRDS (9.70%)
+    const csgCrds = assietteSocialeCSG * 0.097;
+
+    // 2. Assurance Maladie (0.10% reste à charge infirmier conventionné)
+    const maladie = bncRevenu * 0.001;
+
+    // 3. Indemnités Journalières (0.30% avec plancher et plafond)
+    const assietteMinIJ = PASS * 0.40;
+    const assietteMaxIJ = PASS * 3.00;
+    const assietteIJ = Math.min(Math.max(bncRevenu, assietteMinIJ), assietteMaxIJ);
+    const indemnitesJournalieres = assietteIJ * 0.003;
+
+    // 4. Allocations Familiales (Taux progressif entre 110% et 140% du PASS)
+    let tauxAllocFam = 0;
+    const seuilExoneration = PASS * 1.10;
+    const seuilTauxPlein = PASS * 1.40;
+
+    if (bncRevenu > seuilTauxPlein) {
+        tauxAllocFam = 0.031;
+    } else if (bncRevenu > seuilExoneration) {
+        tauxAllocFam = 0.031 * ((bncRevenu - seuilExoneration) / (seuilTauxPlein - seuilExoneration));
+    }
+    const allocationsFamiliales = bncRevenu * tauxAllocFam;
+
+    // 5. CURPS (0.10% plafonné à 0.5% du PASS)
+    let curps = 0;
+    if (!estRemplacant) {
+        const plafondCurps = PASS * 0.005;
+        curps = Math.min(bncRevenu * 0.001, plafondCurps);
+    }
+
+    // 6. Formation Professionnelle CFP (0.25% du PASS)
+    const cfp = PASS * 0.0025;
+
+    // Total général URSSAF
+    const totalURSSAF = csgCrds + maladie + indemnitesJournalieres + allocationsFamiliales + curps + cfp;
+
+    return {
+        assietteCalculee: Number(bncRevenu.toFixed(2)),
+        rubriques: {
+            csgCrds: Number(csgCrds.toFixed(2)),
+            maladie: Number(maladie.toFixed(2)),
+            indemnitesJournalieres: Number(indemnitesJournalieres.toFixed(2)),
+            allocationsFamiliales: Number(allocationsFamiliales.toFixed(2)),
+            curps: Number(curps.toFixed(2)),
+            cfp: Number(cfp.toFixed(2))
+        },
+        totalAnnuel: Number(totalURSSAF.toFixed(2)),
+        totalTrimestriel: Number((totalURSSAF / 4).toFixed(2))
+    };
+}
+
+// Exemple d'utilisation dans la console :
+// const resultat = calculerDetailURSSAF(45000);
+// console.log(resultat);
+
 // ==========================================
 // 9. LIVRE-JOURNAL & BALANCE COMPTABLE
 // ==========================================
