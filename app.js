@@ -8,6 +8,33 @@ let supabaseClient = null;
 let currentTransactions = [];
 let currentProfile = {};
 
+// Helper sécurisé pour écrire du texte dans le DOM sans erreur JS
+function setTxt(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+// Helper pour extraire l'année et le mois de n'importe quel format de date
+function parseDate(dateStr) {
+    if (!dateStr) return { year: null, month: null };
+    
+    // Format AAAA-MM-JJ
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length >= 2) {
+            return { year: parts[0], month: parseInt(parts[1], 10) };
+        }
+    } 
+    // Format JJ/MM/AAAA
+    else if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length >= 3) {
+            return { year: parts[2].substring(0, 4), month: parseInt(parts[1], 10) };
+        }
+    }
+    return { year: null, month: null };
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         if (window.supabase) {
@@ -19,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('loading')?.classList.add('hidden');
         document.getElementById('app')?.classList.remove('hidden');
-        document.getElementById('syncStatus').textContent = '☁️ Connecté à Supabase';
+        setTxt('syncStatus', '☁️ Connecté à Supabase');
 
         showTab('profil');
         updateCategories();
@@ -90,7 +117,7 @@ async function saveProfile() {
 }
 
 // ==========================================
-// 4. TRANSACTIONS & ENVOI AU BUCKET "justificatifs"
+// 4. TRANSACTIONS & SÉLECTEUR D'ANNÉES DYNAMIQUE
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -102,9 +129,41 @@ async function chargerTransactions() {
 
     if (!error) {
         currentTransactions = data || [];
+        alimenterSelecteursAnnees();
         afficherTransactions(currentTransactions);
         genererBilanEtCE();
         genererDeclarations();
+    }
+}
+
+function alimenterSelecteursAnnees() {
+    const annees = new Set();
+    const currentYear = new Date().getFullYear().toString();
+    annees.add(currentYear);
+
+    currentTransactions.forEach(t => {
+        const { year } = parseDate(t.date);
+        if (year) annees.add(year);
+    });
+
+    const anneesTriees = Array.from(annees).sort().reverse();
+
+    const selectBilan = document.getElementById('exerciceSelect');
+    const selectDecl = document.getElementById('exerciceDeclSelect');
+
+    const optionsHtml = `<option value="all">Toutes les années (Cumul)</option>` + 
+        anneesTriees.map(y => `<option value="${y}">Exercice ${y}</option>`).join('');
+
+    if (selectBilan) {
+        const val = selectBilan.value;
+        selectBilan.innerHTML = optionsHtml;
+        if (val) selectBilan.value = val;
+    }
+
+    if (selectDecl) {
+        const val = selectDecl.value;
+        selectDecl.innerHTML = optionsHtml;
+        if (val) selectDecl.value = val;
     }
 }
 
@@ -125,7 +184,7 @@ function afficherTransactions(liste) {
                 ${t.receipt_url ? `<br><a href="${t.receipt_url}" target="_blank">📎 Voir le scan / justificatif</a>` : ''}
             </div>
             <div>
-                <strong style="font-size: 1.1em;">${Number(t.amount).toFixed(2)} €</strong>
+                <strong style="font-size: 1.1em;">${Number(t.amount || 0).toFixed(2)} €</strong>
                 <button class="btn btn-danger" style="padding:4px 8px; margin-left:10px;" onclick="supprimerTransaction('${t.id}')">🗑️</button>
             </div>
         </div>
@@ -149,14 +208,13 @@ async function addTransaction() {
 
     let receiptUrl = null;
 
-    // Envoi du fichier dans le bucket "justificatifs"
     if (fileInput && fileInput.files.length > 0) {
         const file = fileInput.files[0];
         const fileName = `${Date.now()}_${file.name}`;
 
         const { data: uploadData, error: uploadError } = await supabaseClient
             .storage
-            .from('justificatifs') // Utilisation directe du dossier "justificatifs"
+            .from('justificatifs')
             .upload(fileName, file);
 
         if (!uploadError && uploadData) {
@@ -166,8 +224,6 @@ async function addTransaction() {
                 .getPublicUrl(fileName);
 
             receiptUrl = publicUrlData.publicUrl;
-        } else if (uploadError) {
-            console.error('Erreur Storage :', uploadError);
         }
     }
 
@@ -220,19 +276,20 @@ function updateCategories() {
 }
 
 // ==========================================
-// 5. BILAN ET COMPTE D'EXPLOITATION PAR EXERCICE
+// 5. BILAN ET COMPTE D'EXPLOITATION
 // ==========================================
 function genererBilanEtCE() {
-    const anneeSelect = document.getElementById('exerciceSelect')?.value || '2026';
+    const selectEl = document.getElementById('exerciceSelect');
+    const anneeSelect = selectEl ? selectEl.value : 'all';
 
     let totHonoraires = 0, totAutresRecettes = 0;
     let totCotis = 0, totMateriel = 0, totDeplacement = 0, totAssurance = 0, totAutresDepenses = 0;
 
     currentTransactions.forEach(t => {
         if (!t.date) return;
-        const anneeTransac = t.date.substring(0, 4);
+        const { year } = parseDate(t.date);
 
-        if (anneeSelect !== 'all' && anneeTransac !== anneeSelect) return;
+        if (anneeSelect !== 'all' && year !== anneeSelect) return;
 
         const m = Number(t.amount || 0);
         if (t.type === 'recette') {
@@ -251,30 +308,31 @@ function genererBilanEtCE() {
     const totalCharges = totCotis + totMateriel + totDeplacement + totAssurance + totAutresDepenses;
     const resultat = totalProduits - totalCharges;
 
-    document.getElementById('ceHonoraires').textContent = totHonoraires.toFixed(2) + ' €';
-    document.getElementById('ceAutresRecettes').textContent = totAutresRecettes.toFixed(2) + ' €';
-    document.getElementById('ceProduits').textContent = totalProduits.toFixed(2) + ' €';
+    setTxt('ceHonoraires', totHonoraires.toFixed(2) + ' €');
+    setTxt('ceAutresRecettes', totAutresRecettes.toFixed(2) + ' €');
+    setTxt('ceProduits', totalProduits.toFixed(2) + ' €');
 
-    document.getElementById('ceCotis').textContent = totCotis.toFixed(2) + ' €';
-    document.getElementById('ceMateriel').textContent = totMateriel.toFixed(2) + ' €';
-    document.getElementById('ceFraisDeplacement').textContent = totDeplacement.toFixed(2) + ' €';
-    document.getElementById('ceAssurances').textContent = totAssurance.toFixed(2) + ' €';
-    document.getElementById('ceAutresCharges').textContent = totAutresDepenses.toFixed(2) + ' €';
-    document.getElementById('ceCharges').textContent = totalCharges.toFixed(2) + ' €';
+    setTxt('ceCotis', totCotis.toFixed(2) + ' €');
+    setTxt('ceMateriel', totMateriel.toFixed(2) + ' €');
+    setTxt('ceFraisDeplacement', totDeplacement.toFixed(2) + ' €');
+    setTxt('ceAssurances', totAssurance.toFixed(2) + ' €');
+    setTxt('ceAutresCharges', totAutresDepenses.toFixed(2) + ' €');
+    setTxt('ceCharges', totalCharges.toFixed(2) + ' €');
 
-    document.getElementById('ceResultat').textContent = resultat.toFixed(2) + ' €';
+    setTxt('ceResultat', resultat.toFixed(2) + ' €');
 
-    document.getElementById('bilanActifTresorerie').textContent = resultat.toFixed(2) + ' €';
-    document.getElementById('bilanTotalActif').textContent = resultat.toFixed(2) + ' €';
-    document.getElementById('bilanPassifResultat').textContent = resultat.toFixed(2) + ' €';
-    document.getElementById('bilanTotalPassif').textContent = resultat.toFixed(2) + ' €';
+    setTxt('bilanActifTresorerie', resultat.toFixed(2) + ' €');
+    setTxt('bilanTotalActif', resultat.toFixed(2) + ' €');
+    setTxt('bilanPassifResultat', resultat.toFixed(2) + ' €');
+    setTxt('bilanTotalPassif', resultat.toFixed(2) + ' €');
 }
 
 // ==========================================
 // 6. DÉCLARATIONS TRIMESTRIELLES ET COMPARATIF
 // ==========================================
 function genererDeclarations() {
-    const anneeSelect = document.getElementById('exerciceDeclSelect')?.value || '2026';
+    const selectEl = document.getElementById('exerciceDeclSelect');
+    const anneeSelect = selectEl ? selectEl.value : 'all';
 
     let caT1 = 0, caT2 = 0, caT3 = 0, caT4 = 0;
     let totalRecettes = 0;
@@ -282,48 +340,48 @@ function genererDeclarations() {
 
     currentTransactions.forEach(t => {
         if (!t.date) return;
-        const annee = t.date.substring(0, 4);
-        if (annee !== anneeSelect) return;
+        const { year, month } = parseDate(t.date);
 
-        const mois = parseInt(t.date.substring(5, 7), 10);
+        if (anneeSelect !== 'all' && year !== anneeSelect) return;
+
         const m = Number(t.amount || 0);
 
         if (t.type === 'recette') {
             totalRecettes += m;
-            if (mois >= 1 && mois <= 3) caT1 += m;
-            else if (mois >= 4 && mois <= 6) caT2 += m;
-            else if (mois >= 7 && mois <= 9) caT3 += m;
-            else if (mois >= 10 && mois <= 12) caT4 += m;
+            if (month >= 1 && month <= 3) caT1 += m;
+            else if (month >= 4 && month <= 6) caT2 += m;
+            else if (month >= 7 && month <= 9) caT3 += m;
+            else if (month >= 10 && month <= 12) caT4 += m;
         } else if (t.type === 'depense') {
             totalDepenses += m;
         }
     });
 
-    document.getElementById('declCA').textContent = totalRecettes.toFixed(2) + ' €';
+    setTxt('declCA', totalRecettes.toFixed(2) + ' €');
 
     // URSSAF Trimestriel (~14.5%)
-    document.getElementById('caT1').textContent = caT1.toFixed(2) + ' €';
-    document.getElementById('urssafT1').textContent = (caT1 * 0.145).toFixed(2) + ' €';
+    setTxt('caT1', caT1.toFixed(2) + ' €');
+    setTxt('urssafT1', (caT1 * 0.145).toFixed(2) + ' €');
 
-    document.getElementById('caT2').textContent = caT2.toFixed(2) + ' €';
-    document.getElementById('urssafT2').textContent = (caT2 * 0.145).toFixed(2) + ' €';
+    setTxt('caT2', caT2.toFixed(2) + ' €');
+    setTxt('urssafT2', (caT2 * 0.145).toFixed(2) + ' €');
 
-    document.getElementById('caT3').textContent = caT3.toFixed(2) + ' €';
-    document.getElementById('urssafT3').textContent = (caT3 * 0.145).toFixed(2) + ' €';
+    setTxt('caT3', caT3.toFixed(2) + ' €');
+    setTxt('urssafT3', (caT3 * 0.145).toFixed(2) + ' €');
 
-    document.getElementById('caT4').textContent = caT4.toFixed(2) + ' €';
-    document.getElementById('urssafT4').textContent = (caT4 * 0.145).toFixed(2) + ' €';
+    setTxt('caT4', caT4.toFixed(2) + ' €');
+    setTxt('urssafT4', (caT4 * 0.145).toFixed(2) + ' €');
 
     // CARPIMKO Estimé (~8.8%)
-    document.getElementById('estCARPIMKO').textContent = (totalRecettes * 0.088).toFixed(2) + ' €';
+    setTxt('estCARPIMKO', (totalRecettes * 0.088).toFixed(2) + ' €');
 
     // OPTION A : MICRO-BNC
-    document.getElementById('microCA').textContent = totalRecettes.toFixed(2) + ' €';
-    document.getElementById('microAbattement').textContent = (totalRecettes * 0.34).toFixed(2) + ' €';
-    document.getElementById('microImposable').textContent = (totalRecettes * 0.66).toFixed(2) + ' €';
+    setTxt('microCA', totalRecettes.toFixed(2) + ' €');
+    setTxt('microAbattement', (totalRecettes * 0.34).toFixed(2) + ' €');
+    setTxt('microImposable', (totalRecettes * 0.66).toFixed(2) + ' €');
 
     // OPTION B : RÉEL / 2035
-    document.getElementById('reelCA').textContent = totalRecettes.toFixed(2) + ' €';
-    document.getElementById('reelDepenses').textContent = totalDepenses.toFixed(2) + ' €';
-    document.getElementById('reelBenefice').textContent = Math.max(0, totalRecettes - totalDepenses).toFixed(2) + ' €';
+    setTxt('reelCA', totalRecettes.toFixed(2) + ' €');
+    setTxt('reelDepenses', totalDepenses.toFixed(2) + ' €');
+    setTxt('reelBenefice', Math.max(0, totalRecettes - totalDepenses).toFixed(2) + ' €');
 }
