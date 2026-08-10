@@ -1,7 +1,8 @@
 // ==========================================
-// CONFIGURATION & INITIALISATION SUPABASE
+// 1. CONFIGURATION & INITIALISATION SUPABASE
 // ==========================================
-const SUPABASE_URL = 'https://kntkfczfxehgdsruhabu.supabase.co';
+// ID de projet configuré d'après votre tableau de bord Supabase
+const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudGtmY3pmeGVoZ2RzcnVoYWJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTkzMzU0NSwiZXhwIjoyMDg3NTA5NTQ1fQ.hMpVK2ky6uoU7mauBeoTOR8THCUpycmUogBKyO8Wsmg';
 
 let supabaseClient = null;
@@ -13,47 +14,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         }
 
-        // Déblocage de l'interface graphique
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('app').classList.remove('hidden');
+        // Retrait de l'écran d'attente et affichage de l'application
+        const loadingEl = document.getElementById('loading');
+        const appEl = document.getElementById('app');
+        if (loadingEl) loadingEl.classList.add('hidden');
+        if (appEl) appEl.classList.remove('hidden');
 
         const syncStatus = document.getElementById('syncStatus');
         if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
 
-        // Initialisation de la vue sur l'onglet Profil
+        // Vue par défaut sur l'onglet Profil
         showTab('profil');
         updateCategories();
 
-        // Récupération des données réseau
+        // Chargement des données réelles
         await chargerProfil();
         await chargerTransactions();
 
     } catch (err) {
-        console.error('Erreur de démarrage :', err);
+        console.error('Erreur au démarrage :', err);
         const syncStatus = document.getElementById('syncStatus');
         if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion';
     }
 });
 
 // ==========================================
-// GESTION DYNAMIQUE DES ONGLETS
+// 2. GESTION DES ONGLETS
 // ==========================================
 function showTab(tabName) {
-    // 1. Masquer tous les onglets présents
     const allTabs = document.querySelectorAll('[id^="tab-"]');
     allTabs.forEach(tab => tab.style.display = 'none');
 
-    // 2. Réinitialiser la surbrillance des boutons
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
-    // 3. Afficher l'onglet sélectionné
     const target = document.getElementById(`tab-${tabName}`);
     if (target) {
         target.style.display = 'block';
     }
 
-    // 4. Mettre en surbrillance le bouton sélectionné
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
@@ -63,18 +62,19 @@ function showTab(tabName) {
 }
 
 // ==========================================
-// BDD SUPABASE : PROFIL UTILISATEUR
+// 3. CHARGEMENT & SAUVEGARDE DU PROFIL
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
+    // Utilisation du nom de table 'profile' (avec un 'e')
     const { data, error } = await supabaseClient
-        .from('profil')
+        .from('profile')
         .select('*')
         .maybeSingle();
 
     if (error) {
-        console.warn('Information profil indisponible :', error.message);
+        console.warn('Erreur ou profil non trouvé :', error.message);
         return;
     }
 
@@ -87,7 +87,7 @@ async function chargerProfil() {
 
         fields.forEach(field => {
             const el = document.getElementById(field);
-            if (el && data[field] !== undefined) {
+            if (el && data[field] !== undefined && data[field] !== null) {
                 el.value = data[field];
             }
         });
@@ -98,13 +98,12 @@ async function saveProfile() {
     if (!supabaseClient) return;
 
     const profilData = {
-        id: 1, // Clef primaire unique pour le profil utilisateur
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
-        siret: document.getElementById('siret')?.value || '',
-        rpps: document.getElementById('rpps')?.value || '',
-        adeli: document.getElementById('adeli')?.value || '',
-        num_urssaf: document.getElementById('num_urssaf')?.value || '',
+        siret: document.getElementById('siret')?.value || null,
+        rpps: document.getElementById('rpps')?.value || null,
+        adeli: document.getElementById('adeli')?.value || null,
+        num_urssaf: document.getElementById('num_urssaf')?.value || null,
         adresse: document.getElementById('adresse')?.value || '',
         code_postal: document.getElementById('code_postal')?.value || '',
         ville: document.getElementById('ville')?.value || '',
@@ -117,18 +116,18 @@ async function saveProfile() {
     };
 
     const { error } = await supabaseClient
-        .from('profil')
+        .from('profile')
         .upsert(profilData);
 
     if (error) {
         alert('Erreur lors de la sauvegarde du profil : ' + error.message);
     } else {
-        alert('✅ Profil enregistré dans Supabase !');
+        alert('✅ Profil sauvegardé avec succès !');
     }
 }
 
 // ==========================================
-// BDD SUPABASE : TRANSACTIONS
+// 4. CHARGEMENT & GESTION DES TRANSACTIONS
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -139,7 +138,7 @@ async function chargerTransactions() {
         .order('date', { ascending: false });
 
     if (error) {
-        console.error('Erreur chargement opérations :', error.message);
+        console.error('Erreur de lecture des transactions :', error.message);
         return;
     }
 
@@ -153,19 +152,29 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucune opération trouvée.</p>';
+        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée.</p>';
         return;
     }
 
-    container.innerHTML = liste.map(t => `
-        <div class="transaction ${t.type}">
-            <div class="transaction-actions">
-                <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
+    container.innerHTML = liste.map(t => {
+        const isEncaisse = t.encaisse ? 'encaisse' : '';
+        const modePaiement = t.payment_method ? ` (${t.payment_method})` : '';
+        
+        return `
+            <div class="transaction ${t.type} ${isEncaisse}">
+                <div class="transaction-actions">
+                    <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
+                </div>
+                <strong>${t.date}</strong> - <span>${t.description || 'Sans description'}</span>
+                <div>
+                    <strong>${Number(t.amount).toFixed(2)} €</strong> 
+                    [${t.type.toUpperCase()}] 
+                    <em>${t.category || ''}</em>
+                    <small style="color:#666;">${modePaiement}</small>
+                </div>
             </div>
-            <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span>
-            <div><strong>${t.amount} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 async function addTransaction() {
@@ -178,13 +187,24 @@ async function addTransaction() {
     const amount = parseFloat(document.getElementById('amount')?.value);
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez spécifier une date et un montant valide.');
+        alert('Veuillez remplir au moins la date et le montant.');
         return;
     }
 
+    const nouvelleOperation = {
+        date,
+        type,
+        category,
+        description,
+        amount,
+        payment_method: document.getElementById('paymentMethod')?.value || 'Virement',
+        has_attachments: false,
+        encaisse: false
+    };
+
     const { error } = await supabaseClient
         .from('transactions')
-        .insert([{ date, type, category, description, amount }]);
+        .insert([nouvelleOperation]);
 
     if (error) {
         alert('Erreur lors de l\'ajout : ' + error.message);
@@ -196,7 +216,7 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous vraiment supprimer cette opération ?')) return;
+    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
 
     const { error } = await supabaseClient
         .from('transactions')
@@ -208,13 +228,17 @@ async function supprimerTransaction(id) {
     }
 }
 
+// ==========================================
+// 5. STATISTIQUES & CATÉGORIES
+// ==========================================
 function calculerStatistiques(liste) {
     let recettes = 0;
     let depenses = 0;
 
     liste.forEach(t => {
-        if (t.type === 'recette') recettes += Number(t.amount || 0);
-        if (t.type === 'depense') depenses += Number(t.amount || 0);
+        const val = Number(t.amount || 0);
+        if (t.type === 'recette') recettes += val;
+        if (t.type === 'depense') depenses += val;
     });
 
     const balance = recettes - depenses;
@@ -233,6 +257,7 @@ function updateCategories() {
 
     if (type === 'recette') {
         catSelect.innerHTML = `
+            <option>Soins infirmiers</option>
             <option>Honoraires PAI</option>
             <option>Honoraires Mutuelles</option>
             <option>Honoraires Patients</option>
@@ -240,11 +265,12 @@ function updateCategories() {
         `;
     } else {
         catSelect.innerHTML = `
+            <option>CARPIMKO</option>
+            <option>URSSAF</option>
             <option>Matériel médical</option>
             <option>Loyer professionnel</option>
             <option>Assurance Pro</option>
             <option>Carburant / Déplacements</option>
-            <option>Cotisations URSSAF/CARPIMKO</option>
             <option>Autre dépense</option>
         `;
     }
