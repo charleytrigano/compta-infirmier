@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur & Déclaration CARPIMKO - Infirmier Libéral</title>
+    <style>
+        :root {
+            --primary-color: #17a2b8; /* Couleur Info / Bleue pour différencier l'URSSAF */
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; background: var(--card-bg); padding: 15px 20px;
+            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .card {
+            background: var(--card-bg); padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 20px;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        input, select {
+            width: 100%; padding: 10px; border: 1px solid #ced4da;
+            border-radius: 4px; box-sizing: border-box; font-size: 1em;
+        }
+
+        .btn {
+            padding: 10px 18px; border: none; border-radius: 4px;
+            cursor: pointer; font-weight: bold; transition: opacity 0.2s;
+        }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn:hover { opacity: 0.9; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background: #f8f9fa; }
+
+        .section-title {
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 5px; margin-top: 0; color: var(--primary-color);
+        }
+
+        .kpi-card {
+            background: #e8f4f8; padding: 15px; border-radius: 6px;
+            border-left: 5px solid var(--primary-color); text-align: center;
+        }
+        .kpi-value { font-size: 1.6em; font-weight: bold; color: var(--primary-color); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🏥 Estimation & Déclaration CARPIMKO</h1>
+        <span>Retraite & Prévoyance Infirmier</span>
+    </header>
+
+    <!-- SECTION PARAMÈTRES DU CALCUL -->
+    <div class="card">
+        <h2 class="section-title">1. Vos Données Financières (Base N-2)</h2>
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="bnc">Bénéfice Non Commercial - BNC (€) :</label>
+                <input type="number" id="bnc" value="40000" step="500" oninput="calculerCarpimko()">
+                <small style="color:#666;">Revenu net (Recettes minus Dépenses) de l'année N-2.</small>
+            </div>
+            <div class="form-group">
+                <label for="statut">Statut / Ancienneté :</label>
+                <select id="statut" onchange="calculerCarpimko()">
+                    <option value="croisiere">Régime de Croisière (Année 3 et +)</option>
+                    <option value="annee1">1ère Année d'installation (Forfait)</option>
+                    <option value="annee2">2ème Année d'installation (Forfait)</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="conventionne" checked onchange="calculerCarpimko()"> 
+                Infirmier Libéral Conventionné (Prise en charge partielle de l'ASV par l'Assurance Maladie)
+            </label>
+        </div>
+    </div>
+
+    <!-- SYNTHÈSE DES ÉCHÉANCES -->
+    <div class="card">
+        <h2 class="section-title">2. Synthèse de vos Cotisations Annuelles</h2>
+        <div class="grid-4">
+            <div class="kpi-card">
+                <small>Total Annuel Estimé</small>
+                <div class="kpi-value" id="totalAnnuel">0.00 €</div>
+            </div>
+            <div class="kpi-card">
+                <small>Mensualité (12 mois)</small>
+                <div class="kpi-value" id="mensualite">0.00 €</div>
+            </div>
+            <div class="kpi-card">
+                <small>Prélèvement Trimestriel</small>
+                <div class="kpi-value" id="trimestriel">0.00 €</div>
+            </div>
+            <div class="kpi-card">
+                <small>Taux Effectif / BNC</small>
+                <div class="kpi-value" id="tauxEffectif">0.0 %</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DÉTAIL PAR RÉGIME -->
+    <div class="card">
+        <h2 class="section-title">3. Ventilation Détaillée par Régime Obligatoire</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Régime</th>
+                    <th>Description / Base de calcul</th>
+                    <th style="text-align:right;">Montant Dû (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>1. Régime de Base</strong></td>
+                    <td>Cotisation sur Tranche 1 (8.23% jusqu'à 46 368€) + Tranche 2 (1.87% jusqu'à 231 840€)</td>
+                    <td style="text-align:right;" id="regimeBase">0.00 €</td>
+                </tr>
+                <tr>
+                    <td><strong>2. Régime Complémentaire</strong></td>
+                    <td>Forfait de base (1 856€) + Cotisation proportionnelle sur le BNC</td>
+                    <td style="text-align:right;" id="regimeComp">0.00 €</td>
+                </tr>
+                <tr>
+                    <td><strong>3. Prévoyance (Incapacité / Décès)</strong></td>
+                    <td>Forfait annuel pour la couverture arrêt de travail et invalidité</td>
+                    <td style="text-align:right;" id="regimePrev">0.00 €</td>
+                </tr>
+                <tr>
+                    <td><strong>4. ASV (Avantages Sociaux)</strong></td>
+                    <td>Forfait + Part proportionnelle (Ajusté si conventionné)</td>
+                    <td style="text-align:right;" id="regimeASV">0.00 €</td>
+                </tr>
+                <tr style="background:#e9ecef; font-weight:bold;">
+                    <td colspan="2">TOTAL COTISATIONS CARPIMKO</td>
+                    <td style="text-align:right; color:var(--primary-color);" id="tableTotal">0.00 €</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function calculerCarpimko() {
+    const bnc = parseFloat(document.getElementById('bnc').value) || 0;
+    const statut = document.getElementById('statut').value;
+    const conventionne = document.getElementById('conventionne').checked;
+
+    let totalBase = 0;
+    let totalComp = 0;
+    let totalPrev = 890; // Forfait prévoyance moyen
+    let totalASV = 0;
+
+    if (statut === 'annee1') {
+        // Début d'activité : Forfait 1ère année
+        totalBase = 840;
+        totalComp = 1856;
+        totalASV = conventionne ? 600 : 1800;
+    } else if (statut === 'annee2') {
+        // Début d'activité : Forfait 2ème année
+        totalBase = 1250;
+        totalComp = 1856;
+        totalASV = conventionne ? 600 : 1800;
+    } else {
+        // REGIME DE CROISIERE (Taux réglementaires basés sur BNC)
+        
+        // 1. Régime de Base
+        const PASS = 46368; // Plafond Annuel Sécurité Sociale (Réf)
+        if (bnc <= PASS) {
+            totalBase = bnc * 0.0823;
+        } else {
+            totalBase = (PASS * 0.0823) + Math.min(bnc - PASS, PASS * 4) * 0.0187;
+        }
+
+        // 2. Régime Complémentaire
+        const partFixeComp = 1856;
+        let partPropComp = 0;
+        if (bnc > 27000) {
+            partPropComp = Math.min(bnc - 27000, 150000) * 0.07;
+        }
+        totalComp = partFixeComp + partPropComp;
+
+        // 3. ASV (Avantage Social Vieillesse)
+        const asvBrut = 1950 + (bnc * 0.008);
+        if (conventionne) {
+            // L'Assurance Maladie prend en charge environ 66% de la cotisation ASV
+            totalASV = asvBrut * 0.33;
+        } else {
+            totalASV = asvBrut;
+        }
+    }
+
+    const totalAnnuel = totalBase + totalComp + totalPrev + totalASV;
+    const mensualite = totalAnnuel / 12;
+    const trimestriel = totalAnnuel / 4;
+    const tauxEffectif = bnc > 0 ? (totalAnnuel / bnc) * 100 : 0;
+
+    // Mise à jour de l'affichage
+    document.getElementById('regimeBase').textContent = totalBase.toFixed(2) + ' €';
+    document.getElementById('regimeComp').textContent = totalComp.toFixed(2) + ' €';
+    document.getElementById('regimePrev').textContent = totalPrev.toFixed(2) + ' €';
+    document.getElementById('regimeASV').textContent = totalASV.toFixed(2) + ' €';
+
+    document.getElementById('totalAnnuel').textContent = totalAnnuel.toFixed(2) + ' €';
+    document.getElementById('tableTotal').textContent = totalAnnuel.toFixed(2) + ' €';
+    document.getElementById('mensualite').textContent = mensualite.toFixed(2) + ' €';
+    document.getElementById('trimestriel').textContent = trimestriel.toFixed(2) + ' €';
+    document.getElementById('tauxEffectif').textContent = tauxEffectif.toFixed(1) + ' %';
+}
+
+// Lancement automatique au chargement
+window.onload = calculerCarpimko;
+</script>
+
+</body>
+</html>
