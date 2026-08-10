@@ -1,5 +1,5 @@
 // ==========================================
-// 1. CONFIGURATION SUPABASE
+// 1. CONFIGURATION SUPABASE ET VARIABLES
 // ==========================================
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         } else {
-            alert('Erreur : Bibliothèque Supabase introuvable.');
+            alert('Erreur : Bibliothèque Supabase non chargée.');
             return;
         }
 
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await chargerTransactions();
 
     } catch (err) {
-        console.error('Erreur au démarrage :', err);
+        console.error('Erreur initialisation :', err);
     }
 });
 
@@ -54,7 +54,7 @@ function showTab(tabName) {
 }
 
 // ==========================================
-// 3. PROFIL ET REGIME FISCAL
+// 3. PROFIL
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -62,7 +62,7 @@ async function chargerProfil() {
     const { data } = await supabaseClient.from('profile').select('*').maybeSingle();
     if (data) {
         currentProfile = data;
-        ['nom', 'prenom', 'siret', 'rpps', 'email', 'regimeFiscal'].forEach(field => {
+        ['nom', 'prenom', 'siret', 'rpps', 'email'].forEach(field => {
             const el = document.getElementById(field);
             if (el && data[field]) el.value = data[field];
         });
@@ -77,21 +77,20 @@ async function saveProfile() {
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || '',
         rpps: document.getElementById('rpps')?.value || '',
-        email: document.getElementById('email')?.value || '',
-        regimeFiscal: document.getElementById('regimeFiscal')?.value || 'micro'
+        email: document.getElementById('email')?.value || ''
     };
 
     const { error } = await supabaseClient.from('profile').upsert(profilData);
     if (error) {
-        alert('Erreur enregistrement : ' + error.message);
+        alert('Erreur lors de l\'enregistrement : ' + error.message);
     } else {
-        alert('✅ Profil et Régime enregistrés avec succès !');
+        alert('✅ Profil mis à jour avec succès !');
         currentProfile = profilData;
     }
 }
 
 // ==========================================
-// 4. TRANSACTIONS ET SCANS
+// 4. TRANSACTIONS & ENVOI AU BUCKET "justificatifs"
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -104,6 +103,8 @@ async function chargerTransactions() {
     if (!error) {
         currentTransactions = data || [];
         afficherTransactions(currentTransactions);
+        genererBilanEtCE();
+        genererDeclarations();
     }
 }
 
@@ -142,28 +143,31 @@ async function addTransaction() {
     const fileInput = document.getElementById('attachment');
 
     if (!date || isNaN(amount) || !description) {
-        alert('Veuillez renseigner au minimum la date, le montant ET le libellé.');
+        alert('Veuillez saisir la date, le montant ET le libellé.');
         return;
     }
 
     let receiptUrl = null;
 
+    // Envoi du fichier dans le bucket "justificatifs"
     if (fileInput && fileInput.files.length > 0) {
         const file = fileInput.files[0];
         const fileName = `${Date.now()}_${file.name}`;
 
         const { data: uploadData, error: uploadError } = await supabaseClient
             .storage
-            .from('attachments')
+            .from('justificatifs') // Utilisation directe du dossier "justificatifs"
             .upload(fileName, file);
 
         if (!uploadError && uploadData) {
             const { data: publicUrlData } = supabaseClient
                 .storage
-                .from('attachments')
+                .from('justificatifs')
                 .getPublicUrl(fileName);
 
             receiptUrl = publicUrlData.publicUrl;
+        } else if (uploadError) {
+            console.error('Erreur Storage :', uploadError);
         }
     }
 
@@ -189,7 +193,7 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!confirm('Supprimer cette transaction ?')) return;
+    if (!confirm('Voulez-vous supprimer cette opération ?')) return;
     await supabaseClient.from('transactions').delete().eq('id', id);
     await chargerTransactions();
 }
@@ -216,13 +220,20 @@ function updateCategories() {
 }
 
 // ==========================================
-// 5. BILAN ET COMPTE D'EXPLOITATION
+// 5. BILAN ET COMPTE D'EXPLOITATION PAR EXERCICE
 // ==========================================
 function genererBilanEtCE() {
+    const anneeSelect = document.getElementById('exerciceSelect')?.value || '2026';
+
     let totHonoraires = 0, totAutresRecettes = 0;
     let totCotis = 0, totMateriel = 0, totDeplacement = 0, totAssurance = 0, totAutresDepenses = 0;
 
     currentTransactions.forEach(t => {
+        if (!t.date) return;
+        const anneeTransac = t.date.substring(0, 4);
+
+        if (anneeSelect !== 'all' && anneeTransac !== anneeSelect) return;
+
         const m = Number(t.amount || 0);
         if (t.type === 'recette') {
             if (t.category === 'honoraires') totHonoraires += m;
@@ -240,7 +251,6 @@ function genererBilanEtCE() {
     const totalCharges = totCotis + totMateriel + totDeplacement + totAssurance + totAutresDepenses;
     const resultat = totalProduits - totalCharges;
 
-    // Compte de résultat
     document.getElementById('ceHonoraires').textContent = totHonoraires.toFixed(2) + ' €';
     document.getElementById('ceAutresRecettes').textContent = totAutresRecettes.toFixed(2) + ' €';
     document.getElementById('ceProduits').textContent = totalProduits.toFixed(2) + ' €';
@@ -254,7 +264,6 @@ function genererBilanEtCE() {
 
     document.getElementById('ceResultat').textContent = resultat.toFixed(2) + ' €';
 
-    // Bilan
     document.getElementById('bilanActifTresorerie').textContent = resultat.toFixed(2) + ' €';
     document.getElementById('bilanTotalActif').textContent = resultat.toFixed(2) + ' €';
     document.getElementById('bilanPassifResultat').textContent = resultat.toFixed(2) + ' €';
@@ -262,54 +271,59 @@ function genererBilanEtCE() {
 }
 
 // ==========================================
-// 6. DÉCLARATIONS SOCIALES ET FISCALES
+// 6. DÉCLARATIONS TRIMESTRIELLES ET COMPARATIF
 // ==========================================
 function genererDeclarations() {
+    const anneeSelect = document.getElementById('exerciceDeclSelect')?.value || '2026';
+
+    let caT1 = 0, caT2 = 0, caT3 = 0, caT4 = 0;
     let totalRecettes = 0;
     let totalDepenses = 0;
 
     currentTransactions.forEach(t => {
+        if (!t.date) return;
+        const annee = t.date.substring(0, 4);
+        if (annee !== anneeSelect) return;
+
+        const mois = parseInt(t.date.substring(5, 7), 10);
         const m = Number(t.amount || 0);
-        if (t.type === 'recette') totalRecettes += m;
-        if (t.type === 'depense') totalDepenses += m;
+
+        if (t.type === 'recette') {
+            totalRecettes += m;
+            if (mois >= 1 && mois <= 3) caT1 += m;
+            else if (mois >= 4 && mois <= 6) caT2 += m;
+            else if (mois >= 7 && mois <= 9) caT3 += m;
+            else if (mois >= 10 && mois <= 12) caT4 += m;
+        } else if (t.type === 'depense') {
+            totalDepenses += m;
+        }
     });
 
     document.getElementById('declCA').textContent = totalRecettes.toFixed(2) + ' €';
 
-    // Estimation Cotisations Sociales Infirmier Libéral
-    const urssafEst = totalRecettes * 0.145; // ~14.5% URSSAF (Maladie, Alloc, CSG)
-    const carpimkoEst = totalRecettes * 0.088; // ~8.8% CARPIMKO (Retraite)
-    const totalSocial = urssafEst + carpimkoEst;
+    // URSSAF Trimestriel (~14.5%)
+    document.getElementById('caT1').textContent = caT1.toFixed(2) + ' €';
+    document.getElementById('urssafT1').textContent = (caT1 * 0.145).toFixed(2) + ' €';
 
-    document.getElementById('estURSSAF').textContent = urssafEst.toFixed(2) + ' €';
-    document.getElementById('estCARPIMKO').textContent = carpimkoEst.toFixed(2) + ' €';
-    document.getElementById('estTotalSocial').textContent = totalSocial.toFixed(2) + ' €';
+    document.getElementById('caT2').textContent = caT2.toFixed(2) + ' €';
+    document.getElementById('urssafT2').textContent = (caT2 * 0.145).toFixed(2) + ' €';
 
-    // Déclaration Impôt sur le Revenu
-    const isMicro = (currentProfile.regimeFiscal || 'micro') === 'micro';
-    document.getElementById('declRegimeText').textContent = isMicro ? 'Micro-Entreprise (Micro-BNC)' : 'Déclaration Contrôlée (Réel / 2035)';
+    document.getElementById('caT3').textContent = caT3.toFixed(2) + ' €';
+    document.getElementById('urssafT3').textContent = (caT3 * 0.145).toFixed(2) + ' €';
 
-    const detailsDiv = document.getElementById('detailsImpotContainer');
-    if (!detailsDiv) return;
+    document.getElementById('caT4').textContent = caT4.toFixed(2) + ' €';
+    document.getElementById('urssafT4').textContent = (caT4 * 0.145).toFixed(2) + ' €';
 
-    if (isMicro) {
-        const abattement = totalRecettes * 0.34;
-        const imposable = totalRecettes * 0.66;
-        detailsDiv.innerHTML = `
-            <ul>
-                <li><strong>Montant à porter sur la case 5HQ (2042 C PRO) :</strong> <strong>${totalRecettes.toFixed(2)} €</strong></li>
-                <li><strong>Abattement forfaitaire BNC (34%) :</strong> -${abattement.toFixed(2)} €</li>
-                <li><strong>Revenu Net Imposable estimé pour l'IR :</strong> <strong>${imposable.toFixed(2)} €</strong></li>
-            </ul>
-        `;
-    } else {
-        const benefice = totalRecettes - totalDepenses;
-        detailsDiv.innerHTML = `
-            <ul>
-                <li><strong>Montant à déclarer sur la 2035 (Recettes) :</strong> <strong>${totalRecettes.toFixed(2)} €</strong></li>
-                <li><strong>Total des dépense déductibles :</strong> <strong>${totalDepenses.toFixed(2)} €</strong></li>
-                <li><strong>Bénéfice à reporter sur la case 5QC (2042 C PRO) :</strong> <strong style="color:var(--success-color);">${benefice.toFixed(2)} €</strong></li>
-            </ul>
-        `;
-    }
+    // CARPIMKO Estimé (~8.8%)
+    document.getElementById('estCARPIMKO').textContent = (totalRecettes * 0.088).toFixed(2) + ' €';
+
+    // OPTION A : MICRO-BNC
+    document.getElementById('microCA').textContent = totalRecettes.toFixed(2) + ' €';
+    document.getElementById('microAbattement').textContent = (totalRecettes * 0.34).toFixed(2) + ' €';
+    document.getElementById('microImposable').textContent = (totalRecettes * 0.66).toFixed(2) + ' €';
+
+    // OPTION B : RÉEL / 2035
+    document.getElementById('reelCA').textContent = totalRecettes.toFixed(2) + ' €';
+    document.getElementById('reelDepenses').textContent = totalDepenses.toFixed(2) + ' €';
+    document.getElementById('reelBenefice').textContent = Math.max(0, totalRecettes - totalDepenses).toFixed(2) + ' €';
 }
