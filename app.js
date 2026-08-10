@@ -66,6 +66,11 @@ bankOps=JSON.parse(localStorage.getItem('bankOps')||'[]');
 // Afficher l'app EN PREMIER
 document.getElementById('loading').classList.add('hidden');
 document.getElementById('app').classList.remove('hidden');
+// Forcer l'affichage de l'onglet opérations
+document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
+document.getElementById('tab-operations').classList.remove('hidden');
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+document.querySelector('[onclick*="operations"]').classList.add('active');
 document.getElementById('syncStatus').textContent='✅ '+allTransactions.length+' opérations';
 
 // Puis remplir les onglets
