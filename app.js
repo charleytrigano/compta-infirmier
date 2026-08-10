@@ -77,6 +77,7 @@ function showTab(tabName) {
 
     if (tabName === 'bilan') genererBilanEtCE();
     if (tabName === 'declarations') genererDeclarations();
+    if (tabName === 'carpimko') calculerCarpimkoTab();
     if (tabName === 'journal') afficherJournalEtBalance();
 }
 
@@ -133,6 +134,7 @@ async function chargerTransactions() {
         afficherTransactions(currentTransactions);
         genererBilanEtCE();
         genererDeclarations();
+        calculerCarpimkoTab();
         afficherJournalEtBalance();
     }
 }
@@ -395,7 +397,56 @@ function genererDeclarations() {
 }
 
 // ==========================================
-// 7. JOURNAUX & BALANCE COMPTABLES
+// 7. SIMULATION & DÉCLARATION CARPIMKO
+// ==========================================
+function calculerCarpimkoTab() {
+    const bncInput = document.getElementById('carpBnc');
+    const bnc = parseFloat(bncInput ? bncInput.value : 40000) || 0;
+    const statut = document.getElementById('carpStatut')?.value || 'croisiere';
+    const conventionne = document.getElementById('carpConventionne')?.checked ?? true;
+
+    let totalBase = 0, totalComp = 0, totalPrev = 890, totalASV = 0;
+
+    if (statut === 'annee1') {
+        totalBase = 840;
+        totalComp = 1856;
+        totalASV = conventionne ? 600 : 1800;
+    } else if (statut === 'annee2') {
+        totalBase = 1250;
+        totalComp = 1856;
+        totalASV = conventionne ? 600 : 1800;
+    } else {
+        const PASS = 46368;
+        if (bnc <= PASS) {
+            totalBase = bnc * 0.0823;
+        } else {
+            totalBase = (PASS * 0.0823) + Math.min(bnc - PASS, PASS * 4) * 0.0187;
+        }
+
+        const partFixeComp = 1856;
+        const partPropComp = bnc > 27000 ? Math.min(bnc - 27000, 150000) * 0.07 : 0;
+        totalComp = partFixeComp + partPropComp;
+
+        const asvBrut = 1950 + (bnc * 0.008);
+        totalASV = conventionne ? asvBrut * 0.33 : asvBrut;
+    }
+
+    const totalAnnuel = totalBase + totalComp + totalPrev + totalASV;
+
+    setTxt('carpRegimeBase', totalBase.toFixed(2) + ' €');
+    setTxt('carpRegimeComp', totalComp.toFixed(2) + ' €');
+    setTxt('carpRegimePrev', totalPrev.toFixed(2) + ' €');
+    setTxt('carpRegimeASV', totalASV.toFixed(2) + ' €');
+
+    setTxt('carpTotal', totalAnnuel.toFixed(2) + ' €');
+    setTxt('carpTableTotal', totalAnnuel.toFixed(2) + ' €');
+    setTxt('carpMensuel', (totalAnnuel / 12).toFixed(2) + ' €');
+    setTxt('carpTrim', (totalAnnuel / 4).toFixed(2) + ' €');
+    setTxt('carpTaux', (bnc > 0 ? (totalAnnuel / bnc) * 100 : 0).toFixed(1) + ' %');
+}
+
+// ==========================================
+// 8. JOURNAUX & BALANCE COMPTABLES
 // ==========================================
 function genererLivreJournal(exercice = 'all') {
     const entries = [];
