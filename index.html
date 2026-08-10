@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compta Infirmier - Micro-Entreprise</title>
-    <!-- Chargement du SDK Supabase -->
+    <title>Compta Infirmier - Solution Complète</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --primary-color: #007bff;
             --success-color: #28a745;
             --danger-color: #dc3545;
+            --warning-color: #ffc107;
             --bg-color: #f4f6f9;
             --card-bg: #ffffff;
         }
@@ -23,104 +23,60 @@
             color: #333;
         }
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+        .container { max-width: 1050px; margin: 0 auto; }
 
         header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            background: var(--card-bg);
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; background: var(--card-bg); padding: 15px 20px;
+            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        nav.tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+        nav.tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 
         .tab {
-            padding: 10px 20px;
-            background: #e9ecef;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
+            padding: 10px 18px; background: #e9ecef; border: none;
+            border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s;
         }
 
-        .tab.active {
-            background: var(--primary-color);
-            color: white;
-        }
+        .tab.active { background: var(--primary-color); color: white; }
 
         .card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-            margin-bottom: 20px;
+            background: var(--card-bg); padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 20px;
         }
 
-        .form-group {
-            margin-bottom: 15px;
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        input, select, textarea {
+            width: 100%; padding: 8px 12px; border: 1px solid #ced4da;
+            border-radius: 4px; box-sizing: border-box;
         }
 
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 15px;
-        }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
 
         .btn {
-            padding: 10px 18px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: opacity 0.2s;
+            padding: 10px 18px; border: none; border-radius: 4px;
+            cursor: pointer; font-weight: bold; transition: opacity 0.2s;
         }
-
         .btn:hover { opacity: 0.9; }
         .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-success { background-color: var(--success-color); color: white; }
         .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-warning { background-color: var(--warning-color); color: #212529; }
 
         .hidden { display: none; }
 
         .transaction {
-            padding: 12px;
-            border-left: 5px solid #ccc;
-            background: #fff;
-            margin-bottom: 8px;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 12px; border-left: 5px solid #ccc; background: #fff;
+            margin-bottom: 8px; border-radius: 4px; display: flex;
+            justify-content: space-between; align-items: center;
         }
-
         .transaction.recette { border-left-color: var(--success-color); }
         .transaction.depense { border-left-color: var(--danger-color); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background: #f8f9fa; }
     </style>
 </head>
 <body>
@@ -128,23 +84,24 @@
 <div class="container">
     <header>
         <h1>🩺 Compta Infirmier Libéral</h1>
-        <span id="syncStatus" style="font-size: 0.9em; color: #666;">🔄 Connexion en cours...</span>
+        <span id="syncStatus" style="font-size: 0.9em; color: #666;">🔄 Connexion...</span>
     </header>
 
     <div id="loading">Chargement de votre application...</div>
 
     <div id="app" class="hidden">
-        <!-- NAVIGATION -->
+        <!-- BARRE DE NAVIGATION -->
         <nav class="tabs">
-            <button class="tab active" onclick="showTab('profil')">👤 Mon Profil</button>
-            <button class="tab" onclick="showTab('transactions')">💶 Transactions</button>
-            <button class="tab" onclick="showTab('simulateur')">📊 Simulateur de Charges</button>
+            <button class="tab active" onclick="showTab('profil')">👤 Profil & Statut</button>
+            <button class="tab" onclick="showTab('transactions')">💶 Transactions & Scans</button>
+            <button class="tab" onclick="showTab('simulateur')">📊 Simulateur</button>
+            <button class="tab" onclick="showTab('bilan')">📄 Etats Comptables & Déclarations</button>
         </nav>
 
-        <!-- 1. ONGLET PROFIL -->
+        <!-- 1. PROFIL ET STATUT JURIDIQUE -->
         <div id="tab-profil">
             <div class="card">
-                <h2>Informations Professionnelles</h2>
+                <h2>Profil & Régime Fiscal</h2>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="nom">Nom :</label>
@@ -153,6 +110,13 @@
                     <div class="form-group">
                         <label for="prenom">Prénom :</label>
                         <input type="text" id="prenom">
+                    </div>
+                    <div class="form-group">
+                        <label for="regimeFiscal">Régime Fiscal :</label>
+                        <select id="regimeFiscal">
+                            <option value="micro">Micro-Entreprise (Micro-BNC)</option>
+                            <option value="reel">Déclaration Contrôlée (2035 / Réel)</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="siret">SIRET :</label>
@@ -166,19 +130,15 @@
                         <label for="email">Email :</label>
                         <input type="email" id="email">
                     </div>
-                    <div class="form-group">
-                        <label for="telephone">Téléphone :</label>
-                        <input type="text" id="telephone">
-                    </div>
                 </div>
                 <button class="btn btn-success" onclick="saveProfile()">💾 Enregistrer le profil</button>
             </div>
         </div>
 
-        <!-- 2. ONGLET TRANSACTIONS -->
+        <!-- 2. TRANSACTIONS ET SCANS -->
         <div id="tab-transactions" style="display: none;">
             <div class="card">
-                <h2>Ajouter une opération</h2>
+                <h2>Nouvelle Opération</h2>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="date">Date :</label>
@@ -200,11 +160,15 @@
                         <input type="number" id="amount" step="0.01" placeholder="0.00">
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
-                        <label for="description">Libellé / Description :</label>
-                        <input type="text" id="description" placeholder="Ex: Honoraires PAI, Carburant...">
+                        <label for="description">Libellé / Intitulé personnalisé (Obligatoire) :</label>
+                        <input type="text" id="description" placeholder="Ex: Achat consommables, Facture essence, Honoraires...">
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label for="attachment">📎 Scanner / Joindre une facture ou justificatif (PDF, Image) :</label>
+                        <input type="file" id="attachment" accept="image/*,application/pdf">
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="addTransaction()">➕ Ajouter la transaction</button>
+                <button class="btn btn-primary" onclick="addTransaction()">➕ Enregistrer la transaction</button>
             </div>
 
             <!-- SYNTHÈSE -->
@@ -219,146 +183,83 @@
                 </div>
             </div>
 
-            <!-- LISTE -->
             <div class="card">
-                <h3>Historique des opérations</h3>
+                <h3>Historique & Justificatifs</h3>
                 <div id="transactions"></div>
             </div>
         </div>
 
-        <!-- 3. ONGLET SIMULATEUR MICRO-ENTREPRISE -->
+        <!-- 3. SIMULATEUR -->
         <div id="tab-simulateur" style="display: none;">
-            <h2>📊 Simulateur de Charges & Impôts (Micro-Entreprise)</h2>
-            <p>Estimez vos cotisations et impôts avec des taux et barèmes modifiables.</p>
-
+            <h2>📊 Simulateur de Charges</h2>
             <div class="card">
-                <h3>1. Chiffre d'Affaires et Dépenses Réelles</h3>
+                <h3>Base de Calcul</h3>
                 <div class="grid-2">
                     <div class="form-group">
-                        <label for="simuRecettes">Chiffre d'Affaires Brut HT (€) :</label>
-                        <input type="number" id="simuRecettes" placeholder="Ex: 50000" oninput="calculerSimulationMicro()">
+                        <label for="simuRecettes">Chiffre d'Affaires Brut (€) :</label>
+                        <input type="number" id="simuRecettes" oninput="calculerSimulation()">
                     </div>
                     <div class="form-group">
-                        <label for="simuDepenses">Dépenses Réelles / Achats (€) :</label>
-                        <input type="number" id="simuDepenses" placeholder="Ex: 8000" oninput="calculerSimulationMicro()">
+                        <label for="simuDepenses">Dépenses Réelles (€) :</label>
+                        <input type="number" id="simuDepenses" oninput="calculerSimulation()">
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="importerDonneesReelles()">🔄 Charger mes recettes réelles Supabase</button>
+                <button class="btn btn-primary" onclick="importerDonneesReelles()">🔄 Importer mes recettes réelles</button>
             </div>
 
-            <!-- PARAMÈTRES MODIFIABLES -->
-            <details open class="card">
-                <summary style="font-weight: bold; cursor: pointer; color: var(--primary-color);">⚙️ Tables de calcul & Taux modifiables (Cliquer pour réduire/développer)</summary>
-                <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
-
+            <div class="card" style="background: #eef9f5;">
+                <h3>Résultats</h3>
                 <div class="grid-2">
-                    <div class="form-group">
-                        <label for="tauxSocial">Taux Cotisations Sociales (%) :</label>
-                        <input type="number" id="tauxSocial" value="21.2" step="0.1" oninput="calculerSimulationMicro()">
-                        <small style="color:#666;">BNC Libéral : ~21.2% à 23.2%</small>
+                    <div>
+                        <small>Cotisations Sociales Est. :</small>
+                        <h4 id="resCotisations" style="color:#17a2b8;">0.00 €</h4>
                     </div>
-
-                    <div class="form-group">
-                        <label for="tauxCFP">Formation Pro - CFP (%) :</label>
-                        <input type="number" id="tauxCFP" value="0.2" step="0.05" oninput="calculerSimulationMicro()">
-                        <small style="color:#666;">Généralement 0.1% à 0.3%</small>
+                    <div>
+                        <small>Impôt Est. :</small>
+                        <h4 id="resImpot" style="color:#dc3545;">0.00 €</h4>
                     </div>
-
-                    <div class="form-group">
-                        <label for="modeImpot">Option d'Imposition :</label>
-                        <select id="modeImpot" onchange="changerModeImpot(); calculerSimulationMicro();">
-                            <option value="bareme">Barème Progressif (avec abattement)</option>
-                            <option value="liberatoire">Versement Libératoire (Taux fixe sur CA)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" id="groupLiberatoire" style="display: none;">
-                        <label for="tauxLiberatoire">Taux Versement Libératoire (%) :</label>
-                        <input type="number" id="tauxLiberatoire" value="2.2" step="0.1" oninput="calculerSimulationMicro()">
-                        <small style="color:#666;">2.2% BNC, 1.7% Service, 1.0% Vente</small>
-                    </div>
-
-                    <div class="form-group" id="groupAbattement">
-                        <label for="tauxAbattement">Abattement Forfaitaire IR (%) :</label>
-                        <input type="number" id="tauxAbattement" value="34" step="1" oninput="calculerSimulationMicro()">
-                        <small style="color:#666;">34% BNC, 50% BIC Service, 71% Vente</small>
-                    </div>
-
-                    <div class="form-group" id="groupParts">
-                        <label for="nbParts">Nombre de Parts Fiscales :</label>
-                        <input type="number" id="nbParts" value="1" step="0.5" min="1" oninput="calculerSimulationMicro()">
-                        <small style="color:#666;">Foyer fiscal (1, 1.5, 2...)</small>
-                    </div>
-                </div>
-
-                <!-- TABLE DES TRANCHES DE L'IMPÔT -->
-                <div id="groupBaremeTable" style="margin-top: 15px;">
-                    <h4>Tranches du Barème Progressif de l'Impôt (Modifiables)</h4>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em;">
-                        <thead>
-                            <tr style="background: #f1f3f5; text-align: left;">
-                                <th style="padding: 8px; border: 1px solid #ddd;">Tranche</th>
-                                <th style="padding: 8px; border: 1px solid #ddd;">Plafond Partiel (€)</th>
-                                <th style="padding: 8px; border: 1px solid #ddd;">Taux (%)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td style="padding: 6px; border: 1px solid #ddd;">Jusqu'à 11 294 €</td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t1_max" value="11294" oninput="calculerSimulationMicro()"></td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t1_rate" value="0" step="1" oninput="calculerSimulationMicro()"> %</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 6px; border: 1px solid #ddd;">Tranche 2</td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t2_max" value="28797" oninput="calculerSimulationMicro()"></td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t2_rate" value="11" step="1" oninput="calculerSimulationMicro()"> %</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 6px; border: 1px solid #ddd;">Tranche 3</td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t3_max" value="82341" oninput="calculerSimulationMicro()"></td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t3_rate" value="30" step="1" oninput="calculerSimulationMicro()"> %</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 6px; border: 1px solid #ddd;">Tranche 4</td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t4_max" value="177106" oninput="calculerSimulationMicro()"></td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t4_rate" value="41" step="1" oninput="calculerSimulationMicro()"> %</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 6px; border: 1px solid #ddd;">Au-delà</td>
-                                <td style="padding: 6px; border: 1px solid #ddd;">Illimité</td>
-                                <td style="padding: 6px; border: 1px solid #ddd;"><input type="number" id="t5_rate" value="45" step="1" oninput="calculerSimulationMicro()"> %</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </details>
-
-            <!-- RÉSULTATS -->
-            <div class="card" style="background: #eef9f5; border: 1px solid #c3e6cb;">
-                <h3>3. Synthèse de vos Revenus Nets</h3>
-                <div class="grid-2">
-                    <div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8;">
-                        <small>Cotisations Sociales + CFP</small>
-                        <h4 id="resCotisations" style="margin: 5px 0 0 0; color: #17a2b8;">0.00 €</h4>
-                    </div>
-
-                    <div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #dc3545;">
-                        <small>Impôt sur le Revenu (IR)</small>
-                        <h4 id="resImpot" style="margin: 5px 0 0 0; color: #dc3545;">0.00 €</h4>
-                    </div>
-
-                    <div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">
-                        <small>Total Prélèvements</small>
-                        <h4 id="resTotalPrélèvements" style="margin: 5px 0 0 0; color: #d39e00;">0.00 €</h4>
-                    </div>
-
-                    <div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
-                        <small>Revenu Net (Dans la poche)</small>
-                        <h4 id="resRevenuNet" style="margin: 5px 0 0 0; color: #28a745; font-size: 1.3em;">0.00 €</h4>
+                    <div>
+                        <small>Revenu Net Disponible :</small>
+                        <h4 id="resRevenuNet" style="color:#28a745; font-size:1.3em;">0.00 €</h4>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- 4. ETATS COMPTABLES & DÉCLARATIONS -->
+        <div id="tab-bilan" style="display: none;">
+            <h2>📄 Etats Comptables & Déclarations Fiscales/Sociales</h2>
+
+            <div class="card">
+                <h3>1. Compte d'Exploitation (Compte de Résultat)</h3>
+                <table>
+                    <thead>
+                        <tr><th>Poste</th><th>Montant (€)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Chiffre d'Affaires Brut (Recettes)</strong></td><td id="compteCA">0.00 €</td></tr>
+                        <tr><td><strong>Total des Dépenses Réelles</strong></td><td id="compteDepenses">0.00 €</td></tr>
+                        <tr style="background:#f1f3f5; font-weight:bold;">
+                            <td>Résultat Brut (Bénéfice / Perte)</td>
+                            <td id="compteResultat">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h3>2. Journal Comptable des Recettes et Achats</h3>
+                <button class="btn btn-warning" onclick="imprimerJournal()">🖨️ Imprimer / Exporter le Journal</button>
+                <div id="journalTableContainer" style="margin-top:15px;"></div>
+            </div>
+
+            <div class="card" style="background:#f8f9fa;">
+                <h3>3. Fiche Récapitulative Déclaration Fiscales/Sociales</h3>
+                <p><strong>Régime sélectionné :</strong> <span id="ficheRegime">Micro-BNC</span></p>
+                <div id="ficheDetails"></div>
+            </div>
+        </div>
+
     </div>
 </div>
 
