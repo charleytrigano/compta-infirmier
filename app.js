@@ -1,15 +1,41 @@
 /**
- * Application de Gestion Comptable URSSAF (Régime PAMC)
+ * Application de Gestion Comptable - Professionnels de Santé
  */
 
 // Constantes réglementaires
 const PASS_VALEUR = 46368; // Plafond Annuel de la Sécurité Sociale
 
-// Liste des transactions comptables (pour le calcul automatique si renseigné)
+// Mémoire des transactions
 let currentTransactions = [];
 
 /**
- * Fonction utilitaire pour mettre à jour un texte DOM en toute sécurité
+ * GESTION DE LA NAVIGATION PAR ONGLETS
+ * @param {string} tabId - L'ID du bloc de contenu à afficher
+ * @param {HTMLElement} elementClique - L'élément de menu sur lequel l'utilisateur a cliqué
+ */
+function changerOnglet(tabId, elementClique) {
+    // 1. Masquer tous les contenus d'onglets
+    const tousLesContenus = document.querySelectorAll('.tab-content');
+    tousLesContenus.forEach(c => c.classList.remove('active'));
+
+    // 2. Désactiver le style de tous les boutons de navigation
+    const tousLesOnglets = document.querySelectorAll('.nav-tab-item');
+    tousLesOnglets.forEach(o => o.classList.remove('active'));
+
+    // 3. Activer le contenu de l'onglet ciblé
+    const ongletCible = document.getElementById(tabId);
+    if (ongletCible) {
+        ongletCible.classList.add('active');
+    }
+
+    // 4. Appliquer le style actif au bouton cliqué
+    if (elementClique) {
+        elementClique.classList.add('active');
+    }
+}
+
+/**
+ * Fonction utilitaire pour mettre à jour un texte DOM
  */
 function setTxt(elementId, texte) {
     const el = document.getElementById(elementId);
@@ -19,7 +45,7 @@ function setTxt(elementId, texte) {
 }
 
 /**
- * Analyse une date au format YYYY-MM-DD
+ * Extraction de l'année d'une date (YYYY-MM-DD)
  */
 function parseDate(dateString) {
     if (!dateString) return { year: 'all' };
@@ -28,43 +54,93 @@ function parseDate(dateString) {
 }
 
 /**
- * Moteur de calcul détaillé des Cotisations URSSAF PAMC
- * @param {number} bnc - Bénéfice Net Comptable
- * @param {boolean} estRemplacant - Indique si exonération CURPS
+ * Gestion des Transactions : Ajouter une transaction
+ */
+function ajouterTransaction() {
+    const date = document.getElementById('tDate').value;
+    const type = document.getElementById('tType').value;
+    const montant = parseFloat(document.getElementById('tMontant').value);
+    const libelle = document.getElementById('tLibelle').value;
+
+    if (!date || isNaN(montant) || montant <= 0) {
+        alert('Veuillez remplir correctement la date et le montant.');
+        return;
+    }
+
+    // Ajout dans le tableau
+    currentTransactions.push({
+        date: date,
+        type: type,
+        amount: montant,
+        label: libelle || (type === 'recette' ? 'Honoraires' : 'Dépense divers')
+    });
+
+    // Réinitialisation des champs de saisie
+    document.getElementById('tMontant').value = '';
+    document.getElementById('tLibelle').value = '';
+
+    // Mettre à jour l'affichage
+    afficherTransactions();
+    genererDeclarations(false);
+}
+
+/**
+ * Affiche la liste des transactions dans le tableau de l'onglet 1
+ */
+function afficherTransactions() {
+    const tbody = document.getElementById('listeTransactions');
+    if (!tbody) return;
+
+    if (currentTransactions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Aucune transaction enregistrée.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    currentTransactions.forEach(t => {
+        const tr = document.createElement('tr');
+        const couleurMontant = t.type === 'recette' ? 'green' : 'red';
+        const signe = t.type === 'recette' ? '+' : '-';
+
+        tr.innerHTML = `
+            <td>${t.date}</td>
+            <td><strong>${t.type.toUpperCase()}</strong></td>
+            <td>${t.label}</td>
+            <td style="color:${couleurMontant}; font-weight:bold;">${signe} ${t.amount.toFixed(2)} €</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+/**
+ * Moteur de calcul URSSAF PAMC
  */
 function calculerDetailURSSAF(bnc, estRemplacant = false) {
     const bncVal = Math.max(0, parseFloat(bnc) || 0);
 
-    // 1. CSG / CRDS (9.70% appliqué sur le BNC)
     const baseCsg = bncVal;
     const mCsg = baseCsg * 0.097;
 
-    // 2. Assurance Maladie (0.10% à charge du praticien PAMC)
     const baseMaladie = bncVal;
     const mMaladie = baseMaladie * 0.001;
 
-    // 3. Indemnités Journalières (IJ) (0.30%, assiette plancher à 40% PASS = 18 547.20 €)
     const plancherIJ = PASS_VALEUR * 0.40;
     const baseIj = Math.max(bncVal, plancherIJ);
     const mIj = baseIj * 0.003;
 
-    // 4. Allocations Familiales (Taux progressif de 0% à 3.10%)
-    const seuilBas = PASS_VALEUR * 1.10; // ~51 004 €
-    const seuilHaut = PASS_VALEUR * 1.40; // ~64 915 €
+    const seuilBas = PASS_VALEUR * 1.10;
+    const seuilHaut = PASS_VALEUR * 1.40;
     let tauxAlloc = 0;
 
     if (bncVal > seuilHaut) {
         tauxAlloc = 0.031;
     } else if (bncVal > seuilBas) {
         tauxAlloc = 0.031 * ((bncVal - seuilBas) / (seuilHaut - seuilBas));
-    } else {
-        tauxAlloc = 0.0;
     }
 
     const baseAlloc = bncVal;
     const mAlloc = baseAlloc * tauxAlloc;
 
-    // 5. CURPS (0.10%, plafonné à 0.5% du PASS = 231.84 €)
     let baseCurps = bncVal;
     let mCurps = 0;
     if (!estRemplacant) {
@@ -73,10 +149,8 @@ function calculerDetailURSSAF(bnc, estRemplacant = false) {
         baseCurps = 0;
     }
 
-    // 6. Formation Professionnelle (CFP) (0.25% fixe du PASS = 115.92 €)
     const mCfp = PASS_VALEUR * 0.0025;
 
-    // Total des cotisations
     const totalAnnuel = mCsg + mMaladie + mIj + mAlloc + mCurps + mCfp;
     const totalTrimestriel = totalAnnuel / 4;
 
@@ -94,8 +168,7 @@ function calculerDetailURSSAF(bnc, estRemplacant = false) {
 }
 
 /**
- * Calcule et met à jour l'ensemble de l'IHM
- * @param {boolean} saisieManuelle - Indique si le champ BNC a été modifié manuellement
+ * Met à jour les calculs comptables et fiscaux
  */
 function genererDeclarations(saisieManuelle = false) {
     const selectEl = document.getElementById('exerciceDeclSelect');
@@ -104,36 +177,39 @@ function genererDeclarations(saisieManuelle = false) {
     const estRemplacant = document.getElementById('urssafRemplacant')?.checked || false;
 
     let bncFinal = 0;
+    let caBrut = 0;
+
+    // Calcul du CA Brut depuis les transactions
+    currentTransactions.forEach(t => {
+        if (!t.date) return;
+        const { year } = parseDate(t.date);
+        if (anneeSelect !== 'all' && year !== anneeSelect) return;
+
+        if (t.type === 'recette') caBrut += Number(t.amount || 0);
+    });
 
     if (saisieManuelle && inputBnc && inputBnc.value !== '') {
-        // Lecture directe depuis l'input utilisateur
         bncFinal = parseFloat(inputBnc.value) || 0;
     } else {
-        // Calcul automatique depuis la liste de transactions
-        let totalRecettes = 0;
         let totalDepenses = 0;
-
         currentTransactions.forEach(t => {
             if (!t.date) return;
             const { year } = parseDate(t.date);
-
             if (anneeSelect !== 'all' && year !== anneeSelect) return;
 
-            const montant = Number(t.amount || 0);
-            if (t.type === 'recette') totalRecettes += montant;
-            else if (t.type === 'depense') totalDepenses += montant;
+            if (t.type === 'depense') totalDepenses += Number(t.amount || 0);
         });
 
-        bncFinal = Math.max(0, totalRecettes - totalDepenses);
+        bncFinal = Math.max(0, caBrut - totalDepenses);
         if (inputBnc) {
             inputBnc.value = bncFinal > 0 ? bncFinal : '';
         }
     }
 
-    // Exécution du calcul
+    // Calcul URSSAF
     const res = calculerDetailURSSAF(bncFinal, estRemplacant);
 
-    // Mise à jour de l'affichage du tableau
+    // Mises à jour DOM
     setTxt('urssafBncAssiette', res.bncAssiette.toFixed(2) + ' €');
 
     setTxt('uBaseCsg', res.baseCsg.toFixed(2) + ' €');
@@ -156,19 +232,13 @@ function genererDeclarations(saisieManuelle = false) {
 
     setTxt('uTotalAnnuel', res.totalAnnuel.toFixed(2) + ' €');
 
-    // Mise à jour des échéances trimestrielles
     const trim = res.totalTrimestriel;
     setTxt('urssafT1', trim.toFixed(2) + ' €');
     setTxt('urssafT2', trim.toFixed(2) + ' €');
     setTxt('urssafT3', trim.toFixed(2) + ' €');
     setTxt('urssafT4', trim.toFixed(2) + ' €');
 
-    // Mise à jour du comparatif fiscal
-    let caBrut = 0;
-    currentTransactions.forEach(t => {
-        if (t.type === 'recette') caBrut += Number(t.amount || 0);
-    });
-
+    // Mise à jour Bilan Fiscal
     setTxt('microCA', caBrut.toFixed(2) + ' €');
     setTxt('microAbattement', (caBrut * 0.34).toFixed(2) + ' €');
     setTxt('microImposable', (caBrut * 0.66).toFixed(2) + ' €');
@@ -178,14 +248,16 @@ function genererDeclarations(saisieManuelle = false) {
     setTxt('reelBenefice', bncFinal.toFixed(2) + ' €');
 }
 
-/**
- * Fonction appelée lors du changement d'année dans le sélecteur
- */
 function actualiserCalculsUrssaf() {
     genererDeclarations(false);
 }
 
-// Initialisation au chargement de la page
+// Initialisation par défaut
 document.addEventListener('DOMContentLoaded', () => {
+    // Date du jour par défaut dans le formulaire de transaction
+    const inputDate = document.getElementById('tDate');
+    if (inputDate) {
+        inputDate.value = new Date().toISOString().split('T')[0];
+    }
     genererDeclarations(false);
 });
