@@ -1,20 +1,27 @@
 // ==========================================
-// 1. CONFIGURATION & INITIALISATION SUPABASE
+// 1. CONFIGURATION SUPABASE
 // ==========================================
-// ID de projet configuré d'après votre tableau de bord Supabase
+// URL exacte de votre projet compta-infirmier
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudGtmY3pmeGVoZ2RzcnVoYWJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTkzMzU0NSwiZXhwIjoyMDg3NTA5NTQ1fQ.hMpVK2ky6uoU7mauBeoTOR8THCUpycmUogBKyO8Wsmg';
 
 let supabaseClient = null;
 let currentTransactions = [];
 
+// ==========================================
+// 2. INITIALISATION AU CHARGEMENT DE LA PAGE
+// ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Vérification de la présence de la bibliothèque Supabase
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } else {
+            console.error('La bibliothèque Supabase CDN n\'est pas chargée.');
+            return;
         }
 
-        // Retrait de l'écran d'attente et affichage de l'application
+        // Masquer l'écran d'attente et afficher l'application
         const loadingEl = document.getElementById('loading');
         const appEl = document.getElementById('app');
         if (loadingEl) loadingEl.classList.add('hidden');
@@ -23,36 +30,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         const syncStatus = document.getElementById('syncStatus');
         if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
 
-        // Vue par défaut sur l'onglet Profil
+        // Activer l'onglet profil par défaut
         showTab('profil');
         updateCategories();
 
-        // Chargement des données réelles
+        // Charger les données depuis la base
         await chargerProfil();
         await chargerTransactions();
 
     } catch (err) {
-        console.error('Erreur au démarrage :', err);
+        console.error('Erreur lors de l\'initialisation :', err);
         const syncStatus = document.getElementById('syncStatus');
         if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion';
     }
 });
 
 // ==========================================
-// 2. GESTION DES ONGLETS
+// 3. GESTION DE LA NAVIGATION PAR ONGLETS
 // ==========================================
 function showTab(tabName) {
+    // Masquer tous les conteneurs d'onglets
     const allTabs = document.querySelectorAll('[id^="tab-"]');
     allTabs.forEach(tab => tab.style.display = 'none');
 
+    // Réinitialiser les boutons du menu
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
+    // Afficher l'onglet sélectionné
     const target = document.getElementById(`tab-${tabName}`);
     if (target) {
         target.style.display = 'block';
     }
 
+    // Mettre en surbrillance le bouton actif
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
@@ -62,19 +73,18 @@ function showTab(tabName) {
 }
 
 // ==========================================
-// 3. CHARGEMENT & SAUVEGARDE DU PROFIL
+// 4. LECTURE & ÉCRITURE DU PROFIL
 // ==========================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
-    // Utilisation du nom de table 'profile' (avec un 'e')
     const { data, error } = await supabaseClient
         .from('profile')
         .select('*')
         .maybeSingle();
 
     if (error) {
-        console.warn('Erreur ou profil non trouvé :', error.message);
+        console.warn('Erreur de lecture du profil :', error.message);
         return;
     }
 
@@ -120,14 +130,14 @@ async function saveProfile() {
         .upsert(profilData);
 
     if (error) {
-        alert('Erreur lors de la sauvegarde du profil : ' + error.message);
+        alert('Erreur enregistrement profil : ' + error.message);
     } else {
-        alert('✅ Profil sauvegardé avec succès !');
+        alert('✅ Profil enregistré avec succès !');
     }
 }
 
 // ==========================================
-// 4. CHARGEMENT & GESTION DES TRANSACTIONS
+// 5. LECTURE & ÉCRITURE DES TRANSACTIONS
 // ==========================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -138,7 +148,11 @@ async function chargerTransactions() {
         .order('date', { ascending: false });
 
     if (error) {
-        console.error('Erreur de lecture des transactions :', error.message);
+        console.error('Erreur récupération transactions :', error.message);
+        const container = document.getElementById('transactions');
+        if (container) {
+            container.innerHTML = `<p style="color:red;">Erreur Supabase : ${error.message}</p>`;
+        }
         return;
     }
 
@@ -152,20 +166,20 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée.</p>';
+        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée pour le moment.</p>';
         return;
     }
 
     container.innerHTML = liste.map(t => {
         const isEncaisse = t.encaisse ? 'encaisse' : '';
         const modePaiement = t.payment_method ? ` (${t.payment_method})` : '';
-        
+
         return `
             <div class="transaction ${t.type} ${isEncaisse}">
                 <div class="transaction-actions">
                     <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
                 </div>
-                <strong>${t.date}</strong> - <span>${t.description || 'Sans description'}</span>
+                <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span>
                 <div>
                     <strong>${Number(t.amount).toFixed(2)} €</strong> 
                     [${t.type.toUpperCase()}] 
@@ -187,7 +201,7 @@ async function addTransaction() {
     const amount = parseFloat(document.getElementById('amount')?.value);
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez remplir au moins la date et le montant.');
+        alert('Veuillez renseigner une date et un montant valide.');
         return;
     }
 
@@ -216,7 +230,7 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
+    if (!supabaseClient || !confirm('Confirmer la suppression de cette ligne ?')) return;
 
     const { error } = await supabaseClient
         .from('transactions')
@@ -229,7 +243,7 @@ async function supprimerTransaction(id) {
 }
 
 // ==========================================
-// 5. STATISTIQUES & CATÉGORIES
+// 6. CALCUL DES STATISTIQUES
 // ==========================================
 function calculerStatistiques(liste) {
     let recettes = 0;
