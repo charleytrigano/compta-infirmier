@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compta Infirmier - Exercices, URSSAF & Comptabilité PCG</title>
+    <title>Compta Infirmier - Exercices, Déclarations & Comptabilité</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script src="app.js" defer></script>
     <style>
@@ -25,7 +25,7 @@
             color: #333;
         }
 
-        .container { max-width: 1150px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; }
 
         header {
             display: flex; justify-content: space-between; align-items: center;
@@ -54,7 +54,7 @@
             border-radius: 4px; box-sizing: border-box;
         }
 
-        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; }
         .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 
         .btn {
@@ -90,12 +90,7 @@
             background: #e8f4f8; padding: 15px; border-radius: 6px;
             border-left: 5px solid var(--info-color); text-align: center;
         }
-        .kpi-value { font-size: 1.4em; font-weight: bold; color: var(--info-color); }
-        
-        .badge-info {
-            background-color: #17a2b8; color: white; padding: 3px 7px;
-            border-radius: 4px; font-size: 0.8em; font-weight: normal;
-        }
+        .kpi-value { font-size: 1.5em; font-weight: bold; color: var(--info-color); }
     </style>
 </head>
 <body>
@@ -175,7 +170,7 @@
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label for="description">Libellé / Intitulé (Obligatoire) :</label>
-                        <input type="text" id="description" placeholder="Ex: Consommables, Carburant, Cotisation URSSAF T1...">
+                        <input type="text" id="description" placeholder="Ex: Consommables, Carburant, Honoraires SNIR...">
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label for="attachment">📎 Pièce jointe / Scan :</label>
@@ -193,7 +188,7 @@
 
         <!-- 3. BILAN ET COMPTE D'EXPLOITATION -->
         <div id="tab-bilan" style="display: none;">
-            <h2>📈 États Financiers (Bilan & Compte d'Exploitation)</h2>
+            <h2>📈 Etats Financiers (Bilan & Compte d'Exploitation)</h2>
             
             <div class="card" style="background:#e9ecef;">
                 <div class="grid-2">
@@ -204,7 +199,7 @@
                         </select>
                     </div>
                     <div style="display:flex; align-items:flex-end;">
-                        <button class="btn btn-warning" onclick="window.print()">🖨️ Imprimer les États Comptables</button>
+                        <button class="btn btn-warning" onclick="window.print()">🖨️ Imprimer les Etats Comptables</button>
                     </div>
                 </div>
             </div>
@@ -245,7 +240,7 @@
                     <div>
                         <h4>ACTIF (Patrimoine)</h4>
                         <table>
-                            <thead><tr><th>Élément</th><th>Montant (€)</th></tr></thead>
+                            <thead><tr><th>Elément</th><th>Montant (€)</th></tr></thead>
                             <tbody>
                                 <tr><td>Trésorerie / Banque</td><td id="bilanActifTresorerie">0.00 €</td></tr>
                                 <tr style="font-weight:bold; background:#f8f9fa;"><td>TOTAL ACTIF</td><td id="bilanTotalActif">0.00 €</td></tr>
@@ -255,7 +250,7 @@
                     <div>
                         <h4>PASSIF (Ressources)</h4>
                         <table>
-                            <thead><tr><th>Élément</th><th>Montant (€)</th></tr></thead>
+                            <thead><tr><th>Elément</th><th>Montant (€)</th></tr></thead>
                             <tbody>
                                 <tr><td>Résultat de l'Exercice</td><td id="bilanPassifResultat">0.00 €</td></tr>
                                 <tr style="font-weight:bold; background:#f8f9fa;"><td>TOTAL PASSIF</td><td id="bilanTotalPassif">0.00 €</td></tr>
@@ -266,119 +261,58 @@
             </div>
         </div>
 
-        <!-- 4. DÉCLARATIONS SOCIALES (URSSAF) ET IMPÔTS -->
+        <!-- 4. DÉCLARATIONS SOCIALES ET FISCALES -->
         <div id="tab-declarations" style="display: none;">
-            <h2>📋 Calcul Détaillé URSSAF (PAMC) & Impôts sur le Revenu</h2>
+            <h2>📋 Déclarations URSSAF (Trimestrielles), CARPIMKO & Impôts</h2>
 
             <div class="card" style="background:#e9ecef;">
-                <div class="grid-2">
-                    <div class="form-group" style="margin:0;">
-                        <label for="exerciceDeclSelect">Sélectionner l'Année de Déclaration :</label>
-                        <select id="exerciceDeclSelect" onchange="genererDeclarations()">
-                            <option value="all">Toutes les années (Cumul)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin:0; display:flex; align-items:center;">
-                        <label style="margin:0; cursor:pointer;">
-                            <input type="checkbox" id="urssafRemplacant" onchange="genererDeclarations()"> 
-                            Statut Infirmier Remplaçant (Exonération CURPS)
-                        </label>
-                    </div>
-                </div>
+                <label for="exerciceDeclSelect">Choisir l'Année de Déclaration :</label>
+                <select id="exerciceDeclSelect" onchange="genererDeclarations()">
+                    <option value="all">Toutes les années (Cumul)</option>
+                </select>
             </div>
 
-            <!-- ÉTAT DE CALCUL URSSAF DÉTAILLÉ -->
             <div class="card" style="border-left: 5px solid var(--primary-color);">
-                <h3 class="section-title">1. État Détaillé des Cotisations URSSAF (Régime PAMC)</h3>
-                
-                <p>
-                    <strong>Assiette retenue (BNC Net) :</strong> <strong id="urssafBncAssiette" style="color:var(--primary-color);">0.00 €</strong>
-                    <span class="badge-info">PASS Réf: 46 368 €</span>
-                </p>
+                <h3 class="section-title">1. Déclaration URSSAF Trimestrielle & CARPIMKO</h3>
+                <p><strong>Recettes Totales Réalisées :</strong> <strong id="declCA">0.00 €</strong></p>
 
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Rubrique de Cotisation</th>
-                            <th>Assiette de Calcul</th>
-                            <th>Taux / Appliqué</th>
-                            <th style="text-align:right;">Montant Annuel (€)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>CSG / CRDS</strong> <br><small>(6.8% déductible, 2.9% non déductible)</small></td>
-                            <td id="uBaseCsg">0.00 € <br><small>(Abattement social 26%)</small></td>
-                            <td>9,70 %</td>
-                            <td style="text-align:right;" id="uMontantCsg">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Assurance Maladie - Maternité</strong> <br><small>(Prise en charge CPAM de 8.40%)</small></td>
-                            <td id="uBaseMaladie">0.00 €</td>
-                            <td>0,10 % <small>(reste à charge)</small></td>
-                            <td style="text-align:right;" id="uMontantMaladie">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Indemnités Journalières (IJ)</strong></td>
-                            <td id="uBaseIj">0.00 € <br><small>(Min 0.4 PASS - Max 3 PASS)</small></td>
-                            <td>0,30 %</td>
-                            <td style="text-align:right;" id="uMontantIj">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Allocations Familiales</strong></td>
-                            <td id="uBaseAlloc">0.00 €</td>
-                            <td id="uTauxAlloc">0,00 % <small>(Progressif 0 à 3.1%)</small></td>
-                            <td style="text-align:right;" id="uMontantAlloc">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>CURPS</strong> <br><small>(Union Régionale des Professions de Santé)</small></td>
-                            <td id="uBaseCurps">0.00 €</td>
-                            <td>0,10 % <small>(Plafonné 0.5% PASS)</small></td>
-                            <td style="text-align:right;" id="uMontantCurps">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Formation Professionnelle (CFP)</strong></td>
-                            <td>Forfait Annuel Fixe</td>
-                            <td>0,25 % du PASS</td>
-                            <td style="text-align:right;" id="uMontantCfp">0.00 €</td>
-                        </tr>
-                        <tr style="background:#e8f4f8; font-weight:bold; font-size:1.05em;">
-                            <td colspan="3">TOTAL ANNUEL COTISATIONS URSSAF</td>
-                            <td style="text-align:right; color:var(--primary-color);" id="uTotalAnnuel">0.00 €</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h4 style="margin-top:20px;">Échéances Trimestrielles Calculées :</h4>
+                <h4>Ventilation du CA par Trimestre (URSSAF) :</h4>
                 <div class="grid-4">
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd; text-align:center;">
-                        <small><strong>1er Trimestre (31 Mars)</strong></small>
-                        <div id="urssafT1" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 1 (Jan-Mar)</strong></small>
+                        <div id="caT1" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT1">0.00 €</span></small>
                     </div>
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd; text-align:center;">
-                        <small><strong>2ème Trimestre (30 Juin)</strong></small>
-                        <div id="urssafT2" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 2 (Avr-Juin)</strong></small>
+                        <div id="caT2" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT2">0.00 €</span></small>
                     </div>
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd; text-align:center;">
-                        <small><strong>3ème Trimestre (30 Sept)</strong></small>
-                        <div id="urssafT3" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 3 (Juil-Sept)</strong></small>
+                        <div id="caT3" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT3">0.00 €</span></small>
                     </div>
-                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd; text-align:center;">
-                        <small><strong>4ème Trimestre (31 Déc)</strong></small>
-                        <div id="urssafT4" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                    <div style="background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                        <small><strong>Trimestre 4 (Oct-Déc)</strong></small>
+                        <div id="caT4" style="font-size:1.1em; font-weight:bold; color:var(--primary-color);">0.00 €</div>
+                        <small>URSSAF Est. (~14.5%): <span id="urssafT4">0.00 €</span></small>
                     </div>
                 </div>
 
                 <div style="margin-top: 15px; text-align: right;">
                     <button class="btn btn-primary" onclick="incorporerChargesSociales('URSSAF')">
-                        ⚡ Incorporer les cotisations URSSAF dans la comptabilité (Compte 645100)
+                        ⚡ Incorporer les cotisations URSSAF dans la comptabilité
                     </button>
+                </div>
+
+                <div style="margin-top:15px; background:#e8f4f8; padding:12px; border-radius:6px;">
+                    <strong>CARPIMKO Estimé (Retraite/Prévoyance) :</strong> <span id="estCARPIMKO" style="font-size:1.1em; font-weight:bold; color:var(--info-color);">0.00 €</span>
                 </div>
             </div>
 
-            <!-- COMPARATIF REGIMES FISCAUX -->
             <div class="card" style="border-left: 5px solid var(--success-color);">
-                <h3 class="section-title">2. Déclaration d'Impôt sur le Revenu (Micro-BNC vs Réel 2035)</h3>
+                <h3 class="section-title">2. Déclaration d'Impôt sur le Revenu (Comparatif 2 Régimes)</h3>
                 <div class="grid-2">
                     <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
                         <h4 style="color:var(--primary-color); margin-top:0;">Option A : Micro-BNC (Case 5HQ)</h4>
@@ -390,11 +324,11 @@
                     </div>
 
                     <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ced4da;">
-                        <h4 style="color:var(--success-color); margin-top:0;">Option B : Réel / Déclaration 2035 (Case 5QC)</h4>
+                        <h4 style="color:var(--success-color); margin-top:0;">Option B : Réel / 2035 (Case 5QC)</h4>
                         <ul>
                             <li><strong>Recettes brutes :</strong> <span id="reelCA">0.00 €</span></li>
-                            <li><strong>Dépenses réelles déductibles :</strong> -<span id="reelDepenses">0.00 €</span></li>
-                            <li><strong>Bénéfice net imposable :</strong> <strong id="reelBenefice" style="color:var(--success-color);">0.00 €</strong></li>
+                            <li><strong>Dépenses déductibles :</strong> -<span id="reelDepenses">0.00 €</span></li>
+                            <li><strong>Bénéfice imposable retenu :</strong> <strong id="reelBenefice" style="color:var(--success-color);">0.00 €</strong></li>
                         </ul>
                     </div>
                 </div>
@@ -424,14 +358,14 @@
                 </div>
                 <div class="form-group">
                     <label style="cursor:pointer;">
-                        <input type="checkbox" id="carpConventionne" checked onchange="calculerCarpimkoTab()"> 
+                        <input type="checkbox" id="carpConventionne" onchange="calculerCarpimkoTab()"> 
                         Infirmier Libéral Conventionné (Prise en charge de 66% du régime ASV par la CPAM)
                     </label>
                 </div>
             </div>
 
             <div class="card">
-                <h3 class="section-title">2. Synthèse de Trésorerie Annuelle</h3>
+                <h3 class="section-title">2. Synthèse de Trésorerie Annuelles</h3>
                 <div class="grid-4">
                     <div class="kpi-card">
                         <small>Total Annuel Dû</small>
@@ -452,7 +386,7 @@
                 </div>
                 <div style="margin-top: 15px; text-align: right;">
                     <button class="btn btn-primary" onclick="incorporerChargesSociales('CARPIMKO')">
-                        ⚡ Incorporer la CARPIMKO dans la comptabilité (Compte 645200)
+                        ⚡ Incorporer les cotisations CARPIMKO dans la comptabilité
                     </button>
                 </div>
             </div>
