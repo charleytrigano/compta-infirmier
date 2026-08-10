@@ -1,3 +1,435 @@
+// Injecter les onglets dans le DOM
+(function(){
+const appEl = document.getElementById('app');
+const tabsEl = document.querySelector('.tabs');
+const wrapper = document.createElement('div');
+wrapper.innerHTML = `<div id="tab-operations" style="display:none">
+<div class="ai-scan">
+<h3>🤖 Scan intelligent avec IA</h3>
+<p style="margin-bottom:1rem;">Prenez une photo d'une facture, l'IA extrait automatiquement les informations !</p>
+<button class="btn btn-success" onclick="openAIScan()">📸 Scanner une facture</button>
+</div>
+<div class="card">
+<h2>➕ Nouvelle opération</h2>
+<input type="date" id="date">
+<select id="type" onchange="updateCategories()"><option value="recette">💚 Recette</option><option value="depense">🔴 Dépense</option></select>
+<select id="category"></select>
+<input type="text" id="description" placeholder="Description">
+<input type="number" id="amount" placeholder="Montant" step="0.01">
+<select id="paymentMethod"><option>Virement</option><option>Chèque</option><option>Espèces</option><option>Carte bancaire</option></select>
+<div class="file-upload" onclick="document.getElementById('fileInput').click()">📎 Cliquez pour ajouter des justificatifs</div>
+<input type="file" id="fileInput" multiple accept="image/*,application/pdf" style="display:none" onchange="previewFiles()">
+<div class="file-preview" id="filePreview"></div>
+<button class="btn btn-primary" onclick="addTransaction()">✅ Ajouter</button>
+</div>
+<div class="card">
+<h2>📋 Liste des opérations</h2>
+<div id="transactions"></div>
+</div>
+</div>
+
+<div id="tab-banque" style="display:none">
+<div class="card">
+<h2>🏦 Journal de banque</h2>
+<div class="stat-card" style="margin-bottom:1.5rem;">
+<div class="stat-label">Solde bancaire</div>
+<div class="stat-value" id="soldeBanque">0,00 €</div>
+</div>
+<h3 style="margin-bottom:1rem;">Opérations non encaissées</h3>
+<div id="nonEncaisses"></div>
+<h3 style="margin-bottom:1rem;margin-top:1.5rem;">Encaissements récents</h3>
+<div id="encaissements"></div>
+</div>
+</div>
+
+<div id="tab-recurrentes" style="display:none">
+<div class="card">
+<h2>🔄 Dépenses récurrentes</h2>
+<p style="margin-bottom:1rem;color:#666;">Automatisez vos dépenses mensuelles (loyer, assurance...)</p>
+<div class="form-row">
+<select id="recurCategory"></select>
+<input type="text" id="recurDescription" placeholder="Description">
+</div>
+<div class="form-row">
+<input type="number" id="recurAmount" placeholder="Montant" step="0.01">
+<input type="number" id="recurDay" placeholder="Jour du mois (1-31)" min="1" max="31">
+</div>
+<button class="btn btn-primary" onclick="addRecurrent()">➕ Ajouter une récurrence</button>
+<div id="recurrentsList" style="margin-top:1.5rem;"></div>
+</div>
+</div>
+
+<div id="tab-documents" style="display:none">
+<div class="card">
+<h2>📑 Documents sociaux</h2>
+<p style="margin-bottom:1rem;color:#666;">Stockez vos documents administratifs</p>
+<select id="docCategory" style="margin-bottom:1rem;">
+<option>URSSAF</option>
+<option>Assurance professionnelle</option>
+<option>Diplômes</option>
+<option>Contrats</option>
+<option>Attestations</option>
+<option>Autres</option>
+</select>
+<input type="text" id="docName" placeholder="Nom du document">
+<div class="file-upload" onclick="document.getElementById('docInput').click()">📄 Cliquez pour uploader</div>
+<input type="file" id="docInput" accept="image/*,application/pdf" style="display:none" onchange="uploadSocialDoc()">
+<div id="docsList"></div>
+</div>
+</div>
+
+<div id="tab-stats" style="display:none">
+<div class="exercice-filter">
+<h3 style="margin-bottom:0.5rem;">📅 Filtrer par exercice</h3>
+<select id="exerciceSelect" onchange="filterByExercice()" style="margin-bottom:0;">
+<option value="">Toutes les périodes</option>
+</select>
+</div>
+
+<div class="stats">
+<div class="stat-card"><div class="stat-label">Total Recettes</div><div class="stat-value" id="statRecettes">0,00 €</div></div>
+<div class="stat-card"><div class="stat-label">Total Dépenses</div><div class="stat-value" id="statDepenses">0,00 €</div></div>
+<div class="stat-card"><div class="stat-label">Balance</div><div class="stat-value" id="statBalance">0,00 €</div></div>
+<div class="stat-card"><div class="stat-label">Nb opérations</div><div class="stat-value" id="statNb">0</div></div>
+</div>
+
+<div class="card">
+<h2>📊 Graphique mensuel</h2>
+<div class="chart-container"><canvas id="chart"></canvas></div>
+</div>
+
+<div class="card">
+<h2>📥 Export pour expert-comptable</h2>
+<p style="margin-bottom:1rem;color:#666;">Formats professionnels avec mise en forme améliorée</p>
+<button class="btn btn-success" onclick="preparerEnvoiComptable()" style="width:100%;padding:1.5rem;font-size:1.1rem;margin-bottom:1.5rem;">📧 Préparer l'envoi au comptable</button>
+<details style="margin-top:1rem;">
+<summary style="cursor:pointer;color:#0A7373;font-weight:600;margin-bottom:1rem;">Exports individuels</summary>
+<div class="export-grid">
+<button class="btn btn-secondary" onclick="exportCompletComptable()">📊 Dossier complet (1 fichier)</button>
+<button class="btn btn-secondary" onclick="exportJustificatifs()">📦 ZIP justificatifs</button>
+</div>
+</details>
+</div>
+</div>
+
+<div id="tab-simulateur" style="display:none">
+<div class="card">
+<h2>🧮 Simulateur de charges sociales 2026</h2>
+<p style="color:#666;margin-bottom:1.5rem;">Calculez vos charges en fonction de vos recettes annuelles</p>
+
+<div style="background:#e8f5e9;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
+<label style="font-weight:700;font-size:1.1rem;display:block;margin-bottom:0.5rem;">💰 Recettes brutes annuelles :</label>
+<div style="display:flex;gap:1rem;align-items:center;">
+<input type="number" id="simRecettes" placeholder="Ex: 60000" style="flex:1;font-size:1.2rem;padding:0.75rem;" oninput="calculerCharges()">
+<span style="font-size:1.2rem;font-weight:700;">€</span>
+</div>
+<p style="margin-top:0.5rem;color:#666;font-size:0.85rem;">💡 Vos recettes actuelles : <span id="simRecettesAuto" style="color:#0A7373;font-weight:700;cursor:pointer;" onclick="importerRecettes()">Cliquez pour importer</span></p>
+</div>
+
+<div style="display:grid;gap:1rem;margin-bottom:1.5rem;">
+
+<!-- URSSAF -->
+<div class="card" style="border-left:4px solid #1976D2;margin:0;">
+<h3 style="color:#1976D2;margin-bottom:1rem;">🏛️ URSSAF <small style="font-weight:400;font-size:0.85rem;">(Micro-entreprise BNC)</small></h3>
+<div style="display:grid;gap:0.5rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#e3f2fd;border-radius:4px;">
+<span>Chiffre d'affaires</span>
+<strong id="sim_ca">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Abattement forfaitaire</span>
+<strong id="sim_abattement">0,00 € (34%)</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Base imposable <small style="color:#999;">(CA × 66%)</small></span>
+<strong id="sim_base_imposable">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Cotisations sociales <small style="color:#999;">(23,1% × CA)</small></span>
+<strong id="sim_urssaf_taux">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Formation professionnelle <small style="color:#999;">(0,2% × CA)</small></span>
+<strong id="sim_cfp">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#1976D2;color:white;border-radius:4px;margin-top:0.25rem;">
+<span><strong>TOTAL URSSAF</strong></span>
+<strong id="sim_urssaf_total">0,00 €</strong>
+</div>
+</div>
+</div>
+
+<!-- CARPIMKO -->
+<div class="card" style="border-left:4px solid #7B1FA2;margin:0;">
+<h3 style="color:#7B1FA2;margin-bottom:1rem;">🏥 CARPIMKO</h3>
+<div style="display:grid;gap:0.5rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Retraite de base <small style="color:#999;">(T1: 8,73% ≤ PASS + T2: 1,87% > PASS)</small></span>
+<strong id="sim_retraite_base">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#fff3e0;border-radius:4px;border-left:3px solid #F57C00;">
+<span>Complémentaire <small style="color:#F57C00;">⚡ Réforme 2026 : 8,70% (min 2 091€ / max 12 544€)</small></span>
+<strong id="sim_retraite_comp">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>ASV <small style="color:#999;">(224€ + 0,16% × CA - part praticien)</small></span>
+<strong id="sim_prevoyance">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Invalidité-décès <small style="color:#999;">(forfait 2026)</small></span>
+<strong id="sim_inv_deces">1 022,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#7B1FA2;color:white;border-radius:4px;margin-top:0.25rem;">
+<span><strong>TOTAL CARPIMKO</strong></span>
+<strong id="sim_carpimko_total">0,00 €</strong>
+</div>
+</div>
+</div>
+
+<!-- IMPÔT SUR LE REVENU -->
+<div class="card" style="border-left:4px solid #c62828;margin:0;">
+<h3 style="color:#c62828;margin-bottom:1rem;">💶 Impôt sur le revenu</h3>
+
+<div style="background:#fff3e0;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<label style="font-weight:600;display:block;margin-bottom:0.5rem;">Parts fiscales (quotient familial) :</label>
+<select id="sim_parts" onchange="calculerCharges()" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid #ddd;">
+<option value="1">1 part (célibataire)</option>
+<option value="1.5">1,5 part (célibataire + 1 enfant)</option>
+<option value="2" selected>2 parts (couple)</option>
+<option value="2.5">2,5 parts (couple + 1 enfant)</option>
+<option value="3">3 parts (couple + 2 enfants)</option>
+<option value="3.5">3,5 parts (couple + 3 enfants)</option>
+</select>
+</div>
+
+<div style="background:#fce4ec;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<label style="font-weight:600;display:block;margin-bottom:0.5rem;">Autres revenus du foyer :</label>
+<div style="display:flex;gap:0.5rem;align-items:center;">
+<input type="number" id="sim_autres_revenus" placeholder="0" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #ddd;" oninput="calculerCharges()">
+<span>€</span>
+</div>
+<p style="font-size:0.8rem;color:#999;margin-top:0.25rem;">Salaire du conjoint, autres revenus...</p>
+</div>
+
+<div style="display:grid;gap:0.5rem;margin-bottom:1rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Base imposable BNC <small style="color:#999;">(CA × 66%)</small></span>
+<strong id="ir_base_bnc">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CSG déductible <small style="color:#999;">(-6,8%)</small></span>
+<strong id="ir_csg_ded">- 0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Revenu net imposable total</span>
+<strong id="ir_revenu_net_imposable">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Quotient familial</span>
+<strong id="ir_quotient">0,00 €</strong>
+</div>
+</div>
+
+<div style="font-weight:600;margin-bottom:0.5rem;color:#c62828;">Tranches d'imposition 2026 :</div>
+<div style="display:grid;gap:0.25rem;margin-bottom:1rem;">
+<div style="display:flex;justify-content:space-between;padding:0.4rem 0.5rem;background:#f5f5f5;border-radius:4px;font-size:0.85rem;">
+<span>Tranche 0% <small style="color:#999;">(jusqu'à 11 294€)</small></span>
+<strong id="ir_t0">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.4rem 0.5rem;background:#f5f5f5;border-radius:4px;font-size:0.85rem;">
+<span>Tranche 11% <small style="color:#999;">(11 294€ → 28 797€)</small></span>
+<strong id="ir_t11">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.4rem 0.5rem;background:#f5f5f5;border-radius:4px;font-size:0.85rem;">
+<span>Tranche 30% <small style="color:#999;">(28 797€ → 82 341€)</small></span>
+<strong id="ir_t30">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.4rem 0.5rem;background:#f5f5f5;border-radius:4px;font-size:0.85rem;">
+<span>Tranche 41% <small style="color:#999;">(82 341€ → 177 106€)</small></span>
+<strong id="ir_t41">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.4rem 0.5rem;background:#f5f5f5;border-radius:4px;font-size:0.85rem;">
+<span>Tranche 45% <small style="color:#999;">(au-delà de 177 106€)</small></span>
+<strong id="ir_t45">0,00 €</strong>
+</div>
+</div>
+
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#c62828;color:white;border-radius:4px;margin-bottom:0.5rem;">
+<span><strong>TOTAL IMPÔT (barème progressif)</strong></span>
+<strong id="ir_total">0,00 €</strong>
+</div>
+
+<div style="background:#e8f5e9;padding:0.75rem;border-radius:4px;">
+<div style="display:flex;justify-content:space-between;">
+<span>Option : Versement libératoire <small style="color:#666;">(2,2% × CA)</small></span>
+<strong id="ir_liberatoire">0,00 €</strong>
+</div>
+<p style="font-size:0.75rem;color:#666;margin-top:0.25rem;">⚠️ Option irrévocable, éligible si RFR N-2 ≤ 27 478€/part</p>
+</div>
+</div>
+<div class="card" style="border-left:4px solid #F57C00;margin:0;">
+<h3 style="color:#F57C00;margin-bottom:1rem;">📋 CSG / CRDS</h3>
+<div style="display:grid;gap:0.5rem;">
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>Base de calcul <small style="color:#999;">(98,25% × R)</small></span>
+<strong id="sim_base_csg">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CSG déductible <small style="color:#999;">(6,8%)</small></span>
+<strong id="sim_csg_ded">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CSG non déductible <small style="color:#999;">(2,4%)</small></span>
+<strong id="sim_csg_nded">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.5rem;background:#f5f5f5;border-radius:4px;">
+<span>CRDS <small style="color:#999;">(0,5%)</small></span>
+<strong id="sim_crds">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.75rem;background:#F57C00;color:white;border-radius:4px;margin-top:0.25rem;">
+<span><strong>TOTAL CSG/CRDS</strong></span>
+<strong id="sim_csg_total">0,00 €</strong>
+</div>
+</div>
+</div>
+
+</div>
+
+<!-- RÉCAPITULATIF -->
+<div style="background:#0A7373;color:white;padding:1.5rem;border-radius:12px;">
+<h3 style="margin-bottom:1rem;font-size:1.2rem;">📊 RÉCAPITULATIF ANNUEL</h3>
+<div style="display:grid;gap:0.75rem;">
+<div style="display:flex;justify-content:space-between;font-size:1rem;">
+<span>Recettes brutes</span>
+<strong id="sim_recap_recettes">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>URSSAF</span>
+<span id="sim_recap_urssaf">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>CARPIMKO</span>
+<span id="sim_recap_carpimko">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>CSG/CRDS</span>
+<span id="sim_recap_csg">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;">
+<span>Impôt sur le revenu</span>
+<span id="sim_recap_ir">0,00 €</span>
+</div>
+<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.3);padding-top:0.75rem;">
+<span>Total charges sociales</span>
+<strong id="sim_total_charges">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:1.3rem;border-top:2px solid white;padding-top:0.75rem;">
+<span><strong>💵 Revenu net après charges + IR</strong></span>
+<strong id="sim_revenu_net">0,00 €</strong>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:0.9rem;opacity:0.8;">
+<span>Taux de charges</span>
+<span id="sim_taux">0 %</span>
+</div>
+</div>
+</div>
+
+<p style="margin-top:1rem;color:#999;font-size:0.8rem;">⚠️ Calcul indicatif basé sur les taux 2026. Les montants réels peuvent varier selon votre situation. Consultez votre comptable pour confirmation.</p>
+</div>
+
+<div class="card">
+<h2>📑 Liasse fiscale</h2>
+<p style="color:#666;margin-bottom:1rem;">Génère les documents fiscaux pré-remplis avec vos données</p>
+<div style="background:#fff3cd;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<p style="margin:0;font-size:0.9rem;">⚠️ Documents indicatifs à vérifier avec votre comptable avant dépôt.</p>
+</div>
+<div style="display:grid;gap:0.75rem;">
+<button class="btn btn-primary" onclick="genererLiasseFiscale()" style="padding:1rem;font-size:1rem;">📊 Générer la liasse fiscale complète</button>
+<p style="color:#666;font-size:0.85rem;margin:0;">Contient : <strong>2042-C PRO</strong> (micro BNC) + <strong>2035</strong> (BNC réel simulé) + <strong>Récapitulatif comptable</strong></p>
+</div>
+</div>
+<p style="color:#666;margin-bottom:1.5rem;">Découvrez quel régime est le plus avantageux pour vous</p>
+
+<div style="background:#e8f5e9;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+<p style="margin:0;font-weight:600;">📊 Données importées automatiquement :</p>
+<p style="margin:0.5rem 0 0;color:#666;font-size:0.9rem;">CA du simulateur + dépenses de l'onglet Opérations</p>
+<button class="btn btn-primary" onclick="lancerComparatif()" style="margin-top:0.75rem;width:100%;">🔄 Calculer le comparatif</button>
+</div>
+
+<div id="comparatif_result" style="display:none;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+
+<div style="background:#1976D2;color:white;padding:1.25rem;border-radius:12px;">
+<h3 style="margin-bottom:1rem;font-size:1rem;">🏪 MICRO-ENTREPRISE</h3>
+<div style="display:grid;gap:0.5rem;font-size:0.9rem;">
+<div style="display:flex;justify-content:space-between;"><span>CA</span><span id="cmp_micro_ca">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Abattement 34%</span><span id="cmp_micro_abat">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>URSSAF</span><span id="cmp_micro_urssaf">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CARPIMKO</span><span id="cmp_micro_carpimko">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CSG/CRDS</span><span id="cmp_micro_csg">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Impôt IR</span><span id="cmp_micro_ir">0 €</span></div>
+<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.4);padding-top:0.5rem;margin-top:0.25rem;">
+<strong>Revenu net</strong><strong id="cmp_micro_net">0 €</strong>
+</div>
+</div>
+</div>
+
+<div style="background:#2E7D32;color:white;padding:1.25rem;border-radius:12px;">
+<h3 style="margin-bottom:1rem;font-size:1rem;">📋 BNC RÉEL</h3>
+<div style="display:grid;gap:0.5rem;font-size:0.9rem;">
+<div style="display:flex;justify-content:space-between;"><span>CA</span><span id="cmp_reel_ca">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Dépenses réelles</span><span id="cmp_reel_depenses">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>URSSAF (TNS)</span><span id="cmp_reel_urssaf">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CARPIMKO</span><span id="cmp_reel_carpimko">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>CSG/CRDS</span><span id="cmp_reel_csg">0 €</span></div>
+<div style="display:flex;justify-content:space-between;"><span>Impôt IR</span><span id="cmp_reel_ir">0 €</span></div>
+<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.4);padding-top:0.5rem;margin-top:0.25rem;">
+<strong>Revenu net</strong><strong id="cmp_reel_net">0 €</strong>
+</div>
+</div>
+</div>
+</div>
+
+<div id="comparatif_verdict" style="padding:1.5rem;border-radius:12px;text-align:center;margin-bottom:1rem;">
+<h3 id="verdict_titre" style="font-size:1.3rem;margin-bottom:0.5rem;"></h3>
+<p id="verdict_detail" style="margin:0;"></p>
+<p id="verdict_gain" style="margin:0.5rem 0 0;font-size:1.5rem;font-weight:700;"></p>
+</div>
+
+<h3 style="margin-bottom:0.75rem;">📋 Dépenses prises en compte (régime réel)</h3>
+<div id="cmp_detail_depenses" style="background:#f5f5f5;padding:1rem;border-radius:8px;font-size:0.9rem;"></div>
+</div>
+</div>
+</div>
+
+<div id="aiModal" class="modal">
+<div class="modal-content">
+<span class="modal-close" onclick="closeAIScan()">×</span>
+<h2>🤖 Scan intelligent</h2>
+<p style="margin:1rem 0;">Image uniquement (JPG/PNG)</p>
+<div class="file-upload" onclick="document.getElementById('aiInput').click()">📸 Choisir une image</div>
+<input type="file" id="aiInput" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="analyzeWithAI()">
+<div id="aiResult"></div>
+</div>
+</div>
+
+<div id="emailModal" class="modal">
+<div class="modal-content" style="max-width:700px;">
+<span class="modal-close" onclick="closeEmailModal()">×</span>
+<h2>📧 Envoi au comptable</h2>
+<div id="emailContent"></div>
+</div>
+</div>
+
+</div>
+</div>
+
+`;
+while(wrapper.firstChild){
+  appEl.insertBefore(wrapper.firstChild, tabsEl.nextSibling);
+}
+})();
+
 const SUPABASE_URL='https://qfwhzuhwldurnmhirgil.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
 const CATEGORIES={
@@ -63,14 +495,10 @@ transactions=allTransactions;
 recurrents=JSON.parse(localStorage.getItem('recurrents')||'[]');
 bankOps=JSON.parse(localStorage.getItem('bankOps')||'[]');
 
-// Afficher app
-document.getElementById("loading").style.display="none";
-document.getElementById("app").style.display="block";
-document.querySelectorAll("[id^=tab-]").forEach(t=>t.style.display="none");
-document.getElementById("tab-operations").style.display="block";
-document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(t=>{if(t.getAttribute("onclick")&&t.getAttribute("onclick").includes("operations"))t.classList.add("active");});
-document.getElementById("syncStatus").textContent="✅ "+allTransactions.length+" opérations";
+// Afficher l'app EN PREMIER
+document.getElementById('loading').classList.add('hidden');
+document.getElementById('app').classList.remove('hidden');
+document.getElementById('syncStatus').textContent='✅ '+allTransactions.length+' opérations';
 
 // Puis remplir les onglets
 try{displayTransactions();}catch(e){console.error('displayTransactions:',e);}
@@ -1462,10 +1890,9 @@ return getBareme(annee)[key];
 
 function showTab(name){
 document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-document.querySelectorAll('[id^="tab-"]').forEach(t=>t.style.display='none');
-document.getElementById('tab-'+name).style.display='block';
-const btn=document.querySelector('[onclick*="showTab(\''+name+'\'"]') || document.querySelector('[onclick*="showTab(\\"'+name+'\\""]');
-document.querySelectorAll('.tab').forEach(t=>{if(t.getAttribute('onclick')&&t.getAttribute('onclick').includes("'"+name+"'"))t.classList.add('active');});
+document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
+event.target.classList.add('active');
+document.getElementById(`tab-${name}`).classList.remove('hidden');
 }
 
 function showMessage(msg,type){
