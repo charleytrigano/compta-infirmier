@@ -8,6 +8,22 @@ let supabaseClient = null;
 let currentTransactions = [];
 let currentProfileId = null;
 
+// Table de correspondance entre les catégories et le Plan Comptable Général (PCG)
+const MAP_COMPTES = {
+    // Recettes
+    'Honoraires PAI': { num: '706000', nom: 'Honoraires / Prestations de services' },
+    'Honoraires Patients': { num: '706000', nom: 'Honoraires / Prestations de services' },
+    'Autre recette': { num: '708000', nom: 'Produits annexes' },
+
+    // Dépenses
+    'Cotisations URSSAF/CARPIMKO': { num: '645000', nom: 'Charges sociales personnelles' },
+    'Matériel médical': { num: '606300', nom: 'Fournitures d\'entretien et petit équipement' },
+    'Loyer professionnel': { num: '613200', nom: 'Locations immobilières' },
+    'Assurance Pro': { num: '616000', nom: 'Primes d\'assurances' },
+    'Carburant / Déplacements': { num: '625100', nom: 'Voyages et déplacements' },
+    'Autre dépense': { num: '628000', nom: 'Divers services extérieurs' }
+};
+
 // ============================================================================
 // 2. FONCTIONS UTILITAIRES
 // ============================================================================
@@ -47,6 +63,22 @@ function updateCategories() {
             <option value="Autre dépense">Autre dépense</option>
         `;
     }
+}
+
+/**
+ * Retourne les détails du compte PCG selon la catégorie de la transaction
+ */
+function obtenirComptePCG(transaction) {
+    const isRecette = (transaction.type || '').toLowerCase().includes('recette');
+    const cat = transaction.category || '';
+
+    if (MAP_COMPTES[cat]) {
+        return MAP_COMPTES[cat];
+    }
+
+    return isRecette 
+        ? { num: '706000', nom: 'Honoraires / Prestations de services' } 
+        : { num: '628000', nom: 'Divers services extérieurs' };
 }
 
 // ============================================================================
@@ -504,6 +536,9 @@ function afficherJournalEtBalance() {
     afficherBalanceComptes();
 }
 
+/**
+ * Génère le Livre-Journal avec les vrais numéros de comptes PCG
+ */
 function afficherLivreJournal() {
     const tbodyJournal = document.getElementById('tbodyJournal');
     if (!tbodyJournal) return;
@@ -516,13 +551,13 @@ function afficherLivreJournal() {
     tbodyJournal.innerHTML = currentTransactions.map(t => {
         const val = parseFloat(t.amount) || 0;
         const isRecette = (t.type || '').toLowerCase().includes('recette');
-        const compte = isRecette ? '706000' : '628000';
+        const compteInfo = obtenirComptePCG(t);
 
         return `
             <tr>
                 <td>${t.date}</td>
-                <td><strong>${compte}</strong></td>
-                <td>${t.description || ''}</td>
+                <td><strong>${compteInfo.num}</strong></td>
+                <td>${t.description || ''} <small style="color:#666;">(${t.category || ''})</small></td>
                 <td style="text-align:right;">${!isRecette ? val.toFixed(2) + ' €' : '-'}</td>
                 <td style="text-align:right;">${isRecette ? val.toFixed(2) + ' €' : '-'}</td>
             </tr>
@@ -530,6 +565,9 @@ function afficherLivreJournal() {
     }).join('');
 }
 
+/**
+ * Génère la Balance Comptable ventilée par numéro de compte
+ */
 function afficherBalanceComptes() {
     const tbodyBalance = document.getElementById('tbodyBalance');
     if (!tbodyBalance) return;
@@ -539,22 +577,27 @@ function afficherBalanceComptes() {
         return;
     }
 
-    const comptes = {
-        '706000': { nom: 'Prestations de services / Honoraires', debit: 0, credit: 0 },
-        '628000': { nom: 'Diverses charges professionnelles', debit: 0, credit: 0 },
+    // Structure dynamique des comptes
+    const balanceMap = {
         '512000': { nom: 'Compte Bancaire Pro', debit: 0, credit: 0 }
     };
 
+    // Remplissage dynamique des comptes selon les mouvements
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
         const isRecette = (t.type || '').toLowerCase().includes('recette');
+        const compte = obtenirComptePCG(t);
+
+        if (!balanceMap[compte.num]) {
+            balanceMap[compte.num] = { nom: compte.nom, debit: 0, credit: 0 };
+        }
 
         if (isRecette) {
-            comptes['706000'].credit += val;
-            comptes['512000'].debit += val;
+            balanceMap[compte.num].credit += val; // Recette au Crédit du compte (ex: 706000)
+            balanceMap['512000'].debit += val;    // Entrée d'argent au Débit de la Banque
         } else {
-            comptes['628000'].debit += val;
-            comptes['512000'].credit += val;
+            balanceMap[compte.num].debit += val;   // Charge au Débit du compte (ex: 645000)
+            balanceMap['512000'].credit += val;   // Sortie d'argent au Crédit de la Banque
         }
     });
 
@@ -562,8 +605,11 @@ function afficherBalanceComptes() {
     let grandTotalDebit = 0;
     let grandTotalCredit = 0;
 
-    Object.keys(comptes).forEach(numCompte => {
-        const c = comptes[numCompte];
+    // Trier les comptes par ordre numérique
+    const comptesTries = Object.keys(balanceMap).sort();
+
+    comptesTries.forEach(numCompte => {
+        const c = balanceMap[numCompte];
         const solde = c.debit - c.credit;
 
         if (c.debit > 0 || c.credit > 0) {
@@ -584,6 +630,7 @@ function afficherBalanceComptes() {
         }
     });
 
+    // Ligne des Totaux de contrôle
     html += `
         <tr style="background-color: #f8f9fa; font-weight: bold;">
             <td colspan="2" style="text-align:right;">TOTAL ÉQUILIBRE :</td>
