@@ -467,83 +467,81 @@ function afficherJournalEtBalance() {
 }
 
 // ============================================================================
-// 5. PROFIL PROFESSIONNEL ET UTILITAIRES
+// 5. PROFIL PROFESSIONNEL (CHARGEMENT ET SAUVEGARDE OPTIMISÉS)
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
     try {
-        const { data } = await supabaseClient.from('profil').select('*').maybeSingle();
+        // On récupère la première ligne de la table profil
+        const { data, error } = await supabaseClient
+            .from('profil')
+            .select('*')
+            .limit(1);
 
-        if (data) {
-            ['nom', 'prenom', 'siret', 'rpps', 'email'].forEach(f => {
-                const el = document.getElementById(f);
-                if (el && data[f] !== undefined) el.value = data[f];
+        if (error) {
+            console.error("⚠️ Erreur lors de la lecture du profil :", error.message);
+            return;
+        }
+
+        // Si des données existent dans la table
+        if (data && data.length > 0) {
+            const profil = data[0];
+            
+            // Remplissage sécurisé des inputs HTML
+            const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
+            champs.forEach(champ => {
+                const el = document.getElementById(champ);
+                if (el && profil[champ] !== undefined && profil[champ] !== null) {
+                    el.value = profil[champ];
+                }
             });
+            console.log("✅ Profil chargé depuis Supabase :", profil);
+        } else {
+            console.log("ℹ️ Aucun profil enregistré pour le moment.");
         }
     } catch (e) {
-        console.warn("Profil non chargé :", e);
+        console.error("Erreur inattendue au chargement du profil :", e);
     }
 }
 
 async function saveProfile() {
-    if (!supabaseClient) return;
+    if (!supabaseClient) {
+        alert("⚠️ Connexion à Supabase non disponible.");
+        return;
+    }
+
+    // Récupération des valeurs saisies par l'utilisateur
+    const nom = document.getElementById('nom')?.value || '';
+    const prenom = document.getElementById('prenom')?.value || '';
+    const siret = document.getElementById('siret')?.value || '';
+    const rpps = document.getElementById('rpps')?.value || '';
+    const email = document.getElementById('email')?.value || '';
 
     const profilData = {
-        id: 1,
-        nom: document.getElementById('nom')?.value || '',
-        prenom: document.getElementById('prenom')?.value || '',
-        siret: document.getElementById('siret')?.value || '',
-        rpps: document.getElementById('rpps')?.value || '',
-        email: document.getElementById('email')?.value || ''
+        id: 1, // On force un ID unique pour écraser/mettre à jour la même ligne
+        nom: nom,
+        prenom: prenom,
+        siret: siret,
+        rpps: rpps,
+        email: email
     };
 
-    const { error } = await supabaseClient.from('profil').upsert(profilData);
+    try {
+        // L'action 'upsert' ajoute ou met à jour si l'ID existe déjà
+        const { data, error } = await supabaseClient
+            .from('profil')
+            .upsert([profilData]);
 
-    if (error) {
-        alert('Erreur de sauvegarde : ' + error.message);
-    } else {
-        alert('✅ Profil enregistré avec succès !');
-    }
-}
-
-function updateCategories() {
-    const typeSelect = document.getElementById('type');
-    const catSelect = document.getElementById('category');
-    if (!typeSelect || !catSelect) return;
-
-    const type = typeSelect.value;
-
-    if (type === 'recette') {
-        catSelect.innerHTML = `
-            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
-            <option value="Honoraires Patients">Honoraires Patients</option>
-            <option value="Autre recette">Autre recette</option>
-        `;
-    } else {
-        catSelect.innerHTML = `
-            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
-            <option value="Matériel médical">Matériel médical</option>
-            <option value="Loyer professionnel">Loyer professionnel</option>
-            <option value="Assurance Pro">Assurance Pro</option>
-            <option value="Carburant / Déplacements">Carburant / Déplacements</option>
-            <option value="Autre dépense">Autre dépense</option>
-        `;
-    }
-}
-
-function incorporerChargesSociales(typeOrg) {
-    alert(`Les cotisations calculées pour ${typeOrg} peuvent être saisies dans vos transactions pour impacter votre bilan.`);
-}
-
-// Fonction utilitaire de mise à jour sécurisée du DOM
-function remplir(id, valeur) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
-    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
-        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
-    } else {
-        el.textContent = valFormatee;
+        if (error) {
+            console.error("Erreur Sauvegarde Profil :", error);
+            alert("⚠️ Impossible d'enregistrer le profil dans Supabase.\n" + error.message);
+        } else {
+            alert("✅ Profil enregistré avec succès !");
+            await chargerProfil(); // Rechargement automatique des valeurs
+        }
+    } catch (err) {
+        console.error("Erreur lors de la sauvegarde :", err);
+        alert("⚠️ Erreur lors de la communication avec Supabase.");
     }
 }
