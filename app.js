@@ -33,9 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updateCategories();
-        showTab('profil'); // Affiche le profil par défaut
+        showTab('profil'); // Affichage de l'onglet Profil au démarrage
 
-        // Chargement des données
+        // Chargement initial des données depuis la base Supabase
         await chargerProfil();
         await chargerTransactions();
 
@@ -67,7 +67,91 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 3. TRANSACTIONS (LECTURE, AJOUT, SUPPRESSION)
+// 3. PROFIL PROFESSIONNEL (LECTURE ET SAUVEGARDE)
+// ============================================================================
+
+/**
+ * Lit la première ligne de la table 'profil' sur Supabase et remplit les inputs HTML
+ */
+async function chargerProfil() {
+    if (!supabaseClient) return;
+
+    try {
+        console.log("📥 Chargement des informations du profil...");
+
+        const { data, error } = await supabaseClient
+            .from('profil')
+            .select('*')
+            .limit(1);
+
+        if (error) {
+            console.error("❌ Erreur de lecture du profil :", error.message);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            const profil = data[0];
+            console.log("✅ Profil chargé avec succès :", profil);
+
+            // Liste des IDs des champs du formulaire HTML
+            const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
+            champs.forEach(idChamp => {
+                const inputEl = document.getElementById(idChamp);
+                if (inputEl && profil[idChamp] !== undefined && profil[idChamp] !== null) {
+                    inputEl.value = profil[idChamp];
+                }
+            });
+        } else {
+            console.log("ℹ️ Aucun profil n'est encore enregistré en base de données.");
+        }
+    } catch (e) {
+        console.error("⚠️ Erreur inattendue dans chargerProfil :", e);
+    }
+}
+
+/**
+ * Enregistre ou met à jour les données saisies par l'utilisateur dans Supabase
+ */
+async function saveProfile() {
+    if (!supabaseClient) {
+        alert("⚠️ Connexion à Supabase non disponible.");
+        return;
+    }
+
+    // Récupération des valeurs depuis les champs du formulaire HTML
+    const profilData = {
+        id: 1, // On force un ID fixe pour mettre à jour la même ligne d'informations
+        nom: document.getElementById('nom')?.value || '',
+        prenom: document.getElementById('prenom')?.value || '',
+        siret: document.getElementById('siret')?.value || '',
+        rpps: document.getElementById('rpps')?.value || '',
+        email: document.getElementById('email')?.value || ''
+    };
+
+    console.log("📤 Envoi du profil vers Supabase :", profilData);
+
+    try {
+        // 'upsert' insère une nouvelle ligne ou met à jour si l'ID 1 existe déjà
+        const { data, error } = await supabaseClient
+            .from('profil')
+            .upsert([profilData]);
+
+        if (error) {
+            console.error("❌ Erreur d'enregistrement Supabase :", error);
+            alert("⚠️ Impossible d'enregistrer le profil :\n" + error.message);
+        } else {
+            console.log("✅ Sauvegarde réussie !");
+            alert("✅ Votre profil a été enregistré avec succès !");
+            await chargerProfil(); // Rechargement pour garantir la cohérence des données
+        }
+    } catch (err) {
+        console.error("⚠️ Erreur réseau :", err);
+        alert("⚠️ Erreur de communication lors de la sauvegarde.");
+    }
+}
+
+// ============================================================================
+// 4. TRANSACTIONS (LECTURE, AJOUT, SUPPRESSION)
 // ============================================================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -192,7 +276,7 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 4. MOTEUR DE CALCULS GLOBAUX
+// 5. MOTEUR DE CALCULS GLOBAUX
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
@@ -458,89 +542,40 @@ function afficherJournalEtBalance() {
 }
 
 // ============================================================================
-// 5. GESTION DU PROFIL PROFESSIONNEL
+// 6. UTILITAIRES DIVERS
 // ============================================================================
+function updateCategories() {
+    const typeSelect = document.getElementById('type');
+    const catSelect = document.getElementById('category');
+    if (!typeSelect || !catSelect) return;
 
-/**
- * Charge les informations du profil depuis Supabase et les injecte dans le formulaire
- */
-async function chargerProfil() {
-    if (!supabaseClient) return;
+    const type = typeSelect.value;
 
-    try {
-        console.log("📥 Tentative de récupération du profil...");
-        
-        // Récupération de la première ligne de la table 'profil'
-        const { data, error } = await supabaseClient
-            .from('profil')
-            .select('*')
-            .limit(1);
-
-        if (error) {
-            console.error("❌ Erreur lors de la lecture du profil :", error.message);
-            return;
-        }
-
-        // Si une ligne existe, on remplit les champs texte
-        if (data && data.length > 0) {
-            const profil = data[0];
-            console.log("✅ Profil trouvé :", profil);
-
-            const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
-            champs.forEach(f => {
-                const inputEl = document.getElementById(f);
-                if (inputEl && profil[f] !== undefined && profil[f] !== null) {
-                    inputEl.value = profil[f];
-                }
-            });
-        } else {
-            console.log("ℹ️ Aucun profil n'est encore enregistré dans la base de données.");
-        }
-    } catch (err) {
-        console.error("⚠️ Erreur inattendue dans chargerProfil :", err);
+    if (type === 'recette') {
+        catSelect.innerHTML = `
+            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
+            <option value="Honoraires Patients">Honoraires Patients</option>
+            <option value="Autre recette">Autre recette</option>
+        `;
+    } else {
+        catSelect.innerHTML = `
+            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
+            <option value="Matériel médical">Matériel médical</option>
+            <option value="Loyer professionnel">Loyer professionnel</option>
+            <option value="Assurance Pro">Assurance Pro</option>
+            <option value="Carburant / Déplacements">Carburant / Déplacements</option>
+            <option value="Autre dépense">Autre dépense</option>
+        `;
     }
 }
 
-/**
- * Sauvegarde ou met à jour les informations du profil dans Supabase
- */
-async function saveProfile() {
-    if (!supabaseClient) {
-        alert("⚠️ Supabase n'est pas connecté.");
-        return;
-    }
-
-    // 1. Récupération des valeurs saisies dans le formulaire
-    const payload = {
-        id: 1, // On fixe un identifiant unique pour mettre à jour la même ligne
-        nom: document.getElementById('nom')?.value || '',
-        prenom: document.getElementById('prenom')?.value || '',
-        siret: document.getElementById('siret')?.value || '',
-        rpps: document.getElementById('rpps')?.value || '',
-        email: document.getElementById('email')?.value || ''
-    };
-
-    console.log("📤 Envoi des données du profil :", payload);
-
-    try {
-        // 2. Envoi à Supabase (UPSERT : insère si absent, met à jour si présent)
-        const { data, error } = await supabaseClient
-            .from('profil')
-            .upsert([payload]);
-
-        if (error) {
-            console.error("❌ Erreur de sauvegarde Supabase :", error);
-            alert("⚠️ Erreur lors de l'enregistrement :\n" + error.message + 
-                  "\n\n(Vérifiez que la politique RLS de la table 'profil' autorise l'écriture).");
-        } else {
-            console.log("✅ Profil enregistré avec succès !");
-            alert("✅ Votre profil a été enregistré avec succès !");
-            
-            // 3. Rechargement des données pour confirmer la persistance
-            await chargerProfil();
-        }
-    } catch (err) {
-        console.error("⚠️ Erreur réseau :", err);
-        alert("⚠️ Une erreur est survenue lors de la communication avec le serveur.");
+function remplir(id, valeur) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
+    } else {
+        el.textContent = valFormatee;
     }
 }
