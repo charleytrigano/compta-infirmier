@@ -33,9 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updateCategories();
-        showTab('transactions');
+        showTab('profil'); // Affiche le profil par défaut
 
-        // Chargement initial des données
+        // Chargement des données
         await chargerProfil();
         await chargerTransactions();
 
@@ -201,7 +201,6 @@ function actualiserTousLesCalculs() {
     afficherJournalEtBalance();
 }
 
-// A. Compte d'Exploitation et Bilan Simplifié
 function genererBilanEtCE() {
     let honoraires = 0;
     let autresRecettes = 0;
@@ -241,7 +240,6 @@ function genererBilanEtCE() {
     const totalCharges = cotisations + materiel + deplacements + assurances + autresCharges;
     const resultatNet = totalProduits - totalCharges;
 
-    // Mise à jour de la table du Compte d'Exploitation (Correction appliquée ici)
     remplir('ceProduits', totalProduits);
     remplir('ceHonoraires', honoraires);
     remplir('ceAutresRecettes', autresRecettes);
@@ -255,14 +253,12 @@ function genererBilanEtCE() {
 
     remplir('ceResultat', resultatNet);
 
-    // Bilan Simplifié
     remplir('bilanActifTresorerie', resultatNet);
     remplir('bilanTotalActif', resultatNet);
     remplir('bilanPassifResultat', resultatNet);
     remplir('bilanTotalPassif', resultatNet);
 }
 
-// B. URSSAF & Impôts
 function genererDeclarations(depuisBncInput = false) {
     let totalCA = 0;
     let totalDepenses = 0;
@@ -300,19 +296,16 @@ function genererDeclarations(depuisBncInput = false) {
     remplir('urssafT3', t3 * tauXUrssaf);
     remplir('urssafT4', t4 * tauXUrssaf);
 
-    // CARPIMKO Estimé rapide
     const bncEstim = totalCA - totalDepenses;
     const estCarpimko = Math.max(0, bncEstim * 0.14);
     remplir('estCARPIMKO', estCarpimko);
 
-    // Comparatif Fiscal : Micro-BNC
     const abattement = totalCA * 0.34;
     const microImposable = totalCA - abattement;
     remplir('microCA', totalCA);
     remplir('microAbattement', abattement);
     remplir('microImposable', microImposable);
 
-    // Option B: Réel 2035
     let bncReel = totalCA - totalDepenses;
     const inputBnc = parseFloat(document.getElementById('inputBncUrssaf')?.value);
     if (depuisBncInput && !isNaN(inputBnc)) {
@@ -331,7 +324,6 @@ function actualiserCalculsUrssaf() {
     genererDeclarations();
 }
 
-// C. Simulation CARPIMKO Détaillée
 function calculerCarpimkoTab() {
     const inputBnc = parseFloat(document.getElementById('carpBnc')?.value);
     let bnc = !isNaN(inputBnc) ? inputBnc : 0;
@@ -381,7 +373,6 @@ function calculerCarpimkoTab() {
     remplir('carpTableTotal', totalCarpimko);
 }
 
-// D. Livre-Journal et Balance
 function afficherJournalEtBalance() {
     const tbodyJournal = document.getElementById('tbodyJournal');
     const tbodyBalance = document.getElementById('tbodyBalance');
@@ -467,81 +458,99 @@ function afficherJournalEtBalance() {
 }
 
 // ============================================================================
-// 5. PROFIL PROFESSIONNEL (CHARGEMENT ET SAUVEGARDE OPTIMISÉS)
+// 5. PROFIL PROFESSIONNEL ET UTILITAIRES
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
     try {
-        // On récupère la première ligne de la table profil
         const { data, error } = await supabaseClient
             .from('profil')
             .select('*')
             .limit(1);
 
         if (error) {
-            console.error("⚠️ Erreur lors de la lecture du profil :", error.message);
+            console.error("Erreur lecture profil :", error.message);
             return;
         }
 
-        // Si des données existent dans la table
         if (data && data.length > 0) {
             const profil = data[0];
-            
-            // Remplissage sécurisé des inputs HTML
-            const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
-            champs.forEach(champ => {
-                const el = document.getElementById(champ);
-                if (el && profil[champ] !== undefined && profil[champ] !== null) {
-                    el.value = profil[champ];
+            ['nom', 'prenom', 'siret', 'rpps', 'email'].forEach(f => {
+                const el = document.getElementById(f);
+                if (el && profil[f] !== undefined && profil[f] !== null) {
+                    el.value = profil[f];
                 }
             });
-            console.log("✅ Profil chargé depuis Supabase :", profil);
-        } else {
-            console.log("ℹ️ Aucun profil enregistré pour le moment.");
         }
     } catch (e) {
-        console.error("Erreur inattendue au chargement du profil :", e);
+        console.warn("Profil non chargé :", e);
     }
 }
 
 async function saveProfile() {
     if (!supabaseClient) {
-        alert("⚠️ Connexion à Supabase non disponible.");
+        alert("⚠️ Connexion à Supabase indisponible.");
         return;
     }
 
-    // Récupération des valeurs saisies par l'utilisateur
-    const nom = document.getElementById('nom')?.value || '';
-    const prenom = document.getElementById('prenom')?.value || '';
-    const siret = document.getElementById('siret')?.value || '';
-    const rpps = document.getElementById('rpps')?.value || '';
-    const email = document.getElementById('email')?.value || '';
-
     const profilData = {
-        id: 1, // On force un ID unique pour écraser/mettre à jour la même ligne
-        nom: nom,
-        prenom: prenom,
-        siret: siret,
-        rpps: rpps,
-        email: email
+        id: 1,
+        nom: document.getElementById('nom')?.value || '',
+        prenom: document.getElementById('prenom')?.value || '',
+        siret: document.getElementById('siret')?.value || '',
+        rpps: document.getElementById('rpps')?.value || '',
+        email: document.getElementById('email')?.value || ''
     };
 
     try {
-        // L'action 'upsert' ajoute ou met à jour si l'ID existe déjà
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
             .from('profil')
             .upsert([profilData]);
 
         if (error) {
-            console.error("Erreur Sauvegarde Profil :", error);
-            alert("⚠️ Impossible d'enregistrer le profil dans Supabase.\n" + error.message);
+            alert("⚠️ Erreur d'enregistrement : " + error.message);
         } else {
             alert("✅ Profil enregistré avec succès !");
-            await chargerProfil(); // Rechargement automatique des valeurs
+            await chargerProfil();
         }
     } catch (err) {
-        console.error("Erreur lors de la sauvegarde :", err);
-        alert("⚠️ Erreur lors de la communication avec Supabase.");
+        alert("⚠️ Erreur réseau lors de la sauvegarde.");
+    }
+}
+
+function updateCategories() {
+    const typeSelect = document.getElementById('type');
+    const catSelect = document.getElementById('category');
+    if (!typeSelect || !catSelect) return;
+
+    const type = typeSelect.value;
+
+    if (type === 'recette') {
+        catSelect.innerHTML = `
+            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
+            <option value="Honoraires Patients">Honoraires Patients</option>
+            <option value="Autre recette">Autre recette</option>
+        `;
+    } else {
+        catSelect.innerHTML = `
+            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
+            <option value="Matériel médical">Matériel médical</option>
+            <option value="Loyer professionnel">Loyer professionnel</option>
+            <option value="Assurance Pro">Assurance Pro</option>
+            <option value="Carburant / Déplacements">Carburant / Déplacements</option>
+            <option value="Autre dépense">Autre dépense</option>
+        `;
+    }
+}
+
+function remplir(id, valeur) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
+    } else {
+        el.textContent = valFormatee;
     }
 }
