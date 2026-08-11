@@ -582,3 +582,99 @@ function afficherJournalEtBalance() {
         tbodyBalance.innerHTML = balanceHTML;
     }
 }
+
+// ============================================================================
+// SAUVEGARDE ET EXPORTATION DES DÉCLARATIONS
+// ============================================================================
+
+/**
+ * 1. Sauvegarde les chiffres clés de la déclaration actuelle dans Supabase
+ */
+async function sauvegarderDeclaration() {
+    if (!supabaseClient) {
+        alert("⚠️ Connexion Supabase indisponible.");
+        return;
+    }
+
+    const annee = document.getElementById('selectAnnee')?.value || 'Toutes';
+    
+    // Calcul des montants actuels
+    let totalCA = 0, totalDepenses = 0;
+    currentTransactions.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
+        if ((t.type || '').toLowerCase().includes('recette')) totalCA += val;
+        else totalDepenses += val;
+    });
+
+    const payload = {
+        annee: annee,
+        recettes_brutes: totalCA,
+        depenses_deductibles: totalDepenses,
+        benefice_imposable: totalCA - totalDepenses,
+        urssaf_estimee: totalCA * 0.145,
+        carpimko_estimee: Math.max(0, (totalCA - totalDepenses) * 0.14)
+    };
+
+    try {
+        const { error } = await supabaseClient.from('declarations').insert([payload]);
+        if (error) {
+            alert("❌ Erreur lors de la sauvegarde : " + error.message);
+        } else {
+            alert(`✅ Déclaration pour l'année "${annee}" sauvegardée avec succès !`);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("⚠️ Erreur lors de la sauvegarde.");
+    }
+}
+
+/**
+ * 2. Génère et télécharge un fichier CSV compréhensible par un Expert-Comptable
+ */
+function exporterPourComptable() {
+    if (!currentTransactions || currentTransactions.length === 0) {
+        alert("Aucune transaction à exporter.");
+        return;
+    }
+
+    // Entêtes du fichier CSV
+    let csvContent = "data:text/csv;charset=utf-8,Date;Type;Categorie;Description;Montant (€)\n";
+
+    // Contenu ligne par ligne
+    currentTransactions.forEach(t => {
+        const ligne = `${t.date};${t.type};"${t.category || ''}";"${t.description || ''}";${t.amount}`;
+        csvContent += ligne + "\n";
+    });
+
+    // Création du lien de téléchargement
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `comptabilite_infirmier_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+/**
+ * 3. Prépare un e-mail pré-rempli pour votre expert-comptable
+ */
+function envoyerEmailComptable() {
+    let totalCA = 0, totalDepenses = 0;
+    currentTransactions.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
+        if ((t.type || '').toLowerCase().includes('recette')) totalCA += val;
+        else totalDepenses += val;
+    });
+
+    const sujet = encodeURIComponent("Bilan Comptable - Cabinet Infirmier");
+    const corps = encodeURIComponent(
+        `Bonjour,\n\nVoici le récapitulatif de ma comptabilité :\n\n` +
+        `- Recettes brutes : ${totalCA.toFixed(2)} €\n` +
+        `- Dépenses déductibles : ${totalDepenses.toFixed(2)} €\n` +
+        `- Bénéfice / Résultat imposable : ${(totalCA - totalDepenses).toFixed(2)} €\n\n` +
+        `Le fichier d'export CSV complet est disponible sur demande.\n\nCordialement,`
+    );
+
+    window.location.href = `mailto:votre.comptable@email.com?subject=${sujet}&body=${corps}`;
+}
