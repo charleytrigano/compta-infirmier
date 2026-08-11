@@ -1,5 +1,5 @@
 // ============================================================================
-// 1. CONFIGURATION ET INITIALISATION SUPABASE
+// 1. CONFIGURATION ET VARIABLES GLOBALES
 // ============================================================================
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
@@ -7,6 +7,57 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 let supabaseClient = null;
 let currentTransactions = [];
 
+// ============================================================================
+// 2. FONCTIONS UTILITAIRES (Déclarées en premier pour éviter "is not defined")
+// ============================================================================
+
+/**
+ * Remplit un élément HTML (input, select, span, div) avec une valeur formatée
+ */
+function remplir(id, valeur) {
+    const el = document.getElementById(id);
+    if (!el) return; // Sécurité : si l'élément n'existe pas dans le HTML, on évite l'erreur
+
+    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
+    
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
+    } else {
+        el.textContent = valFormatee;
+    }
+}
+
+/**
+ * Met à jour dynamiquement la liste des catégories selon le type sélectionné
+ */
+function updateCategories() {
+    const typeSelect = document.getElementById('type');
+    const catSelect = document.getElementById('category');
+    if (!typeSelect || !catSelect) return;
+
+    const type = typeSelect.value;
+
+    if (type === 'recette') {
+        catSelect.innerHTML = `
+            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
+            <option value="Honoraires Patients">Honoraires Patients</option>
+            <option value="Autre recette">Autre recette</option>
+        `;
+    } else {
+        catSelect.innerHTML = `
+            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
+            <option value="Matériel médical">Matériel médical</option>
+            <option value="Loyer professionnel">Loyer professionnel</option>
+            <option value="Assurance Pro">Assurance Pro</option>
+            <option value="Carburant / Déplacements">Carburant / Déplacements</option>
+            <option value="Autre dépense">Autre dépense</option>
+        `;
+    }
+}
+
+// ============================================================================
+// 3. INITIALISATION AU CHARGEMENT DE LA PAGE
+// ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 Initialisation de l'application Compta...");
 
@@ -33,9 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updateCategories();
-        showTab('profil'); // Affichage de l'onglet Profil au démarrage
+        showTab('profil');
 
-        // Chargement initial des données depuis la base Supabase
+        // Chargement des données
         await chargerProfil();
         await chargerTransactions();
 
@@ -46,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ============================================================================
-// 2. GESTION DE LA NAVIGATION PAR ONGLETS
+// 4. GESTION NAVIGATION ET ONGLETS
 // ============================================================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
@@ -67,12 +118,8 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 3. PROFIL PROFESSIONNEL (LECTURE ET SAUVEGARDE)
+// 5. GESTION DU PROFIL
 // ============================================================================
-
-/**
- * Lit la première ligne de la table 'profil' sur Supabase et remplit les inputs HTML
- */
 async function chargerProfil() {
     if (!supabaseClient) return;
 
@@ -91,9 +138,6 @@ async function chargerProfil() {
 
         if (data && data.length > 0) {
             const profil = data[0];
-            console.log("✅ Profil chargé avec succès :", profil);
-
-            // Liste des IDs des champs du formulaire HTML
             const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
             champs.forEach(idChamp => {
                 const inputEl = document.getElementById(idChamp);
@@ -101,26 +145,20 @@ async function chargerProfil() {
                     inputEl.value = profil[idChamp];
                 }
             });
-        } else {
-            console.log("ℹ️ Aucun profil n'est encore enregistré en base de données.");
         }
     } catch (e) {
         console.error("⚠️ Erreur inattendue dans chargerProfil :", e);
     }
 }
 
-/**
- * Enregistre ou met à jour les données saisies par l'utilisateur dans Supabase
- */
 async function saveProfile() {
     if (!supabaseClient) {
         alert("⚠️ Connexion à Supabase non disponible.");
         return;
     }
 
-    // Récupération des valeurs depuis les champs du formulaire HTML
     const profilData = {
-        id: 1, // On force un ID fixe pour mettre à jour la même ligne d'informations
+        id: 1,
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || '',
@@ -128,30 +166,24 @@ async function saveProfile() {
         email: document.getElementById('email')?.value || ''
     };
 
-    console.log("📤 Envoi du profil vers Supabase :", profilData);
-
     try {
-        // 'upsert' insère une nouvelle ligne ou met à jour si l'ID 1 existe déjà
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
             .from('profil')
             .upsert([profilData]);
 
         if (error) {
-            console.error("❌ Erreur d'enregistrement Supabase :", error);
-            alert("⚠️ Impossible d'enregistrer le profil :\n" + error.message);
+            alert("⚠️ Erreur Supabase :\n" + error.message);
         } else {
-            console.log("✅ Sauvegarde réussie !");
-            alert("✅ Votre profil a été enregistré avec succès !");
-            await chargerProfil(); // Rechargement pour garantir la cohérence des données
+            alert("✅ Profil enregistré avec succès !");
+            await chargerProfil();
         }
     } catch (err) {
-        console.error("⚠️ Erreur réseau :", err);
-        alert("⚠️ Erreur de communication lors de la sauvegarde.");
+        alert("⚠️ Erreur lors de l'enregistrement.");
     }
 }
 
 // ============================================================================
-// 4. TRANSACTIONS (LECTURE, AJOUT, SUPPRESSION)
+// 6. GESTION DES TRANSACTIONS
 // ============================================================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
@@ -168,10 +200,7 @@ async function chargerTransactions() {
             .order('date', { ascending: false });
 
         if (error) {
-            console.error('Erreur Supabase :', error.message);
-            if (container) {
-                container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur : ${error.message}</p>`;
-            }
+            if (container) container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur : ${error.message}</p>`;
             return;
         }
 
@@ -276,7 +305,7 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 5. MOTEUR DE CALCULS GLOBAUX
+// 7. CALCULS COMPTABLES & RAPPORTS
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
@@ -286,13 +315,8 @@ function actualiserTousLesCalculs() {
 }
 
 function genererBilanEtCE() {
-    let honoraires = 0;
-    let autresRecettes = 0;
-    let cotisations = 0;
-    let materiel = 0;
-    let deplacements = 0;
-    let assurances = 0;
-    let autresCharges = 0;
+    let honoraires = 0, autresRecettes = 0;
+    let cotisations = 0, materiel = 0, deplacements = 0, assurances = 0, autresCharges = 0;
 
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
@@ -344,8 +368,7 @@ function genererBilanEtCE() {
 }
 
 function genererDeclarations(depuisBncInput = false) {
-    let totalCA = 0;
-    let totalDepenses = 0;
+    let totalCA = 0, totalDepenses = 0;
     let t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 
     currentTransactions.forEach(t => {
@@ -415,10 +438,7 @@ function calculerCarpimkoTab() {
     const statut = document.getElementById('carpStatut')?.value || 'croisiere';
     const isConventionne = document.getElementById('carpConventionne')?.checked;
 
-    let regimeBase = 0;
-    let regimeComp = 0;
-    let prevoyance = 824;
-    let asv = 0;
+    let regimeBase = 0, regimeComp = 0, prevoyance = 824, asv = 0;
 
     if (statut === 'annee1') {
         regimeBase = 1200;
@@ -538,44 +558,5 @@ function afficherJournalEtBalance() {
             `;
         });
         tbodyBalance.innerHTML = balanceHTML;
-    }
-}
-
-// ============================================================================
-// 6. UTILITAIRES DIVERS
-// ============================================================================
-function updateCategories() {
-    const typeSelect = document.getElementById('type');
-    const catSelect = document.getElementById('category');
-    if (!typeSelect || !catSelect) return;
-
-    const type = typeSelect.value;
-
-    if (type === 'recette') {
-        catSelect.innerHTML = `
-            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
-            <option value="Honoraires Patients">Honoraires Patients</option>
-            <option value="Autre recette">Autre recette</option>
-        `;
-    } else {
-        catSelect.innerHTML = `
-            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
-            <option value="Matériel médical">Matériel médical</option>
-            <option value="Loyer professionnel">Loyer professionnel</option>
-            <option value="Assurance Pro">Assurance Pro</option>
-            <option value="Carburant / Déplacements">Carburant / Déplacements</option>
-            <option value="Autre dépense">Autre dépense</option>
-        `;
-    }
-}
-
-function remplir(id, valeur) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
-    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
-        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
-    } else {
-        el.textContent = valFormatee;
     }
 }
