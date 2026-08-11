@@ -458,44 +458,61 @@ function afficherJournalEtBalance() {
 }
 
 // ============================================================================
-// 5. PROFIL PROFESSIONNEL ET UTILITAIRES
+// 5. GESTION DU PROFIL PROFESSIONNEL
 // ============================================================================
+
+/**
+ * Charge les informations du profil depuis Supabase et les injecte dans le formulaire
+ */
 async function chargerProfil() {
     if (!supabaseClient) return;
 
     try {
+        console.log("📥 Tentative de récupération du profil...");
+        
+        // Récupération de la première ligne de la table 'profil'
         const { data, error } = await supabaseClient
             .from('profil')
             .select('*')
             .limit(1);
 
         if (error) {
-            console.error("Erreur lecture profil :", error.message);
+            console.error("❌ Erreur lors de la lecture du profil :", error.message);
             return;
         }
 
+        // Si une ligne existe, on remplit les champs texte
         if (data && data.length > 0) {
             const profil = data[0];
-            ['nom', 'prenom', 'siret', 'rpps', 'email'].forEach(f => {
-                const el = document.getElementById(f);
-                if (el && profil[f] !== undefined && profil[f] !== null) {
-                    el.value = profil[f];
+            console.log("✅ Profil trouvé :", profil);
+
+            const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
+            champs.forEach(f => {
+                const inputEl = document.getElementById(f);
+                if (inputEl && profil[f] !== undefined && profil[f] !== null) {
+                    inputEl.value = profil[f];
                 }
             });
+        } else {
+            console.log("ℹ️ Aucun profil n'est encore enregistré dans la base de données.");
         }
-    } catch (e) {
-        console.warn("Profil non chargé :", e);
+    } catch (err) {
+        console.error("⚠️ Erreur inattendue dans chargerProfil :", err);
     }
 }
 
+/**
+ * Sauvegarde ou met à jour les informations du profil dans Supabase
+ */
 async function saveProfile() {
     if (!supabaseClient) {
-        alert("⚠️ Connexion à Supabase indisponible.");
+        alert("⚠️ Supabase n'est pas connecté.");
         return;
     }
 
-    const profilData = {
-        id: 1,
+    // 1. Récupération des valeurs saisies dans le formulaire
+    const payload = {
+        id: 1, // On fixe un identifiant unique pour mettre à jour la même ligne
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || '',
@@ -503,54 +520,27 @@ async function saveProfile() {
         email: document.getElementById('email')?.value || ''
     };
 
+    console.log("📤 Envoi des données du profil :", payload);
+
     try {
-        const { error } = await supabaseClient
+        // 2. Envoi à Supabase (UPSERT : insère si absent, met à jour si présent)
+        const { data, error } = await supabaseClient
             .from('profil')
-            .upsert([profilData]);
+            .upsert([payload]);
 
         if (error) {
-            alert("⚠️ Erreur d'enregistrement : " + error.message);
+            console.error("❌ Erreur de sauvegarde Supabase :", error);
+            alert("⚠️ Erreur lors de l'enregistrement :\n" + error.message + 
+                  "\n\n(Vérifiez que la politique RLS de la table 'profil' autorise l'écriture).");
         } else {
-            alert("✅ Profil enregistré avec succès !");
+            console.log("✅ Profil enregistré avec succès !");
+            alert("✅ Votre profil a été enregistré avec succès !");
+            
+            // 3. Rechargement des données pour confirmer la persistance
             await chargerProfil();
         }
     } catch (err) {
-        alert("⚠️ Erreur réseau lors de la sauvegarde.");
-    }
-}
-
-function updateCategories() {
-    const typeSelect = document.getElementById('type');
-    const catSelect = document.getElementById('category');
-    if (!typeSelect || !catSelect) return;
-
-    const type = typeSelect.value;
-
-    if (type === 'recette') {
-        catSelect.innerHTML = `
-            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
-            <option value="Honoraires Patients">Honoraires Patients</option>
-            <option value="Autre recette">Autre recette</option>
-        `;
-    } else {
-        catSelect.innerHTML = `
-            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
-            <option value="Matériel médical">Matériel médical</option>
-            <option value="Loyer professionnel">Loyer professionnel</option>
-            <option value="Assurance Pro">Assurance Pro</option>
-            <option value="Carburant / Déplacements">Carburant / Déplacements</option>
-            <option value="Autre dépense">Autre dépense</option>
-        `;
-    }
-}
-
-function remplir(id, valeur) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
-    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
-        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
-    } else {
-        el.textContent = valFormatee;
+        console.error("⚠️ Erreur réseau :", err);
+        alert("⚠️ Une erreur est survenue lors de la communication avec le serveur.");
     }
 }
