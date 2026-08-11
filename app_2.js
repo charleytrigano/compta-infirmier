@@ -55,8 +55,31 @@ var h = `<div id="tab-profil" style="display:none">
 
 <div id="tab-documents" style="display:none">
 <div class="card">
-<h2>📑 Documents sociaux</h2>
-<p style="margin-bottom:1rem;color:#666;">Stockage de vos justificatifs.</p>
+<h2>📤 Ajouter un justificatif / document</h2>
+<div class="form-row">
+  <select id="docCategory">
+    <option value="Facture Dépense">Facture Dépense</option>
+    <option value="Recette / Encaissement">Recette / Encaissement</option>
+    <option value="Relevé Bancaire">Relevé Bancaire</option>
+    <option value="Cotisation Sociale">Cotisation Sociale (URSSAF / CARPIMKO)</option>
+    <option value="Autre">Autre document</option>
+  </select>
+  <input type="text" id="docNotes" placeholder="Note / Description rapide (ex: Matériel infirmier)">
+</div>
+<input type="file" id="docFile" accept="image/*,application/pdf">
+<button class="btn btn-primary" onclick="uploadDocument()">☁️ Sauvegarder dans Supabase</button>
+</div>
+
+<div class="card">
+<h2>📧 Transmettre à l'expert-comptable</h2>
+<p style="margin-bottom:1rem;color:#666;">Générez un paquet complet au format <strong>.ZIP</strong> comprenant le bilan Excel comptable et l'ensemble des pièces justificatives.</p>
+<button class="btn btn-success" onclick="exporterPackComptable()">📦 Télécharger le Pack Comptable (.ZIP)</button>
+<button class="btn btn-secondary" onclick="preparerEmailComptable()">✉️ Préparer l'e-mail pour le comptable</button>
+</div>
+
+<div class="card">
+<h2>📑 Documents sauvegardés</h2>
+<div id="listeDocuments" class="loading"><p>Chargement des documents...</p></div>
 </div>
 </div>
 
