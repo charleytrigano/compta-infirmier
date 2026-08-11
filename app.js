@@ -6,18 +6,18 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabaseClient = null;
 let currentTransactions = [];
-let currentProfileId = null; // Stocke l'UUID du profil chargé depuis Supabase
+let currentProfileId = null; // Stocke l'UUID de la table 'profile'
 
 // ============================================================================
-// 2. FONCTIONS UTILITAIRES (Déclarées en premier)
+// 2. FONCTIONS UTILITAIRES
 // ============================================================================
 
 /**
- * Remplit un élément HTML (input, select, span, div) avec une valeur formatée
+ * Remplit un élément HTML avec une valeur formatée sans risque d'erreur
  */
 function remplir(id, valeur) {
     const el = document.getElementById(id);
-    if (!el) return; // Sécurité : évite les erreurs si l'élément HTML n'existe pas
+    if (!el) return;
 
     const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
     
@@ -29,7 +29,7 @@ function remplir(id, valeur) {
 }
 
 /**
- * Met à jour dynamiquement la liste des catégories selon le type d'opération
+ * Ajuste les catégories selon qu'il s'agisse d'une recette ou d'une dépense
  */
 function updateCategories() {
     const typeSelect = document.getElementById('type');
@@ -57,7 +57,7 @@ function updateCategories() {
 }
 
 // ============================================================================
-// 3. INITIALISATION ET CHARGEMENT DE L'APPLICATION
+// 3. INITIALISATION DE L'APPLICATION
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 Initialisation de l'application Compta...");
@@ -66,14 +66,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const appEl = document.getElementById('app');
     const syncStatus = document.getElementById('syncStatus');
 
-    if (loadingEl) {
-        loadingEl.style.display = 'none';
-        loadingEl.classList.add('hidden');
-    }
-    if (appEl) {
-        appEl.style.display = 'block';
-        appEl.classList.remove('hidden');
-    }
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (appEl) appEl.classList.remove('hidden');
 
     try {
         if (window.supabase) {
@@ -85,9 +79,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updateCategories();
-        showTab('profil');
+        
+        // Initialisation de la date d'aujourd'hui pour les nouvelles transactions
+        const inputDate = document.getElementById('date');
+        if (inputDate) inputDate.value = new Date().toISOString().split('T')[0];
 
-        // Chargement initial des données
+        // Chargement des données
         await chargerProfil();
         await chargerTransactions();
 
@@ -102,13 +99,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ============================================================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
-    allTabs.forEach(tab => tab.style.display = 'none');
+    allTabs.forEach(tab => tab.classList.add('hidden'));
 
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
     const targetTab = document.getElementById(`tab-${tabName}`);
-    if (targetTab) targetTab.style.display = 'block';
+    if (targetTab) targetTab.classList.remove('hidden');
 
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
@@ -119,17 +116,13 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 5. GESTION DU PROFIL (Liaison avec la table 'profile')
+// 5. GESTION DU PROFIL (Table Supabase 'profile')
 // ============================================================================
-
-/**
- * Lit la première ligne de la table 'profile' sur Supabase et remplit les inputs HTML
- */
 async function chargerProfil() {
     if (!supabaseClient) return;
 
     try {
-        console.log("📥 Chargement des informations du profil depuis la table 'profile'...");
+        console.log("📥 Chargement du profil depuis Supabase...");
 
         const { data, error } = await supabaseClient
             .from('profile')
@@ -137,36 +130,28 @@ async function chargerProfil() {
             .limit(1);
 
         if (error) {
-            console.error("❌ Erreur de lecture du profil :", error.message);
+            console.error("❌ Erreur Supabase :", error.message);
             return;
         }
 
         if (data && data.length > 0) {
             const profil = data[0];
-            currentProfileId = profil.id; // Sauvegarde de l'UUID (ex: 7a41e91b-...)
-            console.log("✅ Profil chargé :", profil);
+            currentProfileId = profil.id; // Sauvegarde de l'UUID
 
-            const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
-            champs.forEach(idChamp => {
-                const inputEl = document.getElementById(idChamp);
-                if (inputEl && profil[idChamp] !== undefined && profil[idChamp] !== null) {
-                    inputEl.value = profil[idChamp];
-                }
-            });
-        } else {
-            console.log("ℹ️ Aucun profil n'est encore enregistré dans la table 'profile'.");
+            if (document.getElementById('nom')) document.getElementById('nom').value = profil.nom || '';
+            if (document.getElementById('prenom')) document.getElementById('prenom').value = profil.prenom || '';
+            if (document.getElementById('siret')) document.getElementById('siret').value = profil.siret || '';
+            if (document.getElementById('rpps')) document.getElementById('rpps').value = profil.rpps || '';
+            if (document.getElementById('email')) document.getElementById('email').value = profil.email || '';
         }
     } catch (e) {
-        console.error("⚠️ Erreur inattendue dans chargerProfil :", e);
+        console.error("⚠️ Erreur lors du chargement du profil :", e);
     }
 }
 
-/**
- * Enregistre ou met à jour les données du profil dans Supabase
- */
 async function saveProfile() {
     if (!supabaseClient) {
-        alert("⚠️ Connexion à Supabase non disponible.");
+        alert("⚠️ Connexion Supabase indisponible.");
         return;
     }
 
@@ -178,12 +163,9 @@ async function saveProfile() {
         email: document.getElementById('email')?.value || ''
     };
 
-    // Si le profil existe déjà, on inclut son UUID pour effectuer la mise à jour
     if (currentProfileId) {
         profilData.id = currentProfileId;
     }
-
-    console.log("📤 Envoi des données vers Supabase :", profilData);
 
     try {
         const { error } = await supabaseClient
@@ -191,16 +173,13 @@ async function saveProfile() {
             .upsert([profilData]);
 
         if (error) {
-            console.error("❌ Erreur lors de l'enregistrement :", error);
-            alert("⚠️ Impossible d'enregistrer le profil :\n" + error.message);
+            alert("⚠️ Erreur lors de la sauvegarde :\n" + error.message);
         } else {
-            console.log("✅ Profil enregistré avec succès !");
-            alert("✅ Votre profil a été enregistré avec succès !");
+            alert("✅ Profil enregistré avec succès !");
             await chargerProfil();
         }
     } catch (err) {
-        console.error("⚠️ Erreur réseau :", err);
-        alert("⚠️ Erreur de communication lors de la sauvegarde.");
+        alert("⚠️ Erreur réseau lors de la sauvegarde.");
     }
 }
 
@@ -211,9 +190,7 @@ async function chargerTransactions() {
     if (!supabaseClient) return;
 
     const container = document.getElementById('transactions');
-    if (container) {
-        container.innerHTML = '<p style="color:#666; padding:1rem;">⏳ Chargement des opérations...</p>';
-    }
+    if (container) container.innerHTML = '<p style="color:#666;">⏳ Chargement...</p>';
 
     try {
         const { data, error } = await supabaseClient
@@ -222,7 +199,7 @@ async function chargerTransactions() {
             .order('date', { ascending: false });
 
         if (error) {
-            if (container) container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur : ${error.message}</p>`;
+            if (container) container.innerHTML = `<p style="color:red;">Erreur : ${error.message}</p>`;
             return;
         }
 
@@ -231,7 +208,7 @@ async function chargerTransactions() {
         actualiserTousLesCalculs();
 
     } catch (e) {
-        console.error("Erreur réseau :", e);
+        console.error(e);
     }
 }
 
@@ -240,7 +217,7 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666; padding:1rem;">Aucune opération enregistrée.</p>';
+        container.innerHTML = '<p style="color:#666;">Aucune transaction enregistrée.</p>';
         return;
     }
 
@@ -249,7 +226,6 @@ function afficherTransactions(liste) {
             <div>
                 <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
                 <small><strong>${parseFloat(t.amount).toFixed(2)} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
-                ${t.piece_jointe_url ? `<br><a href="${t.piece_jointe_url}" target="_blank" style="font-size:0.85rem; color:#0066cc;">📄 Voir le justificatif</a>` : ''}
             </div>
             <div>
                 <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
@@ -266,68 +242,34 @@ async function addTransaction() {
     const category = document.getElementById('category')?.value;
     const description = document.getElementById('description')?.value;
     const amount = parseFloat(document.getElementById('amount')?.value);
-    const fileInput = document.getElementById('attachment');
 
     if (!date || isNaN(amount) || !description) {
-        alert('Veuillez renseigner la date, le montant et le libellé.');
+        alert('Veuillez remplir au moins la date, le montant et le libellé.');
         return;
-    }
-
-    let pieceJointeUrl = null;
-
-    if (fileInput && fileInput.files && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `justificatifs/${fileName}`;
-
-        const { error: uploadError } = await supabaseClient
-            .storage
-            .from('documents')
-            .upload(filePath, file);
-
-        if (!uploadError) {
-            const { data: urlData } = supabaseClient
-                .storage
-                .from('documents')
-                .getPublicUrl(filePath);
-            pieceJointeUrl = urlData.publicUrl;
-        }
     }
 
     const { error } = await supabaseClient
         .from('transactions')
-        .insert([{
-            date,
-            type,
-            category,
-            description,
-            amount,
-            piece_jointe_url: pieceJointeUrl
-        }]);
+        .insert([{ date, type, category, description, amount }]);
 
     if (error) {
-        alert('Erreur lors de l\'enregistrement : ' + error.message);
+        alert('Erreur lors de l\'ajout : ' + error.message);
     } else {
-        if (document.getElementById('description')) document.getElementById('description').value = '';
-        if (document.getElementById('amount')) document.getElementById('amount').value = '';
-        if (fileInput) fileInput.value = '';
-
+        document.getElementById('description').value = '';
+        document.getElementById('amount').value = '';
         await chargerTransactions();
     }
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
+    if (!supabaseClient || !confirm('Supprimer cette transaction ?')) return;
 
     const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
-    if (!error) {
-        await chargerTransactions();
-    }
+    if (!error) await chargerTransactions();
 }
 
 // ============================================================================
-// 7. CALCULS COMPTABLES ET COMPTE D'EXPLOITATION
+// 7. CALCULS COMPTABLES AUTOMATISÉS
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
@@ -346,61 +288,53 @@ function genererBilanEtCE() {
         const type = (t.type || '').toLowerCase();
 
         if (type.includes('recette')) {
-            if (cat.includes('honoraires') || cat.includes('pai') || cat.includes('mutuelles') || cat.includes('patients')) {
-                honoraires += val;
-            } else {
-                autresRecettes += val;
-            }
-        } else if (type.includes('depense') || type.includes('dépense')) {
-            if (cat.includes('cotisation') || cat.includes('urssaf') || cat.includes('carpimko')) {
-                cotisations += val;
-            } else if (cat.includes('matériel') || cat.includes('materiel')) {
-                materiel += val;
-            } else if (cat.includes('carburant') || cat.includes('déplacement') || cat.includes('deplacement')) {
-                deplacements += val;
-            } else if (cat.includes('assurance')) {
-                assurances += val;
-            } else {
-                autresCharges += val;
-            }
+            if (cat.includes('honoraire') || cat.includes('pai')) honoraires += val;
+            else autresRecettes += val;
+        } else {
+            if (cat.includes('cotisation') || cat.includes('urssaf') || cat.includes('carpimko')) cotisations += val;
+            else if (cat.includes('matériel') || cat.includes('materiel')) materiel += val;
+            else if (cat.includes('carburant') || cat.includes('déplacement') || cat.includes('deplacement')) deplacements += val;
+            else if (cat.includes('assurance')) assurances += val;
+            else autresCharges += val;
         }
     });
 
     const totalProduits = honoraires + autresRecettes;
     const totalCharges = cotisations + materiel + deplacements + assurances + autresCharges;
-    const resultatNet = totalProduits - totalCharges;
 
-    remplir('ceProduits', totalProduits);
     remplir('ceHonoraires', honoraires);
     remplir('ceAutresRecettes', autresRecettes);
+    remplir('ceProduits', totalProduits);
 
-    remplir('ceCharges', totalCharges);
     remplir('ceCotis', cotisations);
     remplir('ceMateriel', materiel);
     remplir('ceFraisDeplacement', deplacements);
     remplir('ceAssurances', assurances);
     remplir('ceAutresCharges', autresCharges);
+    remplir('ceCharges', totalCharges);
 
-    remplir('ceResultat', resultatNet);
-
-    remplir('bilanActifTresorerie', resultatNet);
-    remplir('bilanTotalActif', resultatNet);
-    remplir('bilanPassifResultat', resultatNet);
-    remplir('bilanTotalPassif', resultatNet);
+    remplir('ceResultat', totalProduits - totalCharges);
 }
 
-function genererDeclarations(depuisBncInput = false) {
+function genererDeclarations() {
+    const anneeSelectionnee = document.getElementById('selectAnnee')?.value || 'Toutes';
+    
     let totalCA = 0, totalDepenses = 0;
     let t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 
-    currentTransactions.forEach(t => {
+    const transactionsFiltrees = currentTransactions.filter(t => {
+        if (!t.date) return false;
+        if (anneeSelectionnee === 'Toutes') return true;
+        return t.date.startsWith(anneeSelectionnee);
+    });
+
+    transactionsFiltrees.forEach(t => {
         const val = parseFloat(t.amount) || 0;
         const type = (t.type || '').toLowerCase();
 
         if (type.includes('recette')) {
             totalCA += val;
-            const dateObj = new Date(t.date);
-            const mois = dateObj.getMonth() + 1;
+            const mois = new Date(t.date).getMonth() + 1;
 
             if (mois >= 1 && mois <= 3) t1 += val;
             else if (mois >= 4 && mois <= 6) t2 += val;
@@ -412,7 +346,7 @@ function genererDeclarations(depuisBncInput = false) {
     });
 
     const estRemplacant = document.getElementById('urssafRemplacant')?.checked;
-    const tauXUrssaf = estRemplacant ? 0.138 : 0.145;
+    const tauxUrssaf = estRemplacant ? 0.138 : 0.145;
 
     remplir('declCA', totalCA);
     remplir('caT1', t1);
@@ -420,186 +354,83 @@ function genererDeclarations(depuisBncInput = false) {
     remplir('caT3', t3);
     remplir('caT4', t4);
 
-    remplir('urssafT1', t1 * tauXUrssaf);
-    remplir('urssafT2', t2 * tauXUrssaf);
-    remplir('urssafT3', t3 * tauXUrssaf);
-    remplir('urssafT4', t4 * tauXUrssaf);
+    remplir('urssafT1', t1 * tauxUrssaf);
+    remplir('urssafT2', t2 * tauxUrssaf);
+    remplir('urssafT3', t3 * tauxUrssaf);
+    remplir('urssafT4', t4 * tauxUrssaf);
 
-    const bncEstim = totalCA - totalDepenses;
-    const estCarpimko = Math.max(0, bncEstim * 0.14);
-    remplir('estCARPIMKO', estCarpimko);
-
+    // Impôts
     const abattement = totalCA * 0.34;
-    const microImposable = totalCA - abattement;
     remplir('microCA', totalCA);
     remplir('microAbattement', abattement);
-    remplir('microImposable', microImposable);
-
-    let bncReel = totalCA - totalDepenses;
-    const inputBnc = parseFloat(document.getElementById('inputBncUrssaf')?.value);
-    if (depuisBncInput && !isNaN(inputBnc)) {
-        bncReel = inputBnc;
-    } else {
-        const inputEl = document.getElementById('inputBncUrssaf');
-        if (inputEl) inputEl.value = bncReel > 0 ? bncReel.toFixed(0) : 0;
-    }
+    remplir('microImposable', Math.max(0, totalCA - abattement));
 
     remplir('reelCA', totalCA);
     remplir('reelDepenses', totalDepenses);
-    remplir('reelBenefice', bncReel);
+    remplir('reelBenefice', totalCA - totalDepenses);
 }
 
-function actualiserCalculsUrssaf() {
-    genererDeclarations();
-}
+// ============================================================================
+// 8. ACTIONS : INCORPORATION, SAUVEGARDE ET EXPORT
+// ============================================================================
+async function incorporerCotisationsUrssaf() {
+    if (!supabaseClient) return;
 
-function calculerCarpimkoTab() {
-    const inputBnc = parseFloat(document.getElementById('carpBnc')?.value);
-    let bnc = !isNaN(inputBnc) ? inputBnc : 0;
+    const estRemplacant = document.getElementById('urssafRemplacant')?.checked;
+    const tauxUrssaf = estRemplacant ? 0.138 : 0.145;
+    const anneeSel = document.getElementById('selectAnnee')?.value;
+    const annee = (anneeSel === 'Toutes') ? new Date().getFullYear().toString() : anneeSel;
 
-    const statut = document.getElementById('carpStatut')?.value || 'croisiere';
-    const isConventionne = document.getElementById('carpConventionne')?.checked;
-
-    let regimeBase = 0, regimeComp = 0, prevoyance = 824, asv = 0;
-
-    if (statut === 'annee1') {
-        regimeBase = 1200;
-        regimeComp = 900;
-        asv = 600;
-    } else if (statut === 'annee2') {
-        regimeBase = 2400;
-        regimeComp = 1856;
-        asv = 1000;
-    } else {
-        const pass = 46368;
-        regimeBase = Math.min(bnc, pass) * 0.0823 + Math.max(0, bnc - pass) * 0.0187;
-        regimeComp = 1856 + (bnc * 0.03);
-        asv = 1500 + (bnc * 0.0125);
-    }
-
-    if (isConventionne) {
-        asv = asv * 0.34;
-    }
-
-    const totalCarpimko = regimeBase + regimeComp + prevoyance + asv;
-    const mensuel = totalCarpimko / 12;
-    const trimestriel = totalCarpimko / 4;
-    const tauxEffectif = bnc > 0 ? (totalCarpimko / bnc) * 100 : 0;
-
-    remplir('carpTotal', totalCarpimko);
-    remplir('carpMensuel', mensuel);
-    remplir('carpTrim', trimestriel);
-    const elTaux = document.getElementById('carpTaux');
-    if (elTaux) elTaux.textContent = tauxEffectif.toFixed(1) + ' %';
-
-    remplir('carpRegimeBase', regimeBase);
-    remplir('carpRegimeComp', regimeComp);
-    remplir('carpRegimePrev', prevoyance);
-    remplir('carpRegimeASV', asv);
-    remplir('carpTableTotal', totalCarpimko);
-}
-
-function afficherJournalEtBalance() {
-    const tbodyJournal = document.getElementById('tbodyJournal');
-    const tbodyBalance = document.getElementById('tbodyBalance');
-
-    if (!tbodyJournal) return;
-
-    if (currentTransactions.length === 0) {
-        tbodyJournal.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune écriture comptable enregistrée.</td></tr>';
-        if (tbodyBalance) tbodyBalance.innerHTML = '<tr><td colspan="6" style="text-align:center;">Balance vide.</td></tr>';
-        return;
-    }
-
-    let journalHTML = '';
-    let comptesMap = {};
-
+    let trimestres = [0, 0, 0, 0];
     currentTransactions.forEach(t => {
-        const val = parseFloat(t.amount) || 0;
-        const type = (t.type || '').toLowerCase();
-        const cat = (t.category || '').toLowerCase();
-
-        let comptePCG = '628000';
-        let intituleCompte = 'Autres charges';
-
-        if (type.includes('recette')) {
-            comptePCG = '706000';
-            intituleCompte = 'Honoraires & Soins';
-        } else if (cat.includes('cotisation') || cat.includes('urssaf') || cat.includes('carpimko')) {
-            comptePCG = '645000';
-            intituleCompte = 'Cotisations sociales';
-        } else if (cat.includes('matériel') || cat.includes('materiel')) {
-            comptePCG = '606000';
-            intituleCompte = 'Achats matériel & consommables';
-        } else if (cat.includes('carburant') || cat.includes('déplacement') || cat.includes('deplacement')) {
-            comptePCG = '625100';
-            intituleCompte = 'Frais de déplacements';
-        } else if (cat.includes('assurance')) {
-            comptePCG = '616000';
-            intituleCompte = 'Assurances professionnelles';
+        if ((t.type || '').toLowerCase().includes('recette') && t.date && t.date.startsWith(annee)) {
+            const mois = new Date(t.date).getMonth() + 1;
+            const val = parseFloat(t.amount) || 0;
+            if (mois >= 1 && mois <= 3) trimestres[0] += val;
+            else if (mois >= 4 && mois <= 6) trimestres[1] += val;
+            else if (mois >= 7 && mois <= 9) trimestres[2] += val;
+            else if (mois >= 10 && mois <= 12) trimestres[3] += val;
         }
-
-        const debit = type.includes('recette') ? 0 : val;
-        const credit = type.includes('recette') ? val : 0;
-
-        journalHTML += `
-            <tr>
-                <td>${t.date}</td>
-                <td><strong>${comptePCG}</strong></td>
-                <td>${t.description || intituleCompte}</td>
-                <td style="text-align:right;">${debit ? debit.toFixed(2) + ' €' : '-'}</td>
-                <td style="text-align:right;">${credit ? credit.toFixed(2) + ' €' : '-'}</td>
-            </tr>
-        `;
-
-        if (!comptesMap[comptePCG]) {
-            comptesMap[comptePCG] = { intitule: intituleCompte, debit: 0, credit: 0 };
-        }
-        comptesMap[comptePCG].debit += debit;
-        comptesMap[comptePCG].credit += credit;
     });
 
-    tbodyJournal.innerHTML = journalHTML;
+    const datesTrimestres = [`${annee}-03-31`, `${annee}-06-30`, `${annee}-09-30`, `${annee}-12-31`];
+    let nouvellesDepenses = [];
 
-    if (tbodyBalance) {
-        let balanceHTML = '';
-        Object.keys(comptesMap).forEach(code => {
-            const c = comptesMap[code];
-            const soldeDebit = c.debit > c.credit ? c.debit - c.credit : 0;
-            const soldeCredit = c.credit > c.debit ? c.credit - c.credit : 0;
+    trimestres.forEach((caTrim, index) => {
+        const montantUrssaf = caTrim * tauxUrssaf;
+        if (montantUrssaf > 0) {
+            nouvellesDepenses.push({
+                date: datesTrimestres[index],
+                type: 'depense',
+                category: 'Cotisations URSSAF/CARPIMKO',
+                description: `Cotisation URSSAF T${index + 1} (${annee})`,
+                amount: parseFloat(montantUrssaf.toFixed(2))
+            });
+        }
+    });
 
-            balanceHTML += `
-                <tr>
-                    <td><strong>${code}</strong></td>
-                    <td>${c.intitule}</td>
-                    <td style="text-align:right;">${c.debit.toFixed(2)} €</td>
-                    <td style="text-align:right;">${c.credit.toFixed(2)} €</td>
-                    <td style="text-align:right;">${soldeDebit ? soldeDebit.toFixed(2) + ' €' : '-'}</td>
-                    <td style="text-align:right;">${soldeCredit ? soldeCredit.toFixed(2) + ' €' : '-'}</td>
-                </tr>
-            `;
-        });
-        tbodyBalance.innerHTML = balanceHTML;
-    }
-}
-
-// ============================================================================
-// SAUVEGARDE ET EXPORTATION DES DÉCLARATIONS
-// ============================================================================
-
-/**
- * 1. Sauvegarde les chiffres clés de la déclaration actuelle dans Supabase
- */
-async function sauvegarderDeclaration() {
-    if (!supabaseClient) {
-        alert("⚠️ Connexion Supabase indisponible.");
+    if (nouvellesDepenses.length === 0) {
+        alert("Aucune cotisation URSSAF à incorporer pour cette période.");
         return;
     }
 
+    if (confirm(`Enregistrer ${nouvellesDepenses.length} dépense(s) d'URSSAF dans votre comptabilité ?`)) {
+        const { error } = await supabaseClient.from('transactions').insert(nouvellesDepenses);
+        if (!error) {
+            alert("✅ Cotisations URSSAF ajoutées aux dépenses !");
+            await chargerTransactions();
+        } else {
+            alert("⚠️ Erreur : " + error.message);
+        }
+    }
+}
+
+async function sauvegarderDeclaration() {
+    if (!supabaseClient) return;
+
     const annee = document.getElementById('selectAnnee')?.value || 'Toutes';
-    
-    // Calcul des montants actuels
     let totalCA = 0, totalDepenses = 0;
+
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
         if ((t.type || '').toLowerCase().includes('recette')) totalCA += val;
@@ -615,50 +446,35 @@ async function sauvegarderDeclaration() {
         carpimko_estimee: Math.max(0, (totalCA - totalDepenses) * 0.14)
     };
 
-    try {
-        const { error } = await supabaseClient.from('declarations').insert([payload]);
-        if (error) {
-            alert("❌ Erreur lors de la sauvegarde : " + error.message);
-        } else {
-            alert(`✅ Déclaration pour l'année "${annee}" sauvegardée avec succès !`);
-        }
-    } catch (e) {
-        console.error(e);
-        alert("⚠️ Erreur lors de la sauvegarde.");
+    const { error } = await supabaseClient.from('declarations').insert([payload]);
+    if (!error) {
+        alert(`✅ Déclaration ${annee} sauvegardée avec succès !`);
+    } else {
+        alert("⚠️ Note : Pensez à créer la table 'declarations' dans Supabase si ce n'est pas encore fait.");
     }
 }
 
-/**
- * 2. Génère et télécharge un fichier CSV compréhensible par un Expert-Comptable
- */
 function exporterPourComptable() {
     if (!currentTransactions || currentTransactions.length === 0) {
         alert("Aucune transaction à exporter.");
         return;
     }
 
-    // Entêtes du fichier CSV
     let csvContent = "data:text/csv;charset=utf-8,Date;Type;Categorie;Description;Montant (€)\n";
 
-    // Contenu ligne par ligne
     currentTransactions.forEach(t => {
-        const ligne = `${t.date};${t.type};"${t.category || ''}";"${t.description || ''}";${t.amount}`;
-        csvContent += ligne + "\n";
+        csvContent += `${t.date};${t.type};"${t.category || ''}";"${t.description || ''}";${t.amount}\n`;
     });
 
-    // Création du lien de téléchargement
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `comptabilite_infirmier_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `export_compta_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
 
-/**
- * 3. Prépare un e-mail pré-rempli pour votre expert-comptable
- */
 function envoyerEmailComptable() {
     let totalCA = 0, totalDepenses = 0;
     currentTransactions.forEach(t => {
@@ -667,14 +483,51 @@ function envoyerEmailComptable() {
         else totalDepenses += val;
     });
 
-    const sujet = encodeURIComponent("Bilan Comptable - Cabinet Infirmier");
+    const sujet = encodeURIComponent("Bilan Comptable Infirmier");
     const corps = encodeURIComponent(
-        `Bonjour,\n\nVoici le récapitulatif de ma comptabilité :\n\n` +
+        `Bonjour,\n\nVoici le bilan de ma comptabilité :\n` +
         `- Recettes brutes : ${totalCA.toFixed(2)} €\n` +
         `- Dépenses déductibles : ${totalDepenses.toFixed(2)} €\n` +
-        `- Bénéfice / Résultat imposable : ${(totalCA - totalDepenses).toFixed(2)} €\n\n` +
-        `Le fichier d'export CSV complet est disponible sur demande.\n\nCordialement,`
+        `- Résultat / Bénéfice : ${(totalCA - totalDepenses).toFixed(2)} €\n\nCordialement,`
     );
 
-    window.location.href = `mailto:votre.comptable@email.com?subject=${sujet}&body=${corps}`;
+    window.location.href = `mailto:?subject=${sujet}&body=${corps}`;
+}
+
+function calculerCarpimkoTab() {
+    const bnc = parseFloat(document.getElementById('carpBnc')?.value) || 0;
+    const statut = document.getElementById('carpStatut')?.value || 'croisiere';
+
+    let totalCarpimko = 0;
+    if (statut === 'annee1') totalCarpimko = 3524;
+    else if (statut === 'annee2') totalCarpimko = 6080;
+    else totalCarpimko = (bnc * 0.14) + 824;
+
+    remplir('carpTotal', totalCarpimko);
+    remplir('carpMensuel', totalCarpimko / 12);
+    remplir('carpTrim', totalCarpimko / 4);
+}
+
+function afficherJournalEtBalance() {
+    const tbodyJournal = document.getElementById('tbodyJournal');
+    if (!tbodyJournal) return;
+
+    if (currentTransactions.length === 0) {
+        tbodyJournal.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune écriture.</td></tr>';
+        return;
+    }
+
+    tbodyJournal.innerHTML = currentTransactions.map(t => {
+        const val = parseFloat(t.amount) || 0;
+        const isRecette = (t.type || '').toLowerCase().includes('recette');
+        return `
+            <tr>
+                <td>${t.date}</td>
+                <td><strong>${isRecette ? '706000' : '628000'}</strong></td>
+                <td>${t.description || ''}</td>
+                <td style="text-align:right;">${!isRecette ? val.toFixed(2) + ' €' : '-'}</td>
+                <td style="text-align:right;">${isRecette ? val.toFixed(2) + ' €' : '-'}</td>
+            </tr>
+        `;
+    }).join('');
 }
