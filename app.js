@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const appEl = document.getElementById('app');
     const syncStatus = document.getElementById('syncStatus');
 
-    // Déblocage visuel de l'interface
     if (loadingEl) {
         loadingEl.style.display = 'none';
         loadingEl.classList.add('hidden');
@@ -33,8 +32,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        showTab('transactions');
         updateCategories();
+        showTab('transactions');
 
         // Chargement initial des données
         await chargerProfil();
@@ -64,7 +63,6 @@ function showTab(tabName) {
     );
     if (activeBtn) activeBtn.classList.add('active');
 
-    // Réactualiser tous les calculs à chaque changement d'onglet
     actualiserTousLesCalculs();
 }
 
@@ -95,8 +93,6 @@ async function chargerTransactions() {
 
         currentTransactions = data || [];
         afficherTransactions(currentTransactions);
-        
-        // 🔄 Calculer automatiquement les résultats pour tous les onglets
         actualiserTousLesCalculs();
 
     } catch (e) {
@@ -114,10 +110,10 @@ function afficherTransactions(liste) {
     }
 
     container.innerHTML = liste.map(t => `
-        <div class="transaction ${t.type}" style="padding:0.8rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+        <div class="transaction ${t.type}">
             <div>
                 <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
-                <small><strong>${t.amount} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
+                <small><strong>${parseFloat(t.amount).toFixed(2)} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
                 ${t.piece_jointe_url ? `<br><a href="${t.piece_jointe_url}" target="_blank" style="font-size:0.85rem; color:#0066cc;">📄 Voir le justificatif</a>` : ''}
             </div>
             <div>
@@ -135,10 +131,10 @@ async function addTransaction() {
     const category = document.getElementById('category')?.value;
     const description = document.getElementById('description')?.value;
     const amount = parseFloat(document.getElementById('amount')?.value);
-    const fileInput = document.getElementById('docFile');
+    const fileInput = document.getElementById('attachment');
 
-    if (!date || isNaN(amount)) {
-        alert('Veuillez spécifier la date et un montant valide.');
+    if (!date || isNaN(amount) || !description) {
+        alert('Veuillez renseigner la date, le montant et le libellé.');
         return;
     }
 
@@ -196,24 +192,24 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 4. MOTEUR DE CALCUL POUR BILAN, URSSAF, CARPIMKO & JOURNAL
+// 4. MOTEUR DE CALCULS GLOBAUX
 // ============================================================================
 function actualiserTousLesCalculs() {
-    calculerBilanEtResultat();
-    calculerURSSAFEtImpots();
-    calculerCARPIMKO();
-    afficherLivreJournalAndBalance();
+    genererBilanEtCE();
+    genererDeclarations();
+    calculerCarpimkoTab();
+    afficherJournalEtBalance();
 }
 
-// A. Calculs du Bilan et du Compte de Résultat
-function calculerBilanEtResultat() {
+// A. Compte d'Exploitation et Bilan Simplifié
+function genererBilanEtCE() {
     let honoraires = 0;
     let autresRecettes = 0;
     let cotisations = 0;
     let materiel = 0;
     let deplacements = 0;
     let assurances = 0;
-    let autresDepenses = 0;
+    let autresCharges = 0;
 
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
@@ -236,89 +232,167 @@ function calculerBilanEtResultat() {
             } else if (cat.includes('assurance')) {
                 assurances += val;
             } else {
-                autresDepenses += val;
+                autresCharges += val;
             }
         }
     });
 
     const totalProduits = honoraires + autresRecettes;
-    const totalCharges = cotisations + materiel + deplacements + assurances + autresDepenses;
+    const totalCharges = cotisations + materiel + deplacements + assurances + autresCharges;
     const resultatNet = totalProduits - totalCharges;
 
-    // Mise à jour du DOM si les éléments existent dans votre HTML
-    remplirTexteOuInput('res-produits-total', totalProduits.toFixed(2) + ' €');
-    remplirTexteOuInput('res-honoraires', honoraires.toFixed(2) + ' €');
-    remplirTexteOuInput('res-autres-recettes', autresRecettes.toFixed(2) + ' €');
+    // Mise à jour de la table du Compte d'Exploitation
+    remplir'ceProduits', totalProduits);
+    remplir('ceHonoraires', honoraires);
+    remplir('ceAutresRecettes', autresRecettes);
 
-    remplirTexteOuInput('res-charges-total', totalCharges.toFixed(2) + ' €');
-    remplirTexteOuInput('res-cotisations', cotisations.toFixed(2) + ' €');
-    remplirTexteOuInput('res-materiel', materiel.toFixed(2) + ' €');
-    remplirTexteOuInput('res-deplacements', deplacements.toFixed(2) + ' €');
-    remplirTexteOuInput('res-assurances', assurances.toFixed(2) + ' €');
-    remplirTexteOuInput('res-autres-charges', autresDepenses.toFixed(2) + ' €');
+    remplir('ceCharges', totalCharges);
+    remplir('ceCotis', cotisations);
+    remplir('ceMateriel', materiel);
+    remplir('ceFraisDeplacement', deplacements);
+    remplir('ceAssurances', assurances);
+    remplir('ceAutresCharges', autresCharges);
 
-    remplirTexteOuInput('res-resultat-net', resultatNet.toFixed(2) + ' €');
+    remplir('ceResultat', resultatNet);
+
+    // Bilan Simplifié
+    remplir('bilanActifTresorerie', resultatNet);
+    remplir('bilanTotalActif', resultatNet);
+    remplir('bilanPassifResultat', resultatNet);
+    remplir('bilanTotalPassif', resultatNet);
 }
 
-// B. Calculs des déclarations URSSAF par trimestre
-function calculerURSSAFEtImpots() {
-    let totalRecettes = 0;
+// B. URSSAF & Impôts
+function genererDeclarations(depuisBncInput = false) {
+    let totalCA = 0;
+    let totalDepenses = 0;
     let t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 
     currentTransactions.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
         const type = (t.type || '').toLowerCase();
-        if (type.includes('recette')) {
-            const val = parseFloat(t.amount) || 0;
-            totalRecettes += val;
 
+        if (type.includes('recette')) {
+            totalCA += val;
             const dateObj = new Date(t.date);
-            const mois = dateObj.getMonth() + 1; // 1 à 12
+            const mois = dateObj.getMonth() + 1;
 
             if (mois >= 1 && mois <= 3) t1 += val;
             else if (mois >= 4 && mois <= 6) t2 += val;
             else if (mois >= 7 && mois <= 9) t3 += val;
             else if (mois >= 10 && mois <= 12) t4 += val;
+        } else {
+            totalDepenses += val;
         }
     });
 
-    remplirTexteOuInput('urssaf-recettes-totales', totalRecettes.toFixed(2) + ' €');
-    remplirTexteOuInput('urssaf-t1', t1.toFixed(2) + ' €');
-    remplirTexteOuInput('urssaf-t2', t2.toFixed(2) + ' €');
-    remplirTexteOuInput('urssaf-t3', t3.toFixed(2) + ' €');
-    remplirTexteOuInput('urssaf-t4', t4.toFixed(2) + ' €');
+    const estRemplacant = document.getElementById('urssafRemplacant')?.checked;
+    const tauXUrssaf = estRemplacant ? 0.138 : 0.145; // Taux indicatif moyen
+
+    remplir('declCA', totalCA);
+    remplir('caT1', t1);
+    remplir('caT2', t2);
+    remplir('caT3', t3);
+    remplir('caT4', t4);
+
+    remplir('urssafT1', t1 * tauXUrssaf);
+    remplir('urssafT2', t2 * tauXUrssaf);
+    remplir('urssafT3', t3 * tauXUrssaf);
+    remplir('urssafT4', t4 * tauXUrssaf);
+
+    // CARPIMKO Estimé rapide
+    const bncEstim = totalCA - totalDepenses;
+    const estCarpimko = Math.max(0, bncEstim * 0.14);
+    remplir('estCARPIMKO', estCarpimko);
+
+    // Comparatif Fiscal
+    // Option A: Micro-BNC
+    const abattement = totalCA * 0.34;
+    const microImposable = totalCA - abattement;
+    remplir('microCA', totalCA);
+    remplir('microAbattement', abattement);
+    remplir('microImposable', microImposable);
+
+    // Option B: Réel 2035
+    let bncReel = totalCA - totalDepenses;
+    const inputBnc = parseFloat(document.getElementById('inputBncUrssaf')?.value);
+    if (depuisBncInput && !isNaN(inputBnc)) {
+        bncReel = inputBnc;
+    } else {
+        const inputEl = document.getElementById('inputBncUrssaf');
+        if (inputEl) inputEl.value = bncReel > 0 ? bncReel.toFixed(0) : 0;
+    }
+
+    remplir('reelCA', totalCA);
+    remplir('reelDepenses', totalDepenses);
+    remplir('reelBenefice', bncReel);
 }
 
-// C. Calculs pour la simulation CARPIMKO
-function calculerCARPIMKO() {
-    let recettes = 0;
-    let depenses = 0;
-
-    currentTransactions.forEach(t => {
-        const val = parseFloat(t.amount) || 0;
-        const type = (t.type || '').toLowerCase();
-        if (type.includes('recette')) recettes += val;
-        else if (type.includes('depense') || type.includes('dépense')) depenses += val;
-    });
-
-    const bncReel = recettes - depenses;
-    const estCotisation = Math.max(0, bncReel * 0.14); // Estimation ~14% du BNC
-
-    remplirTexteOuInput('carpimko-bnc-calcule', bncReel.toFixed(2) + ' €');
-    remplirTexteOuInput('carpimko-total-du', estCotisation.toFixed(2) + ' €');
-    remplirTexteOuInput('carpimko-mensualite', (estCotisation / 12).toFixed(2) + ' €');
-    remplirTexteOuInput('carpimko-prelevement-trim', (estCotisation / 4).toFixed(2) + ' €');
+function actualiserCalculsUrssaf() {
+    genererDeclarations();
 }
 
-// D. Affichage du Livre-Journal (Plan PCG) et de la Balance
-function afficherLivreJournalAndBalance() {
-    const journalContainer = document.querySelector('#tab-livre-journal table tbody, #journal-body, .journal-table tbody');
-    const balanceContainer = document.querySelector('#tab-livre-journal .balance-table tbody, #balance-body');
+// C. Simulation CARPIMKO Détaillée
+function calculerCarpimkoTab() {
+    const inputBnc = parseFloat(document.getElementById('carpBnc')?.value);
+    let bnc = !isNaN(inputBnc) ? inputBnc : 0;
 
-    if (!journalContainer) return;
+    const statut = document.getElementById('carpStatut')?.value || 'croisiere';
+    const isConventionne = document.getElementById('carpConventionne')?.checked;
+
+    let regimeBase = 0;
+    let regimeComp = 0;
+    let prevoyance = 824; // Forfait moyen prévoyance
+    let asv = 0;
+
+    if (statut === 'annee1') {
+        regimeBase = 1200;
+        regimeComp = 900;
+        asv = 600;
+    } else if (statut === 'annee2') {
+        regimeBase = 2400;
+        regimeComp = 1856;
+        asv = 1000;
+    } else {
+        // Régime de croisière
+        const pass = 46368; // Plafond Sécurité Sociale 2024/2025
+        regimeBase = Math.min(bnc, pass) * 0.0823 + Math.max(0, bnc - pass) * 0.0187;
+        regimeComp = 1856 + (bnc * 0.03);
+        asv = 1500 + (bnc * 0.0125);
+    }
+
+    if (isConventionne) {
+        asv = asv * 0.34; // CPAM prend en charge 66% du régime ASV
+    }
+
+    const totalCarpimko = regimeBase + regimeComp + prevoyance + asv;
+    const mensuel = totalCarpimko / 12;
+    const trimestriel = totalCarpimko / 4;
+    const tauxEffectif = bnc > 0 ? (totalCarpimko / bnc) * 100 : 0;
+
+    remplir('carpTotal', totalCarpimko);
+    remplir('carpMensuel', mensuel);
+    remplir('carpTrim', trimestriel);
+    const elTaux = document.getElementById('carpTaux');
+    if (elTaux) elTaux.textContent = tauxEffectif.toFixed(1) + ' %';
+
+    remplir('carpRegimeBase', regimeBase);
+    remplir('carpRegimeComp', regimeComp);
+    remplir('carpRegimePrev', prevoyance);
+    remplir('carpRegimeASV', asv);
+    remplir('carpTableTotal', totalCarpimko);
+}
+
+// D. Livre-Journal et Balance
+function afficherJournalEtBalance() {
+    const tbodyJournal = document.getElementById('tbodyJournal');
+    const tbodyBalance = document.getElementById('tbodyBalance');
+
+    if (!tbodyJournal) return;
 
     if (currentTransactions.length === 0) {
-        journalContainer.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1rem; color:#666;">Aucune écriture enregistrée.</td></tr>';
-        if (balanceContainer) balanceContainer.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1rem; color:#666;">Balance vide.</td></tr>';
+        tbodyJournal.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune écriture comptable enregistrée.</td></tr>';
+        if (tbodyBalance) tbodyBalance.innerHTML = '<tr><td colspan="6" style="text-align:center;">Balance vide.</td></tr>';
         return;
     }
 
@@ -330,42 +404,39 @@ function afficherLivreJournalAndBalance() {
         const type = (t.type || '').toLowerCase();
         const cat = (t.category || '').toLowerCase();
 
-        // Attribution du compte PCG (Plan Comptable Général)
-        let comptePCG = '628000'; // Compte par défaut
+        let comptePCG = '628000';
         let intituleCompte = 'Autres charges';
 
         if (type.includes('recette')) {
             comptePCG = '706000';
-            intituleCompte = 'Prestations de soins (Honoraires)';
+            intituleCompte = 'Honoraires & Soins';
         } else if (cat.includes('cotisation') || cat.includes('urssaf') || cat.includes('carpimko')) {
             comptePCG = '645000';
             intituleCompte = 'Cotisations sociales';
         } else if (cat.includes('matériel') || cat.includes('materiel')) {
             comptePCG = '606000';
-            intituleCompte = 'Achats de matériel & fournitures';
-        } else if (cat.includes('carburant') || cat.includes('déplacement')) {
+            intituleCompte = 'Achats matériel & consommables';
+        } else if (cat.includes('carburant') || cat.includes('déplacement') || cat.includes('deplacement')) {
             comptePCG = '625100';
             intituleCompte = 'Frais de déplacements';
         } else if (cat.includes('assurance')) {
             comptePCG = '616000';
-            intituleCompte = 'Primes d\'assurances';
+            intituleCompte = 'Assurances professionnelles';
         }
 
         const debit = type.includes('recette') ? 0 : val;
         const credit = type.includes('recette') ? val : 0;
 
-        // Ligne du Grand Livre
         journalHTML += `
             <tr>
-                <td style="padding:0.5rem; border-bottom:1px solid #eee;">${t.date}</td>
-                <td style="padding:0.5rem; border-bottom:1px solid #eee;"><strong>${comptePCG}</strong></td>
-                <td style="padding:0.5rem; border-bottom:1px solid #eee;">${t.description || intituleCompte}</td>
-                <td style="padding:0.5rem; border-bottom:1px solid #eee; text-align:right;">${debit ? debit.toFixed(2) + ' €' : '-'}</td>
-                <td style="padding:0.5rem; border-bottom:1px solid #eee; text-align:right;">${credit ? credit.toFixed(2) + ' €' : '-'}</td>
+                <td>${t.date}</td>
+                <td><strong>${comptePCG}</strong></td>
+                <td>${t.description || intituleCompte}</td>
+                <td style="text-align:right;">${debit ? debit.toFixed(2) + ' €' : '-'}</td>
+                <td style="text-align:right;">${credit ? credit.toFixed(2) + ' €' : '-'}</td>
             </tr>
         `;
 
-        // Cumul pour la Balance
         if (!comptesMap[comptePCG]) {
             comptesMap[comptePCG] = { intitule: intituleCompte, debit: 0, credit: 0 };
         }
@@ -373,10 +444,9 @@ function afficherLivreJournalAndBalance() {
         comptesMap[comptePCG].credit += credit;
     });
 
-    journalContainer.innerHTML = journalHTML;
+    tbodyJournal.innerHTML = journalHTML;
 
-    // Génération de la Balance Comptable Générale
-    if (balanceContainer) {
+    if (tbodyBalance) {
         let balanceHTML = '';
         Object.keys(comptesMap).forEach(code => {
             const c = comptesMap[code];
@@ -385,32 +455,21 @@ function afficherLivreJournalAndBalance() {
 
             balanceHTML += `
                 <tr>
-                    <td style="padding:0.5rem; border-bottom:1px solid #eee;"><strong>${code}</strong></td>
-                    <td style="padding:0.5rem; border-bottom:1px solid #eee;">${c.intitule}</td>
-                    <td style="padding:0.5rem; border-bottom:1px solid #eee; text-align:right;">${c.debit.toFixed(2)} €</td>
-                    <td style="padding:0.5rem; border-bottom:1px solid #eee; text-align:right;">${c.credit.toFixed(2)} €</td>
-                    <td style="padding:0.5rem; border-bottom:1px solid #eee; text-align:right;">${soldeDebit ? soldeDebit.toFixed(2) + ' €' : '-'}</td>
-                    <td style="padding:0.5rem; border-bottom:1px solid #eee; text-align:right;">${soldeCredit ? soldeCredit.toFixed(2) + ' €' : '-'}</td>
+                    <td><strong>${code}</strong></td>
+                    <td>${c.intitule}</td>
+                    <td style="text-align:right;">${c.debit.toFixed(2)} €</td>
+                    <td style="text-align:right;">${c.credit.toFixed(2)} €</td>
+                    <td style="text-align:right;">${soldeDebit ? soldeDebit.toFixed(2) + ' €' : '-'}</td>
+                    <td style="text-align:right;">${soldeCredit ? soldeCredit.toFixed(2) + ' €' : '-'}</td>
                 </tr>
             `;
         });
-        balanceContainer.innerHTML = balanceHTML;
-    }
-}
-
-// Fonction utilitaire pour mettre à jour un élément HTML de manière sécurisée
-function remplirTexteOuInput(id, valeur) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
-        el.value = valeur;
-    } else {
-        el.textContent = valeur;
+        tbodyBalance.innerHTML = balanceHTML;
     }
 }
 
 // ============================================================================
-// 5. PROFIL PROFESSIONNEL (CHARGEMENT & SAUVEGARDE)
+// 5. PROFIL PROFESSIONNEL ET UTILITAIRES
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -419,14 +478,13 @@ async function chargerProfil() {
         const { data } = await supabaseClient.from('profil').select('*').maybeSingle();
 
         if (data) {
-            const fields = ['nom', 'prenom', 'siret', 'rpps', 'email'];
-            fields.forEach(f => {
+            ['nom', 'prenom', 'siret', 'rpps', 'email'].forEach(f => {
                 const el = document.getElementById(f);
                 if (el && data[f] !== undefined) el.value = data[f];
             });
         }
     } catch (e) {
-        console.warn("Remarque Profil :", e);
+        console.warn("Profil non chargé :", e);
     }
 }
 
@@ -447,13 +505,10 @@ async function saveProfile() {
     if (error) {
         alert('Erreur de sauvegarde : ' + error.message);
     } else {
-        alert('✅ Profil enregistré avec succès dans Supabase !');
+        alert('✅ Profil enregistré avec succès !');
     }
 }
 
-// ============================================================================
-// 6. UTILITAIRES
-// ============================================================================
 function updateCategories() {
     const typeSelect = document.getElementById('type');
     const catSelect = document.getElementById('category');
@@ -461,10 +516,9 @@ function updateCategories() {
 
     const type = typeSelect.value;
 
-    if (type === 'recette' || type === 'Recette (Entrée)') {
+    if (type === 'recette') {
         catSelect.innerHTML = `
-            <option value="Honoraires PAI">Honoraires PAI</option>
-            <option value="Honoraires Mutuelles">Honoraires Mutuelles</option>
+            <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
             <option value="Honoraires Patients">Honoraires Patients</option>
             <option value="Autre recette">Autre recette</option>
         `;
@@ -477,5 +531,21 @@ function updateCategories() {
             <option value="Carburant / Déplacements">Carburant / Déplacements</option>
             <option value="Autre dépense">Autre dépense</option>
         `;
+    }
+}
+
+function incorporerChargesSociales(typeOrg) {
+    alert(`Les cotisations calculées pour ${typeOrg} peuvent être saisies dans vos transactions pour impacter votre bilan.`);
+}
+
+// Fonction utilitaire de mise à jour sécurisée du DOM
+function remplir(id, valeur) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+        el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
+    } else {
+        el.textContent = valFormatee;
     }
 }
