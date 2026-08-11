@@ -186,6 +186,19 @@
             </div>
         </div>
 
+     <!-- Boutons d'Action pour la Déclaration -->
+<div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+    <button class="btn btn-primary" onclick="sauvegarderDeclaration()">
+        💾 Enregistrer cette Déclaration dans Supabase
+    </button>
+    <button class="btn" style="background-color: #28a745; color: white;" onclick="exporterPourComptable()">
+        📊 Télécharger l'Export pour l'Expert-Comptable (CSV)
+    </button>
+    <button class="btn" style="background-color: #17a2b8; color: white;" onclick="envoyerEmailComptable()">
+        ✉️ Envoyer par Mail à l'Expert-Comptable
+    </button>
+</div>
+
         <!-- 3. BILAN ET COMPTE D'EXPLOITATION -->
         <div id="tab-bilan" style="display: none;">
             <h2>📈 Etats Financiers (Bilan & Compte d'Exploitation)</h2>
