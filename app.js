@@ -1,97 +1,104 @@
-// ==========================================
-// 1. CONFIGURATION SUPABASE ET VARIABLES
-// ==========================================
-const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
+// ============================================================================
+// 1. CONFIGURATION ET INITIALISATION SUPABASE
+// ============================================================================
+const SUPABASE_URL = 'https://kntkfczfxehgdsruhabu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudGtmY3pmeGVoZ2RzcnVoYWJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTkzMzU0NSwiZXhwIjoyMDg3NTA5NTQ1fQ.hMpVK2ky6uoU7mauBeoTOR8THCUpycmUogBKyO8Wsmg';
 
 let supabaseClient = null;
 let currentTransactions = [];
-let currentProfile = {};
+let currentDocuments = [];
 
-// Fonction utilitaire pour mettre à jour du texte HTML de manière sécurisée
-function setTxt(id, value) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value;
-}
-
-// Extraction robuste de l'année et du mois
-function parseDate(dateStr) {
-    if (!dateStr) return { year: null, month: null };
-    if (dateStr.includes('-')) {
-        const parts = dateStr.split('-');
-        if (parts.length >= 2) return { year: parts[0], month: parseInt(parts[1], 10) };
-    } else if (dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        if (parts.length >= 3) return { year: parts[2].substring(0, 4), month: parseInt(parts[1], 10) };
-    }
-    return { year: null, month: null };
-}
-
-window.addEventListener('load', async () => {
-    const loadingEl = document.getElementById('loading');
-    const appEl = document.getElementById('app');
-
+// Déclenchement automatique au chargement complet du DOM
+document.addEventListener('DOMContentLoaded', async () => {
     try {
-        if (window.supabase && window.supabase.createClient) {
+        // Initialisation du client via le SDK Supabase
+        if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        } else {
-            throw new Error("La bibliothèque Supabase n'est pas disponible.");
         }
 
+        // Masquage de l'écran d'attente et affichage de l'application
+        const loadingEl = document.getElementById('loading');
+        const appEl = document.getElementById('app');
         if (loadingEl) loadingEl.classList.add('hidden');
         if (appEl) appEl.classList.remove('hidden');
-        setTxt('syncStatus', '☁️ Connecté à Supabase');
 
+        // Indication du statut de connexion
+        const syncStatus = document.getElementById('syncStatus');
+        if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
+
+        // Vue initiale et catégories
         showTab('profil');
         updateCategories();
+
+        // Chargement des données distantes
         await chargerProfil();
         await chargerTransactions();
+        await chargerDocuments();
 
     } catch (err) {
-        console.error('Erreur d\'initialisation :', err);
-        if (loadingEl) {
-            loadingEl.innerHTML = `<p style="color:red; font-weight:bold;">⚠️ Erreur de connexion : ${err.message}</p>`;
-        }
+        console.error('Erreur lors de l\'initialisation :', err);
+        const syncStatus = document.getElementById('syncStatus');
+        if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion';
     }
 });
 
-// ==========================================
-// 2. NAVIGATION ET GESTION DES ONGLETS
-// ==========================================
+// ============================================================================
+// 2. GESTION DE LA NAVIGATION PAR ONGLETS
+// ============================================================================
 function showTab(tabName) {
+    // Masquer tous les panneaux d'onglets
     const allTabs = document.querySelectorAll('[id^="tab-"]');
-    allTabs.forEach(tab => tab.style.display = 'none');
+    allTabs.forEach(tab => {
+        tab.style.display = 'none';
+    });
 
+    // Réinitialiser le style des boutons d'onglets
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
-    const target = document.getElementById(`tab-${tabName}`);
-    if (target) target.style.display = 'block';
+    // Afficher le panneau demandé
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    if (targetTab) {
+        targetTab.style.display = 'block';
+    }
 
+    // Activer visuellement le bouton cliqué
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
-    if (activeBtn) activeBtn.classList.add('active');
-
-    // Rafraîchissement automatique des vues à chaque changement d'onglet
-    if (tabName === 'bilan') genererBilanEtCE();
-    if (tabName === 'declarations') genererDeclarations();
-    if (tabName === 'carpimko') calculerCarpimkoTab();
-    if (tabName === 'journal') afficherJournalEtBalance();
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+    }
 }
 
-// ==========================================
-// 3. PROFIL INFIRMIER
-// ==========================================
+// ============================================================================
+// 3. GESTION DU PROFIL PROFESSIONNEL
+// ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
-    const { data } = await supabaseClient.from('profile').select('*').maybeSingle();
+    const { data, error } = await supabaseClient
+        .from('profil')
+        .select('*')
+        .maybeSingle();
+
+    if (error) {
+        console.warn('Impossible de charger le profil :', error.message);
+        return;
+    }
+
     if (data) {
-        currentProfile = data;
-        ['nom', 'prenom', 'siret', 'rpps', 'email'].forEach(field => {
+        const fields = [
+            'nom', 'prenom', 'siret', 'rpps', 'adeli', 'num_urssaf',
+            'adresse', 'code_postal', 'ville', 'telephone', 'email',
+            'comptable_cabinet', 'comptable_adresse', 'comptable_tel', 'comptable_email'
+        ];
+
+        fields.forEach(field => {
             const el = document.getElementById(field);
-            if (el && data[field]) el.value = data[field];
+            if (el && data[field] !== undefined) {
+                el.value = data[field];
+            }
         });
     }
 }
@@ -100,25 +107,38 @@ async function saveProfile() {
     if (!supabaseClient) return;
 
     const profilData = {
+        id: 1, // Clef primaire unique pour le profil
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || '',
         rpps: document.getElementById('rpps')?.value || '',
-        email: document.getElementById('email')?.value || ''
+        adeli: document.getElementById('adeli')?.value || '',
+        num_urssaf: document.getElementById('num_urssaf')?.value || '',
+        adresse: document.getElementById('adresse')?.value || '',
+        code_postal: document.getElementById('code_postal')?.value || '',
+        ville: document.getElementById('ville')?.value || '',
+        telephone: document.getElementById('telephone')?.value || '',
+        email: document.getElementById('email')?.value || '',
+        comptable_cabinet: document.getElementById('comptable_cabinet')?.value || '',
+        comptable_adresse: document.getElementById('comptable_adresse')?.value || '',
+        comptable_tel: document.getElementById('comptable_tel')?.value || '',
+        comptable_email: document.getElementById('comptable_email')?.value || ''
     };
 
-    const { error } = await supabaseClient.from('profile').upsert(profilData);
+    const { error } = await supabaseClient
+        .from('profil')
+        .upsert(profilData);
+
     if (error) {
-        alert('Erreur de sauvegarde : ' + error.message);
+        alert('Erreur lors de la sauvegarde du profil : ' + error.message);
     } else {
-        alert('✅ Profil mis à jour avec succès !');
-        currentProfile = profilData;
+        alert('✅ Profil sauvegardé avec succès !');
     }
 }
 
-// ==========================================
-// 4. TRANSACTIONS & SÉLECTEURS D'ANNÉES
-// ==========================================
+// ============================================================================
+// 4. GESTION DES TRANSACTIONS COMPTABLES
+// ============================================================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
 
@@ -127,53 +147,14 @@ async function chargerTransactions() {
         .select('*')
         .order('date', { ascending: false });
 
-    if (!error) {
-        currentTransactions = data || [];
-        alimenterSelecteursAnnees();
-        afficherTransactions(currentTransactions);
-        genererBilanEtCE();
-        genererDeclarations();
-        calculerCarpimkoTab();
-        afficherJournalEtBalance();
-    }
-}
-
-function alimenterSelecteursAnnees() {
-    const annees = new Set();
-    const currentYear = new Date().getFullYear().toString();
-    annees.add(currentYear);
-
-    currentTransactions.forEach(t => {
-        const { year } = parseDate(t.date);
-        if (year) annees.add(year);
-    });
-
-    const anneesTriees = Array.from(annees).sort().reverse();
-
-    const selectBilan = document.getElementById('exerciceSelect');
-    const selectDecl = document.getElementById('exerciceDeclSelect');
-    const selectJournal = document.getElementById('exerciceJournalSelect');
-
-    const optionsHtml = `<option value="all">Toutes les années (Cumul)</option>` + 
-        anneesTriees.map(y => `<option value="${y}">Exercice ${y}</option>`).join('');
-
-    if (selectBilan) {
-        const val = selectBilan.value;
-        selectBilan.innerHTML = optionsHtml;
-        if (val) selectBilan.value = val;
+    if (error) {
+        console.error('Erreur de chargement des transactions :', error.message);
+        return;
     }
 
-    if (selectDecl) {
-        const val = selectDecl.value;
-        selectDecl.innerHTML = optionsHtml;
-        if (val) selectDecl.value = val;
-    }
-
-    if (selectJournal) {
-        const val = selectJournal.value;
-        selectJournal.innerHTML = optionsHtml;
-        if (val) selectJournal.value = val;
-    }
+    currentTransactions = data || [];
+    afficherTransactions(currentTransactions);
+    calculerStatistiques(currentTransactions);
 }
 
 function afficherTransactions(liste) {
@@ -181,21 +162,17 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucune transaction enregistrée.</p>';
+        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée pour le moment.</p>';
         return;
     }
 
     container.innerHTML = liste.map(t => `
         <div class="transaction ${t.type}">
-            <div>
-                <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
-                <small><em>${t.category || ''}</em></small>
-                ${t.receipt_url ? `<br><a href="${t.receipt_url}" target="_blank">📎 Voir la pièce jointe</a>` : ''}
+            <div class="transaction-actions">
+                <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
             </div>
-            <div>
-                <strong style="font-size: 1.1em;">${Number(t.amount || 0).toFixed(2)} €</strong>
-                <button class="btn btn-danger" style="padding:4px 8px; margin-left:10px;" onclick="supprimerTransaction('${t.id}')">🗑️</button>
-            </div>
+            <strong>${t.date}</strong> - <span>${t.description || 'Sans description'}</span>
+            <div><strong>${t.amount} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></div>
         </div>
     `).join('');
 }
@@ -208,59 +185,234 @@ async function addTransaction() {
     const category = document.getElementById('category')?.value;
     const description = document.getElementById('description')?.value;
     const amount = parseFloat(document.getElementById('amount')?.value);
-    const fileInput = document.getElementById('attachment');
 
-    if (!date || isNaN(amount) || !description) {
-        alert('Veuillez remplir la date, le montant ET le libellé.');
+    if (!date || isNaN(amount)) {
+        alert('Veuillez renseigner une date et un montant valide.');
         return;
     }
 
-    let receiptUrl = null;
+    const { error } = await supabaseClient
+        .from('transactions')
+        .insert([{ date, type, category, description, amount }]);
 
-    if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const fileName = `${Date.now()}_${file.name}`;
-
-        const { data: uploadData, error: uploadError } = await supabaseClient
-            .storage
-            .from('justificatifs')
-            .upload(fileName, file);
-
-        if (!uploadError && uploadData) {
-            const { data: publicUrlData } = supabaseClient
-                .storage
-                .from('justificatifs')
-                .getPublicUrl(fileName);
-
-            receiptUrl = publicUrlData.publicUrl;
-        }
-    }
-
-    const nouvelleOp = {
-        date,
-        type,
-        category,
-        description,
-        amount,
-        receipt_url: receiptUrl
-    };
-
-    const { error } = await supabaseClient.from('transactions').insert([nouvelleOp]);
-
-    if (!error) {
+    if (error) {
+        alert('Erreur lors de l\'ajout de l\'opération : ' + error.message);
+    } else {
         document.getElementById('description').value = '';
         document.getElementById('amount').value = '';
-        if (fileInput) fileInput.value = '';
         await chargerTransactions();
-    } else {
-        alert('Erreur d\'enregistrement : ' + error.message);
     }
 }
 
 async function supprimerTransaction(id) {
-    if (!confirm('Voulez-vous supprimer cette opération ?')) return;
-    await supabaseClient.from('transactions').delete().eq('id', id);
-    await chargerTransactions();
+    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
+
+    const { error } = await supabaseClient
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+    if (!error) {
+        await chargerTransactions();
+    }
+}
+
+// ============================================================================
+// 5. GESTION DES DOCUMENTS ET PIÈCES JUSTIFICATIVES (STORAGE)
+// ============================================================================
+async function uploadDocument() {
+    if (!supabaseClient) return;
+
+    const fileInput = document.getElementById('docFile');
+    const category = document.getElementById('docCategory').value;
+    const notes = document.getElementById('docNotes').value;
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Veuillez sélectionner un fichier à téléverser.');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `justificatifs/${fileName}`;
+
+    // Téléversement du fichier binaire dans le bucket
+    const { error: uploadError } = await supabaseClient
+        .storage
+        .from('documents')
+        .upload(filePath, file);
+
+    if (uploadError) {
+        alert('Erreur lors de l\'envoi du fichier : ' + uploadError.message);
+        return;
+    }
+
+    // Récupération de l'accès public
+    const { data: urlData } = supabaseClient
+        .storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+    // Enregistrement des métadonnées dans la BDD
+    const { error: dbError } = await supabaseClient
+        .from('documents')
+        .insert([{
+            nom_fichier: file.name,
+            fichier_path: filePath,
+            fichier_url: urlData.publicUrl,
+            categorie: category,
+            notes: notes
+        }]);
+
+    if (dbError) {
+        alert('Erreur lors de l\'enregistrement en base : ' + dbError.message);
+    } else {
+        alert('✅ Document téléversé avec succès !');
+        fileInput.value = '';
+        document.getElementById('docNotes').value = '';
+        await chargerDocuments();
+    }
+}
+
+async function chargerDocuments() {
+    if (!supabaseClient) return;
+
+    const { data, error } = await supabaseClient
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Erreur lors de la récupération des documents :', error.message);
+        return;
+    }
+
+    currentDocuments = data || [];
+    afficherDocuments(currentDocuments);
+}
+
+function afficherDocuments(liste) {
+    const container = document.getElementById('listeDocuments');
+    if (!container) return;
+
+    if (liste.length === 0) {
+        container.innerHTML = '<p style="color:#666;">Aucun document enregistré.</p>';
+        return;
+    }
+
+    container.innerHTML = liste.map(doc => `
+        <div class="transaction">
+            <div class="transaction-actions">
+                <a href="${doc.fichier_url}" target="_blank" class="btn btn-secondary" style="text-decoration:none;">📄 Voir</a>
+                <button class="btn btn-danger" onclick="supprimerDocument('${doc.id}', '${doc.fichier_path}')">🗑️</button>
+            </div>
+            <strong>${doc.categorie}</strong> - <span>${doc.nom_fichier}</span>
+            <div><small>${doc.notes ? doc.notes : ''}</small></div>
+        </div>
+    `).join('');
+}
+
+async function supprimerDocument(id, filePath) {
+    if (!supabaseClient || !confirm('Voulez-vous supprimer ce document ?')) return;
+
+    // Suppression dans le stockage
+    await supabaseClient.storage.from('documents').remove([filePath]);
+
+    // Suppression de l'entrée en base
+    const { error } = await supabaseClient
+        .from('documents')
+        .delete()
+        .eq('id', id);
+
+    if (!error) {
+        await chargerDocuments();
+    }
+}
+
+// ============================================================================
+// 6. TRANSMISSION ET EXPORTATION POUR L'EXPERT-COMPTABLE
+// ============================================================================
+async function exporterPackComptable() {
+    if (typeof JSZip === 'undefined' || typeof XLSX === 'undefined') {
+        alert('Les bibliothèques requises (JSZip / SheetJS) ne sont pas chargées.');
+        return;
+    }
+
+    alert('⏳ Préparation de l\'archive ZIP en cours...');
+
+    const zip = new JSZip();
+
+    // Création de la feuille de calcul Excel
+    const worksheetData = [
+        ['Date', 'Type', 'Catégorie', 'Description', 'Montant (€)']
+    ];
+
+    currentTransactions.forEach(t => {
+        worksheetData.push([t.date, t.type, t.category, t.description, t.amount]);
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Comptabilite');
+
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    zip.file('Recapitulatif_Comptable.xlsx', excelBuffer);
+
+    // Ajout des fichiers téléversés dans un sous-dossier du ZIP
+    const folderJustificatifs = zip.folder('Justificatifs');
+
+    for (let doc of currentDocuments) {
+        try {
+            const response = await fetch(doc.fichier_url);
+            const blob = await response.blob();
+            folderJustificatifs.file(doc.nom_fichier, blob);
+        } catch (e) {
+            console.warn(`Erreur lors de l'ajout du fichier ${doc.nom_fichier} au ZIP`, e);
+        }
+    }
+
+    // Téléchargement du fichier ZIP final
+    zip.generateAsync({ type: 'blob' }).then(function(content) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `Pack_Comptable_${new Date().toISOString().slice(0, 10)}.zip`;
+        link.click();
+    });
+}
+
+function preparerEmailComptable() {
+    const emailTo = document.getElementById('comptable_email')?.value || '';
+    const nom = document.getElementById('nom')?.value || 'Infirmier(e)';
+    const prenom = document.getElementById('prenom')?.value || '';
+
+    const subject = encodeURIComponent(`Comptabilité - Pièces et Bilan - ${prenom} ${nom}`);
+    const body = encodeURIComponent(
+        `Bonjour,\n\nVeuillez trouver ci-joint le récapitulatif comptable ainsi que les pièces justificatives associés.\n\nCordialement,\n${prenom} ${nom}`
+    );
+
+    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
+}
+
+// ============================================================================
+// 7. FONCTIONS UTILITAIRES (STATISTIQUES & CATÉGORIES)
+// ============================================================================
+function calculerStatistiques(liste) {
+    let recettes = 0;
+    let depenses = 0;
+
+    liste.forEach(t => {
+        if (t.type === 'recette') recettes += Number(t.amount || 0);
+        if (t.type === 'depense') depenses += Number(t.amount || 0);
+    });
+
+    const balance = recettes - depenses;
+
+    if (document.getElementById('statRecettes')) document.getElementById('statRecettes').textContent = recettes.toFixed(2) + ' €';
+    if (document.getElementById('statDepenses')) document.getElementById('statDepenses').textContent = depenses.toFixed(2) + ' €';
+    if (document.getElementById('statBalance')) document.getElementById('statBalance').textContent = balance.toFixed(2) + ' €';
+    if (document.getElementById('statNb')) document.getElementById('statNb').textContent = liste.length;
+    if (document.getElementById('soldeBanque')) document.getElementById('soldeBanque').textContent = balance.toFixed(2) + ' €';
 }
 
 function updateCategories() {
@@ -270,521 +422,19 @@ function updateCategories() {
 
     if (type === 'recette') {
         catSelect.innerHTML = `
-            <option value="honoraires">Honoraires Soins / PAI / Mutuelles</option>
-            <option value="autre_recette">Autre recette</option>
+            <option>Honoraires PAI</option>
+            <option>Honoraires Mutuelles</option>
+            <option>Honoraires Patients</option>
+            <option>Autre recette</option>
         `;
     } else {
         catSelect.innerHTML = `
-            <option value="cotisations">Cotisations Sociale / URSSAF / CARPIMKO</option>
-            <option value="materiel">Matériel / Consommables Médicaux</option>
-            <option value="deplacement">Frais de Déplacement / Carburant</option>
-            <option value="assurance">Assurance Pro / RCP</option>
-            <option value="autre_depense">Autre dépense</option>
+            <option>Matériel médical</option>
+            <option>Loyer professionnel</option>
+            <option>Assurance Pro</option>
+            <option>Carburant / Déplacements</option>
+            <option>Cotisations URSSAF/CARPIMKO</option>
+            <option>Autre dépense</option>
         `;
-    }
-}
-
-// ==========================================
-// 5. BILAN ET COMPTE D'EXPLOITATION
-// ==========================================
-function genererBilanEtCE() {
-    const selectEl = document.getElementById('exerciceSelect');
-    const anneeSelect = selectEl ? selectEl.value : 'all';
-
-    let totHonoraires = 0, totAutresRecettes = 0;
-    let totCotis = 0, totMateriel = 0, totDeplacement = 0, totAssurance = 0, totAutresDepenses = 0;
-
-    currentTransactions.forEach(t => {
-        if (!t.date) return;
-        const { year } = parseDate(t.date);
-
-        if (anneeSelect !== 'all' && year !== anneeSelect) return;
-
-        const m = Number(t.amount || 0);
-        if (t.type === 'recette') {
-            if (t.category === 'honoraires') totHonoraires += m;
-            else totAutresRecettes += m;
-        } else if (t.type === 'depense') {
-            if (t.category === 'cotisations') totCotis += m;
-            else if (t.category === 'materiel') totMateriel += m;
-            else if (t.category === 'deplacement') totDeplacement += m;
-            else if (t.category === 'assurance') totAssurance += m;
-            else totAutresDepenses += m;
-        }
-    });
-
-    const totalProduits = totHonoraires + totAutresRecettes;
-    const totalCharges = totCotis + totMateriel + totDeplacement + totAssurance + totAutresDepenses;
-    const resultat = totalProduits - totalCharges;
-
-    setTxt('ceHonoraires', totHonoraires.toFixed(2) + ' €');
-    setTxt('ceAutresRecettes', totAutresRecettes.toFixed(2) + ' €');
-    setTxt('ceProduits', totalProduits.toFixed(2) + ' €');
-
-    setTxt('ceCotis', totCotis.toFixed(2) + ' €');
-    setTxt('ceMateriel', totMateriel.toFixed(2) + ' €');
-    setTxt('ceFraisDeplacement', totDeplacement.toFixed(2) + ' €');
-    setTxt('ceAssurances', totAssurance.toFixed(2) + ' €');
-    setTxt('ceAutresCharges', totAutresDepenses.toFixed(2) + ' €');
-    setTxt('ceCharges', totalCharges.toFixed(2) + ' €');
-
-    setTxt('ceResultat', resultat.toFixed(2) + ' €');
-
-    setTxt('bilanActifTresorerie', resultat.toFixed(2) + ' €');
-    setTxt('bilanTotalActif', resultat.toFixed(2) + ' €');
-    setTxt('bilanPassifResultat', resultat.toFixed(2) + ' €');
-    setTxt('bilanTotalPassif', resultat.toFixed(2) + ' €');
-}
-
-// ==========================================
-// 6. DÉCLARATIONS TRIMESTRIELLES ET COMPARATIF
-// ==========================================
-/**
- * Calcule et met à jour l'ensemble du tableau URSSAF et des impôts
- * @param {boolean} saisieManuelle - Indique si l'utilisateur a tapé une valeur à la main
- */
-function genererDeclarations(saisieManuelle = false) {
-    const selectEl = document.getElementById('exerciceDeclSelect');
-    const inputBnc = document.getElementById('inputBncUrssaf');
-    const anneeSelect = selectEl ? selectEl.value : 'all';
-    const estRemplacant = document.getElementById('urssafRemplacant')?.checked || false;
-
-    let bncFinal = 0;
-
-    if (saisieManuelle && inputBnc && inputBnc.value !== '') {
-        // L'utilisateur saisit directement une valeur dans le champ
-        bncFinal = parseFloat(inputBnc.value) || 0;
-    } else {
-        // Sinon, on calcule automatiquement la différence Recettes - Dépenses
-        let totalRecettes = 0;
-        let totalDepenses = 0;
-
-        currentTransactions.forEach(t => {
-            if (!t.date) return;
-            const { year } = parseDate(t.date);
-
-            if (anneeSelect !== 'all' && year !== anneeSelect) return;
-
-            const m = Number(t.amount || 0);
-            if (t.type === 'recette') totalRecettes += m;
-            else if (t.type === 'depense') totalDepenses += m;
-        });
-
-        bncFinal = Math.max(0, totalRecettes - totalDepenses);
-        if (inputBnc) inputBnc.value = bncFinal > 0 ? bncFinal : '';
-    }
-
-    // Calcul détaillé via le moteur de calcul URSSAF
-    const res = calculerDetailURSSAF(bncFinal, estRemplacant);
-
-    // Mettre à jour les affichages
-    setTxt('urssafBncAssiette', res.bncAssiette.toFixed(2) + ' €');
-
-    setTxt('uBaseCsg', res.baseCsg.toFixed(2) + ' €');
-    setTxt('uMontantCsg', res.mCsg.toFixed(2) + ' €');
-
-    setTxt('uBaseMaladie', res.baseMaladie.toFixed(2) + ' €');
-    setTxt('uMontantMaladie', res.mMaladie.toFixed(2) + ' €');
-
-    setTxt('uBaseIj', res.baseIj.toFixed(2) + ' €');
-    setTxt('uMontantIj', res.mIj.toFixed(2) + ' €');
-
-    setTxt('uBaseAlloc', res.baseAlloc.toFixed(2) + ' €');
-    setTxt('uTauxAlloc', (res.tauxAlloc * 100).toFixed(2) + ' %');
-    setTxt('uMontantAlloc', res.mAlloc.toFixed(2) + ' €');
-
-    setTxt('uBaseCurps', res.baseCurps.toFixed(2) + ' €');
-    setTxt('uMontantCurps', res.mCurps.toFixed(2) + ' €');
-
-    setTxt('uMontantCfp', res.mCfp.toFixed(2) + ' €');
-
-    setTxt('uTotalAnnuel', res.totalAnnuel.toFixed(2) + ' €');
-
-    // Échéances trimestrielles
-    const trim = res.totalTrimestriel;
-    setTxt('urssafT1', trim.toFixed(2) + ' €');
-    setTxt('urssafT2', trim.toFixed(2) + ' €');
-    setTxt('urssafT3', trim.toFixed(2) + ' €');
-    setTxt('urssafT4', trim.toFixed(2) + ' €');
-
-    // Section Fiscale (Imposition)
-    let caBrut = 0;
-    currentTransactions.forEach(t => {
-        if (t.type === 'recette') caBrut += Number(t.amount || 0);
-    });
-    
-    setTxt('microCA', caBrut.toFixed(2) + ' €');
-    setTxt('microAbattement', (caBrut * 0.34).toFixed(2) + ' €');
-    setTxt('microImposable', (caBrut * 0.66).toFixed(2) + ' €');
-
-    setTxt('reelCA', caBrut.toFixed(2) + ' €');
-    setTxt('reelDepenses', (caBrut - bncFinal).toFixed(2) + ' €');
-    setTxt('reelBenefice', bncFinal.toFixed(2) + ' €');
-}
-
-function actualiserCalculsUrssaf() {
-    genererDeclarations(false);
-}
-// ==========================================
-// 7. SIMULATION & DÉCLARATION CARPIMKO
-// ==========================================
-function calculerCarpimkoTab() {
-    const elBnc = document.getElementById('carpBnc');
-    const elStatut = document.getElementById('carpStatut');
-    const elConv = document.getElementById('carpConventionne');
-
-    const bnc = elBnc ? (parseFloat(elBnc.value) || 0) : 0;
-    const statut = elStatut ? elStatut.value : 'annee1';
-    const conventionne = elConv ? elConv.checked : false;
-
-    let totalBase = 0;
-    let totalComp = 0;
-    let totalPrev = 890; 
-    let totalASV = 0;
-
-    if (statut === 'annee1') {
-        totalBase = 840;
-        totalComp = 1856;
-        totalASV = conventionne ? 600 : 1800;
-    } else if (statut === 'annee2') {
-        totalBase = 1250;
-        totalComp = 1856;
-        totalASV = conventionne ? 600 : 1800;
-    } else {
-        const PASS = 46368;
-        if (bnc <= PASS) {
-            totalBase = bnc * 0.0823;
-        } else {
-            totalBase = (PASS * 0.0823) + Math.min(bnc - PASS, PASS * 4) * 0.0187;
-        }
-
-        const partFixeComp = 1856;
-        const partPropComp = bnc > 27000 ? Math.min(bnc - 27000, 150000) * 0.07 : 0;
-        totalComp = partFixeComp + partPropComp;
-
-        const asvBrut = 1950 + (bnc * 0.008);
-        totalASV = conventionne ? (asvBrut * 0.33) : asvBrut;
-    }
-
-    const totalAnnuel = totalBase + totalComp + totalPrev + totalASV;
-    const mensuel = totalAnnuel / 12;
-    const trimestriel = totalAnnuel / 4;
-    const tauxEffectif = bnc > 0 ? (totalAnnuel / bnc) * 100 : 0;
-
-    setTxt('carpRegimeBase', totalBase.toFixed(2) + ' €');
-    setTxt('carpRegimeComp', totalComp.toFixed(2) + ' €');
-    setTxt('carpRegimePrev', totalPrev.toFixed(2) + ' €');
-    setTxt('carpRegimeASV', totalASV.toFixed(2) + ' €');
-
-    setTxt('carpTotal', totalAnnuel.toFixed(2) + ' €');
-    setTxt('carpTableTotal', totalAnnuel.toFixed(2) + ' €');
-    setTxt('carpMensuel', mensuel.toFixed(2) + ' €');
-    setTxt('carpTrim', trimestriel.toFixed(2) + ' €');
-    setTxt('carpTaux', tauxEffectif.toFixed(1) + ' %');
-}
-
-// ==========================================
-// 8. INCORPORATION AUTOMATIQUE DES CHARGES
-// ==========================================
-async function incorporerChargesSociales(typeOrganisme) {
-    if (!supabaseClient) {
-        alert("Erreur : La connexion à Supabase n'est pas établie.");
-        return;
-    }
-
-    const nouvellesOperations = [];
-
-    if (typeOrganisme === 'URSSAF') {
-        const selectEl = document.getElementById('exerciceDeclSelect');
-        const annee = (selectEl && selectEl.value !== 'all') ? selectEl.value : new Date().getFullYear().toString();
-
-        const t1 = parseFloat(document.getElementById('urssafT1')?.textContent) || 0;
-        const t2 = parseFloat(document.getElementById('urssafT2')?.textContent) || 0;
-        const t3 = parseFloat(document.getElementById('urssafT3')?.textContent) || 0;
-        const t4 = parseFloat(document.getElementById('urssafT4')?.textContent) || 0;
-
-        const echeances = [
-            { nom: 'Trimestre 1', date: `${annee}-03-31`, montant: t1 },
-            { nom: 'Trimestre 2', date: `${annee}-06-30`, montant: t2 },
-            { nom: 'Trimestre 3', date: `${annee}-09-30`, montant: t3 },
-            { nom: 'Trimestre 4', date: `${annee}-12-31`, montant: t4 }
-        ];
-
-        echeances.forEach(e => {
-            if (e.montant > 0) {
-                nouvellesOperations.push({
-                    date: e.date,
-                    type: 'depense',
-                    category: 'cotisations',
-                    description: `Cotisation URSSAF ${e.nom} ${annee}`,
-                    amount: e.montant
-                });
-            }
-        });
-
-    } else if (typeOrganisme === 'CARPIMKO') {
-        const totalAnnuel = parseFloat(document.getElementById('carpTotal')?.textContent) || 0;
-        const trimestriel = totalAnnuel / 4;
-        const anneeCourante = new Date().getFullYear();
-
-        if (trimestriel > 0) {
-            const echeances = [
-                { nom: 'Échéance T1', date: `${anneeCourante}-02-05` },
-                { nom: 'Échéance T2', date: `${anneeCourante}-05-05` },
-                { nom: 'Échéance T3', date: `${anneeCourante}-08-05` },
-                { nom: 'Échéance T4', date: `${anneeCourante}-11-05` }
-            ];
-
-            echeances.forEach(e => {
-                nouvellesOperations.push({
-                    date: e.date,
-                    type: 'depense',
-                    category: 'cotisations',
-                    description: `Cotisation CARPIMKO ${e.nom} ${anneeCourante}`,
-                    amount: Number(trimestriel.toFixed(2))
-                });
-            });
-        }
-    }
-
-    if (nouvellesOperations.length === 0) {
-        alert(`Aucun montant calculé à intégrer pour ${typeOrganisme}. Saisissez d'abord des recettes.`);
-        return;
-    }
-
-    const confirmation = confirm(`Voulez-vous intégrer automatiquement ${nouvellesOperations.length} écritures de cotisations ${typeOrganisme} dans votre comptabilité ?`);
-    if (!confirmation) return;
-
-    const { error } = await supabaseClient
-        .from('transactions')
-        .insert(nouvellesOperations);
-
-    if (!error) {
-        alert(`✅ Les écritures ${typeOrganisme} ont été ajoutées avec succès !`);
-        await chargerTransactions();
-    } else {
-        alert(`Erreur d'enregistrement : ${error.message}`);
-    }
-}
-
-/**
- * Calcule le détail complet des cotisations URSSAF pour un auxiliaire médical (PAMC)
- * @param {number} bncRevenu - Bénéfice Non Commercial (Recettes - Dépenses)
- * @param {Object} options - Options d'exonération ou statut (ex: estRemplacant, passAnnuel)
- * @returns {Object} Détail des rubriques et total des cotisations
- */
-function calculerDetailURSSAF(bncRevenu, options = {}) {
-    // Valeurs de référence (PASS - Plafond Annuel de la Sécurité Sociale)
-    const PASS = options.passAnnuel || 48060; 
-    const estRemplacant = options.estRemplacant || false;
-
-    // Assiette avec abattement social de 26% (plafonné)
-    const abattementMax = PASS * 1.3;
-    const montantAbattement = Math.min(bncRevenu * 0.26, abattementMax);
-    const assietteSocialeCSG = Math.max(0, bncRevenu - montantAbattement);
-
-    // 1. CSG / CRDS (9.70%)
-    const csgCrds = assietteSocialeCSG * 0.097;
-
-    // 2. Assurance Maladie (0.10% reste à charge infirmier conventionné)
-    const maladie = bncRevenu * 0.001;
-
-    // 3. Indemnités Journalières (0.30% avec plancher et plafond)
-    const assietteMinIJ = PASS * 0.40;
-    const assietteMaxIJ = PASS * 3.00;
-    const assietteIJ = Math.min(Math.max(bncRevenu, assietteMinIJ), assietteMaxIJ);
-    const indemnitesJournalieres = assietteIJ * 0.003;
-
-    // 4. Allocations Familiales (Taux progressif entre 110% et 140% du PASS)
-    let tauxAllocFam = 0;
-    const seuilExoneration = PASS * 1.10;
-    const seuilTauxPlein = PASS * 1.40;
-
-    if (bncRevenu > seuilTauxPlein) {
-        tauxAllocFam = 0.031;
-    } else if (bncRevenu > seuilExoneration) {
-        tauxAllocFam = 0.031 * ((bncRevenu - seuilExoneration) / (seuilTauxPlein - seuilExoneration));
-    }
-    const allocationsFamiliales = bncRevenu * tauxAllocFam;
-
-    // 5. CURPS (0.10% plafonné à 0.5% du PASS)
-    let curps = 0;
-    if (!estRemplacant) {
-        const plafondCurps = PASS * 0.005;
-        curps = Math.min(bncRevenu * 0.001, plafondCurps);
-    }
-
-    // 6. Formation Professionnelle CFP (0.25% du PASS)
-    const cfp = PASS * 0.0025;
-
-    // Total général URSSAF
-    const totalURSSAF = csgCrds + maladie + indemnitesJournalieres + allocationsFamiliales + curps + cfp;
-
-    return {
-        assietteCalculee: Number(bncRevenu.toFixed(2)),
-        rubriques: {
-            csgCrds: Number(csgCrds.toFixed(2)),
-            maladie: Number(maladie.toFixed(2)),
-            indemnitesJournalieres: Number(indemnitesJournalieres.toFixed(2)),
-            allocationsFamiliales: Number(allocationsFamiliales.toFixed(2)),
-            curps: Number(curps.toFixed(2)),
-            cfp: Number(cfp.toFixed(2))
-        },
-        totalAnnuel: Number(totalURSSAF.toFixed(2)),
-        totalTrimestriel: Number((totalURSSAF / 4).toFixed(2))
-    };
-}
-
-// Exemple d'utilisation dans la console :
-// const resultat = calculerDetailURSSAF(45000);
-// console.log(resultat);
-
-// ==========================================
-// 9. LIVRE-JOURNAL & BALANCE COMPTABLE
-// ==========================================
-function genererLivreJournal(exercice = 'all') {
-    const entries = [];
-
-    currentTransactions.forEach(t => {
-        if (!t.date) return;
-        const { year } = parseDate(t.date);
-        if (exercice !== 'all' && year !== exercice) return;
-
-        const m = Number(t.amount || 0);
-
-        if (t.type === 'recette') {
-            entries.push({ date: t.date, compte: '512000', libelle: `[Banque] ${t.description}`, debit: m, credit: 0 });
-            entries.push({ date: t.date, compte: '706000', libelle: `[Recette] ${t.description}`, debit: 0, credit: m });
-        } else if (t.type === 'depense') {
-            let compte = '658000';
-            
-            if (t.category === 'cotisations') {
-                const descLower = (t.description || '').toLowerCase();
-                if (descLower.includes('urssaf')) {
-                    compte = '645100'; // Compte PCG Cotisations URSSAF
-                } else if (descLower.includes('carpimko')) {
-                    compte = '645200'; // Compte PCG Cotisations CARPIMKO
-                } else {
-                    compte = '645000'; // Charges Sociales Générales
-                }
-            } else if (t.category === 'materiel') compte = '606000';
-            else if (t.category === 'deplacement') compte = '625000';
-            else if (t.category === 'assurance') compte = '616000';
-
-            entries.push({ date: t.date, compte: compte, libelle: `[Charge] ${t.description}`, debit: m, credit: 0 });
-            entries.push({ date: t.date, compte: '512000', libelle: `[Banque] ${t.description}`, debit: 0, credit: m });
-        }
-    });
-
-    return entries;
-}
-
-function genererBalanceComptable(exercice = 'all') {
-    const journal = genererLivreJournal(exercice);
-    const map = {};
-
-    const nomsComptes = {
-        '512000': 'Banque / Trésorerie',
-        '606000': 'Matériel & Consommables Médicaux',
-        '616000': 'Assurances Professionnelles',
-        '625000': 'Frais de Déplacement',
-        '645000': 'Cotisations Sociales Générales',
-        '645100': 'Cotisations URSSAF',
-        '645200': 'Cotisations CARPIMKO (Retraite/Prévoyance)',
-        '658000': 'Autres Charges de Gestion',
-        '706000': 'Honoraires & Prestations de Soins'
-    };
-
-    journal.forEach(e => {
-        if (!map[e.compte]) {
-            map[e.compte] = {
-                compte: e.compte,
-                intitule: nomsComptes[e.compte] || 'Compte Divers',
-                debit: 0,
-                credit: 0
-            };
-        }
-        map[e.compte].debit += e.debit;
-        map[e.compte].credit += e.credit;
-    });
-
-    return Object.values(map).map(c => {
-        const solde = c.debit - c.credit;
-        return {
-            ...c,
-            soldeDebiteur: solde > 0 ? solde : 0,
-            soldeCrediteur: solde < 0 ? Math.abs(solde) : 0
-        };
-    });
-}
-
-function afficherJournalEtBalance() {
-    const selectEl = document.getElementById('exerciceJournalSelect');
-    const anneeSelect = selectEl ? selectEl.value : 'all';
-
-    const journalData = genererLivreJournal(anneeSelect);
-    const tbodyJournal = document.getElementById('tbodyJournal');
-
-    if (tbodyJournal) {
-        if (journalData.length === 0) {
-            tbodyJournal.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune écriture enregistrée.</td></tr>';
-        } else {
-            let totDebit = 0, totCredit = 0;
-            const rows = journalData.map(e => {
-                totDebit += e.debit;
-                totCredit += e.credit;
-                return `<tr>
-                    <td>${e.date}</td>
-                    <td><strong>${e.compte}</strong></td>
-                    <td>${e.libelle}</td>
-                    <td style="text-align:right;">${e.debit > 0 ? e.debit.toFixed(2) + ' €' : '-'}</td>
-                    <td style="text-align:right;">${e.credit > 0 ? e.credit.toFixed(2) + ' €' : '-'}</td>
-                </tr>`;
-            }).join('');
-
-            tbodyJournal.innerHTML = rows + `
-                <tr style="font-weight:bold; background:#e9ecef;">
-                    <td colspan="3">TOTAL ÉCRITURES</td>
-                    <td style="text-align:right;">${totDebit.toFixed(2)} €</td>
-                    <td style="text-align:right;">${totCredit.toFixed(2)} €</td>
-                </tr>
-            `;
-        }
-    }
-
-    const balanceData = genererBalanceComptable(anneeSelect);
-    const tbodyBalance = document.getElementById('tbodyBalance');
-
-    if (tbodyBalance) {
-        if (balanceData.length === 0) {
-            tbodyBalance.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucune donnée disponible.</td></tr>';
-        } else {
-            let totD = 0, totC = 0, totSD = 0, totSC = 0;
-            const rows = balanceData.map(b => {
-                totD += b.debit;
-                totC += b.credit;
-                totSD += b.soldeDebiteur;
-                totSC += b.soldeCrediteur;
-
-                return `<tr>
-                    <td><strong>${b.compte}</strong></td>
-                    <td>${b.intitule}</td>
-                    <td style="text-align:right;">${b.debit.toFixed(2)} €</td>
-                    <td style="text-align:right;">${b.credit.toFixed(2)} €</td>
-                    <td style="text-align:right; font-weight:bold; color:var(--primary-color);">${b.soldeDebiteur > 0 ? b.soldeDebiteur.toFixed(2) + ' €' : '-'}</td>
-                    <td style="text-align:right; font-weight:bold; color:var(--success-color);">${b.soldeCrediteur > 0 ? b.soldeCrediteur.toFixed(2) + ' €' : '-'}</td>
-                </tr>`;
-            }).join('');
-
-            tbodyBalance.innerHTML = rows + `
-                <tr style="font-weight:bold; background:#e9ecef;">
-                    <td colspan="2">TOTAL GENERAL</td>
-                    <td style="text-align:right;">${totD.toFixed(2)} €</td>
-                    <td style="text-align:right;">${totC.toFixed(2)} €</td>
-                    <td style="text-align:right;">${totSD.toFixed(2)} €</td>
-                    <td style="text-align:right;">${totSC.toFixed(2)} €</td>
-                </tr>
-            `;
-        }
     }
 }
