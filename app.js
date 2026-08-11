@@ -6,15 +6,11 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabaseClient = null;
 let currentTransactions = [];
-let currentProfileId = null; // Stocke l'UUID de la table 'profile'
+let currentProfileId = null;
 
 // ============================================================================
 // 2. FONCTIONS UTILITAIRES
 // ============================================================================
-
-/**
- * Remplit un élément HTML avec une valeur formatée sans risque d'erreur
- */
 function remplir(id, valeur) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -28,9 +24,6 @@ function remplir(id, valeur) {
     }
 }
 
-/**
- * Ajuste les catégories selon qu'il s'agisse d'une recette ou d'une dépense
- */
 function updateCategories() {
     const typeSelect = document.getElementById('type');
     const catSelect = document.getElementById('category');
@@ -80,11 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         updateCategories();
         
-        // Initialisation de la date d'aujourd'hui pour les nouvelles transactions
         const inputDate = document.getElementById('date');
         if (inputDate) inputDate.value = new Date().toISOString().split('T')[0];
 
-        // Chargement des données
         await chargerProfil();
         await chargerTransactions();
 
@@ -116,14 +107,12 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 5. GESTION DU PROFIL (Table Supabase 'profile')
+// 5. GESTION DU PROFIL
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
     try {
-        console.log("📥 Chargement du profil depuis Supabase...");
-
         const { data, error } = await supabaseClient
             .from('profile')
             .select('*')
@@ -136,7 +125,7 @@ async function chargerProfil() {
 
         if (data && data.length > 0) {
             const profil = data[0];
-            currentProfileId = profil.id; // Sauvegarde de l'UUID
+            currentProfileId = profil.id;
 
             if (document.getElementById('nom')) document.getElementById('nom').value = profil.nom || '';
             if (document.getElementById('prenom')) document.getElementById('prenom').value = profil.prenom || '';
@@ -244,7 +233,7 @@ async function addTransaction() {
     const amount = parseFloat(document.getElementById('amount')?.value);
 
     if (!date || isNaN(amount) || !description) {
-        alert('Veuillez remplir au moins la date, le montant et le libellé.');
+        alert('Veuillez remplir la date, le montant et le libellé.');
         return;
     }
 
@@ -359,7 +348,6 @@ function genererDeclarations() {
     remplir('urssafT3', t3 * tauxUrssaf);
     remplir('urssafT4', t4 * tauxUrssaf);
 
-    // Impôts
     const abattement = totalCA * 0.34;
     remplir('microCA', totalCA);
     remplir('microAbattement', abattement);
@@ -450,7 +438,7 @@ async function sauvegarderDeclaration() {
     if (!error) {
         alert(`✅ Déclaration ${annee} sauvegardée avec succès !`);
     } else {
-        alert("⚠️ Note : Pensez à créer la table 'declarations' dans Supabase si ce n'est pas encore fait.");
+        alert("⚠️ Note : Assurez-vous d'avoir créé la table 'declarations' dans Supabase.");
     }
 }
 
@@ -508,26 +496,102 @@ function calculerCarpimkoTab() {
     remplir('carpTrim', totalCarpimko / 4);
 }
 
+// ============================================================================
+// 9. GESTION DU LIVRE-JOURNAL ET DE LA BALANCE DES COMPTES
+// ============================================================================
 function afficherJournalEtBalance() {
+    afficherLivreJournal();
+    afficherBalanceComptes();
+}
+
+function afficherLivreJournal() {
     const tbodyJournal = document.getElementById('tbodyJournal');
     if (!tbodyJournal) return;
 
-    if (currentTransactions.length === 0) {
-        tbodyJournal.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune écriture.</td></tr>';
+    if (!currentTransactions || currentTransactions.length === 0) {
+        tbodyJournal.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune écriture enregistrée.</td></tr>';
         return;
     }
 
     tbodyJournal.innerHTML = currentTransactions.map(t => {
         const val = parseFloat(t.amount) || 0;
         const isRecette = (t.type || '').toLowerCase().includes('recette');
+        const compte = isRecette ? '706000' : '628000';
+
         return `
             <tr>
                 <td>${t.date}</td>
-                <td><strong>${isRecette ? '706000' : '628000'}</strong></td>
+                <td><strong>${compte}</strong></td>
                 <td>${t.description || ''}</td>
                 <td style="text-align:right;">${!isRecette ? val.toFixed(2) + ' €' : '-'}</td>
                 <td style="text-align:right;">${isRecette ? val.toFixed(2) + ' €' : '-'}</td>
             </tr>
         `;
     }).join('');
+}
+
+function afficherBalanceComptes() {
+    const tbodyBalance = document.getElementById('tbodyBalance');
+    if (!tbodyBalance) return;
+
+    if (!currentTransactions || currentTransactions.length === 0) {
+        tbodyBalance.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune donnée pour la balance.</td></tr>';
+        return;
+    }
+
+    const comptes = {
+        '706000': { nom: 'Prestations de services / Honoraires', debit: 0, credit: 0 },
+        '628000': { nom: 'Diverses charges professionnelles', debit: 0, credit: 0 },
+        '512000': { nom: 'Compte Bancaire Pro', debit: 0, credit: 0 }
+    };
+
+    currentTransactions.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
+        const isRecette = (t.type || '').toLowerCase().includes('recette');
+
+        if (isRecette) {
+            comptes['706000'].credit += val;
+            comptes['512000'].debit += val;
+        } else {
+            comptes['628000'].debit += val;
+            comptes['512000'].credit += val;
+        }
+    });
+
+    let html = '';
+    let grandTotalDebit = 0;
+    let grandTotalCredit = 0;
+
+    Object.keys(comptes).forEach(numCompte => {
+        const c = comptes[numCompte];
+        const solde = c.debit - c.credit;
+
+        if (c.debit > 0 || c.credit > 0) {
+            grandTotalDebit += c.debit;
+            grandTotalCredit += c.credit;
+
+            html += `
+                <tr>
+                    <td><strong>${numCompte}</strong></td>
+                    <td>${c.nom}</td>
+                    <td style="text-align:right;">${c.debit > 0 ? c.debit.toFixed(2) + ' €' : '-'}</td>
+                    <td style="text-align:right;">${c.credit > 0 ? c.credit.toFixed(2) + ' €' : '-'}</td>
+                    <td style="text-align:right; font-weight:bold; color: ${solde >= 0 ? 'green' : 'red'};">
+                        ${solde.toFixed(2)} €
+                    </td>
+                </tr>
+            `;
+        }
+    });
+
+    html += `
+        <tr style="background-color: #f8f9fa; font-weight: bold;">
+            <td colspan="2" style="text-align:right;">TOTAL ÉQUILIBRE :</td>
+            <td style="text-align:right; color: var(--primary);">${grandTotalDebit.toFixed(2)} €</td>
+            <td style="text-align:right; color: var(--primary);">${grandTotalCredit.toFixed(2)} €</td>
+            <td style="text-align:right;">-</td>
+        </tr>
+    `;
+
+    tbodyBalance.innerHTML = html;
 }
