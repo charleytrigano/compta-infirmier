@@ -1,163 +1,84 @@
 // ============================================================================
 // 1. CONFIGURATION ET INITIALISATION SUPABASE
 // ============================================================================
-const SUPABASE_URL = 'https://kntkfczfxehgdsruhabu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudGtmY3pmeGVoZ2RzcnVoYWJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTkzMzU0NSwiZXhwIjoyMDg3NTA5NTQ1fQ.hMpVK2ky6uoU7mauBeoTOR8THCUpycmUogBKyO8Wsmg';
+// Nouveaux identifiants issus de votre projet "compta-infirmier"
+const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
 
 let supabaseClient = null;
 let currentTransactions = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("1. Démarrage de l'application...");
+    console.log("🚀 Initialisation de l'application Compta...");
 
     const loadingEl = document.getElementById('loading');
     const appEl = document.getElementById('app');
     const syncStatus = document.getElementById('syncStatus');
 
-    // Fonction de secours pour forcer l'affichage de l'interface
-    function forcerAffichage() {
-        if (loadingEl) {
-            loadingEl.style.display = 'none';
-            loadingEl.classList.add('hidden');
-        }
-        if (appEl) {
-            appEl.style.display = 'block';
-            appEl.classList.remove('hidden');
-        }
+    // 1. Déblocage visuel immédiat de l'interface utilisateur
+    if (loadingEl) {
+        loadingEl.style.display = 'none';
+        loadingEl.classList.add('hidden');
+    }
+    if (appEl) {
+        appEl.style.display = 'block';
+        appEl.classList.remove('hidden');
     }
 
     try {
-        // 🔓 DÉBLOCAGE IMMÉDIAT DE L'ÉCRAN
-        forcerAffichage();
-        console.log("2. Écran de chargement masqué.");
-
-        // Initialisation de Supabase
+        // 2. Initialisation du client Supabase
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
-            console.log("3. Client Supabase initialisé.");
+            if (syncStatus) syncStatus.textContent = '☁️ Connexion à Supabase...';
         } else {
-            console.error("SDK Supabase non détecté dans le fichier HTML.");
-            if (syncStatus) syncStatus.textContent = '⚠️ SDK Supabase absent';
+            if (syncStatus) syncStatus.textContent = '⚠️ SDK Supabase manquant dans le HTML';
+            return;
         }
 
-        // Affichage de l'onglet par défaut
+        // 3. Affichage de l'onglet par défaut (Transactions)
         showTab('transactions');
         updateCategories();
 
-        // Chargement des données en arrière-plan
-        console.log("4. Lancement du chargement des données...");
+        // 4. Chargement des données distantes depuis Supabase
         await chargerProfil();
         await chargerTransactions();
 
     } catch (err) {
-        console.error('Erreur critique lors de l\'initialisation :', err);
-        forcerAffichage(); // Sécurité garantie
+        console.error('Erreur au démarrage :', err);
         if (syncStatus) syncStatus.textContent = '⚠️ Erreur d\'initialisation';
     }
 });
 
 // ============================================================================
-// 2. GESTION DE LA NAVIGATION PAR ONGLETS
+// 2. GESTION DE LA NAVIGATION
 // ============================================================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
-    allTabs.forEach(tab => {
-        tab.style.display = 'none';
-    });
+    allTabs.forEach(tab => tab.style.display = 'none');
 
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
     const targetTab = document.getElementById(`tab-${tabName}`);
-    if (targetTab) {
-        targetTab.style.display = 'block';
-    }
+    if (targetTab) targetTab.style.display = 'block';
 
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
-    if (activeBtn) {
-        activeBtn.classList.add('active');
-    }
+    if (activeBtn) activeBtn.classList.add('active');
 }
 
 // ============================================================================
-// 3. PROFIL PROFESSIONNEL
-// ============================================================================
-async function chargerProfil() {
-    if (!supabaseClient) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('profil')
-            .select('*')
-            .maybeSingle();
-
-        if (error) {
-            console.warn('Information profil :', error.message);
-            return;
-        }
-
-        if (data) {
-            const fields = [
-                'nom', 'prenom', 'siret', 'rpps', 'adeli', 'num_urssaf',
-                'adresse', 'code_postal', 'ville', 'telephone', 'email',
-                'comptable_cabinet', 'comptable_adresse', 'comptable_tel', 'comptable_email'
-            ];
-
-            fields.forEach(field => {
-                const el = document.getElementById(field);
-                if (el && data[field] !== undefined) {
-                    el.value = data[field];
-                }
-            });
-        }
-    } catch (e) {
-        console.error("Erreur chargerProfil :", e);
-    }
-}
-
-async function saveProfile() {
-    if (!supabaseClient) return;
-
-    const profilData = {
-        id: 1,
-        nom: document.getElementById('nom')?.value || '',
-        prenom: document.getElementById('prenom')?.value || '',
-        siret: document.getElementById('siret')?.value || '',
-        rpps: document.getElementById('rpps')?.value || '',
-        adeli: document.getElementById('adeli')?.value || '',
-        num_urssaf: document.getElementById('num_urssaf')?.value || '',
-        adresse: document.getElementById('adresse')?.value || '',
-        code_postal: document.getElementById('code_postal')?.value || '',
-        ville: document.getElementById('ville')?.value || '',
-        telephone: document.getElementById('telephone')?.value || '',
-        email: document.getElementById('email')?.value || '',
-        comptable_cabinet: document.getElementById('comptable_cabinet')?.value || '',
-        comptable_adresse: document.getElementById('comptable_adresse')?.value || '',
-        comptable_tel: document.getElementById('comptable_tel')?.value || '',
-        comptable_email: document.getElementById('comptable_email')?.value || ''
-    };
-
-    const { error } = await supabaseClient.from('profil').upsert(profilData);
-
-    if (error) {
-        alert('Erreur lors de la sauvegarde : ' + error.message);
-    } else {
-        alert('✅ Profil enregistré avec succès !');
-    }
-}
-
-// ============================================================================
-// 4. TRANSACTIONS COMPTABLES
+// 3. GESTION DES TRANSACTIONS (LECTURE, AJOUT, SUPPRESSION)
 // ============================================================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
 
     const container = document.getElementById('transactions');
+    const syncStatus = document.getElementById('syncStatus');
+
     if (container) {
-        container.innerHTML = '<p style="color:#666; padding:1rem;">⏳ Chargement des opérations...</p>';
+        container.innerHTML = '<p style="color:#666; padding:1rem;">⏳ Chargement des opérations depuis Supabase...</p>';
     }
 
     try {
@@ -167,17 +88,29 @@ async function chargerTransactions() {
             .order('date', { ascending: false });
 
         if (error) {
-            console.error('Erreur chargerTransactions :', error.message);
+            console.error('Erreur Supabase :', error.message);
             if (container) {
-                container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur de lecture : ${error.message}</p>`;
+                container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur Supabase : ${error.message}</p>`;
             }
+            if (syncStatus) syncStatus.textContent = '⚠️ Erreur de lecture';
             return;
         }
 
+        if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
         currentTransactions = data || [];
         afficherTransactions(currentTransactions);
+
     } catch (e) {
-        console.error("Exception chargerTransactions :", e);
+        console.error("Erreur réseau :", e);
+        if (syncStatus) syncStatus.textContent = '❌ Serveur non joignable';
+        if (container) {
+            container.innerHTML = `
+                <div style="padding:1rem; background-color:#fff3f3; border:1px solid #ffcdd2; border-radius:8px; color:#c62828;">
+                    <strong>❌ Connexion impossible au serveur Supabase.</strong><br>
+                    Veuillez vérifier votre connexion Internet ou réactualiser la page.
+                </div>
+            `;
+        }
     }
 }
 
@@ -186,12 +119,12 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666; padding:1rem;">Aucune opération enregistrée dans Supabase.</p>';
+        container.innerHTML = '<p style="color:#666; padding:1rem;">Aucune opération enregistrée pour le moment.</p>';
         return;
     }
 
     container.innerHTML = liste.map(t => `
-        <div class="transaction ${t.type}" style="padding: 0.8rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+        <div class="transaction ${t.type}" style="padding:0.8rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
             <div>
                 <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
                 <small><strong>${t.amount} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
@@ -215,7 +148,7 @@ async function addTransaction() {
     const fileInput = document.getElementById('docFile');
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez renseigner une date et un montant valide.');
+        alert('Veuillez indiquer au moins une date et un montant valide.');
         return;
     }
 
@@ -268,15 +201,73 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
+    if (!supabaseClient || !confirm('Voulez-vous vraiment supprimer cette opération ?')) return;
 
-    const { error } = await supabaseClient
-        .from('transactions')
-        .delete()
-        .eq('id', id);
+    const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
 
     if (!error) {
         await chargerTransactions();
+    } else {
+        alert('Erreur lors de la suppression : ' + error.message);
+    }
+}
+
+// ============================================================================
+// 4. PROFIL PROFESSIONNEL
+// ============================================================================
+async function chargerProfil() {
+    if (!supabaseClient) return;
+
+    try {
+        const { data } = await supabaseClient.from('profil').select('*').maybeSingle();
+
+        if (data) {
+            const fields = [
+                'nom', 'prenom', 'siret', 'rpps', 'adeli', 'num_urssaf',
+                'adresse', 'code_postal', 'ville', 'telephone', 'email',
+                'comptable_cabinet', 'comptable_adresse', 'comptable_tel', 'comptable_email'
+            ];
+
+            fields.forEach(field => {
+                const el = document.getElementById(field);
+                if (el && data[field] !== undefined) {
+                    el.value = data[field];
+                }
+            });
+        }
+    } catch (e) {
+        console.warn("Remarque profil :", e);
+    }
+}
+
+async function saveProfile() {
+    if (!supabaseClient) return;
+
+    const profilData = {
+        id: 1,
+        nom: document.getElementById('nom')?.value || '',
+        prenom: document.getElementById('prenom')?.value || '',
+        siret: document.getElementById('siret')?.value || '',
+        rpps: document.getElementById('rpps')?.value || '',
+        adeli: document.getElementById('adeli')?.value || '',
+        num_urssaf: document.getElementById('num_urssaf')?.value || '',
+        adresse: document.getElementById('adresse')?.value || '',
+        code_postal: document.getElementById('code_postal')?.value || '',
+        ville: document.getElementById('ville')?.value || '',
+        telephone: document.getElementById('telephone')?.value || '',
+        email: document.getElementById('email')?.value || '',
+        comptable_cabinet: document.getElementById('comptable_cabinet')?.value || '',
+        comptable_adresse: document.getElementById('comptable_adresse')?.value || '',
+        comptable_tel: document.getElementById('comptable_tel')?.value || '',
+        comptable_email: document.getElementById('comptable_email')?.value || ''
+    };
+
+    const { error } = await supabaseClient.from('profil').upsert(profilData);
+
+    if (error) {
+        alert('Erreur de sauvegarde : ' + error.message);
+    } else {
+        alert('✅ Profil sauvegardé sur Supabase !');
     }
 }
 
