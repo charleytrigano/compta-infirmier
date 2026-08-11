@@ -241,8 +241,8 @@ function genererBilanEtCE() {
     const totalCharges = cotisations + materiel + deplacements + assurances + autresCharges;
     const resultatNet = totalProduits - totalCharges;
 
-    // Mise à jour de la table du Compte d'Exploitation
-    remplir'ceProduits', totalProduits);
+    // Mise à jour de la table du Compte d'Exploitation (Correction appliquée ici)
+    remplir('ceProduits', totalProduits);
     remplir('ceHonoraires', honoraires);
     remplir('ceAutresRecettes', autresRecettes);
 
@@ -287,7 +287,7 @@ function genererDeclarations(depuisBncInput = false) {
     });
 
     const estRemplacant = document.getElementById('urssafRemplacant')?.checked;
-    const tauXUrssaf = estRemplacant ? 0.138 : 0.145; // Taux indicatif moyen
+    const tauXUrssaf = estRemplacant ? 0.138 : 0.145;
 
     remplir('declCA', totalCA);
     remplir('caT1', t1);
@@ -305,8 +305,7 @@ function genererDeclarations(depuisBncInput = false) {
     const estCarpimko = Math.max(0, bncEstim * 0.14);
     remplir('estCARPIMKO', estCarpimko);
 
-    // Comparatif Fiscal
-    // Option A: Micro-BNC
+    // Comparatif Fiscal : Micro-BNC
     const abattement = totalCA * 0.34;
     const microImposable = totalCA - abattement;
     remplir('microCA', totalCA);
@@ -342,7 +341,7 @@ function calculerCarpimkoTab() {
 
     let regimeBase = 0;
     let regimeComp = 0;
-    let prevoyance = 824; // Forfait moyen prévoyance
+    let prevoyance = 824;
     let asv = 0;
 
     if (statut === 'annee1') {
@@ -354,15 +353,14 @@ function calculerCarpimkoTab() {
         regimeComp = 1856;
         asv = 1000;
     } else {
-        // Régime de croisière
-        const pass = 46368; // Plafond Sécurité Sociale 2024/2025
+        const pass = 46368;
         regimeBase = Math.min(bnc, pass) * 0.0823 + Math.max(0, bnc - pass) * 0.0187;
         regimeComp = 1856 + (bnc * 0.03);
         asv = 1500 + (bnc * 0.0125);
     }
 
     if (isConventionne) {
-        asv = asv * 0.34; // CPAM prend en charge 66% du régime ASV
+        asv = asv * 0.34;
     }
 
     const totalCarpimko = regimeBase + regimeComp + prevoyance + asv;
@@ -451,7 +449,7 @@ function afficherJournalEtBalance() {
         Object.keys(comptesMap).forEach(code => {
             const c = comptesMap[code];
             const soldeDebit = c.debit > c.credit ? c.debit - c.credit : 0;
-            const soldeCredit = c.credit > c.debit ? c.credit - c.debit : 0;
+            const soldeCredit = c.credit > c.debit ? c.credit - c.credit : 0;
 
             balanceHTML += `
                 <tr>
