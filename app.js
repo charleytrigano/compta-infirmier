@@ -6,73 +6,33 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabaseClient = null;
 let currentTransactions = [];
-let currentDocuments = [];
 
-// Déclenchement automatique au chargement complet du DOM
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Initialisation du client via le SDK Supabase
+        // Initialisation de la connexion Supabase
         if (window.supabase) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } else {
+            throw new Error("Le SDK Supabase n'est pas chargé dans le HTML.");
         }
 
-        // Masquage de l'écran d'attente et affichage de l'application
-        const loadingEl = document.getElementById('loading');
-        const appEl = document.getElementById('app');
-        if (loadingEl) loadingEl.classList.add('hidden');
-        if (appEl) appEl.classList.remove('hidden');
-
-        // Indication du statut de connexion
+        // Mise à jour de l'indicateur d'état
         const syncStatus = document.getElementById('syncStatus');
         if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
 
-        // Vue initiale et catégories
-        showTab('profil');
-        updateCategories();
-
-        // Chargement des données distantes
+        // Lancement de la lecture des données distantes
         await chargerProfil();
         await chargerTransactions();
-        await chargerDocuments();
 
     } catch (err) {
-        console.error('Erreur lors de l\'initialisation :', err);
+        console.error('Erreur d\'initialisation Supabase :', err);
         const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion';
+        if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion Supabase';
     }
 });
 
 // ============================================================================
-// 2. GESTION DE LA NAVIGATION PAR ONGLETS
-// ============================================================================
-function showTab(tabName) {
-    // Masquer tous les panneaux d'onglets
-    const allTabs = document.querySelectorAll('[id^="tab-"]');
-    allTabs.forEach(tab => {
-        tab.style.display = 'none';
-    });
-
-    // Réinitialiser le style des boutons d'onglets
-    const buttons = document.querySelectorAll('.tab');
-    buttons.forEach(btn => btn.classList.remove('active'));
-
-    // Afficher le panneau demandé
-    const targetTab = document.getElementById(`tab-${tabName}`);
-    if (targetTab) {
-        targetTab.style.display = 'block';
-    }
-
-    // Activer visuellement le bouton cliqué
-    const activeBtn = Array.from(buttons).find(btn => 
-        btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
-    );
-    if (activeBtn) {
-        activeBtn.classList.add('active');
-    }
-}
-
-// ============================================================================
-// 3. GESTION DU PROFIL PROFESSIONNEL
+// 2. LECTURE ET ÉCRITURE DU PROFIL (SUPABASE)
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -83,7 +43,7 @@ async function chargerProfil() {
         .maybeSingle();
 
     if (error) {
-        console.warn('Impossible de charger le profil :', error.message);
+        console.error('Erreur lecture profil Supabase :', error.message);
         return;
     }
 
@@ -107,7 +67,7 @@ async function saveProfile() {
     if (!supabaseClient) return;
 
     const profilData = {
-        id: 1, // Clef primaire unique pour le profil
+        id: 1,
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || '',
@@ -130,31 +90,39 @@ async function saveProfile() {
         .upsert(profilData);
 
     if (error) {
-        alert('Erreur lors de la sauvegarde du profil : ' + error.message);
+        alert('Erreur enregistrement profil Supabase : ' + error.message);
     } else {
-        alert('✅ Profil sauvegardé avec succès !');
+        alert('✅ Profil sauvegardé sur Supabase !');
     }
 }
 
 // ============================================================================
-// 4. GESTION DES TRANSACTIONS COMPTABLES
+// 3. LECTURE ET GESTION DES TRANSACTIONS (SUPABASE)
 // ============================================================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
 
+    const container = document.getElementById('transactions');
+    if (container) {
+        container.innerHTML = '<p style="color:#666;">⏳ Chargement depuis Supabase...</p>';
+    }
+
+    // Requête SELECT sur la table transactions
     const { data, error } = await supabaseClient
         .from('transactions')
         .select('*')
         .order('date', { ascending: false });
 
     if (error) {
-        console.error('Erreur de chargement des transactions :', error.message);
+        console.error('Erreur chargement transactions Supabase :', error.message);
+        if (container) {
+            container.innerHTML = `<p style="color:red;">⚠️ Erreur de chargement Supabase : ${error.message}</p>`;
+        }
         return;
     }
 
     currentTransactions = data || [];
     afficherTransactions(currentTransactions);
-    calculerStatistiques(currentTransactions);
 }
 
 function afficherTransactions(liste) {
@@ -162,17 +130,21 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucune opération enregistrée pour le moment.</p>';
+        container.innerHTML = '<p style="color:#666; padding:1rem;">Aucune opération enregistrée dans Supabase.</p>';
         return;
     }
 
+    // Génération du rendu HTML pour chaque transaction lue depuis Supabase
     container.innerHTML = liste.map(t => `
-        <div class="transaction ${t.type}">
-            <div class="transaction-actions">
-                <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
+        <div class="transaction ${t.type}" style="padding:1rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
+                <small><strong>${t.amount} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
+                ${t.piece_jointe_url ? `<br><a href="${t.piece_jointe_url}" target="_blank" style="font-size:0.85rem; color:#0066cc;">📄 Voir la pièce jointe</a>` : ''}
             </div>
-            <strong>${t.date}</strong> - <span>${t.description || 'Sans description'}</span>
-            <div><strong>${t.amount} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></div>
+            <div>
+                <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️ Supprimer</button>
+            </div>
         </div>
     `).join('');
 }
@@ -185,171 +157,97 @@ async function addTransaction() {
     const category = document.getElementById('category')?.value;
     const description = document.getElementById('description')?.value;
     const amount = parseFloat(document.getElementById('amount')?.value);
+    const fileInput = document.getElementById('docFile');
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez renseigner une date et un montant valide.');
+        alert('Veuillez au moins renseigner la date et un montant valide.');
         return;
     }
 
+    let pieceJointeUrl = null;
+
+    // Traitement du téléversement du fichier sur Supabase Storage si sélectionné
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `justificatifs/${fileName}`;
+
+        const { error: uploadError } = await supabaseClient
+            .storage
+            .from('documents')
+            .upload(filePath, file);
+
+        if (uploadError) {
+            alert('Erreur téléversement fichier Supabase Storage : ' + uploadError.message);
+            return;
+        }
+
+        const { data: urlData } = supabaseClient
+            .storage
+            .from('documents')
+            .getPublicUrl(filePath);
+
+        pieceJointeUrl = urlData.publicUrl;
+    }
+
+    // Insertion de la transaction dans la BDD Supabase
     const { error } = await supabaseClient
         .from('transactions')
-        .insert([{ date, type, category, description, amount }]);
+        .insert([{
+            date,
+            type,
+            category,
+            description,
+            amount,
+            piece_jointe_url: pieceJointeUrl
+        }]);
 
     if (error) {
-        alert('Erreur lors de l\'ajout de l\'opération : ' + error.message);
+        alert('Erreur ajout transaction Supabase : ' + error.message);
     } else {
-        document.getElementById('description').value = '';
-        document.getElementById('amount').value = '';
+        // Réinitialisation des champs du formulaire
+        if (document.getElementById('description')) document.getElementById('description').value = '';
+        if (document.getElementById('amount')) document.getElementById('amount').value = '';
+        if (fileInput) fileInput.value = '';
+        
+        // Rechargement dynamique depuis Supabase
         await chargerTransactions();
     }
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
+    if (!supabaseClient || !confirm('Voulez-vous supprimer définitivement cette opération de Supabase ?')) return;
 
     const { error } = await supabaseClient
         .from('transactions')
         .delete()
         .eq('id', id);
 
-    if (!error) {
+    if (error) {
+        alert('Erreur suppression Supabase : ' + error.message);
+    } else {
         await chargerTransactions();
     }
 }
 
 // ============================================================================
-// 5. GESTION DES DOCUMENTS ET PIÈCES JUSTIFICATIVES (STORAGE)
-// ============================================================================
-async function uploadDocument() {
-    if (!supabaseClient) return;
-
-    const fileInput = document.getElementById('docFile');
-    const category = document.getElementById('docCategory').value;
-    const notes = document.getElementById('docNotes').value;
-
-    if (!fileInput.files || fileInput.files.length === 0) {
-        alert('Veuillez sélectionner un fichier à téléverser.');
-        return;
-    }
-
-    const file = fileInput.files[0];
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `justificatifs/${fileName}`;
-
-    // Téléversement du fichier binaire dans le bucket
-    const { error: uploadError } = await supabaseClient
-        .storage
-        .from('documents')
-        .upload(filePath, file);
-
-    if (uploadError) {
-        alert('Erreur lors de l\'envoi du fichier : ' + uploadError.message);
-        return;
-    }
-
-    // Récupération de l'accès public
-    const { data: urlData } = supabaseClient
-        .storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-    // Enregistrement des métadonnées dans la BDD
-    const { error: dbError } = await supabaseClient
-        .from('documents')
-        .insert([{
-            nom_fichier: file.name,
-            fichier_path: filePath,
-            fichier_url: urlData.publicUrl,
-            categorie: category,
-            notes: notes
-        }]);
-
-    if (dbError) {
-        alert('Erreur lors de l\'enregistrement en base : ' + dbError.message);
-    } else {
-        alert('✅ Document téléversé avec succès !');
-        fileInput.value = '';
-        document.getElementById('docNotes').value = '';
-        await chargerDocuments();
-    }
-}
-
-async function chargerDocuments() {
-    if (!supabaseClient) return;
-
-    const { data, error } = await supabaseClient
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Erreur lors de la récupération des documents :', error.message);
-        return;
-    }
-
-    currentDocuments = data || [];
-    afficherDocuments(currentDocuments);
-}
-
-function afficherDocuments(liste) {
-    const container = document.getElementById('listeDocuments');
-    if (!container) return;
-
-    if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666;">Aucun document enregistré.</p>';
-        return;
-    }
-
-    container.innerHTML = liste.map(doc => `
-        <div class="transaction">
-            <div class="transaction-actions">
-                <a href="${doc.fichier_url}" target="_blank" class="btn btn-secondary" style="text-decoration:none;">📄 Voir</a>
-                <button class="btn btn-danger" onclick="supprimerDocument('${doc.id}', '${doc.fichier_path}')">🗑️</button>
-            </div>
-            <strong>${doc.categorie}</strong> - <span>${doc.nom_fichier}</span>
-            <div><small>${doc.notes ? doc.notes : ''}</small></div>
-        </div>
-    `).join('');
-}
-
-async function supprimerDocument(id, filePath) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer ce document ?')) return;
-
-    // Suppression dans le stockage
-    await supabaseClient.storage.from('documents').remove([filePath]);
-
-    // Suppression de l'entrée en base
-    const { error } = await supabaseClient
-        .from('documents')
-        .delete()
-        .eq('id', id);
-
-    if (!error) {
-        await chargerDocuments();
-    }
-}
-
-// ============================================================================
-// 6. TRANSMISSION ET EXPORTATION POUR L'EXPERT-COMPTABLE
+// 4. TRANSMISSION COMPTABLE (EXCEL & ZIP DEPUIS SUPABASE)
 // ============================================================================
 async function exporterPackComptable() {
     if (typeof JSZip === 'undefined' || typeof XLSX === 'undefined') {
-        alert('Les bibliothèques requises (JSZip / SheetJS) ne sont pas chargées.');
+        alert('Bibliothèques d\'exportation manquantes (JSZip / XLSX).');
         return;
     }
 
-    alert('⏳ Préparation de l\'archive ZIP en cours...');
+    alert('⏳ Téléchargement des données Supabase pour l\'expert-comptable...');
 
     const zip = new JSZip();
 
-    // Création de la feuille de calcul Excel
-    const worksheetData = [
-        ['Date', 'Type', 'Catégorie', 'Description', 'Montant (€)']
-    ];
-
+    // Génération du tableau Excel
+    const worksheetData = [['Date', 'Type', 'Catégorie', 'Description', 'Montant (€)', 'URL Pièce Jointe']];
     currentTransactions.forEach(t => {
-        worksheetData.push([t.date, t.type, t.category, t.description, t.amount]);
+        worksheetData.push([t.date, t.type, t.category, t.description, t.amount, t.piece_jointe_url || '']);
     });
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
@@ -357,84 +255,13 @@ async function exporterPackComptable() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Comptabilite');
 
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    zip.file('Recapitulatif_Comptable.xlsx', excelBuffer);
+    zip.file('Comptabilite_Recapitulatif.xlsx', excelBuffer);
 
-    // Ajout des fichiers téléversés dans un sous-dossier du ZIP
-    const folderJustificatifs = zip.folder('Justificatifs');
-
-    for (let doc of currentDocuments) {
-        try {
-            const response = await fetch(doc.fichier_url);
-            const blob = await response.blob();
-            folderJustificatifs.file(doc.nom_fichier, blob);
-        } catch (e) {
-            console.warn(`Erreur lors de l'ajout du fichier ${doc.nom_fichier} au ZIP`, e);
-        }
-    }
-
-    // Téléchargement du fichier ZIP final
+    // Téléchargement compressé
     zip.generateAsync({ type: 'blob' }).then(function(content) {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(content);
         link.download = `Pack_Comptable_${new Date().toISOString().slice(0, 10)}.zip`;
         link.click();
     });
-}
-
-function preparerEmailComptable() {
-    const emailTo = document.getElementById('comptable_email')?.value || '';
-    const nom = document.getElementById('nom')?.value || 'Infirmier(e)';
-    const prenom = document.getElementById('prenom')?.value || '';
-
-    const subject = encodeURIComponent(`Comptabilité - Pièces et Bilan - ${prenom} ${nom}`);
-    const body = encodeURIComponent(
-        `Bonjour,\n\nVeuillez trouver ci-joint le récapitulatif comptable ainsi que les pièces justificatives associés.\n\nCordialement,\n${prenom} ${nom}`
-    );
-
-    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
-}
-
-// ============================================================================
-// 7. FONCTIONS UTILITAIRES (STATISTIQUES & CATÉGORIES)
-// ============================================================================
-function calculerStatistiques(liste) {
-    let recettes = 0;
-    let depenses = 0;
-
-    liste.forEach(t => {
-        if (t.type === 'recette') recettes += Number(t.amount || 0);
-        if (t.type === 'depense') depenses += Number(t.amount || 0);
-    });
-
-    const balance = recettes - depenses;
-
-    if (document.getElementById('statRecettes')) document.getElementById('statRecettes').textContent = recettes.toFixed(2) + ' €';
-    if (document.getElementById('statDepenses')) document.getElementById('statDepenses').textContent = depenses.toFixed(2) + ' €';
-    if (document.getElementById('statBalance')) document.getElementById('statBalance').textContent = balance.toFixed(2) + ' €';
-    if (document.getElementById('statNb')) document.getElementById('statNb').textContent = liste.length;
-    if (document.getElementById('soldeBanque')) document.getElementById('soldeBanque').textContent = balance.toFixed(2) + ' €';
-}
-
-function updateCategories() {
-    const type = document.getElementById('type')?.value;
-    const catSelect = document.getElementById('category');
-    if (!catSelect) return;
-
-    if (type === 'recette') {
-        catSelect.innerHTML = `
-            <option>Honoraires PAI</option>
-            <option>Honoraires Mutuelles</option>
-            <option>Honoraires Patients</option>
-            <option>Autre recette</option>
-        `;
-    } else {
-        catSelect.innerHTML = `
-            <option>Matériel médical</option>
-            <option>Loyer professionnel</option>
-            <option>Assurance Pro</option>
-            <option>Carburant / Déplacements</option>
-            <option>Cotisations URSSAF/CARPIMKO</option>
-            <option>Autre dépense</option>
-        `;
-    }
 }
