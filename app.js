@@ -7,28 +7,15 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 let supabaseClient = null;
 let currentTransactions = [];
 
-// Événement déclenché dès que la page HTML est chargée
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("1. Démarrage de l'application...");
+
     const loadingEl = document.getElementById('loading');
     const appEl = document.getElementById('app');
     const syncStatus = document.getElementById('syncStatus');
 
-    try {
-        // Initialisation du client Supabase
-        if (window.supabase) {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        } else {
-            throw new Error("Le SDK Supabase n'est pas disponible.");
-        }
-
-        // Mise à jour de l'indicateur de statut
-        if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
-
-        // Chargement des données distantes depuis Supabase
-        await chargerProfil();
-        await chargerTransactions();
-
-        // 🔓 DÉBLOCAGE DE L'INTERFACE : On masque le chargement et on affiche l'app
+    // Fonction de secours pour forcer l'affichage de l'interface
+    function forcerAffichage() {
         if (loadingEl) {
             loadingEl.style.display = 'none';
             loadingEl.classList.add('hidden');
@@ -37,18 +24,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             appEl.style.display = 'block';
             appEl.classList.remove('hidden');
         }
+    }
 
-        // Affichage de l'onglet principal et initialisation des catégories
+    try {
+        // 🔓 DÉBLOCAGE IMMÉDIAT DE L'ÉCRAN
+        forcerAffichage();
+        console.log("2. Écran de chargement masqué.");
+
+        // Initialisation de Supabase
+        if (window.supabase) {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            if (syncStatus) syncStatus.textContent = '☁️ Connecté à Supabase';
+            console.log("3. Client Supabase initialisé.");
+        } else {
+            console.error("SDK Supabase non détecté dans le fichier HTML.");
+            if (syncStatus) syncStatus.textContent = '⚠️ SDK Supabase absent';
+        }
+
+        // Affichage de l'onglet par défaut
         showTab('transactions');
         updateCategories();
 
+        // Chargement des données en arrière-plan
+        console.log("4. Lancement du chargement des données...");
+        await chargerProfil();
+        await chargerTransactions();
+
     } catch (err) {
-        console.error('Erreur lors du démarrage :', err);
-        
-        // En cas d'erreur, on débloque aussi l'écran pour afficher le problème à l'utilisateur
-        if (loadingEl) loadingEl.style.display = 'none';
-        if (appEl) appEl.style.display = 'block';
-        if (syncStatus) syncStatus.textContent = '⚠️ Erreur de connexion Supabase';
+        console.error('Erreur critique lors de l\'initialisation :', err);
+        forcerAffichage(); // Sécurité garantie
+        if (syncStatus) syncStatus.textContent = '⚠️ Erreur d\'initialisation';
     }
 });
 
@@ -56,23 +61,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 2. GESTION DE LA NAVIGATION PAR ONGLETS
 // ============================================================================
 function showTab(tabName) {
-    // 1. Masquer tous les conteneurs d'onglets
     const allTabs = document.querySelectorAll('[id^="tab-"]');
     allTabs.forEach(tab => {
         tab.style.display = 'none';
     });
 
-    // 2. Retirer la classe "active" de tous les boutons
     const buttons = document.querySelectorAll('.tab');
     buttons.forEach(btn => btn.classList.remove('active'));
 
-    // 3. Afficher l'onglet sélectionné
     const targetTab = document.getElementById(`tab-${tabName}`);
     if (targetTab) {
         targetTab.style.display = 'block';
     }
 
-    // 4. Mettre en surbrillance le bouton cliqué
     const activeBtn = Array.from(buttons).find(btn => 
         btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)
     );
@@ -82,34 +83,38 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 3. PROFIL PROFESSIONNEL (CHARGEMENT ET SAUVEGARDE)
+// 3. PROFIL PROFESSIONNEL
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
 
-    const { data, error } = await supabaseClient
-        .from('profil')
-        .select('*')
-        .maybeSingle();
+    try {
+        const { data, error } = await supabaseClient
+            .from('profil')
+            .select('*')
+            .maybeSingle();
 
-    if (error) {
-        console.error('Erreur de lecture du profil Supabase :', error.message);
-        return;
-    }
+        if (error) {
+            console.warn('Information profil :', error.message);
+            return;
+        }
 
-    if (data) {
-        const fields = [
-            'nom', 'prenom', 'siret', 'rpps', 'adeli', 'num_urssaf',
-            'adresse', 'code_postal', 'ville', 'telephone', 'email',
-            'comptable_cabinet', 'comptable_adresse', 'comptable_tel', 'comptable_email'
-        ];
+        if (data) {
+            const fields = [
+                'nom', 'prenom', 'siret', 'rpps', 'adeli', 'num_urssaf',
+                'adresse', 'code_postal', 'ville', 'telephone', 'email',
+                'comptable_cabinet', 'comptable_adresse', 'comptable_tel', 'comptable_email'
+            ];
 
-        fields.forEach(field => {
-            const el = document.getElementById(field);
-            if (el && data[field] !== undefined) {
-                el.value = data[field];
-            }
-        });
+            fields.forEach(field => {
+                const el = document.getElementById(field);
+                if (el && data[field] !== undefined) {
+                    el.value = data[field];
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Erreur chargerProfil :", e);
     }
 }
 
@@ -135,43 +140,45 @@ async function saveProfile() {
         comptable_email: document.getElementById('comptable_email')?.value || ''
     };
 
-    const { error } = await supabaseClient
-        .from('profil')
-        .upsert(profilData);
+    const { error } = await supabaseClient.from('profil').upsert(profilData);
 
     if (error) {
-        alert('Erreur lors de la sauvegarde sur Supabase : ' + error.message);
+        alert('Erreur lors de la sauvegarde : ' + error.message);
     } else {
-        alert('✅ Profil enregistré sur Supabase avec succès !');
+        alert('✅ Profil enregistré avec succès !');
     }
 }
 
 // ============================================================================
-// 4. TRANSACTIONS (CHARGEMENT, AFFICHAGE, AJOUT, SUPPRESSION)
+// 4. TRANSACTIONS COMPTABLES
 // ============================================================================
 async function chargerTransactions() {
     if (!supabaseClient) return;
 
     const container = document.getElementById('transactions');
     if (container) {
-        container.innerHTML = '<p style="color:#666; padding:1rem;">⏳ Chargement des données Supabase...</p>';
+        container.innerHTML = '<p style="color:#666; padding:1rem;">⏳ Chargement des opérations...</p>';
     }
 
-    const { data, error } = await supabaseClient
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
+    try {
+        const { data, error } = await supabaseClient
+            .from('transactions')
+            .select('*')
+            .order('date', { ascending: false });
 
-    if (error) {
-        console.error('Erreur de chargement des transactions :', error.message);
-        if (container) {
-            container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur Supabase : ${error.message}</p>`;
+        if (error) {
+            console.error('Erreur chargerTransactions :', error.message);
+            if (container) {
+                container.innerHTML = `<p style="color:#cc0000; padding:1rem;">⚠️ Erreur de lecture : ${error.message}</p>`;
+            }
+            return;
         }
-        return;
-    }
 
-    currentTransactions = data || [];
-    afficherTransactions(currentTransactions);
+        currentTransactions = data || [];
+        afficherTransactions(currentTransactions);
+    } catch (e) {
+        console.error("Exception chargerTransactions :", e);
+    }
 }
 
 function afficherTransactions(liste) {
@@ -179,7 +186,7 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#666; padding:1rem;">Aucune opération enregistrée pour le moment dans Supabase.</p>';
+        container.innerHTML = '<p style="color:#666; padding:1rem;">Aucune opération enregistrée dans Supabase.</p>';
         return;
     }
 
@@ -208,13 +215,12 @@ async function addTransaction() {
     const fileInput = document.getElementById('docFile');
 
     if (!date || isNaN(amount)) {
-        alert('Veuillez renseigner au moins une date et un montant valide.');
+        alert('Veuillez renseigner une date et un montant valide.');
         return;
     }
 
     let pieceJointeUrl = null;
 
-    // Gestion du fichier joint si présent
     if (fileInput && fileInput.files && fileInput.files.length > 0) {
         const file = fileInput.files[0];
         const fileExt = file.name.split('.').pop();
@@ -227,7 +233,7 @@ async function addTransaction() {
             .upload(filePath, file);
 
         if (uploadError) {
-            alert('Erreur lors de l\'envoi de la pièce jointe : ' + uploadError.message);
+            alert('Erreur lors de l\'envoi du fichier : ' + uploadError.message);
             return;
         }
 
@@ -239,7 +245,6 @@ async function addTransaction() {
         pieceJointeUrl = urlData.publicUrl;
     }
 
-    // Enregistrement dans la table transactions
     const { error } = await supabaseClient
         .from('transactions')
         .insert([{
@@ -252,9 +257,8 @@ async function addTransaction() {
         }]);
 
     if (error) {
-        alert('Erreur lors de l\'ajout dans Supabase : ' + error.message);
+        alert('Erreur lors de l\'enregistrement : ' + error.message);
     } else {
-        // Réinitialisation des champs du formulaire
         if (document.getElementById('description')) document.getElementById('description').value = '';
         if (document.getElementById('amount')) document.getElementById('amount').value = '';
         if (fileInput) fileInput.value = '';
@@ -264,7 +268,7 @@ async function addTransaction() {
 }
 
 async function supprimerTransaction(id) {
-    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération de Supabase ?')) return;
+    if (!supabaseClient || !confirm('Voulez-vous supprimer cette opération ?')) return;
 
     const { error } = await supabaseClient
         .from('transactions')
@@ -273,8 +277,6 @@ async function supprimerTransaction(id) {
 
     if (!error) {
         await chargerTransactions();
-    } else {
-        alert('Erreur de suppression : ' + error.message);
     }
 }
 
