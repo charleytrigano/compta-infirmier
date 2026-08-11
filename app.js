@@ -6,9 +6,10 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabaseClient = null;
 let currentTransactions = [];
+let currentProfileId = null; // Stocke l'UUID du profil chargé depuis Supabase
 
 // ============================================================================
-// 2. FONCTIONS UTILITAIRES (Déclarées en premier pour éviter "is not defined")
+// 2. FONCTIONS UTILITAIRES (Déclarées en premier)
 // ============================================================================
 
 /**
@@ -16,7 +17,7 @@ let currentTransactions = [];
  */
 function remplir(id, valeur) {
     const el = document.getElementById(id);
-    if (!el) return; // Sécurité : si l'élément n'existe pas dans le HTML, on évite l'erreur
+    if (!el) return; // Sécurité : évite les erreurs si l'élément HTML n'existe pas
 
     const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
     
@@ -28,7 +29,7 @@ function remplir(id, valeur) {
 }
 
 /**
- * Met à jour dynamiquement la liste des catégories selon le type sélectionné
+ * Met à jour dynamiquement la liste des catégories selon le type d'opération
  */
 function updateCategories() {
     const typeSelect = document.getElementById('type');
@@ -56,7 +57,7 @@ function updateCategories() {
 }
 
 // ============================================================================
-// 3. INITIALISATION AU CHARGEMENT DE LA PAGE
+// 3. INITIALISATION ET CHARGEMENT DE L'APPLICATION
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 Initialisation de l'application Compta...");
@@ -86,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateCategories();
         showTab('profil');
 
-        // Chargement des données
+        // Chargement initial des données
         await chargerProfil();
         await chargerTransactions();
 
@@ -97,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ============================================================================
-// 4. GESTION NAVIGATION ET ONGLETS
+// 4. NAVIGATION PAR ONGLETS
 // ============================================================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('[id^="tab-"]');
@@ -118,16 +119,20 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 5. GESTION DU PROFIL
+// 5. GESTION DU PROFIL (Liaison avec la table 'profile')
 // ============================================================================
+
+/**
+ * Lit la première ligne de la table 'profile' sur Supabase et remplit les inputs HTML
+ */
 async function chargerProfil() {
     if (!supabaseClient) return;
 
     try {
-        console.log("📥 Chargement des informations du profil...");
+        console.log("📥 Chargement des informations du profil depuis la table 'profile'...");
 
         const { data, error } = await supabaseClient
-            .from('profil')
+            .from('profile')
             .select('*')
             .limit(1);
 
@@ -138,6 +143,9 @@ async function chargerProfil() {
 
         if (data && data.length > 0) {
             const profil = data[0];
+            currentProfileId = profil.id; // Sauvegarde de l'UUID (ex: 7a41e91b-...)
+            console.log("✅ Profil chargé :", profil);
+
             const champs = ['nom', 'prenom', 'siret', 'rpps', 'email'];
             champs.forEach(idChamp => {
                 const inputEl = document.getElementById(idChamp);
@@ -145,12 +153,17 @@ async function chargerProfil() {
                     inputEl.value = profil[idChamp];
                 }
             });
+        } else {
+            console.log("ℹ️ Aucun profil n'est encore enregistré dans la table 'profile'.");
         }
     } catch (e) {
         console.error("⚠️ Erreur inattendue dans chargerProfil :", e);
     }
 }
 
+/**
+ * Enregistre ou met à jour les données du profil dans Supabase
+ */
 async function saveProfile() {
     if (!supabaseClient) {
         alert("⚠️ Connexion à Supabase non disponible.");
@@ -158,7 +171,6 @@ async function saveProfile() {
     }
 
     const profilData = {
-        id: 1,
         nom: document.getElementById('nom')?.value || '',
         prenom: document.getElementById('prenom')?.value || '',
         siret: document.getElementById('siret')?.value || '',
@@ -166,19 +178,29 @@ async function saveProfile() {
         email: document.getElementById('email')?.value || ''
     };
 
+    // Si le profil existe déjà, on inclut son UUID pour effectuer la mise à jour
+    if (currentProfileId) {
+        profilData.id = currentProfileId;
+    }
+
+    console.log("📤 Envoi des données vers Supabase :", profilData);
+
     try {
         const { error } = await supabaseClient
-            .from('profil')
+            .from('profile')
             .upsert([profilData]);
 
         if (error) {
-            alert("⚠️ Erreur Supabase :\n" + error.message);
+            console.error("❌ Erreur lors de l'enregistrement :", error);
+            alert("⚠️ Impossible d'enregistrer le profil :\n" + error.message);
         } else {
-            alert("✅ Profil enregistré avec succès !");
+            console.log("✅ Profil enregistré avec succès !");
+            alert("✅ Votre profil a été enregistré avec succès !");
             await chargerProfil();
         }
     } catch (err) {
-        alert("⚠️ Erreur lors de l'enregistrement.");
+        console.error("⚠️ Erreur réseau :", err);
+        alert("⚠️ Erreur de communication lors de la sauvegarde.");
     }
 }
 
@@ -305,7 +327,7 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 7. CALCULS COMPTABLES & RAPPORTS
+// 7. CALCULS COMPTABLES ET COMPTE D'EXPLOITATION
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
