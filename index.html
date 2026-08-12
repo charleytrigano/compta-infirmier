@@ -1,45 +1,443 @@
-<!-- ONGLET PLAN COMPTABLE -->
-<div id="tab-plan-comptable" class="tab-content">
-    
-    <!-- Formulaire d'ajout -->
-    <form id="pc-form" class="card">
-        <h3>Ajouter un compte au Plan Comptable</h3>
-        <div class="form-grid">
-            <div>
-                <label>Numéro de compte *</label>
-                <input type="text" id="pc-code" placeholder="Ex: 606100" required>
-            </div>
-            <div>
-                <label>Libellé du compte *</label>
-                <input type="text" id="pc-label" placeholder="Ex: Électricité" required>
-            </div>
-            <div>
-                <label>Type</label>
-                <select id="pc-type">
-                    <option value="Recette (Classe 7)">Recette (Classe 7)</option>
-                    <option value="Charge (Classe 6)">Charge (Classe 6)</option>
-                </select>
-            </div>
-            <button type="submit" class="btn btn-primary">+ Ajouter Compte</button>
-        </div>
-    </form>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comptabilité Libérale</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
 
-    <!-- Tableau d'affichage -->
-    <div class="card">
-        <h3>Plan Comptable Général BNC</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Code Compte</th>
-                    <th>Libellé</th>
-                    <th>Type</th>
-                </tr>
-            </thead>
-            <!-- ATTENTION : Cet ID est obligatoire pour afficher les données -->
-            <tbody id="pc-list">
-                <!-- Les lignes s'afficheront ici grâce à JavaScript -->
-            </tbody>
-        </table>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #fef08a;
+            color: #854d0e;
+        }
+
+        /* Navigation par onglets */
+        .tabs-nav {
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active, .tab-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Contenu des onglets */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cartes et formulaires */
+        .card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .card h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            align-items: end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            width: 100%;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Tableaux */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo">
+            🩺 <span>Comptabilité Libérale</span>
+        </div>
+        <div id="connection-status" class="status-badge">Connexion en cours...</div>
     </div>
 
-</div>
+    <!-- Barre d'onglets -->
+    <div class="tabs-nav">
+        <button class="tab-btn active" onclick="switchTab('transactions', this)">📄 Transactions</button>
+        <button class="tab-btn" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
+        <button class="tab-btn" onclick="switchTab('urssaf', this)">🏛️ URSSAF</button>
+        <button class="tab-btn" onclick="switchTab('carpimko', this)">🏛️ CARPIMKO</button>
+        <button class="tab-btn" onclick="switchTab('bilan', this)">📊 Bilan / CE</button>
+        <button class="tab-btn" onclick="switchTab('declarations', this)">🧮 2035</button>
+        <button class="tab-btn" onclick="switchTab('journal', this)">📖 Journal</button>
+        <button class="tab-btn" onclick="switchTab('grand-livre', this)">📖 Grand Livre</button>
+        <button class="tab-btn" onclick="switchTab('profil', this)">👤 Profil</button>
+    </div>
+
+    <!-- ONGLET 1 : TRANSACTIONS -->
+    <div id="tab-transactions" class="tab-content active">
+        <form id="transaction-form" class="card">
+            <h3>Ajouter une opération</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input type="date" id="tx-date" required>
+                </div>
+                <div class="form-group">
+                    <label>Type *</label>
+                    <select id="tx-type" required>
+                        <option value="Recette">Recette</option>
+                        <option value="Dépense">Dépense</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Catégorie *</label>
+                    <select id="tx-category" required>
+                        <option value="Soins infirmiers / Honoraires">Soins infirmiers / Honoraires</option>
+                        <option value="Achats / Fournitures médicales">Achats / Fournitures médicales</option>
+                        <option value="Cotisations URSSAF">Cotisations URSSAF</option>
+                        <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
+                        <option value="Autre dépense">Autre dépense</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Description *</label>
+                    <input type="text" id="tx-description" placeholder="Ex: Patient X, Matériel..." required>
+                </div>
+                <div class="form-group">
+                    <label>Montant (€) *</label>
+                    <input type="number" step="0.01" id="tx-amount" placeholder="0.00" required>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">+ Enregistrer l'écriture</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="card">
+            <h3>Historique des transactions</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Catégorie</th>
+                        <th>Description</th>
+                        <th>Montant</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="transactions-list">
+                    <tr><td colspan="6" class="text-center">Chargement des opérations...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 2 : PLAN COMPTABLE -->
+    <div id="tab-plan-comptable" class="tab-content">
+        <form id="pc-form" class="card">
+            <h3>Ajouter un compte au Plan Comptable</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Numéro de compte *</label>
+                    <input type="text" id="pc-code" placeholder="Ex: 606100" required>
+                </div>
+                <div class="form-group">
+                    <label>Libellé du compte *</label>
+                    <input type="text" id="pc-label" placeholder="Ex: Électricité" required>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="pc-type">
+                        <option value="Recette (Classe 7)">Recette (Classe 7)</option>
+                        <option value="Charge (Classe 6)">Charge (Classe 6)</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">+ Ajouter Compte</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="card">
+            <h3>Plan Comptable Général BNC</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code Compte</th>
+                        <th>Libellé</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody id="pc-list">
+                    <tr><td colspan="3" class="text-center">Chargement du plan comptable...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 3 : URSSAF -->
+    <div id="tab-urssaf" class="tab-content">
+        <div class="card">
+            <h3>Simulateur de Cotisations URSSAF</h3>
+            <div class="form-grid" style="margin-bottom: 20px;">
+                <div class="form-group">
+                    <label>Revenu Net Estimé (€)</label>
+                    <input type="number" id="urssaf-income" placeholder="Ex: 40000">
+                </div>
+                <div>
+                    <button type="button" id="btn-calc-urssaf" class="btn btn-primary">Calculer URSSAF</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>Cotisation</th><th>Taux / Base</th><th>Montant Estimé</th></tr>
+                </thead>
+                <tbody id="urssaf-results">
+                    <tr><td colspan="3" class="text-center">Saisissez un revenu et cliquez sur Calculer.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 4 : CARPIMKO -->
+    <div id="tab-carpimko" class="tab-content">
+        <div class="card">
+            <h3>Simulateur de Cotisations CARPIMKO</h3>
+            <div class="form-grid" style="margin-bottom: 20px;">
+                <div class="form-group">
+                    <label>Bénéfice Net Estimé (€)</label>
+                    <input type="number" id="carpimko-income" placeholder="Ex: 40000">
+                </div>
+                <div>
+                    <button type="button" id="btn-calc-carpimko" class="btn btn-primary">Calculer CARPIMKO</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>Régime</th><th>Type</th><th>Montant Estimé</th></tr>
+                </thead>
+                <tbody id="carpimko-results">
+                    <tr><td colspan="3" class="text-center">Saisissez un bénéfice et cliquez sur Calculer.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 5 : BILAN -->
+    <div id="tab-bilan" class="tab-content">
+        <div class="card">
+            <h3>Compte de Résultat Simplifié</h3>
+            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                <div><strong>Total Recettes :</strong> <span id="bilan-total-recettes">0.00 €</span></div>
+                <div><strong>Total Dépenses :</strong> <span id="bilan-total-depenses">0.00 €</span></div>
+                <div><strong>Résultat :</strong> <span id="bilan-resultat" style="font-weight: bold;">0.00 €</span></div>
+            </div>
+            <h4>Répartition des Dépenses par Catégorie</h4>
+            <table>
+                <thead><tr><th>Catégorie</th><th>Montant Total</th><th>% Dépenses</th></tr></thead>
+                <tbody id="bilan-categories-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 6 : 2035 -->
+    <div id="tab-declarations" class="tab-content">
+        <div class="card">
+            <h3>Préparation Déclaration 2035</h3>
+            <table>
+                <thead><tr><th>Ligne 2035</th><th>Libellé</th><th>Montant</th></tr></thead>
+                <tbody id="2035-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 7 : JOURNAL -->
+    <div id="tab-journal" class="tab-content">
+        <div class="card">
+            <h3>Journal Général</h3>
+            <table>
+                <thead><tr><th>Date</th><th>Libellé</th><th>Compte</th><th>Débit (€)</th><th>Crédit (€)</th></tr></thead>
+                <tbody id="journal-list"></tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h3>Balance des Comptes</h3>
+            <table>
+                <thead><tr><th>Compte</th><th>Libellé</th><th>Total Débit</th><th>Total Crédit</th><th>Solde</th></tr></thead>
+                <tbody id="balance-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 8 : GRAND LIVRE -->
+    <div id="tab-grand-livre" class="tab-content">
+        <div class="card">
+            <h3>Grand Livre des Comptes</h3>
+            <div id="grand-livre-content"></div>
+        </div>
+    </div>
+
+    <!-- ONGLET 9 : PROFIL -->
+    <div id="tab-profil" class="tab-content">
+        <div class="card">
+            <h3>Informations du Praticien</h3>
+            <form id="profil-form" class="form-grid">
+                <div class="form-group">
+                    <label>Nom & Prénom</label>
+                    <input type="text" placeholder="Infirmier(ère) Libéral(e)">
+                </div>
+                <div class="form-group">
+                    <label>Numéro ADELI / RPPS</label>
+                    <input type="text" placeholder="10000000000">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">Enregistrer Profil</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
