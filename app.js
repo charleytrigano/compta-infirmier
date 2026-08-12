@@ -1,13 +1,13 @@
 // ==========================================
-// CONFIGURATION SUPABASE OFFICIELLE
+// 1. DÉCLARATION DES VARIABLES GLOBALES (En premier !)
 // ==========================================
-const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5tajirgilIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
+var SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5tajirgilIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
-let supabaseClient = null;
-let allTransactions = [];
+var supabaseClient = null;
+var allTransactions = [];
 
-const defaultPlanComptable = [
+var defaultPlanComptable = [
     { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
     { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge (Classe 6)" },
     { code: "645100", label: "Cotisations URSSAF", type: "Charge (Classe 6)" },
@@ -16,54 +16,58 @@ const defaultPlanComptable = [
 ];
 
 // ==========================================
-// INITIALISATION DE L'APPLICATION
+// 2. INITIALISATION AU CHARGEMENT DU DOM
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Vérification de la présence de la librairie Supabase
-    if (typeof supabase !== 'undefined') {
-        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+document.addEventListener('DOMContentLoaded', function() {
+    initApp();
+});
+
+function initApp() {
+    // Vérification de la présence du CDN Supabase
+    if (typeof window.supabase !== 'undefined') {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     } else {
-        console.error("La bibliothèque Supabase n'est pas chargée.");
-        const statusElement = document.getElementById('connection-status');
+        console.error("Supabase CDN non chargé.");
+        var statusElement = document.getElementById('connection-status');
         if (statusElement) {
-            statusElement.textContent = "Erreur : Librairie Supabase absente";
+            statusElement.textContent = "Erreur : CDN Supabase non chargé";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
         return;
     }
 
-    // Initialise la date d'aujourd'hui dans le formulaire
-    const dateInput = document.getElementById('tx-date');
+    // Configurer la date d'aujourd'hui
+    var dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
 
-    // Écouteurs de formulaires
-    const txForm = document.getElementById('transaction-form');
+    // Attacher les formulaires
+    var txForm = document.getElementById('transaction-form');
     if (txForm) txForm.addEventListener('submit', handleAddTransaction);
 
-    const pcForm = document.getElementById('pc-form');
+    var pcForm = document.getElementById('pc-form');
     if (pcForm) pcForm.addEventListener('submit', handleAddPlanComptable);
 
-    // Chargement initial des données depuis Supabase
+    // Charger les données
     loadTransactions();
     loadPlanComptable();
-});
+}
 
 // ==========================================
-// GESTION DES TRANSACTIONS
+// 3. FONCTIONS TRANSACTIONS
 // ==========================================
 async function loadTransactions() {
     if (!supabaseClient) return;
 
-    const statusElement = document.getElementById('connection-status');
+    var statusElement = document.getElementById('connection-status');
 
     try {
-        const { data: transactions, error } = await supabaseClient
+        var response = await supabaseClient
             .from('transactions')
             .select('*')
             .order('date', { ascending: false });
 
-        if (error) throw error;
+        if (response.error) throw response.error;
 
         if (statusElement) {
             statusElement.textContent = "Connecté à Supabase";
@@ -71,26 +75,26 @@ async function loadTransactions() {
             statusElement.style.color = "#166534";
         }
 
-        allTransactions = transactions || [];
+        allTransactions = response.data || [];
         renderTransactionsTable(allTransactions);
 
     } catch (err) {
-        console.error("Erreur lors du chargement des transactions :", err.message);
+        console.error("Erreur Supabase :", err.message);
         if (statusElement) {
-            statusElement.textContent = "Erreur Supabase";
+            statusElement.textContent = "Erreur Supabase (" + err.message + ")";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
         
-        const tbody = document.getElementById('transactions-list');
+        var tbody = document.getElementById('transactions-list');
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color:red;">Erreur de chargement : ${err.message}</td></tr>`;
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:red;">Erreur de chargement : ' + err.message + '</td></tr>';
         }
     }
 }
 
 function renderTransactionsTable(transactions) {
-    const tbody = document.getElementById('transactions-list');
+    var tbody = document.getElementById('transactions-list');
     if (!tbody) return;
 
     if (transactions.length === 0) {
@@ -98,19 +102,17 @@ function renderTransactionsTable(transactions) {
         return;
     }
 
-    let html = '';
-    transactions.forEach(tx => {
-        const color = tx.type === 'Recette' ? '#10b981' : '#ef4444';
-        html += `
-            <tr>
-                <td>${tx.date || ''}</td>
-                <td><strong>${tx.type || ''}</strong></td>
-                <td>${tx.category || ''}</td>
-                <td>${tx.description || ''}</td>
-                <td style="color: ${color}; font-weight: bold;">${(parseFloat(tx.amount) || 0).toFixed(2)} €</td>
-                <td><button onclick="deleteTransaction('${tx.id}')" class="btn btn-danger">Supprimer</button></td>
-            </tr>
-        `;
+    var html = '';
+    transactions.forEach(function(tx) {
+        var color = tx.type === 'Recette' ? '#10b981' : '#ef4444';
+        html += '<tr>' +
+            '<td>' + (tx.date || '') + '</td>' +
+            '<td><strong>' + (tx.type || '') + '</strong></td>' +
+            '<td>' + (tx.category || '') + '</td>' +
+            '<td>' + (tx.description || '') + '</td>' +
+            '<td style="color: ' + color + '; font-weight: bold;">' + (parseFloat(tx.amount) || 0).toFixed(2) + ' €</td>' +
+            '<td><button onclick="deleteTransaction(\'' + tx.id + '\')" class="btn btn-danger">Supprimer</button></td>' +
+            '</tr>';
     });
     tbody.innerHTML = html;
 }
@@ -119,24 +121,18 @@ async function handleAddTransaction(event) {
     event.preventDefault();
     if (!supabaseClient) return;
 
-    const date = document.getElementById('tx-date').value;
-    const type = document.getElementById('tx-type').value;
-    const category = document.getElementById('tx-category').value;
-    const description = document.getElementById('tx-description').value;
-    const amountVal = parseFloat(document.getElementById('tx-amount').value);
-
-    const newTransaction = {
-        date: date,
-        type: type,
-        category: category,
-        description: description,
-        amount: amountVal
+    var newTransaction = {
+        date: document.getElementById('tx-date').value,
+        type: document.getElementById('tx-type').value,
+        category: document.getElementById('tx-category').value,
+        description: document.getElementById('tx-description').value,
+        amount: parseFloat(document.getElementById('tx-amount').value)
     };
 
-    const { error } = await supabaseClient.from('transactions').insert([newTransaction]);
+    var res = await supabaseClient.from('transactions').insert([newTransaction]);
 
-    if (error) {
-        alert("Erreur lors de l'enregistrement dans Supabase : " + error.message);
+    if (res.error) {
+        alert("Erreur Supabase : " + res.error.message);
     } else {
         document.getElementById('transaction-form').reset();
         document.getElementById('tx-date').valueAsDate = new Date();
@@ -146,33 +142,36 @@ async function handleAddTransaction(event) {
 
 async function deleteTransaction(id) {
     if (!supabaseClient) return;
-    if (!confirm("Voulez-vous vraiment supprimer cette transaction de Supabase ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
 
-    const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
+    var res = await supabaseClient.from('transactions').delete().eq('id', id);
 
-    if (error) {
-        alert("Erreur lors de la suppression : " + error.message);
+    if (res.error) {
+        alert("Erreur lors de la suppression : " + res.error.message);
     } else {
         loadTransactions();
     }
 }
 
 // ==========================================
-// GESTION DU PLAN COMPTABLE
+// 4. FONCTIONS PLAN COMPTABLE
 // ==========================================
 async function loadPlanComptable() {
-    if (!supabaseClient) return;
+    if (!supabaseClient) {
+        renderPlanComptableTable(defaultPlanComptable);
+        return;
+    }
 
     try {
-        const { data: planComptable, error } = await supabaseClient
+        var res = await supabaseClient
             .from('plan_comptable')
             .select('*')
             .order('code', { ascending: true });
 
-        if (error || !planComptable || planComptable.length === 0) {
+        if (res.error || !res.data || res.data.length === 0) {
             renderPlanComptableTable(defaultPlanComptable);
         } else {
-            renderPlanComptableTable([...defaultPlanComptable, ...planComptable]);
+            renderPlanComptableTable(defaultPlanComptable.concat(res.data));
         }
     } catch (err) {
         renderPlanComptableTable(defaultPlanComptable);
@@ -180,18 +179,16 @@ async function loadPlanComptable() {
 }
 
 function renderPlanComptableTable(accounts) {
-    const tbody = document.getElementById('pc-list');
+    var tbody = document.getElementById('pc-list');
     if (!tbody) return;
 
-    let html = '';
-    accounts.forEach(acc => {
-        html += `
-            <tr>
-                <td><strong>${acc.code}</strong></td>
-                <td>${acc.label || acc.libelle}</td>
-                <td>${acc.type}</td>
-            </tr>
-        `;
+    var html = '';
+    accounts.forEach(function(acc) {
+        html += '<tr>' +
+            '<td><strong>' + acc.code + '</strong></td>' +
+            '<td>' + (acc.label || acc.libelle || '') + '</td>' +
+            '<td>' + acc.type + '</td>' +
+            '</tr>';
     });
     tbody.innerHTML = html;
 }
@@ -200,16 +197,16 @@ async function handleAddPlanComptable(event) {
     event.preventDefault();
     if (!supabaseClient) return;
 
-    const code = document.getElementById('pc-code').value.trim();
-    const label = document.getElementById('pc-label').value.trim();
-    const type = document.getElementById('pc-type').value;
+    var newAccount = {
+        code: document.getElementById('pc-code').value.trim(),
+        label: document.getElementById('pc-label').value.trim(),
+        type: document.getElementById('pc-type').value
+    };
 
-    const newAccount = { code, label, type };
+    var res = await supabaseClient.from('plan_comptable').insert([newAccount]);
 
-    const { error } = await supabaseClient.from('plan_comptable').insert([newAccount]);
-
-    if (error) {
-        alert("Erreur lors de l'ajout du compte dans Supabase : " + error.message);
+    if (res.error) {
+        alert("Erreur : " + res.error.message);
     } else {
         document.getElementById('pc-form').reset();
         loadPlanComptable();
@@ -217,13 +214,20 @@ async function handleAddPlanComptable(event) {
 }
 
 // ==========================================
-// NAVIGATION PAR ONGLETS
+// 5. NAVIGATION PAR ONGLETS
 // ==========================================
 function switchTab(tabId, element) {
-    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    var tabs = document.querySelectorAll('.tab-content');
+    for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.remove('active');
+    }
 
-    const selectedTab = document.getElementById(`tab-${tabId}`);
+    var btns = document.querySelectorAll('.tab-btn');
+    for (var j = 0; j < btns.length; j++) {
+        btns[j].classList.remove('active');
+    }
+
+    var selectedTab = document.getElementById('tab-' + tabId);
     if (selectedTab) selectedTab.classList.add('active');
     if (element) element.classList.add('active');
 
