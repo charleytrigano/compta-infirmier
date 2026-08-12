@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
-    <!-- Chargement du SDK Supabase -->
+    <!-- SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -15,7 +15,7 @@
             color: #333;
         }
         .container {
-            max-width: 900px;
+            max-width: 950px;
             margin: 0 auto;
             background: #ffffff;
             padding: 25px;
@@ -42,13 +42,14 @@
             border-radius: 6px;
             font-size: 14px;
         }
-        input, select { flex: 1; min-width: 150px; }
+        input, select { flex: 1; min-width: 160px; }
         button {
             background-color: #2563eb;
             color: white;
             border: none;
             cursor: pointer;
             font-weight: bold;
+            border-radius: 6px;
         }
         button:hover { background-color: #1d4ed8; }
         table {
@@ -62,6 +63,17 @@
             border-bottom: 1px solid #e2e8f0;
         }
         th { background-color: #f1f5f9; }
+        .btn-delete {
+            background-color: #ef4444;
+            padding: 6px 12px;
+        }
+        .btn-delete:hover { background-color: #dc2626; }
+        .hint {
+            display: block;
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -97,7 +109,7 @@
             </thead>
             <tbody id="tbodyPlanComptable">
                 <tr>
-                    <td colspan="4" style="text-align: center; color: #888;">Chargement du plan comptable...</td>
+                    <td colspan="4" style="text-align: center; color: #888;">Chargement...</td>
                 </tr>
             </tbody>
         </table>
@@ -105,30 +117,43 @@
 
     <!-- SECTION 2 : SAISIE DE TRANSACTION ET SCAN -->
     <div class="section">
-        <h2>Nouvelle Transaction & Scan</h2>
+        <h2>Nouvelle Transaction & Scan de Justificatif</h2>
         <form id="formTransaction" onsubmit="enregistrerTransaction(event)">
             <div class="form-row">
-                <input type="date" id="txDate" required>
-                <input type="text" id="txLibelle" placeholder="Description de la dépense" required>
-                <input type="number" step="0.01" id="txMontant" placeholder="Montant (€)" required>
+                <div style="flex: 1;">
+                    <label>Date :</label>
+                    <input type="date" id="txDate" required style="width: 100%;">
+                </div>
+                <div style="flex: 2;">
+                    <label>Libellé / Description :</label>
+                    <input type="text" id="txLibelle" placeholder="Ex: Achat fournitures" required style="width: 100%;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Montant (€) :</label>
+                    <input type="number" step="0.01" id="txMontant" placeholder="0.00" required style="width: 100%;">
+                </div>
             </div>
             
             <div class="form-row">
-                <select id="txCompte" required>
-                    <option value="606300">606300 - Achats petit matériel</option>
-                    <option value="613200">613200 - Loyer professionnel</option>
-                    <option value="625100">625100 - Frais de déplacements</option>
-                    <option value="706000">706000 - Honoraires</option>
-                </select>
-                <input type="file" id="txFile" accept="image/*,application/pdf" capture="environment">
+                <div style="flex: 1;">
+                    <label>Compte Comptable :</label>
+                    <select id="txCompte" required style="width: 100%;">
+                        <option value="">Chargement des comptes...</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label>Scan / Justificatif :</label>
+                    <input type="file" id="txFile" accept="image/*,application/pdf" capture="environment" style="width: 100%;">
+                    <span class="hint">Sur mobile, ouvre la caméra pour scanner.</span>
+                </div>
             </div>
 
-            <button type="submit" style="width: 100%;">Enregistrer avec Justificatif</button>
+            <button type="submit" id="btnSubmitTx" style="width: 100%; margin-top: 15px; padding: 12px;">Enregistrer la Transaction</button>
         </form>
     </div>
 </div>
 
-<!-- Liaison vers le fichier de logique JavaScript -->
+<!-- Chargement de la logique JavaScript -->
 <script src="app.js"></script>
 
 </body>
