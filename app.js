@@ -8,25 +8,46 @@ let supabaseClient = null;
 let currentTransactions = [];
 let currentProfileId = null;
 
-// Table de correspondance entre les catégories et le Plan Comptable Général (PCG)
-const MAP_COMPTES = {
-    // Recettes
-    'Honoraires PAI': { num: '706000', nom: 'Honoraires / Prestations de services' },
-    'Honoraires Patients': { num: '706000', nom: 'Honoraires / Prestations de services' },
-    'Autre recette': { num: '708000', nom: 'Produits annexes' },
-
-    // Dépenses
-    'Cotisations URSSAF/CARPIMKO': { num: '645000', nom: 'Charges sociales personnelles' },
-    'Matériel médical': { num: '606300', nom: 'Fournitures d\'entretien et petit équipement' },
-    'Loyer professionnel': { num: '613200', nom: 'Locations immobilières' },
-    'Assurance Pro': { num: '616000', nom: 'Primes d\'assurances' },
-    'Carburant / Déplacements': { num: '625100', nom: 'Voyages et déplacements' },
-    'Autre dépense': { num: '628000', nom: 'Divers services extérieurs' }
-};
-
 // ============================================================================
-// 2. FONCTIONS UTILITAIRES
+// 2. FONCTIONS UTILITAIRES & VENTILATION DES COMPTES (PCG)
 // ============================================================================
+
+/**
+ * Analyse le type et la catégorie pour retourner le compte PCG exact
+ */
+function obtenirComptePCG(transaction) {
+    const isRecette = (transaction.type || '').toLowerCase().includes('recette');
+    const cat = (transaction.category || '').toLowerCase();
+
+    // --- A. GESTION DES RECETTES (Classe 7) ---
+    if (isRecette) {
+        if (cat.includes('autre')) {
+            return { num: '708000', nom: 'Produits annexes' };
+        }
+        return { num: '706000', nom: 'Honoraires / Prestations de services' };
+    }
+
+    // --- B. GESTION DES DÉPENSES (Classe 6) ---
+    if (cat.includes('cotisation') || cat.includes('urssaf') || cat.includes('carpimko')) {
+        return { num: '645000', nom: 'Charges sociales personnelles' };
+    } 
+    else if (cat.includes('matériel') || cat.includes('materiel') || cat.includes('equipement')) {
+        return { num: '606300', nom: 'Fournitures d\'entretien et petit équipement' };
+    } 
+    else if (cat.includes('loyer') || cat.includes('location')) {
+        return { num: '613200', nom: 'Locations immobilières' };
+    } 
+    else if (cat.includes('assurance')) {
+        return { num: '616000', nom: 'Primes d\'assurances' };
+    } 
+    else if (cat.includes('carburant') || cat.includes('déplacement') || cat.includes('deplacement') || cat.includes('voyage')) {
+        return { num: '625100', nom: 'Voyages et déplacements' };
+    }
+
+    // Compte de secours si aucun mot-clé ne correspond
+    return { num: '628000', nom: 'Divers services extérieurs' };
+}
+
 function remplir(id, valeur) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -63,22 +84,6 @@ function updateCategories() {
             <option value="Autre dépense">Autre dépense</option>
         `;
     }
-}
-
-/**
- * Retourne les détails du compte PCG selon la catégorie de la transaction
- */
-function obtenirComptePCG(transaction) {
-    const isRecette = (transaction.type || '').toLowerCase().includes('recette');
-    const cat = transaction.category || '';
-
-    if (MAP_COMPTES[cat]) {
-        return MAP_COMPTES[cat];
-    }
-
-    return isRecette 
-        ? { num: '706000', nom: 'Honoraires / Prestations de services' } 
-        : { num: '628000', nom: 'Divers services extérieurs' };
 }
 
 // ============================================================================
@@ -536,9 +541,6 @@ function afficherJournalEtBalance() {
     afficherBalanceComptes();
 }
 
-/**
- * Génère le Livre-Journal avec les vrais numéros de comptes PCG
- */
 function afficherLivreJournal() {
     const tbodyJournal = document.getElementById('tbodyJournal');
     if (!tbodyJournal) return;
@@ -565,9 +567,6 @@ function afficherLivreJournal() {
     }).join('');
 }
 
-/**
- * Génère la Balance Comptable ventilée par numéro de compte
- */
 function afficherBalanceComptes() {
     const tbodyBalance = document.getElementById('tbodyBalance');
     if (!tbodyBalance) return;
@@ -577,12 +576,10 @@ function afficherBalanceComptes() {
         return;
     }
 
-    // Structure dynamique des comptes
     const balanceMap = {
         '512000': { nom: 'Compte Bancaire Pro', debit: 0, credit: 0 }
     };
 
-    // Remplissage dynamique des comptes selon les mouvements
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
         const isRecette = (t.type || '').toLowerCase().includes('recette');
@@ -593,11 +590,11 @@ function afficherBalanceComptes() {
         }
 
         if (isRecette) {
-            balanceMap[compte.num].credit += val; // Recette au Crédit du compte (ex: 706000)
-            balanceMap['512000'].debit += val;    // Entrée d'argent au Débit de la Banque
+            balanceMap[compte.num].credit += val;
+            balanceMap['512000'].debit += val;
         } else {
-            balanceMap[compte.num].debit += val;   // Charge au Débit du compte (ex: 645000)
-            balanceMap['512000'].credit += val;   // Sortie d'argent au Crédit de la Banque
+            balanceMap[compte.num].debit += val;
+            balanceMap['512000'].credit += val;
         }
     });
 
@@ -605,7 +602,6 @@ function afficherBalanceComptes() {
     let grandTotalDebit = 0;
     let grandTotalCredit = 0;
 
-    // Trier les comptes par ordre numérique
     const comptesTries = Object.keys(balanceMap).sort();
 
     comptesTries.forEach(numCompte => {
@@ -630,7 +626,6 @@ function afficherBalanceComptes() {
         }
     });
 
-    // Ligne des Totaux de contrôle
     html += `
         <tr style="background-color: #f8f9fa; font-weight: bold;">
             <td colspan="2" style="text-align:right;">TOTAL ÉQUILIBRE :</td>
