@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
     
-    <!-- CDN Supabase, SheetJS (Excel) et JSZip -->
+    <!-- Bibliothèques externes : Supabase JS, SheetJS (Excel), JSZip -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -165,8 +165,8 @@
             font-size: 0.85rem;
             padding: 4px 8px;
             border-radius: 12px;
-            background: #dcfce7;
-            color: #166534;
+            background: #fecaca;
+            color: #991b1b;
         }
     </style>
 </head>
@@ -248,24 +248,24 @@
                         </tr>
                     </thead>
                     <tbody id="transactions-list">
-                        <!-- Rempli en JavaScript -->
+                        <!-- Généré via app.js -->
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Autres onglets (Conteneurs prêts) -->
-        <div id="tab-plan-comptable" class="tab-content"><div class="card"><h3>Plan Comptable</h3><p>Module Plan Comptable actif.</p></div></div>
-        <div id="tab-urssaf" class="tab-content"><div class="card"><h3>Calculs URSSAF</h3><p>Module URSSAF actif.</p></div></div>
-        <div id="tab-carpimko" class="tab-content"><div class="card"><h3>Calculs CARPIMKO</h3><p>Module CARPIMKO actif.</p></div></div>
-        <div id="tab-bilan" class="tab-content"><div class="card"><h3>Bilan & Compte de Résultat</h3><p>Module Bilan actif.</p></div></div>
-        <div id="tab-declarations" class="tab-content"><div class="card"><h3>Déclarations (2035)</h3><p>Module Déclarations actif.</p></div></div>
-        <div id="tab-journal" class="tab-content"><div class="card"><h3>Journal & Balance</h3><p>Module Journal actif.</p></div></div>
-        <div id="tab-grand-livre" class="tab-content"><div class="card"><h3>Grand Livre</h3><p>Module Grand Livre actif.</p></div></div>
-        <div id="tab-profil" class="tab-content"><div class="card"><h3>Profil Utilisateur</h3><p>Module Profil actif.</p></div></div>
+        <!-- Autres onglets (Conteneurs prêts pour développement) -->
+        <div id="tab-plan-comptable" class="tab-content"><div class="card"><h3>Plan Comptable</h3><p>Module Plan Comptable prêt.</p></div></div>
+        <div id="tab-urssaf" class="tab-content"><div class="card"><h3>Calculs URSSAF</h3><p>Module URSSAF prêt.</p></div></div>
+        <div id="tab-carpimko" class="tab-content"><div class="card"><h3>Calculs CARPIMKO</h3><p>Module CARPIMKO prêt.</p></div></div>
+        <div id="tab-bilan" class="tab-content"><div class="card"><h3>Bilan & Compte de Résultat</h3><p>Module Bilan prêt.</p></div></div>
+        <div id="tab-declarations" class="tab-content"><div class="card"><h3>Déclarations (2035)</h3><p>Module Déclarations prêt.</p></div></div>
+        <div id="tab-journal" class="tab-content"><div class="card"><h3>Journal & Balance</h3><p>Module Journal prêt.</p></div></div>
+        <div id="tab-grand-livre" class="tab-content"><div class="card"><h3>Grand Livre</h3><p>Module Grand Livre prêt.</p></div></div>
+        <div id="tab-profil" class="tab-content"><div class="card"><h3>Profil Utilisateur</h3><p>Module Profil prêt.</p></div></div>
     </div>
 
-    <!-- Application JS -->
+    <!-- Script de l'application -->
     <script src="app.js"></script>
 </body>
 </html>
