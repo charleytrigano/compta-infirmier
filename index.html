@@ -6,10 +6,9 @@
     <title>Comptabilité Libérale</title>
     <link rel="icon" href="data:,">
     
-    <!-- 1. CHARGEMENT DE LA BIBLIOTHÈQUE SUPABASE EN PREMIER -->
+    <!-- Charger la bibliothèque Supabase dans le HEAD -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
-
-    <!-- 2. CHARGEMENT DE VOTRE SCRIPT APPRÈS SUPABASE -->
+    <!-- Charger votre script avec defer pour attendre que la page soit prête -->
     <script src="app.js" defer></script>
 
     <style>
@@ -202,7 +201,6 @@
         <div id="connection-status" class="status-badge">Connexion à Supabase...</div>
     </div>
 
-    <!-- Barre d'onglets -->
     <div class="tabs-nav">
         <button class="tab-btn active" onclick="switchTab('transactions', this)">📄 Transactions</button>
         <button class="tab-btn" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
@@ -215,7 +213,7 @@
         <button class="tab-btn" onclick="switchTab('profil', this)">👤 Profil</button>
     </div>
 
-    <!-- ONGLET 1 : TRANSACTIONS -->
+    <!-- ONGLET TRANSACTIONS -->
     <div id="tab-transactions" class="tab-content active">
         <form id="transaction-form" class="card">
             <h3>Ajouter une opération</h3>
@@ -275,7 +273,7 @@
         </div>
     </div>
 
-    <!-- ONGLET 2 : PLAN COMPTABLE -->
+    <!-- ONGLET PLAN COMPTABLE -->
     <div id="tab-plan-comptable" class="tab-content">
         <form id="pc-form" class="card">
             <h3>Ajouter un compte au Plan Comptable</h3>
