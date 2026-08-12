@@ -1,5 +1,5 @@
 // ==========================================
-// 1. DÉCLARATIONS GLOBALES
+// 1. CONFIGURATION & VARIABLES GLOBALES
 // ==========================================
 var SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
 var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5tajirgilIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
@@ -16,23 +16,28 @@ var defaultPlanComptable = [
 ];
 
 // ==========================================
-// 2. INITIALISATION
+// 2. INITIALISATION AVEC IMPORT DYNAMIQUE CDN
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
-function initApp() {
-    // Récupération sécurisée de la bibliothèque Supabase
-    var supabaseLib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+async function initApp() {
+    var statusElement = document.getElementById('connection-status');
 
-    if (supabaseLib && typeof supabaseLib.createClient === 'function') {
-        supabaseClient = supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } else {
-        console.error("Supabase CDN inaccessible.");
-        var statusElement = document.getElementById('connection-status');
+    try {
+        // Chargement moderne direct depuis le CDN de modules esm.sh
+        var supabaseModule = await import('https://esm.sh/@supabase/supabase-js@2');
+        
+        if (supabaseModule && supabaseModule.createClient) {
+            supabaseClient = supabaseModule.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } else {
+            throw new Error("Module Supabase non valide");
+        }
+    } catch (err) {
+        console.error("Erreur de chargement du module distant Supabase :", err);
         if (statusElement) {
-            statusElement.textContent = "Erreur : CDN Supabase non chargé";
+            statusElement.textContent = "Erreur : CDN distant bloqué";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
