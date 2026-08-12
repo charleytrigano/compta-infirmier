@@ -2,20 +2,21 @@
 // 1. CONFIGURATION & INITIALISATION SUPABASE
 // =======================================================
 
-// Clés d'accès Supabase (À remplacer par tes identifiants)
+// Vos identifiants Supabase
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-const SUPABASE_ANON_KEY = 'TON_CLE_ANON_SUPABASE_ICI';
+const SUPABASE_ANON_KEY = 'TON_CLE_ANON_SUPABASE_ICI'; // Remplace par ta vraie clé ANON
 
-// Variable globale contenant l'instance du client Supabase
 let supabaseClient = null;
-
-// Variable stockant le plan comptable chargé en mémoire
 let currentPlanComptable = [];
 
-// Initialisation au chargement du DOM
+// Exécuté automatiquement dès que le HTML est totalement chargé par le navigateur
 document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
     chargerPlanComptable();
+    
+    // Initialise la date du jour dans le formulaire
+    const fieldDate = document.getElementById('txDate');
+    if (fieldDate) fieldDate.valueAsDate = new Date();
 });
 
 /**
@@ -27,10 +28,10 @@ function initSupabase() {
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log("Connecté à Supabase avec succès.");
         } else {
-            console.error("Le SDK Supabase n'est pas chargé dans le fichier HTML.");
+            console.error("Le SDK Supabase n'est pas chargé dans index.html");
         }
     } catch (error) {
-        console.error("Erreur lors de l'initialisation de Supabase :", error);
+        console.error("Erreur d'initialisation Supabase :", error);
     }
 }
 
@@ -39,7 +40,7 @@ function initSupabase() {
 // =======================================================
 
 /**
- * Récupère le plan comptable depuis la base de données Supabase
+ * Charge les comptes depuis la table 'plan_comptable' de Supabase
  */
 async function chargerPlanComptable() {
     if (!supabaseClient) return;
@@ -51,7 +52,7 @@ async function chargerPlanComptable() {
             .order('code_compte', { ascending: true });
 
         if (error) {
-            console.error("Erreur de récupération du plan comptable :", error.message);
+            console.error("Erreur de lecture du plan comptable :", error.message);
             afficherPlanComptableDansIHM([]);
             return;
         }
@@ -65,7 +66,7 @@ async function chargerPlanComptable() {
 }
 
 /**
- * Affiche les comptes dans la table du Plan Comptable (DOM)
+ * Génère le tableau HTML du plan comptable
  * @param {Array} listeComptes 
  */
 function afficherPlanComptableDansIHM(listeComptes) {
@@ -91,7 +92,7 @@ function afficherPlanComptableDansIHM(listeComptes) {
             <td>${compte.libelle}</td>
             <td>${compte.type_compte || 'Général'}</td>
             <td>
-                <button onclick="supprimerComptePC('${compte.id}')" style="color: red; cursor: pointer;">
+                <button onclick="supprimerComptePC('${compte.id}')" style="background-color: #ef4444; padding: 5px 10px;">
                     Supprimer
                 </button>
             </td>
@@ -101,7 +102,7 @@ function afficherPlanComptableDansIHM(listeComptes) {
 }
 
 /**
- * Ajoute un nouveau compte dans la table plan_comptable
+ * Ajoute un nouveau compte dans Supabase
  */
 async function ajouterComptePC() {
     if (!supabaseClient) {
@@ -118,19 +119,18 @@ async function ajouterComptePC() {
     const type = typeInput?.value || 'Charge';
 
     if (!code || !libelle) {
-        alert("Veuillez saisir le Code Compte et le Libellé.");
+        alert("Veuillez remplir le Code Compte et le Libellé.");
         return;
     }
 
-    const { data, error } = await supabaseClient
+    const { error } = await supabaseClient
         .from('plan_comptable')
         .insert([{ code_compte: code, libelle: libelle, type_compte: type }]);
 
     if (error) {
         alert("Erreur lors de l'ajout : " + error.message);
-        console.error("Erreur insert plan_comptable :", error);
     } else {
-        alert("✅ Compte ajouté au Plan Comptable avec succès !");
+        alert("✅ Compte ajouté avec succès !");
         if (codeInput) codeInput.value = '';
         if (libelleInput) libelleInput.value = '';
         await chargerPlanComptable();
@@ -139,10 +139,9 @@ async function ajouterComptePC() {
 
 /**
  * Supprime un compte du plan comptable
- * @param {string} id - UUID du compte
  */
 async function supprimerComptePC(id) {
-    if (!confirm("Voulez-vous vraiment supprimer ce compte comptable ?")) return;
+    if (!confirm("Voulez-vous supprimer ce compte ?")) return;
 
     const { error } = await supabaseClient
         .from('plan_comptable')
@@ -157,68 +156,43 @@ async function supprimerComptePC(id) {
 }
 
 // =======================================================
-// 3. SCAN & TÉLÉVERSEMENT DES JUSTIFICATIFS (STORAGE)
+// 3. UPLOAD DE JUSTIFICATIF & TRANSACTION
 // =======================================================
 
 /**
- * Téléverse le fichier scanné/sélectionné vers le bucket Supabase 'justificatifs'
- * @param {File} fichier - Le fichier issu du champ input
- * @returns {Promise<string|null>} - L'URL publique de la pièce jointe
+ * Envoie le fichier scanné vers le Storage Supabase
+ * @param {File} fichier 
+ * @returns {Promise<string|null>} URL publique du fichier
  */
 async function uploaderJustificatif(fichier) {
-    if (!supabaseClient) {
-        alert("La connexion à Supabase n'est pas initialisée.");
-        return null;
-    }
+    if (!supabaseClient || !fichier) return null;
 
-    if (!fichier) return null;
+    const extension = fichier.name.split('.').pop();
+    const nomFichierUnique = `scan_${Date.now()}.${extension}`;
 
-    try {
-        // Génération d'un nom unique avec horodatage
-        const extension = fichier.name.split('.').pop();
-        const nomFichierUnique = `scan_${Date.now()}.${extension}`;
+    const { error } = await supabaseClient
+        .storage
+        .from('justificatifs')
+        .upload(nomFichierUnique, fichier, { cacheControl: '3600', upsert: false });
 
-        // Transfert du fichier dans le bucket Storage
-        const { data, error } = await supabaseClient
-            .storage
-            .from('justificatifs')
-            .upload(nomFichierUnique, fichier, {
-                cacheControl: '3600',
-                upsert: false
-            });
+    if (error) throw new Error("Erreur téléversement : " + error.message);
 
-        if (error) {
-            console.error("Erreur d'upload Storage :", error.message);
-            throw new Error("Échec de l'envoi du justificatif : " + error.message);
-        }
+    const { data: urlData } = supabaseClient
+        .storage
+        .from('justificatifs')
+        .getPublicUrl(nomFichierUnique);
 
-        // Récupération de l'URL publique
-        const { data: urlData } = supabaseClient
-            .storage
-            .from('justificatifs')
-            .getPublicUrl(nomFichierUnique);
-
-        return urlData.publicUrl;
-
-    } catch (e) {
-        console.error("Détails uploaderJustificatif :", e);
-        throw e;
-    }
+    return urlData.publicUrl;
 }
 
-// =======================================================
-// 4. ENREGISTREMENT DE TRANSACTION AVEC SCAN
-// =======================================================
-
 /**
- * Traite le formulaire de création de transaction
- * @param {Event} event - Événement submit du formulaire
+ * Enregistre la transaction et téléverse son justificatif
  */
 async function enregistrerTransaction(event) {
     if (event) event.preventDefault();
 
     if (!supabaseClient) {
-        alert("La connexion à la base de données est indisponible.");
+        alert("Connexion Supabase indisponible.");
         return;
     }
 
@@ -229,21 +203,14 @@ async function enregistrerTransaction(event) {
     const fileInput = document.getElementById('txFile');
     const fichier = fileInput?.files ? fileInput.files[0] : null;
 
-    if (!date || !libelle || isNaN(montant) || !codeCompte) {
-        alert("Veuillez remplir tous les champs obligatoires de la transaction.");
-        return;
-    }
-
     try {
         let urlJustificatif = null;
 
-        // Étape A : Scan / Upload si un fichier est sélectionné
         if (fichier) {
             urlJustificatif = await uploaderJustificatif(fichier);
         }
 
-        // Étape B : Insertion en base de données
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
             .from('transactions')
             .insert([{
                 date_transaction: date,
@@ -254,15 +221,14 @@ async function enregistrerTransaction(event) {
             }]);
 
         if (error) {
-            alert("Erreur lors de l'enregistrement de la transaction : " + error.message);
+            alert("Erreur BDD : " + error.message);
         } else {
-            alert("✅ Transaction et justificatif enregistrés avec succès !");
-            
-            // Reinitialisation des champs du formulaire
+            alert("✅ Transaction enregistrée avec succès !");
             document.getElementById('formTransaction')?.reset();
+            document.getElementById('txDate').valueAsDate = new Date();
         }
 
     } catch (err) {
-        alert("Erreur : " + err.message);
+        alert("❌ " + err.message);
     }
 }
