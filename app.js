@@ -1,11 +1,11 @@
 // ==========================================
-// LOGIQUE DE L'APPLICATION (APP.JS) - VERSION COMPLÈTE
+// LOGIQUE DE L'APPLICATION (APP.JS) - VERSION SÉCURISÉE & COMPLÈTE
 // ==========================================
 
-// Variable globale pour stocker les transactions en mémoire
+// Variable globale pour stocker les transactions
 let allTransactions = [];
 
-// Sécurisation globale : Attachement direct à 'window'
+// Sécurisation anti-redéclaration via l'objet global 'window'
 if (!window.defaultPlanComptable) {
     window.defaultPlanComptable = [
         { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
@@ -16,13 +16,13 @@ if (!window.defaultPlanComptable) {
     ];
 }
 
-// Initialisation principale une fois le DOM chargé
+// Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialiser la date du jour sur le formulaire
+    // Initialiser la date
     const dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
 
-    // 2. Écouteurs pour les formulaires
+    // Écouteurs des formulaires
     const txForm = document.getElementById('transaction-form');
     if (txForm) txForm.addEventListener('submit', handleAddTransaction);
 
@@ -32,20 +32,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const profForm = document.getElementById('profil-form');
     if (profForm) profForm.addEventListener('submit', handleSaveProfil);
 
-    // 3. Écouteurs pour les boutons de simulation URSSAF et CARPIMKO
+    // Écouteurs des simulateurs
     const btnUrssaf = document.getElementById('btn-calc-urssaf');
     if (btnUrssaf) btnUrssaf.addEventListener('click', calculateUrssaf);
 
     const btnCarpimko = document.getElementById('btn-calc-carpimko');
     if (btnCarpimko) btnCarpimko.addEventListener('click', calculateCarpimko);
 
-    // 4. Charger les données depuis Supabase
+    // Chargement initial des données
     loadTransactions();
     loadPlanComptable();
-    loadProfil();
 });
 
-// Navigation entre les onglets de l'interface
+// Navigation dynamique entre les onglets
 function switchTab(tabId, element) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -54,25 +53,22 @@ function switchTab(tabId, element) {
     if (selectedTab) selectedTab.classList.add('active');
     if (element) element.classList.add('active');
 
+    // Déclencheurs spécifiques aux onglets
+    if (tabId === 'plan-comptable') loadPlanComptable();
     if (tabId === 'bilan') renderBilan();
     if (tabId === 'declarations') render2035();
     if (tabId === 'journal') renderJournalAndBalance();
     if (tabId === 'grand-livre') renderGrandLivre();
 }
 
-// Fonction d'attribution automatique des comptes comptables
+// Attribution automatique des comptes comptables
 function getAccountCodeForCategory(category, type) {
     const catLower = (category || '').toLowerCase();
-
-    if (type === 'Recette') {
-        return "706000";
-    }
-
+    if (type === 'Recette') return "706000";
     if (catLower.includes('urssaf')) return "645100";
     if (catLower.includes('carpimko')) return "645200";
-    if (catLower.includes('soins') || catLower.includes('retrocession') || catLower.includes('remplacement')) return "622600";
+    if (catLower.includes('soins') || catLower.includes('retrocession')) return "622600";
     if (catLower.includes('achat') || catLower.includes('fourniture')) return "606000";
-
     return "606000";
 }
 
@@ -84,24 +80,23 @@ async function loadPlanComptable() {
     const tbody = document.getElementById('pc-list');
     if (!tbody) return;
 
-    // Récupérer les comptes personnalisés sauvegardés dans Supabase
-    const { data: dbAccounts, error } = await supabaseClient
-        .from('plan_comptable')
-        .select('*')
-        .order('code', { ascending: true });
-
     let customAccounts = [];
-    if (!error && dbAccounts) {
-        customAccounts = dbAccounts;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('plan_comptable')
+            .select('*')
+            .order('code', { ascending: true });
+
+        if (!error && data) {
+            customAccounts = data;
+        }
+    } catch (e) {
+        console.log("Accès à la table 'plan_comptable' indisponible, affichage des comptes par défaut.");
     }
 
-    // Combiner les comptes par défaut et les comptes personnalisés
-    const allAccounts = [...window.defaultPlanComptable, ...customAccounts];
-
-    if (allAccounts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Aucun compte dans le plan comptable.</td></tr>';
-        return;
-    }
+    const defaultAccounts = window.defaultPlanComptable || [];
+    const allAccounts = [...defaultAccounts, ...customAccounts];
 
     let rowsHtml = '';
     allAccounts.forEach(acc => {
@@ -125,26 +120,25 @@ async function handleAddPlanComptable(event) {
     const type = document.getElementById('pc-type').value;
 
     if (!code || !label) {
-        alert("Veuillez remplir le numéro et le libellé du compte.");
+        alert("Veuillez saisir le numéro et le libellé du compte.");
         return;
     }
 
     const newAccount = { code, label, type };
 
-    // Enregistrement dans Supabase
     const { error } = await supabaseClient.from('plan_comptable').insert([newAccount]);
 
     if (error) {
-        alert("Erreur lors de l'ajout du compte : " + error.message);
+        alert("Erreur lors de l'enregistrement : " + error.message);
     } else {
-        alert("Nouveau compte ajouté au Plan Comptable !");
+        alert("Compte comptable ajouté avec succès !");
         document.getElementById('pc-form').reset();
-        loadPlanComptable(); // Recharger le tableau
+        loadPlanComptable();
     }
 }
 
 // ==========================================
-// GESTION DES TRANSACTIONS SUPABASE
+// GESTION DES TRANSACTIONS
 // ==========================================
 
 async function handleAddTransaction(event) {
@@ -157,7 +151,7 @@ async function handleAddTransaction(event) {
     const amountVal = parseFloat(document.getElementById('tx-amount').value);
 
     if (!date || !type || !category || !description || isNaN(amountVal)) {
-        alert("Veuillez remplir correctement tous les champs obligatoires.");
+        alert("Veuillez remplir correctement tous les champs.");
         return;
     }
 
@@ -235,17 +229,12 @@ async function deleteTransaction(id) {
 }
 
 // ==========================================
-// SIMULATEURS URSSAF ET CARPIMKO
+// SIMULATEURS URSSAF & CARPIMKO
 // ==========================================
 
 function calculateUrssaf() {
-    const inputVal = document.getElementById('urssaf-income').value;
-    const income = parseFloat(inputVal) || 0;
-
-    if (income <= 0) {
-        alert("Veuillez indiquer un revenu valide.");
-        return;
-    }
+    const income = parseFloat(document.getElementById('urssaf-income').value) || 0;
+    if (income <= 0) { alert("Saisissez un revenu valide."); return; }
 
     const maladie = income * 0.065;
     const alloc = income * 0.031;
@@ -266,13 +255,8 @@ function calculateUrssaf() {
 }
 
 function calculateCarpimko() {
-    const inputVal = document.getElementById('carpimko-income').value;
-    const income = parseFloat(inputVal) || 0;
-
-    if (income <= 0) {
-        alert("Veuillez indiquer un bénéfice valide.");
-        return;
-    }
+    const income = parseFloat(document.getElementById('carpimko-income').value) || 0;
+    if (income <= 0) { alert("Saisissez un bénéfice valide."); return; }
 
     const regBase = income * 0.0823;
     const regComp = 1980.00;
@@ -293,7 +277,7 @@ function calculateCarpimko() {
 }
 
 // ==========================================
-// RENDERERS (BILAN, 2035, JOURNAL, GRAND LIVRE)
+// AUTRES MODULES (BILAN, 2035, JOURNAL, GRAND LIVRE)
 // ==========================================
 
 function renderBilan() {
@@ -302,9 +286,8 @@ function renderBilan() {
 
     allTransactions.forEach(tx => {
         const amt = tx.amount || 0;
-        if (tx.type === 'Recette') {
-            recettes += amt;
-        } else {
+        if (tx.type === 'Recette') recettes += amt;
+        else {
             depenses += amt;
             catMap[tx.category] = (catMap[tx.category] || 0) + amt;
         }
@@ -317,10 +300,7 @@ function renderBilan() {
 
     if (rElem) rElem.textContent = `${recettes.toFixed(2)} €`;
     if (dElem) dElem.textContent = `${depenses.toFixed(2)} €`;
-    if (resElem) {
-        resElem.textContent = `${res.toFixed(2)} €`;
-        resElem.className = `value ${res >= 0 ? 'val-positive' : 'val-negative'}`;
-    }
+    if (resElem) resElem.textContent = `${res.toFixed(2)} €`;
 
     let rows = '';
     for (const [cat, sum] of Object.entries(catMap)) {
@@ -338,9 +318,8 @@ function render2035() {
         const amt = tx.amount || 0;
         const cat = (tx.category || '').toLowerCase();
 
-        if (tx.type === 'Recette') {
-            recettes += amt;
-        } else {
+        if (tx.type === 'Recette') recettes += amt;
+        else {
             if (cat.includes('urssaf')) urssaf += amt;
             else if (cat.includes('carpimko')) carpimko += amt;
             else if (cat.includes('achats') || cat.includes('fournitures')) ach += amt;
@@ -417,7 +396,7 @@ function renderGrandLivre() {
         });
         html += `
             <div style="margin-bottom:20px;">
-                <h4 style="color: #2563eb; border-bottom: 2px solid #2563eb;">${cat} (Total: ${total.toFixed(2)} €)</h4>
+                <h4 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 5px; margin-bottom: 10px;">${cat} (Total: ${total.toFixed(2)} €)</h4>
                 <table>
                     <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
                     <tbody>${rows}</tbody>
@@ -432,5 +411,3 @@ function handleSaveProfil(e) {
     e.preventDefault();
     alert("Profil enregistré !");
 }
-
-function loadProfil() {}
