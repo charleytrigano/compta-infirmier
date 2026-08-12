@@ -6,11 +6,20 @@
     <title>Comptabilité Libérale</title>
     <link rel="icon" href="data:,">
     
-    <!-- CDN officiel Supabase (version 2) -->
+    <!-- CDN officiel Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- Script principal de l'application -->
+    <!-- Script principal (Core, Transactions & Plan Comptable) -->
     <script src="app.js" defer></script>
+
+    <!-- Fichiers indépendants par onglet -->
+    <script src="urssaf.js" defer></script>
+    <script src="carpimko.js" defer></script>
+    <script src="bilan.js" defer></script>
+    <script src="declaration2035.js" defer></script>
+    <script src="journal.js" defer></script>
+    <script src="grand-livre.js" defer></script>
+    <script src="profil.js" defer></script>
 
     <style>
         :root {
@@ -214,7 +223,7 @@
         <button class="tab-btn" onclick="switchTab('profil', this)">👤 Profil</button>
     </div>
 
-    <!-- ONGLET TRANSACTIONS -->
+    <!-- ONGLET 1: TRANSACTIONS (VERROUILLÉ) -->
     <div id="tab-transactions" class="tab-content active">
         <form id="transaction-form" class="card">
             <h3>Ajouter une opération</h3>
@@ -274,7 +283,7 @@
         </div>
     </div>
 
-    <!-- ONGLET PLAN COMPTABLE -->
+    <!-- ONGLET 2: PLAN COMPTABLE (VERROUILLÉ) -->
     <div id="tab-plan-comptable" class="tab-content">
         <form id="pc-form" class="card">
             <h3>Ajouter un compte au Plan Comptable</h3>
@@ -314,6 +323,83 @@
                     <tr><td colspan="3" class="text-center">Chargement du plan comptable...</td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- ONGLET 3: URSSAF -->
+    <div id="tab-urssaf" class="tab-content">
+        <div class="card">
+            <h3>🏛️ Module URSSAF</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Suivi et estimation de vos cotisations sociales URSSAF.</p>
+            <div id="urssaf-container">
+                <p>Chargement des données URSSAF...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONGLET 4: CARPIMKO -->
+    <div id="tab-carpimko" class="tab-content">
+        <div class="card">
+            <h3>🏛️ Module CARPIMKO</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Gestion et calcul de la retraite infirmière CARPIMKO.</p>
+            <div id="carpimko-container">
+                <p>Chargement des données CARPIMKO...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONGLET 5: BILAN / CE -->
+    <div id="tab-bilan" class="tab-content">
+        <div class="card">
+            <h3>📊 Bilan & Compte de Résultat</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Synthèse financière de votre activité libérale.</p>
+            <div id="bilan-container">
+                <p>Chargement du bilan...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONGLET 6: 2035 -->
+    <div id="tab-declarations" class="tab-content">
+        <div class="card">
+            <h3>🧮 Déclaration Fiscale 2035</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Préparation automatique des lignes de la 2035 BNC.</p>
+            <div id="declaration-container">
+                <p>Chargement de la 2035...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONGLET 7: JOURNAL -->
+    <div id="tab-journal" class="tab-content">
+        <div class="card">
+            <h3>📖 Journal Général</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Chronologie complète de toutes les écritures comptables.</p>
+            <div id="journal-container">
+                <p>Chargement du journal...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONGLET 8: GRAND LIVRE -->
+    <div id="tab-grand-livre" class="tab-content">
+        <div class="card">
+            <h3>📖 Grand Livre des Comptes</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Détail des mouvements compte par compte.</p>
+            <div id="grand-livre-container">
+                <p>Chargement du grand livre...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONGLET 9: PROFIL -->
+    <div id="tab-profil" class="tab-content">
+        <div class="card">
+            <h3>👤 Profil Professionnel</h3>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Paramètres de l'infirmier(ère) et options comptables.</p>
+            <div id="profil-container">
+                <p>Chargement du profil...</p>
+            </div>
         </div>
     </div>
 
