@@ -2,63 +2,45 @@
 // 1. CONFIGURATION & INITIALISATION SUPABASE
 // =======================================================
 
+// Clés d'accès Supabase (À remplacer par tes identifiants)
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
+const SUPABASE_ANON_KEY = 'TON_CLE_ANON_SUPABASE_ICI';
 
+// Variable globale contenant l'instance du client Supabase
 let supabaseClient = null;
 
-// Initialisation au chargement du document
+// Variable stockant le plan comptable chargé en mémoire
+let currentPlanComptable = [];
+
+// Initialisation au chargement du DOM
 document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
     chargerPlanComptable();
-    chargerTransactions();
-
-    // Définir la date par défaut à aujourd'hui
-    const txDateInput = document.getElementById('txDate');
-    if (txDateInput) txDateInput.valueAsDate = new Date();
 });
 
+/**
+ * Initialise le client SDK Supabase
+ */
 function initSupabase() {
     try {
         if (typeof supabase !== 'undefined') {
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log("Connecté à Supabase avec succès.");
         } else {
-            console.error("SDK Supabase manquant.");
+            console.error("Le SDK Supabase n'est pas chargé dans le fichier HTML.");
         }
-    } catch (err) {
-        console.error("Erreur d'initialisation Supabase :", err);
+    } catch (error) {
+        console.error("Erreur lors de l'initialisation de Supabase :", error);
     }
 }
 
 // =======================================================
-// 2. GESTION NAVIGATION ONGLETS
+// 2. GESTION DU PLAN COMPTABLE
 // =======================================================
 
-function changerOnglet(idOnglet, boutonElement) {
-    // Masquer tous les onglets
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-
-    // Décocher tous les boutons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Activer l'onglet sélectionné
-    document.getElementById(idOnglet).classList.add('active');
-    boutonElement.classList.add('active');
-
-    // Rafraîchir les données si nécessaire
-    if (idOnglet === 'onglet-journal') chargerTransactions();
-    if (idOnglet === 'onglet-saisie') chargerPlanComptable();
-}
-
-// =======================================================
-// 3. GESTION DU PLAN COMPTABLE
-// =======================================================
-
+/**
+ * Récupère le plan comptable depuis la base de données Supabase
+ */
 async function chargerPlanComptable() {
     if (!supabaseClient) return;
 
@@ -69,236 +51,218 @@ async function chargerPlanComptable() {
             .order('code_compte', { ascending: true });
 
         if (error) {
-            console.error("Erreur Plan Comptable :", error.message);
+            console.error("Erreur de récupération du plan comptable :", error.message);
+            afficherPlanComptableDansIHM([]);
             return;
         }
 
-        afficherPlanComptableIHM(data || []);
-        remplirSelecteurComptes(data || []);
+        currentPlanComptable = data || [];
+        afficherPlanComptableDansIHM(currentPlanComptable);
 
     } catch (e) {
-        console.error("Erreur réseau / BDD :", e);
+        console.error("Erreur inattendue plan comptable :", e);
     }
 }
 
-function afficherPlanComptableIHM(liste) {
+/**
+ * Affiche les comptes dans la table du Plan Comptable (DOM)
+ * @param {Array} listeComptes 
+ */
+function afficherPlanComptableDansIHM(listeComptes) {
     const tbody = document.getElementById('tbodyPlanComptable');
     if (!tbody) return;
 
     tbody.innerHTML = '';
 
-    if (liste.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Aucun compte dans le plan.</td></tr>';
+    if (!listeComptes || listeComptes.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; color: #888;">
+                    Aucun compte personnalisé trouvé.
+                </td>
+            </tr>`;
         return;
     }
 
-    liste.forEach(compte => {
-        let badgeClass = 'badge-charge';
-        if (compte.type_compte === 'Produit') badgeClass = 'badge-produit';
-        if (compte.type_compte === 'Trésorerie') badgeClass = 'badge-tresorerie';
-
+    listeComptes.forEach(compte => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${compte.code_compte}</strong></td>
             <td>${compte.libelle}</td>
-            <td><span class="badge ${badgeClass}">${compte.type_compte || 'Général'}</span></td>
+            <td>${compte.type_compte || 'Général'}</td>
             <td>
-                <button class="btn-delete" onclick="supprimerComptePC('${compte.id}')">Supprimer</button>
+                <button onclick="supprimerComptePC('${compte.id}')" style="color: red; cursor: pointer;">
+                    Supprimer
+                </button>
             </td>
         `;
         tbody.appendChild(tr);
     });
 }
 
-function remplirSelecteurComptes(liste) {
-    const select = document.getElementById('txCompte');
-    if (!select) return;
-
-    select.innerHTML = '<option value="">-- Sélectionner un compte --</option>';
-
-    liste.forEach(compte => {
-        const opt = document.createElement('option');
-        opt.value = compte.code_compte;
-        opt.textContent = `${compte.code_compte} - ${compte.libelle}`;
-        select.appendChild(opt);
-    });
-}
-
+/**
+ * Ajoute un nouveau compte dans la table plan_comptable
+ */
 async function ajouterComptePC() {
-    const code = document.getElementById('pcCode').value.trim();
-    const libelle = document.getElementById('pcLibelle').value.trim();
-    const type = document.getElementById('pcType').value;
-
-    if (!code || !libelle) {
-        alert("Veuillez saisir le code et le libellé du compte.");
+    if (!supabaseClient) {
+        alert("La connexion à Supabase n'est pas active.");
         return;
     }
 
-    const { error } = await supabaseClient
+    const codeInput = document.getElementById('pcCode');
+    const libelleInput = document.getElementById('pcLibelle');
+    const typeInput = document.getElementById('pcType');
+
+    const code = codeInput?.value.trim();
+    const libelle = libelleInput?.value.trim();
+    const type = typeInput?.value || 'Charge';
+
+    if (!code || !libelle) {
+        alert("Veuillez saisir le Code Compte et le Libellé.");
+        return;
+    }
+
+    const { data, error } = await supabaseClient
         .from('plan_comptable')
         .insert([{ code_compte: code, libelle: libelle, type_compte: type }]);
 
     if (error) {
         alert("Erreur lors de l'ajout : " + error.message);
+        console.error("Erreur insert plan_comptable :", error);
     } else {
-        document.getElementById('pcCode').value = '';
-        document.getElementById('pcLibelle').value = '';
+        alert("✅ Compte ajouté au Plan Comptable avec succès !");
+        if (codeInput) codeInput.value = '';
+        if (libelleInput) libelleInput.value = '';
         await chargerPlanComptable();
     }
 }
 
+/**
+ * Supprime un compte du plan comptable
+ * @param {string} id - UUID du compte
+ */
 async function supprimerComptePC(id) {
-    if (!confirm("Voulez-vous vraiment supprimer ce compte ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer ce compte comptable ?")) return;
 
     const { error } = await supabaseClient
         .from('plan_comptable')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("Erreur : " + error.message);
-    } else {
-        await chargerPlanComptable();
-    }
-}
-
-// =======================================================
-// 4. SAISIE, TÉLÉVERSEMENT SCAN & JOURNAL TRANSACTIONS
-// =======================================================
-
-async function uploaderFichier(fichier) {
-    if (!fichier) return null;
-
-    const extension = fichier.name.split('.').pop();
-    const nomFichierUnique = `scan_${Date.now()}.${extension}`;
-
-    const { error } = await supabaseClient
-        .storage
-        .from('justificatifs')
-        .upload(nomFichierUnique, fichier, { cacheControl: '3600', upsert: false });
-
-    if (error) {
-        throw new Error("Erreur téléversement du justificatif : " + error.message);
-    }
-
-    const { data } = supabaseClient
-        .storage
-        .from('justificatifs')
-        .getPublicUrl(nomFichierUnique);
-
-    return data.publicUrl;
-}
-
-async function enregistrerTransaction(event) {
-    event.preventDefault();
-
-    const btnSubmit = document.getElementById('btnSubmitTx');
-    const date = document.getElementById('txDate').value;
-    const libelle = document.getElementById('txLibelle').value;
-    const montant = parseFloat(document.getElementById('txMontant').value);
-    const codeCompte = document.getElementById('txCompte').value;
-    const fileInput = document.getElementById('txFile');
-    const fichier = fileInput.files ? fileInput.files[0] : null;
-
-    try {
-        btnSubmit.disabled = true;
-        btnSubmit.textContent = "Téléversement et enregistrement...";
-
-        // 1. Upload de la pièce jointe (si présente)
-        let justificatifUrl = null;
-        if (fichier) {
-            justificatifUrl = await uploaderFichier(fichier);
-        }
-
-        // 2. Écriture en Base de données
-        const { error } = await supabaseClient
-            .from('transactions')
-            .insert([{
-                date_transaction: date,
-                libelle: libelle,
-                montant: montant,
-                code_compte: codeCompte,
-                justificatif_url: justificatifUrl
-            }]);
-
-        if (error) {
-            alert("Erreur BDD : " + error.message);
-        } else {
-            alert("✅ Transaction enregistrée avec succès !");
-            document.getElementById('formTransaction').reset();
-            document.getElementById('txDate').valueAsDate = new Date();
-        }
-    } catch (err) {
-        alert("❌ " + err.message);
-    } finally {
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = "Enregistrer la Transaction";
-    }
-}
-
-async function chargerTransactions() {
-    if (!supabaseClient) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('transactions')
-            .select('*')
-            .order('date_transaction', { ascending: false });
-
-        if (error) {
-            console.error("Erreur de chargement des transactions :", error.message);
-            return;
-        }
-
-        afficherTransactionsIHM(data || []);
-    } catch (err) {
-        console.error("Erreur :", err);
-    }
-}
-
-function afficherTransactionsIHM(liste) {
-    const tbody = document.getElementById('tbodyTransactions');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-
-    if (liste.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucune transaction enregistrée.</td></tr>';
-        return;
-    }
-
-    liste.forEach(tx => {
-        const dateFr = tx.date_transaction ? new Date(tx.date_transaction).toLocaleDateString('fr-FR') : '-';
-        const lienDoc = tx.justificatif_url 
-            ? `<a href="${tx.justificatif_url}" target="_blank" class="link-doc">📄 Voir le scan</a>` 
-            : '<span style="color:#94a3b8;">Aucun</span>';
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${dateFr}</td>
-            <td>${tx.libelle}</td>
-            <td><strong>${tx.code_compte}</strong></td>
-            <td><strong>${parseFloat(tx.montant).toFixed(2)} €</strong></td>
-            <td>${lienDoc}</td>
-            <td>
-                <button class="btn-delete" onclick="supprimerTransaction('${tx.id}')">Supprimer</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-async function supprimerTransaction(id) {
-    if (!confirm("Voulez-vous supprimer cette écriture ?")) return;
-
-    const { error } = await supabaseClient
-        .from('transactions')
         .delete()
         .eq('id', id);
 
     if (error) {
         alert("Erreur lors de la suppression : " + error.message);
     } else {
-        await chargerTransactions();
+        await chargerPlanComptable();
+    }
+}
+
+// =======================================================
+// 3. SCAN & TÉLÉVERSEMENT DES JUSTIFICATIFS (STORAGE)
+// =======================================================
+
+/**
+ * Téléverse le fichier scanné/sélectionné vers le bucket Supabase 'justificatifs'
+ * @param {File} fichier - Le fichier issu du champ input
+ * @returns {Promise<string|null>} - L'URL publique de la pièce jointe
+ */
+async function uploaderJustificatif(fichier) {
+    if (!supabaseClient) {
+        alert("La connexion à Supabase n'est pas initialisée.");
+        return null;
+    }
+
+    if (!fichier) return null;
+
+    try {
+        // Génération d'un nom unique avec horodatage
+        const extension = fichier.name.split('.').pop();
+        const nomFichierUnique = `scan_${Date.now()}.${extension}`;
+
+        // Transfert du fichier dans le bucket Storage
+        const { data, error } = await supabaseClient
+            .storage
+            .from('justificatifs')
+            .upload(nomFichierUnique, fichier, {
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (error) {
+            console.error("Erreur d'upload Storage :", error.message);
+            throw new Error("Échec de l'envoi du justificatif : " + error.message);
+        }
+
+        // Récupération de l'URL publique
+        const { data: urlData } = supabaseClient
+            .storage
+            .from('justificatifs')
+            .getPublicUrl(nomFichierUnique);
+
+        return urlData.publicUrl;
+
+    } catch (e) {
+        console.error("Détails uploaderJustificatif :", e);
+        throw e;
+    }
+}
+
+// =======================================================
+// 4. ENREGISTREMENT DE TRANSACTION AVEC SCAN
+// =======================================================
+
+/**
+ * Traite le formulaire de création de transaction
+ * @param {Event} event - Événement submit du formulaire
+ */
+async function enregistrerTransaction(event) {
+    if (event) event.preventDefault();
+
+    if (!supabaseClient) {
+        alert("La connexion à la base de données est indisponible.");
+        return;
+    }
+
+    const date = document.getElementById('txDate')?.value;
+    const libelle = document.getElementById('txLibelle')?.value;
+    const montant = parseFloat(document.getElementById('txMontant')?.value);
+    const codeCompte = document.getElementById('txCompte')?.value;
+    const fileInput = document.getElementById('txFile');
+    const fichier = fileInput?.files ? fileInput.files[0] : null;
+
+    if (!date || !libelle || isNaN(montant) || !codeCompte) {
+        alert("Veuillez remplir tous les champs obligatoires de la transaction.");
+        return;
+    }
+
+    try {
+        let urlJustificatif = null;
+
+        // Étape A : Scan / Upload si un fichier est sélectionné
+        if (fichier) {
+            urlJustificatif = await uploaderJustificatif(fichier);
+        }
+
+        // Étape B : Insertion en base de données
+        const { data, error } = await supabaseClient
+            .from('transactions')
+            .insert([{
+                date_transaction: date,
+                libelle: libelle,
+                montant: montant,
+                code_compte: codeCompte,
+                justificatif_url: urlJustificatif
+            }]);
+
+        if (error) {
+            alert("Erreur lors de l'enregistrement de la transaction : " + error.message);
+        } else {
+            alert("✅ Transaction et justificatif enregistrés avec succès !");
+            
+            // Reinitialisation des champs du formulaire
+            document.getElementById('formTransaction')?.reset();
+        }
+
+    } catch (err) {
+        alert("Erreur : " + err.message);
     }
 }
