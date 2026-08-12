@@ -1,234 +1,135 @@
-// =======================================================
-// 1. CONFIGURATION & INITIALISATION SUPABASE
-// =======================================================
-
-// Vos identifiants Supabase
-const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-const SUPABASE_ANON_KEY = 'TON_CLE_ANON_SUPABASE_ICI'; // Remplace par ta vraie clé ANON
-
-let supabaseClient = null;
-let currentPlanComptable = [];
-
-// Exécuté automatiquement dès que le HTML est totalement chargé par le navigateur
-document.addEventListener('DOMContentLoaded', () => {
-    initSupabase();
-    chargerPlanComptable();
-    
-    // Initialise la date du jour dans le formulaire
-    const fieldDate = document.getElementById('txDate');
-    if (fieldDate) fieldDate.valueAsDate = new Date();
-});
-
-/**
- * Initialise le client SDK Supabase
- */
-function initSupabase() {
-    try {
-        if (typeof supabase !== 'undefined') {
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log("Connecté à Supabase avec succès.");
-        } else {
-            console.error("Le SDK Supabase n'est pas chargé dans index.html");
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comptabilité Libérale</title>
+    <!-- Chargement du SDK Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
         }
-    } catch (error) {
-        console.error("Erreur d'initialisation Supabase :", error);
-    }
-}
-
-// =======================================================
-// 2. GESTION DU PLAN COMPTABLE
-// =======================================================
-
-/**
- * Charge les comptes depuis la table 'plan_comptable' de Supabase
- */
-async function chargerPlanComptable() {
-    if (!supabaseClient) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('plan_comptable')
-            .select('*')
-            .order('code_compte', { ascending: true });
-
-        if (error) {
-            console.error("Erreur de lecture du plan comptable :", error.message);
-            afficherPlanComptableDansIHM([]);
-            return;
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
-
-        currentPlanComptable = data || [];
-        afficherPlanComptableDansIHM(currentPlanComptable);
-
-    } catch (e) {
-        console.error("Erreur inattendue plan comptable :", e);
-    }
-}
-
-/**
- * Génère le tableau HTML du plan comptable
- * @param {Array} listeComptes 
- */
-function afficherPlanComptableDansIHM(listeComptes) {
-    const tbody = document.getElementById('tbodyPlanComptable');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-
-    if (!listeComptes || listeComptes.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" style="text-align: center; color: #888;">
-                    Aucun compte personnalisé trouvé.
-                </td>
-            </tr>`;
-        return;
-    }
-
-    listeComptes.forEach(compte => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><strong>${compte.code_compte}</strong></td>
-            <td>${compte.libelle}</td>
-            <td>${compte.type_compte || 'Général'}</td>
-            <td>
-                <button onclick="supprimerComptePC('${compte.id}')" style="background-color: #ef4444; padding: 5px 10px;">
-                    Supprimer
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-/**
- * Ajoute un nouveau compte dans Supabase
- */
-async function ajouterComptePC() {
-    if (!supabaseClient) {
-        alert("La connexion à Supabase n'est pas active.");
-        return;
-    }
-
-    const codeInput = document.getElementById('pcCode');
-    const libelleInput = document.getElementById('pcLibelle');
-    const typeInput = document.getElementById('pcType');
-
-    const code = codeInput?.value.trim();
-    const libelle = libelleInput?.value.trim();
-    const type = typeInput?.value || 'Charge';
-
-    if (!code || !libelle) {
-        alert("Veuillez remplir le Code Compte et le Libellé.");
-        return;
-    }
-
-    const { error } = await supabaseClient
-        .from('plan_comptable')
-        .insert([{ code_compte: code, libelle: libelle, type_compte: type }]);
-
-    if (error) {
-        alert("Erreur lors de l'ajout : " + error.message);
-    } else {
-        alert("✅ Compte ajouté avec succès !");
-        if (codeInput) codeInput.value = '';
-        if (libelleInput) libelleInput.value = '';
-        await chargerPlanComptable();
-    }
-}
-
-/**
- * Supprime un compte du plan comptable
- */
-async function supprimerComptePC(id) {
-    if (!confirm("Voulez-vous supprimer ce compte ?")) return;
-
-    const { error } = await supabaseClient
-        .from('plan_comptable')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("Erreur lors de la suppression : " + error.message);
-    } else {
-        await chargerPlanComptable();
-    }
-}
-
-// =======================================================
-// 3. UPLOAD DE JUSTIFICATIF & TRANSACTION
-// =======================================================
-
-/**
- * Envoie le fichier scanné vers le Storage Supabase
- * @param {File} fichier 
- * @returns {Promise<string|null>} URL publique du fichier
- */
-async function uploaderJustificatif(fichier) {
-    if (!supabaseClient || !fichier) return null;
-
-    const extension = fichier.name.split('.').pop();
-    const nomFichierUnique = `scan_${Date.now()}.${extension}`;
-
-    const { error } = await supabaseClient
-        .storage
-        .from('justificatifs')
-        .upload(nomFichierUnique, fichier, { cacheControl: '3600', upsert: false });
-
-    if (error) throw new Error("Erreur téléversement : " + error.message);
-
-    const { data: urlData } = supabaseClient
-        .storage
-        .from('justificatifs')
-        .getPublicUrl(nomFichierUnique);
-
-    return urlData.publicUrl;
-}
-
-/**
- * Enregistre la transaction et téléverse son justificatif
- */
-async function enregistrerTransaction(event) {
-    if (event) event.preventDefault();
-
-    if (!supabaseClient) {
-        alert("Connexion Supabase indisponible.");
-        return;
-    }
-
-    const date = document.getElementById('txDate')?.value;
-    const libelle = document.getElementById('txLibelle')?.value;
-    const montant = parseFloat(document.getElementById('txMontant')?.value);
-    const codeCompte = document.getElementById('txCompte')?.value;
-    const fileInput = document.getElementById('txFile');
-    const fichier = fileInput?.files ? fileInput.files[0] : null;
-
-    try {
-        let urlJustificatif = null;
-
-        if (fichier) {
-            urlJustificatif = await uploaderJustificatif(fichier);
+        h1, h2 { color: #1e293b; }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
         }
-
-        const { error } = await supabaseClient
-            .from('transactions')
-            .insert([{
-                date_transaction: date,
-                libelle: libelle,
-                montant: montant,
-                code_compte: codeCompte,
-                justificatif_url: urlJustificatif
-            }]);
-
-        if (error) {
-            alert("Erreur BDD : " + error.message);
-        } else {
-            alert("✅ Transaction enregistrée avec succès !");
-            document.getElementById('formTransaction')?.reset();
-            document.getElementById('txDate').valueAsDate = new Date();
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
         }
+        input, select, button {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input, select { flex: 1; min-width: 150px; }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #1d4ed8; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th { background-color: #f1f5f9; }
+    </style>
+</head>
+<body>
 
-    } catch (err) {
-        alert("❌ " + err.message);
-    }
-}
+<div class="container">
+    <h1>🩺 Comptabilité Libérale</h1>
+
+    <!-- SECTION 1 : PLAN COMPTABLE -->
+    <div class="section">
+        <h2>Plan Comptable du Cabinet</h2>
+        
+        <!-- Formulaire d'ajout de compte -->
+        <div class="form-row">
+            <input type="text" id="pcCode" placeholder="Code Compte (ex: 606300)">
+            <input type="text" id="pcLibelle" placeholder="Libellé du compte">
+            <select id="pcType">
+                <option value="Charge">Charge (6...)</option>
+                <option value="Produit">Produit (7...)</option>
+                <option value="Trésorerie">Trésorerie (5...)</option>
+            </select>
+            <button onclick="ajouterComptePC()">+ Ajouter au Plan</button>
+        </div>
+
+        <!-- Tableau d'affichage des comptes -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Code Compte</th>
+                    <th>Libellé</th>
+                    <th>Type</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyPlanComptable">
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #888;">Chargement du plan comptable...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- SECTION 2 : SAISIE DE TRANSACTION ET SCAN -->
+    <div class="section">
+        <h2>Nouvelle Transaction & Scan</h2>
+        <form id="formTransaction" onsubmit="enregistrerTransaction(event)">
+            <div class="form-row">
+                <input type="date" id="txDate" required>
+                <input type="text" id="txLibelle" placeholder="Description de la dépense" required>
+                <input type="number" step="0.01" id="txMontant" placeholder="Montant (€)" required>
+            </div>
+            
+            <div class="form-row">
+                <select id="txCompte" required>
+                    <option value="606300">606300 - Achats petit matériel</option>
+                    <option value="613200">613200 - Loyer professionnel</option>
+                    <option value="625100">625100 - Frais de déplacements</option>
+                    <option value="706000">706000 - Honoraires</option>
+                </select>
+                <input type="file" id="txFile" accept="image/*,application/pdf" capture="environment">
+            </div>
+
+            <button type="submit" style="width: 100%;">Enregistrer avec Justificatif</button>
+        </form>
+    </div>
+</div>
+
+<!-- Liaison vers le fichier de logique JavaScript -->
+<script src="app.js"></script>
+
+</body>
+</html>
