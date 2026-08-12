@@ -2,6 +2,8 @@
 // 1. CONFIGURATION & VARIABLES GLOBALES
 // ==========================================
 var SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
+
+// Clé API exacte transmise
 var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
 var supabaseClient = null;
@@ -25,11 +27,11 @@ document.addEventListener('DOMContentLoaded', function() {
 function initApp() {
     var statusElement = document.getElementById('connection-status');
 
-    // Vérification de la présence de Supabase chargé par la balise script HTML
+    // Vérification de l'initialisation de Supabase
     if (window.supabase && typeof window.supabase.createClient === 'function') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     } else {
-        console.error("Le CDN Supabase n'est pas encore disponible.");
+        console.error("Le CDN Supabase n'est pas disponible.");
         if (statusElement) {
             statusElement.textContent = "Erreur : CDN Supabase non chargé";
             statusElement.style.background = "#fecaca";
@@ -231,4 +233,4 @@ function switchTab(tabId, element) {
 
     if (tabId === 'transactions') loadTransactions();
     if (tabId === 'plan-comptable') loadPlanComptable();
-}
+}v
