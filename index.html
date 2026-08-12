@@ -3,77 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comptabilité Libérale</title>
-    <!-- SDK Supabase -->
+    <title>Comptabilité Libérale - Application Complète</title>
+    <!-- SDK Supabase (chargement officiel) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
             margin: 0;
             padding: 20px;
-            color: #333;
+            color: #1e293b;
         }
         .container {
-            max-width: 950px;
+            max-width: 1000px;
             margin: 0 auto;
             background: #ffffff;
             padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
-        h1, h2 { color: #1e293b; }
-        .section {
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #f8fafc;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-        }
-        .form-row {
+        h1 { margin-top: 0; color: #0f172a; }
+
+        /* NAVIGATION PAR ONGLETS */
+        .tabs-nav {
             display: flex;
             gap: 10px;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 25px;
+        }
+        .tab-btn {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 15px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .tab-btn:hover { color: #2563eb; }
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+
+        /* CONTENU DES ONGLETS */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        /* FORMULAIRES & CHAMPS */
+        .form-row {
+            display: flex;
+            gap: 12px;
             margin-bottom: 15px;
             flex-wrap: wrap;
         }
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label { font-size: 13px; font-weight: 600; color: #475569; }
         input, select, button {
-            padding: 10px;
+            padding: 10px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             font-size: 14px;
         }
-        input, select { flex: 1; min-width: 160px; }
-        button {
+        input:focus, select:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+        button.btn-primary {
             background-color: #2563eb;
             color: white;
             border: none;
             cursor: pointer;
-            font-weight: bold;
-            border-radius: 6px;
+            font-weight: 600;
         }
-        button:hover { background-color: #1d4ed8; }
+        button.btn-primary:hover { background-color: #1d4ed8; }
+        
+        /* TABLEAUX */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
+            margin-top: 10px;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         th, td {
-            padding: 12px;
+            padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
         }
-        th { background-color: #f1f5f9; }
+        th { background-color: #f1f5f9; color: #334155; }
         .btn-delete {
             background-color: #ef4444;
+            color: white;
+            border: none;
             padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
         }
         .btn-delete:hover { background-color: #dc2626; }
-        .hint {
-            display: block;
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
             font-size: 12px;
-            color: #64748b;
-            margin-top: 4px;
+            font-weight: bold;
         }
+        .badge-charge { background: #fee2e2; color: #991b1b; }
+        .badge-produit { background: #dcfce7; color: #166534; }
+        .badge-tresorerie { background: #e0f2fe; color: #075985; }
+        .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+        .link-doc { color: #2563eb; text-decoration: none; font-weight: 600; }
+        .link-doc:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -81,79 +140,118 @@
 <div class="container">
     <h1>🩺 Comptabilité Libérale</h1>
 
-    <!-- SECTION 1 : PLAN COMPTABLE -->
-    <div class="section">
-        <h2>Plan Comptable du Cabinet</h2>
-        
-        <!-- Formulaire d'ajout de compte -->
-        <div class="form-row">
-            <input type="text" id="pcCode" placeholder="Code Compte (ex: 606300)">
-            <input type="text" id="pcLibelle" placeholder="Libellé du compte">
-            <select id="pcType">
-                <option value="Charge">Charge (6...)</option>
-                <option value="Produit">Produit (7...)</option>
-                <option value="Trésorerie">Trésorerie (5...)</option>
-            </select>
-            <button onclick="ajouterComptePC()">+ Ajouter au Plan</button>
+    <!-- BARRE DE NAVIGATION (ONGLETS) -->
+    <div class="tabs-nav">
+        <button class="tab-btn active" onclick="changerOnglet('onglet-pc', this)">1. Plan Comptable</button>
+        <button class="tab-btn" onclick="changerOnglet('onglet-saisie', this)">2. Saisie & Scan</button>
+        <button class="tab-btn" onclick="changerOnglet('onglet-journal', this)">3. Journal des Transactions</button>
+    </div>
+
+    <!-- ONGLET 1 : PLAN COMPTABLE -->
+    <div id="onglet-pc" class="tab-content active">
+        <div class="card">
+            <h2>Ajouter un Compte au Plan Comptable</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="pcCode">Code Compte</label>
+                    <input type="text" id="pcCode" placeholder="ex: 606300">
+                </div>
+                <div class="form-group">
+                    <label for="pcLibelle">Libellé du compte</label>
+                    <input type="text" id="pcLibelle" placeholder="ex: Petit matériel médical">
+                </div>
+                <div class="form-group">
+                    <label for="pcType">Type de compte</label>
+                    <select id="pcType">
+                        <option value="Charge">Charge (Classe 6)</option>
+                        <option value="Produit">Produit (Classe 7)</option>
+                        <option value="Trésorerie">Trésorerie (Classe 5)</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="ajouterComptePC()">+ Ajouter au Plan</button>
         </div>
 
-        <!-- Tableau d'affichage des comptes -->
+        <h2>Plan Comptable Actuel</h2>
         <table>
             <thead>
                 <tr>
-                    <th>Code Compte</th>
+                    <th>Code</th>
                     <th>Libellé</th>
                     <th>Type</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="tbodyPlanComptable">
-                <tr>
-                    <td colspan="4" style="text-align: center; color: #888;">Chargement...</td>
-                </tr>
+                <tr><td colspan="4" style="text-align: center;">Chargement...</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- SECTION 2 : SAISIE DE TRANSACTION ET SCAN -->
-    <div class="section">
-        <h2>Nouvelle Transaction & Scan de Justificatif</h2>
-        <form id="formTransaction" onsubmit="enregistrerTransaction(event)">
-            <div class="form-row">
-                <div style="flex: 1;">
-                    <label>Date :</label>
-                    <input type="date" id="txDate" required style="width: 100%;">
+    <!-- ONGLET 2 : SAISIE & SCAN -->
+    <div id="onglet-saisie" class="tab-content">
+        <div class="card">
+            <h2>Nouvelle Ecriture Comptable</h2>
+            <form id="formTransaction" onsubmit="enregistrerTransaction(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="txDate">Date de l'opération *</label>
+                        <input type="date" id="txDate" required>
+                    </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label for="txLibelle">Libellé / Description *</label>
+                        <input type="text" id="txLibelle" placeholder="Ex: Stéthoscope - Pharmacie Centrale" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="txMontant">Montant (€) *</label>
+                        <input type="number" step="0.01" id="txMontant" placeholder="0.00" required>
+                    </div>
                 </div>
-                <div style="flex: 2;">
-                    <label>Libellé / Description :</label>
-                    <input type="text" id="txLibelle" placeholder="Ex: Achat fournitures" required style="width: 100%;">
-                </div>
-                <div style="flex: 1;">
-                    <label>Montant (€) :</label>
-                    <input type="number" step="0.01" id="txMontant" placeholder="0.00" required style="width: 100%;">
-                </div>
-            </div>
-            
-            <div class="form-row">
-                <div style="flex: 1;">
-                    <label>Compte Comptable :</label>
-                    <select id="txCompte" required style="width: 100%;">
-                        <option value="">Chargement des comptes...</option>
-                    </select>
-                </div>
-                <div style="flex: 1;">
-                    <label>Scan / Justificatif :</label>
-                    <input type="file" id="txFile" accept="image/*,application/pdf" capture="environment" style="width: 100%;">
-                    <span class="hint">Sur mobile, ouvre la caméra pour scanner.</span>
-                </div>
-            </div>
 
-            <button type="submit" id="btnSubmitTx" style="width: 100%; margin-top: 15px; padding: 12px;">Enregistrer la Transaction</button>
-        </form>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="txCompte">Compte Comptable *</label>
+                        <select id="txCompte" required>
+                            <option value="">Chargement des comptes...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="txFile">Scan / Pièce Justificative</label>
+                        <input type="file" id="txFile" accept="image/*,application/pdf" capture="environment">
+                        <span class="hint">Prenez une photo sur mobile ou joignez un fichier/PDF.</span>
+                    </div>
+                </div>
+
+                <button type="submit" id="btnSubmitTx" class="btn-primary" style="width: 100%; margin-top: 10px; padding: 12px;">
+                    Enregistrer la Transaction
+                </button>
+            </form>
+        </div>
     </div>
+
+    <!-- ONGLET 3 : JOURNAL DES TRANSACTIONS -->
+    <div id="onglet-journal" class="tab-content">
+        <h2>Journal des Ecritures Saisies</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Libellé</th>
+                    <th>Compte</th>
+                    <th>Montant (€)</th>
+                    <th>Justificatif</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyTransactions">
+                <tr><td colspan="6" style="text-align: center;">Chargement des transactions...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
 </div>
 
-<!-- Chargement de la logique JavaScript -->
+<!-- Logiciel applicatif JS -->
 <script src="app.js"></script>
 
 </body>
