@@ -1,18 +1,18 @@
 // ==========================================
-// LOGIQUE DE L'APPLICATION (APP.JS) - VERSION SÉCURISÉE
+// LOGIQUE DE L'APPLICATION (APP.JS) - VERSION COMPLÈTE
 // ==========================================
 
 // Variable globale pour stocker les transactions en mémoire
 let allTransactions = [];
 
-// Sécurisation globale : Attachement direct à 'window' pour éviter toute erreur de redéclaration
+// Sécurisation globale : Attachement direct à 'window'
 if (!window.defaultPlanComptable) {
     window.defaultPlanComptable = [
-        { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette" },
-        { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge" },
-        { code: "645100", label: "Cotisations URSSAF", type: "Charge" },
-        { code: "645200", label: "Cotisations CARPIMKO", type: "Charge" },
-        { code: "606000", label: "Achats / Fournitures médicales", type: "Charge" }
+        { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
+        { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge (Classe 6)" },
+        { code: "645100", label: "Cotisations URSSAF", type: "Charge (Classe 6)" },
+        { code: "645200", label: "Cotisations CARPIMKO", type: "Charge (Classe 6)" },
+        { code: "606000", label: "Achats / Fournitures médicales", type: "Charge (Classe 6)" }
     ];
 }
 
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
 
-    // 2. Associer les événements de soumission des formulaires
+    // 2. Écouteurs pour les formulaires
     const txForm = document.getElementById('transaction-form');
     if (txForm) txForm.addEventListener('submit', handleAddTransaction);
 
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profForm = document.getElementById('profil-form');
     if (profForm) profForm.addEventListener('submit', handleSaveProfil);
 
-    // 3. Associer les événements aux boutons des simulateurs
+    // 3. Écouteurs pour les boutons de simulation URSSAF et CARPIMKO
     const btnUrssaf = document.getElementById('btn-calc-urssaf');
     if (btnUrssaf) btnUrssaf.addEventListener('click', calculateUrssaf);
 
@@ -76,7 +76,77 @@ function getAccountCodeForCategory(category, type) {
     return "606000";
 }
 
-// Gestion des transactions Supabase
+// ==========================================
+// GESTION DU PLAN COMPTABLE
+// ==========================================
+
+async function loadPlanComptable() {
+    const tbody = document.getElementById('pc-list');
+    if (!tbody) return;
+
+    // Récupérer les comptes personnalisés sauvegardés dans Supabase
+    const { data: dbAccounts, error } = await supabaseClient
+        .from('plan_comptable')
+        .select('*')
+        .order('code', { ascending: true });
+
+    let customAccounts = [];
+    if (!error && dbAccounts) {
+        customAccounts = dbAccounts;
+    }
+
+    // Combiner les comptes par défaut et les comptes personnalisés
+    const allAccounts = [...window.defaultPlanComptable, ...customAccounts];
+
+    if (allAccounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Aucun compte dans le plan comptable.</td></tr>';
+        return;
+    }
+
+    let rowsHtml = '';
+    allAccounts.forEach(acc => {
+        rowsHtml += `
+            <tr>
+                <td><strong>${acc.code}</strong></td>
+                <td>${acc.label}</td>
+                <td>${acc.type}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = rowsHtml;
+}
+
+async function handleAddPlanComptable(event) {
+    event.preventDefault();
+
+    const code = document.getElementById('pc-code').value.trim();
+    const label = document.getElementById('pc-label').value.trim();
+    const type = document.getElementById('pc-type').value;
+
+    if (!code || !label) {
+        alert("Veuillez remplir le numéro et le libellé du compte.");
+        return;
+    }
+
+    const newAccount = { code, label, type };
+
+    // Enregistrement dans Supabase
+    const { error } = await supabaseClient.from('plan_comptable').insert([newAccount]);
+
+    if (error) {
+        alert("Erreur lors de l'ajout du compte : " + error.message);
+    } else {
+        alert("Nouveau compte ajouté au Plan Comptable !");
+        document.getElementById('pc-form').reset();
+        loadPlanComptable(); // Recharger le tableau
+    }
+}
+
+// ==========================================
+// GESTION DES TRANSACTIONS SUPABASE
+// ==========================================
+
 async function handleAddTransaction(event) {
     event.preventDefault();
 
@@ -164,7 +234,10 @@ async function deleteTransaction(id) {
     else loadTransactions();
 }
 
-// Simulateur URSSAF
+// ==========================================
+// SIMULATEURS URSSAF ET CARPIMKO
+// ==========================================
+
 function calculateUrssaf() {
     const inputVal = document.getElementById('urssaf-income').value;
     const income = parseFloat(inputVal) || 0;
@@ -192,7 +265,6 @@ function calculateUrssaf() {
     }
 }
 
-// Simulateur CARPIMKO
 function calculateCarpimko() {
     const inputVal = document.getElementById('carpimko-income').value;
     const income = parseFloat(inputVal) || 0;
@@ -220,7 +292,10 @@ function calculateCarpimko() {
     }
 }
 
-// Bilan, 2035, Journal & Balance
+// ==========================================
+// RENDERERS (BILAN, 2035, JOURNAL, GRAND LIVRE)
+// ==========================================
+
 function renderBilan() {
     let recettes = 0, depenses = 0;
     const catMap = {};
@@ -359,5 +434,3 @@ function handleSaveProfil(e) {
 }
 
 function loadProfil() {}
-function loadPlanComptable() {}
-function handleAddPlanComptable() {}
