@@ -9,42 +9,68 @@ let currentTransactions = [];
 let currentProfileId = null;
 
 // ============================================================================
-// 2. FONCTIONS UTILITAIRES & VENTILATION DES COMPTES (PCG)
+// 2. DÉTECTION ET VENTILATION DÉTAILLÉE DES COMPTES PCG
 // ============================================================================
 
 /**
- * Analyse le type et la catégorie pour retourner le compte PCG exact
+ * Analyse la catégorie ET la description pour assigner un compte PCG précis
  */
 function obtenirComptePCG(transaction) {
     const isRecette = (transaction.type || '').toLowerCase().includes('recette');
     const cat = (transaction.category || '').toLowerCase();
+    const desc = (transaction.description || '').toLowerCase();
+    const texteComplet = `${cat} ${desc}`;
 
-    // --- A. GESTION DES RECETTES (Classe 7) ---
+    // --- A. RECETTES (Classe 7) ---
     if (isRecette) {
-        if (cat.includes('autre')) {
+        if (texteComplet.includes('autre')) {
             return { num: '708000', nom: 'Produits annexes' };
         }
         return { num: '706000', nom: 'Honoraires / Prestations de services' };
     }
 
-    // --- B. GESTION DES DÉPENSES (Classe 6) ---
-    if (cat.includes('cotisation') || cat.includes('urssaf') || cat.includes('carpimko')) {
-        return { num: '645000', nom: 'Charges sociales personnelles' };
-    } 
-    else if (cat.includes('matériel') || cat.includes('materiel') || cat.includes('equipement')) {
-        return { num: '606300', nom: 'Fournitures d\'entretien et petit équipement' };
-    } 
-    else if (cat.includes('loyer') || cat.includes('location')) {
-        return { num: '613200', nom: 'Locations immobilières' };
-    } 
-    else if (cat.includes('assurance')) {
-        return { num: '616000', nom: 'Primes d\'assurances' };
-    } 
-    else if (cat.includes('carburant') || cat.includes('déplacement') || cat.includes('deplacement') || cat.includes('voyage')) {
-        return { num: '625100', nom: 'Voyages et déplacements' };
+    // --- B. CHARGES ET DÉPENSES (Classe 6) ---
+    
+    // Cotisations sociales détaillées
+    if (texteComplet.includes('urssaf')) {
+        return { num: '645100', nom: 'Cotisations URSSAF' };
+    }
+    if (texteComplet.includes('carpimko')) {
+        return { num: '645200', nom: 'Cotisations CARPIMKO' };
+    }
+    if (texteComplet.includes('cotisation')) {
+        return { num: '645000', nom: 'Autres cotisations sociales' };
     }
 
-    // Compte de secours si aucun mot-clé ne correspond
+    // Achats et fournitures
+    if (texteComplet.includes('matériel') || texteComplet.includes('materiel') || texteComplet.includes('soins') || texteComplet.includes('pharmacie')) {
+        return { num: '606300', nom: 'Petit matériel médical et fournitures' };
+    }
+    if (texteComplet.includes('bureau') || texteComplet.includes('papeterie')) {
+        return { num: '606400', nom: 'Fournitures de bureau' };
+    }
+
+    // Services extérieurs & Locatif
+    if (texteComplet.includes('loyer') || texteComplet.includes('location')) {
+        return { num: '613200', nom: 'Loyer professionnel' };
+    }
+    if (texteComplet.includes('assurance')) {
+        return { num: '616000', nom: 'Assurance professionnelle' };
+    }
+    if (texteComplet.includes('carburant') || texteComplet.includes('essence') || texteComplet.includes('déplacement') || texteComplet.includes('deplacement') || texteComplet.includes('péage')) {
+        return { num: '625100', nom: 'Frais de déplacements et carburant' };
+    }
+    if (texteComplet.includes('téléphone') || texteComplet.includes('telephone') || texteComplet.includes('internet') || texteComplet.includes('forfait')) {
+        return { num: '626000', nom: 'Frais de télécommunications' };
+    }
+    if (texteComplet.includes('comptable') || texteComplet.includes('honoraires')) {
+        return { num: '622600', nom: 'Honoraires comptables / juridiques' };
+    }
+    if (texteComplet.includes('banque') || texteComplet.includes('frais bancaire')) {
+        return { num: '627000', nom: 'Services bancaires' };
+    }
+
+    // Compte de secours pour charges diverses
     return { num: '628000', nom: 'Divers services extérieurs' };
 }
 
@@ -76,11 +102,13 @@ function updateCategories() {
         `;
     } else {
         catSelect.innerHTML = `
-            <option value="Cotisations URSSAF/CARPIMKO">Cotisations URSSAF/CARPIMKO</option>
+            <option value="Cotisations URSSAF">Cotisations URSSAF</option>
+            <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
             <option value="Matériel médical">Matériel médical</option>
             <option value="Loyer professionnel">Loyer professionnel</option>
             <option value="Assurance Pro">Assurance Pro</option>
             <option value="Carburant / Déplacements">Carburant / Déplacements</option>
+            <option value="Frais Télécom / Internet">Frais Télécom / Internet</option>
             <option value="Autre dépense">Autre dépense</option>
         `;
     }
@@ -396,7 +424,7 @@ function genererDeclarations() {
 }
 
 // ============================================================================
-// 8. ACTIONS : INCORPORATION, SAUVEGARDE ET EXPORT
+// 8. ACTIONS ET EXPORTS
 // ============================================================================
 async function incorporerCotisationsUrssaf() {
     if (!supabaseClient) return;
@@ -427,7 +455,7 @@ async function incorporerCotisationsUrssaf() {
             nouvellesDepenses.push({
                 date: datesTrimestres[index],
                 type: 'depense',
-                category: 'Cotisations URSSAF/CARPIMKO',
+                category: 'Cotisations URSSAF',
                 description: `Cotisation URSSAF T${index + 1} (${annee})`,
                 amount: parseFloat(montantUrssaf.toFixed(2))
             });
@@ -534,7 +562,7 @@ function calculerCarpimkoTab() {
 }
 
 // ============================================================================
-// 9. GESTION DU LIVRE-JOURNAL ET DE LA BALANCE DES COMPTES
+// 9. AFFICHAGE DU LIVRE-JOURNAL ET DE LA BALANCE DES COMPTES
 // ============================================================================
 function afficherJournalEtBalance() {
     afficherLivreJournal();
