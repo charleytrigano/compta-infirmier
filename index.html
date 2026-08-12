@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
-    <!-- Favicon neutre pour éviter l'erreur 404 dans la console -->
     <link rel="icon" href="data:,">
     <style>
         :root {
@@ -196,13 +195,13 @@
         <div class="logo">
             🩺 <span>Comptabilité Libérale</span>
         </div>
-        <div id="connection-status" class="status-badge">Mode Autonome Actif</div>
+        <div id="connection-status" class="status-badge">Connexion à Supabase...</div>
     </div>
 
     <!-- Barre d'onglets -->
     <div class="tabs-nav">
-        <button class="tab-btn" onclick="switchTab('transactions', this)">📄 Transactions</button>
-        <button class="tab-btn active" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
+        <button class="tab-btn active" onclick="switchTab('transactions', this)">📄 Transactions</button>
+        <button class="tab-btn" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
         <button class="tab-btn" onclick="switchTab('urssaf', this)">🏛️ URSSAF</button>
         <button class="tab-btn" onclick="switchTab('carpimko', this)">🏛️ CARPIMKO</button>
         <button class="tab-btn" onclick="switchTab('bilan', this)">📊 Bilan / CE</button>
@@ -213,7 +212,7 @@
     </div>
 
     <!-- ONGLET 1 : TRANSACTIONS -->
-    <div id="tab-transactions" class="tab-content">
+    <div id="tab-transactions" class="tab-content active">
         <form id="transaction-form" class="card">
             <h3>Ajouter une opération</h3>
             <div class="form-grid">
@@ -262,17 +261,18 @@
                         <th>Catégorie</th>
                         <th>Description</th>
                         <th>Montant</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="transactions-list">
-                    <tr><td colspan="5" class="text-center">Aucune transaction enregistrée.</td></tr>
+                    <tr><td colspan="6" class="text-center">Chargement des transactions depuis Supabase...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <!-- ONGLET 2 : PLAN COMPTABLE -->
-    <div id="tab-plan-comptable" class="tab-content active">
+    <div id="tab-plan-comptable" class="tab-content">
         <form id="pc-form" class="card">
             <h3>Ajouter un compte au Plan Comptable</h3>
             <div class="form-grid">
@@ -308,74 +308,15 @@
                     </tr>
                 </thead>
                 <tbody id="pc-list">
-                    <!-- Généré par JavaScript -->
+                    <tr><td colspan="3" class="text-center">Chargement du plan comptable...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- LOGIQUE JAVASCRIPT EMBARQUÉE POUR SÉCURITÉ MAXIMALE -->
-    <script>
-        // Comptes par défaut du plan comptable BNC
-        const defaultAccounts = [
-            { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
-            { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge (Classe 6)" },
-            { code: "645100", label: "Cotisations URSSAF", type: "Charge (Classe 6)" },
-            { code: "645200", label: "Cotisations CARPIMKO", type: "Charge (Classe 6)" },
-            { code: "606000", label: "Achats / Fournitures médicales", type: "Charge (Classe 6)" }
-        ];
-
-        let customAccounts = [];
-
-        // Gestion du changement d'onglet
-        function switchTab(tabId, element) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-
-            const selectedTab = document.getElementById(`tab-${tabId}`);
-            if (selectedTab) selectedTab.classList.add('active');
-            if (element) element.classList.add('active');
-        }
-
-        // Affichage du plan comptable dans la table HTML
-        function renderPlanComptable() {
-            const tbody = document.getElementById('pc-list');
-            if (!tbody) return;
-
-            const allAccounts = [...defaultAccounts, ...customAccounts];
-            let html = '';
-
-            allAccounts.forEach(acc => {
-                html += `
-                    <tr>
-                        <td><strong>${acc.code}</strong></td>
-                        <td>${acc.label}</td>
-                        <td>${acc.type}</td>
-                    </tr>
-                `;
-            });
-
-            tbody.innerHTML = html;
-        }
-
-        // Ajout d'un nouveau compte via le formulaire
-        document.getElementById('pc-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const code = document.getElementById('pc-code').value.trim();
-            const label = document.getElementById('pc-label').value.trim();
-            const type = document.getElementById('pc-type').value;
-
-            if (code && label) {
-                customAccounts.push({ code, label, type });
-                renderPlanComptable();
-                this.reset();
-            }
-        });
-
-        // Initialisation automatique au chargement
-        document.addEventListener('DOMContentLoaded', () => {
-            renderPlanComptable();
-        });
-    </script>
+    <!-- Chargement des scripts Supabase et de l'application -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
