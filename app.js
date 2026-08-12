@@ -456,3 +456,124 @@ function afficherJournalEtBalance() {
         }).join('');
     }
 }
+
+
+// ============================================================================
+// 7. GÉNÉRATION DU GRAND LIVRE DÉTAILLÉ
+// ============================================================================
+function afficherGrandLivre() {
+    const container = document.getElementById('grandLivreContainer');
+    if (!container) return;
+
+    if (!currentTransactions || currentTransactions.length === 0) {
+        container.innerHTML = '<p style="color:#666; padding: 10px;">Aucune transaction enregistrée pour alimenter le Grand Livre.</p>';
+        return;
+    }
+
+    // 1. Structuration des transactions par compte PCG
+    const comptesMap = {};
+
+    currentTransactions.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
+        const isRecette = (t.type || '').toLowerCase().includes('recette');
+        const compteInfo = obtenirComptePCG(t);
+        const numCompte = compteInfo.num;
+
+        if (!comptesMap[numCompte]) {
+            comptesMap[numCompte] = {
+                num: numCompte,
+                nom: compteInfo.nom,
+                mouvements: []
+            };
+        }
+
+        comptesMap[numCompte].mouvements.push({
+            date: t.date || '',
+            description: t.description || 'Sans libellé',
+            category: t.category || '',
+            debit: isRecette ? 0 : val,
+            credit: isRecette ? val : 0
+        });
+    });
+
+    // 2. Tri des comptes par ordre numérique (100000 -> 799999)
+    const codesComptesTries = Object.keys(comptesMap).sort();
+
+    // 3. Construction de l'affichage HTML
+    let htmlGlobal = '';
+
+    codesComptesTries.forEach(num => {
+        const compte = comptesMap[num];
+
+        // Tri chronologique des mouvements du compte
+        const mouvementsTries = [...compte.mouvements].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        let totalDebit = 0;
+        let totalCredit = 0;
+        let soldeProgressif = 0;
+
+        const lignesHtml = mouvementsTries.map(m => {
+            totalDebit += m.debit;
+            totalCredit += m.credit;
+            
+            // Calcul du solde courant de la ligne
+            soldeProgressif += (m.debit - m.credit);
+
+            return `
+                <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #edf2f7;">${m.date}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #edf2f7;">
+                        ${m.description} 
+                        <small style="color:#718096;">(${m.category})</small>
+                    </td>
+                    <td style="text-align:right; padding: 8px; border-bottom: 1px solid #edf2f7;">
+                        ${m.debit > 0 ? m.debit.toFixed(2) + ' €' : '-'}
+                    </td>
+                    <td style="text-align:right; padding: 8px; border-bottom: 1px solid #edf2f7;">
+                        ${m.credit > 0 ? m.credit.toFixed(2) + ' €' : '-'}
+                    </td>
+                    <td style="text-align:right; padding: 8px; border-bottom: 1px solid #edf2f7; font-weight: 500;">
+                        ${soldeProgressif.toFixed(2)} €
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        const soldeFinal = totalDebit - totalCredit;
+
+        htmlGlobal += `
+            <div style="margin-bottom: 25px; background: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <h3 style="margin-top: 0; color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; font-size: 1.1em;">
+                    <span class="compte-badge" style="background:#e2e8f0; padding:3px 8px; border-radius:4px; font-family:monospace;">${compte.num}</span> 
+                    ${compte.nom}
+                </h3>
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95em;">
+                    <thead>
+                        <tr style="background-color: #f7fafc; color: #4a5568;">
+                            <th style="padding: 8px;">Date</th>
+                            <th style="padding: 8px;">Libellé / Catégorie</th>
+                            <th style="text-align:right; padding: 8px;">Débit</th>
+                            <th style="text-align:right; padding: 8px;">Crédit</th>
+                            <th style="text-align:right; padding: 8px;">Solde progressif</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${lignesHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background-color: #edf2f7;">
+                            <td colspan="2" style="padding: 8px;">Total Compte ${compte.num}</td>
+                            <td style="text-align:right; padding: 8px;">${totalDebit.toFixed(2)} €</td>
+                            <td style="text-align:right; padding: 8px;">${totalCredit.toFixed(2)} €</td>
+                            <td style="text-align:right; padding: 8px; color: ${soldeFinal >= 0 ? '#2b6cb0' : '#c53030'};">
+                                Solde : ${soldeFinal.toFixed(2)} €
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+    });
+
+    container.innerHTML = htmlGlobal;
+}
