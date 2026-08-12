@@ -16,28 +16,22 @@ var defaultPlanComptable = [
 ];
 
 // ==========================================
-// 2. INITIALISATION AVEC IMPORT DYNAMIQUE CDN
+// 2. INITIALISATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
-async function initApp() {
+function initApp() {
     var statusElement = document.getElementById('connection-status');
 
-    try {
-        // Chargement moderne direct depuis le CDN de modules esm.sh
-        var supabaseModule = await import('https://esm.sh/@supabase/supabase-js@2');
-        
-        if (supabaseModule && supabaseModule.createClient) {
-            supabaseClient = supabaseModule.createClient(SUPABASE_URL, SUPABASE_KEY);
-        } else {
-            throw new Error("Module Supabase non valide");
-        }
-    } catch (err) {
-        console.error("Erreur de chargement du module distant Supabase :", err);
+    // Vérification de la présence de Supabase chargé par la balise script HTML
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+        console.error("Le CDN Supabase n'est pas encore disponible.");
         if (statusElement) {
-            statusElement.textContent = "Erreur : CDN distant bloqué";
+            statusElement.textContent = "Erreur : CDN Supabase non chargé";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
