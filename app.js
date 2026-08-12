@@ -2,13 +2,11 @@
 // CONFIGURATION SUPABASE OFFICIELLE
 // ==========================================
 const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5tajirgilIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
-// Initialisation du client Supabase
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Variables globales
+let supabaseClient = null;
 let allTransactions = [];
+
 const defaultPlanComptable = [
     { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
     { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge (Classe 6)" },
@@ -18,9 +16,23 @@ const defaultPlanComptable = [
 ];
 
 // ==========================================
-// INITIALISATION AU CHARGEMENT DE LA PAGE
+// INITIALISATION DE L'APPLICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
+    // Vérification de la présence de la librairie Supabase
+    if (typeof supabase !== 'undefined') {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+        console.error("La bibliothèque Supabase n'est pas chargée.");
+        const statusElement = document.getElementById('connection-status');
+        if (statusElement) {
+            statusElement.textContent = "Erreur : Librairie Supabase absente";
+            statusElement.style.background = "#fecaca";
+            statusElement.style.color = "#991b1b";
+        }
+        return;
+    }
+
     // Initialise la date d'aujourd'hui dans le formulaire
     const dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
@@ -41,6 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // GESTION DES TRANSACTIONS
 // ==========================================
 async function loadTransactions() {
+    if (!supabaseClient) return;
+
     const statusElement = document.getElementById('connection-status');
 
     try {
@@ -51,7 +65,6 @@ async function loadTransactions() {
 
         if (error) throw error;
 
-        // Statut de connexion réussi
         if (statusElement) {
             statusElement.textContent = "Connecté à Supabase";
             statusElement.style.background = "#dcfce7";
@@ -64,7 +77,7 @@ async function loadTransactions() {
     } catch (err) {
         console.error("Erreur lors du chargement des transactions :", err.message);
         if (statusElement) {
-            statusElement.textContent = "Erreur Supabase (Table non trouvée ou accès restreint)";
+            statusElement.textContent = "Erreur Supabase";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
@@ -104,6 +117,7 @@ function renderTransactionsTable(transactions) {
 
 async function handleAddTransaction(event) {
     event.preventDefault();
+    if (!supabaseClient) return;
 
     const date = document.getElementById('tx-date').value;
     const type = document.getElementById('tx-type').value;
@@ -131,6 +145,7 @@ async function handleAddTransaction(event) {
 }
 
 async function deleteTransaction(id) {
+    if (!supabaseClient) return;
     if (!confirm("Voulez-vous vraiment supprimer cette transaction de Supabase ?")) return;
 
     const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
@@ -146,6 +161,8 @@ async function deleteTransaction(id) {
 // GESTION DU PLAN COMPTABLE
 // ==========================================
 async function loadPlanComptable() {
+    if (!supabaseClient) return;
+
     try {
         const { data: planComptable, error } = await supabaseClient
             .from('plan_comptable')
@@ -181,6 +198,7 @@ function renderPlanComptableTable(accounts) {
 
 async function handleAddPlanComptable(event) {
     event.preventDefault();
+    if (!supabaseClient) return;
 
     const code = document.getElementById('pc-code').value.trim();
     const label = document.getElementById('pc-label').value.trim();
