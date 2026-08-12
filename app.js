@@ -1,5 +1,5 @@
 // ==========================================
-// 1. DÉCLARATION DES VARIABLES GLOBALES (En premier !)
+// 1. CONFIGURATION & VARIABLES GLOBALES
 // ==========================================
 var SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
 var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5tajirgilIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
@@ -16,39 +16,38 @@ var defaultPlanComptable = [
 ];
 
 // ==========================================
-// 2. INITIALISATION AU CHARGEMENT DU DOM
+// 2. INITIALISATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
 function initApp() {
-    // Vérification de la présence du CDN Supabase
-    if (typeof window.supabase !== 'undefined') {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // Recherche globale de l'objet Supabase
+    var supabaseObj = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+
+    if (supabaseObj && typeof supabaseObj.createClient === 'function') {
+        supabaseClient = supabaseObj.createClient(SUPABASE_URL, SUPABASE_KEY);
     } else {
-        console.error("Supabase CDN non chargé.");
+        console.error("Supabase n'a pas pu être initialisé.");
         var statusElement = document.getElementById('connection-status');
         if (statusElement) {
-            statusElement.textContent = "Erreur : CDN Supabase non chargé";
+            statusElement.textContent = "Erreur : CDN Supabase bloqué ou non chargé";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
         return;
     }
 
-    // Configurer la date d'aujourd'hui
     var dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
 
-    // Attacher les formulaires
     var txForm = document.getElementById('transaction-form');
     if (txForm) txForm.addEventListener('submit', handleAddTransaction);
 
     var pcForm = document.getElementById('pc-form');
     if (pcForm) pcForm.addEventListener('submit', handleAddPlanComptable);
 
-    // Charger les données
     loadTransactions();
     loadPlanComptable();
 }
