@@ -6,10 +6,17 @@
     <title>Comptabilité Libérale</title>
     <link rel="icon" href="data:,">
     
-    <!-- 1. CHARGEMENT DE LA BIBLIOTHÈQUE SUPABASE (VERSION UMD NATIVE) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2/dist/umd/supabase.js"></script>
+    <!-- 1. CDN PRINCIPAL SUPABASE -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
+    
+    <!-- 2. CDN DE SECOURS (Si jsdelivr est bloqué ou ne charge pas) -->
+    <script>
+        if (typeof supabase === 'undefined') {
+            document.write('<script src="https://unpkg.com/@supabase/supabase-javascript@2"><\/script>');
+        }
+    </script>
 
-    <!-- 2. CHARGEMENT DE VOTRE APPLICATION -->
+    <!-- 3. SCRIPT APPLICATION -->
     <script src="app.js" defer></script>
 
     <style>
