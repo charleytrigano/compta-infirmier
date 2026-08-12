@@ -133,7 +133,7 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 4. GESTION DU PLAN COMPTABLE (NOUVEAU)
+// 4. GESTION DU PLAN COMPTABLE
 // ============================================================================
 async function chargerPlanComptable() {
     if (!supabaseClient) return;
@@ -344,7 +344,7 @@ function actualiserCalculsCarpimko() {
 }
 
 // ============================================================================
-// 7. TRANSACTIONS & SCAN DE PIÈCES JOINTES
+// 7. TRANSACTIONS & SCAN DE PIÈCES JOINTES (SÉCURISÉ & RESTRUCTURE)
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -376,12 +376,22 @@ async function saveProfile() {
     if (currentProfileId) profilData.id = currentProfileId;
     const { error } = await supabaseClient.from('profile').upsert([profilData]);
     if (!error) alert("✅ Profil enregistré !");
+    else alert("⚠️ Erreur lors de l'enregistrement du profil : " + error.message);
 }
 
 async function chargerTransactions() {
     if (!supabaseClient) return;
     try {
-        const { data } = await supabaseClient.from('transactions').select('*').order('date', { ascending: false });
+        const { data, error } = await supabaseClient
+            .from('transactions')
+            .select('*')
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error("Erreur chargement transactions :", error.message);
+            return;
+        }
+
         currentTransactions = data || [];
         afficherTransactions(currentTransactions);
         initialiserAnneesGrandLivre();
@@ -396,73 +406,123 @@ function afficherTransactions(liste) {
     if (!container) return;
 
     if (liste.length === 0) {
-        container.innerHTML = '<p style="color:#718096;">Aucune transaction enregistrée.</p>';
+        container.innerHTML = '<p style="color:#718096; padding: 10px;">Aucune transaction enregistrée.</p>';
         return;
     }
 
-    container.innerHTML = liste.map(t => `
-        <div class="transaction ${t.type}">
-            <div>
-                <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
-                <small><strong>${parseFloat(t.amount).toFixed(2)} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
-                ${t.file_path ? `<br><small>📎 <a href="${supabaseClient.storage.from('justificatifs').getPublicUrl(t.file_path).data.publicUrl}" target="_blank">Voir le justificatif</a></small>` : ''}
+    container.innerHTML = liste.map(t => {
+        let docUrl = null;
+        if (t.file_path) {
+            const publicRes = supabaseClient.storage.from('justificatifs').getPublicUrl(t.file_path);
+            if (publicRes && publicRes.data) docUrl = publicRes.data.publicUrl;
+        }
+
+        return `
+            <div class="transaction ${t.type}">
+                <div>
+                    <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
+                    <small><strong>${parseFloat(t.amount || 0).toFixed(2)} €</strong> (${(t.type || '').toUpperCase()}) - <em>${t.category || ''}</em></small>
+                    ${docUrl ? `<br><small>📎 <a href="${docUrl}" target="_blank" rel="noopener">Voir le justificatif</a></small>` : ''}
+                </div>
+                <div>
+                    <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
+                </div>
             </div>
-            <div>
-                <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
-async function addTransaction() {
-    if (!supabaseClient) return;
+async function addTransaction(event) {
+    if (event) event.preventDefault();
+
+    if (!supabaseClient) {
+        alert("⚠️ Supabase n'est pas connecté.");
+        return;
+    }
+
+    const btnSubmit = document.getElementById('btnSubmitTx');
     const date = document.getElementById('date')?.value;
     const type = document.getElementById('type')?.value;
     const category = document.getElementById('category')?.value;
-    const description = document.getElementById('description')?.value;
-    const amount = parseFloat(document.getElementById('amount')?.value);
+    const description = document.getElementById('description')?.value?.trim();
+    const amountVal = parseFloat(document.getElementById('amount')?.value);
     const fileInput = document.getElementById('fileInput');
 
-    if (!date || isNaN(amount) || !description) {
-        alert('Veuillez remplir tous les champs obligatoires.');
+    if (!date || isNaN(amountVal) || amountVal <= 0 || !description) {
+        alert("⚠️ Veuillez renseigner une date, un libellé et un montant supérieur à 0.");
         return;
     }
 
-    let filePath = null;
-
-    // Envoi du fichier scanné dans Supabase Storage (bucket justificatifs)
-    if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-        const { data: uploadData, error: uploadError } = await supabaseClient.storage
-            .from('justificatifs')
-            .upload(fileName, file);
-
-        if (uploadError) {
-            console.error("Erreur d'envoi du justificatif :", uploadError);
-        } else {
-            filePath = fileName;
+    try {
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "⌛ Enregistrement en cours...";
         }
-    }
 
-    const { error } = await supabaseClient.from('transactions').insert([{ 
-        date, type, category, description, amount, file_path: filePath 
-    }]);
+        let filePath = null;
 
-    if (!error) {
-        document.getElementById('description').value = '';
-        document.getElementById('amount').value = '';
-        if (fileInput) fileInput.value = '';
-        await chargerTransactions();
+        // Téléversement éventuel du justificatif scanné
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+
+            const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                .from('justificatifs')
+                .upload(fileName, file);
+
+            if (uploadError) {
+                console.error("Erreur d'envoi de la pièce jointe :", uploadError);
+                alert("⚠️ Attention : la transaction sera créée sans pièce jointe (" + uploadError.message + ")");
+            } else {
+                filePath = fileName;
+            }
+        }
+
+        // Insertion dans la table transactions
+        const { data, error } = await supabaseClient
+            .from('transactions')
+            .insert([{ 
+                date: date, 
+                type: type, 
+                category: category, 
+                description: description, 
+                amount: amountVal, 
+                file_path: filePath 
+            }]);
+
+        if (error) {
+            console.error("Erreur Supabase insert :", error);
+            alert("❌ Échec de l'enregistrement : " + error.message);
+        } else {
+            // Reinitialisation des inputs
+            document.getElementById('description').value = '';
+            document.getElementById('amount').value = '';
+            if (fileInput) fileInput.value = '';
+
+            await chargerTransactions();
+            alert("✅ Opération ajoutée avec succès !");
+        }
+
+    } catch (err) {
+        console.error("Erreur globale addTransaction :", err);
+        alert("❌ Une erreur inattendue est survenue : " + err.message);
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "➕ Enregistrer l'écriture";
+        }
     }
 }
 
 async function supprimerTransaction(id) {
     if (!supabaseClient || !confirm('Supprimer cette transaction ?')) return;
     const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
-    if (!error) await chargerTransactions();
+    if (!error) {
+        await chargerTransactions();
+    } else {
+        alert("⚠️ Erreur lors de la suppression : " + error.message);
+    }
 }
 
 // ============================================================================
@@ -477,10 +537,9 @@ async function exporterSauvegardeZIP() {
     try {
         const zip = new JSZip();
 
-        // 1. Feuille de calcul Excel avec Transactions & Plan Comptable
+        // 1. Feuille de calcul Excel
         const workbook = XLSX.utils.book_new();
 
-        // Onglet 1 : Écritures / Journal
         const dataEcritures = currentTransactions.map(t => ({
             Date: t.date,
             Type: t.type,
@@ -494,11 +553,9 @@ async function exporterSauvegardeZIP() {
         const wsEcritures = XLSX.utils.json_to_sheet(dataEcritures);
         XLSX.utils.book_append_sheet(workbook, wsEcritures, "Ecritures");
 
-        // Onglet 2 : Plan Comptable
         const wsPlan = XLSX.utils.json_to_sheet(currentPlanComptable);
         XLSX.utils.book_append_sheet(workbook, wsPlan, "Plan Comptable");
 
-        // Fichier Excel dans le ZIP
         const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
         zip.file("Comptabilite_Cabinet.xlsx", excelBuffer);
 
@@ -519,7 +576,7 @@ async function exporterSauvegardeZIP() {
             }
         }
 
-        // 3. Téléchargement du fichier ZIP global
+        // 3. Téléchargement du ZIP
         const zipBlob = await zip.generateAsync({ type: "blob" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(zipBlob);
@@ -591,6 +648,7 @@ function genererBilanEtCE() {
     remplir('ceMateriel', materiel);
     remplir('ceFraisDeplacement', deplacements);
     remplir('ceAssurances', assurances);
+    remplir('ceCharges', autresCharges);
     remplir('ceChargesTotal', totalCharges);
 
     remplir('ceResultat', totalProduits - totalCharges);
@@ -776,7 +834,6 @@ function afficherGrandLivre() {
 
     const codesComptesTries = Object.keys(comptesMap).sort();
     let htmlGlobal = '';
-    let nbComptesAffiches = 0;
 
     codesComptesTries.forEach(num => {
         const compte = comptesMap[num];
@@ -804,7 +861,6 @@ function afficherGrandLivre() {
 
         if (mouvementsExercice.length === 0 && reportANouveauDebit === 0 && reportANouveauCredit === 0) return;
 
-        nbComptesAffiches++;
         mouvementsExercice.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         let totalDebitPériode = 0;
