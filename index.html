@@ -3,256 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comptabilité Libérale - Application Complète</title>
-    <!-- SDK Supabase (chargement officiel) -->
+    <title>Comptabilité Libérale - Enregistrement & Scan</title>
+    <!-- Chargement du SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * { box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f1f5f9;
+            background-color: #f4f6f9;
             margin: 0;
             padding: 20px;
-            color: #1e293b;
+            color: #333;
         }
         .container {
-            max-width: 1000px;
+            max-width: 600px;
             margin: 0 auto;
             background: #ffffff;
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
-        h1 { margin-top: 0; color: #0f172a; }
-
-        /* NAVIGATION PAR ONGLETS */
-        .tabs-nav {
-            display: flex;
-            gap: 10px;
-            border-bottom: 2px solid #e2e8f0;
-            margin-bottom: 25px;
-        }
-        .tab-btn {
-            padding: 12px 20px;
-            background: none;
-            border: none;
-            border-bottom: 3px solid transparent;
-            font-size: 15px;
-            font-weight: 600;
-            color: #64748b;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .tab-btn:hover { color: #2563eb; }
-        .tab-btn.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
-        }
-
-        /* CONTENU DES ONGLETS */
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-
-        .card {
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            margin-bottom: 20px;
-        }
-
-        /* FORMULAIRES & CHAMPS */
-        .form-row {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
+        h2 {
+            color: #2c3e50;
+            margin-top: 0;
         }
         .form-group {
-            flex: 1;
-            min-width: 200px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
+            margin-bottom: 18px;
         }
-        label { font-size: 13px; font-weight: 600; color: #475569; }
-        input, select, button {
-            padding: 10px 12px;
-            border: 1px solid #cbd5e1;
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cccccc;
             border-radius: 6px;
+            box-sizing: border-box;
             font-size: 14px;
         }
-        input:focus, select:focus {
-            outline: none;
-            border-color: #2563eb;
-        }
-        button.btn-primary {
+        button {
             background-color: #2563eb;
             color: white;
             border: none;
-            cursor: pointer;
-            font-weight: 600;
-        }
-        button.btn-primary:hover { background-color: #1d4ed8; }
-        
-        /* TABLEAUX */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            background: white;
+            padding: 12px 20px;
             border-radius: 6px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 14px;
-        }
-        th { background-color: #f1f5f9; color: #334155; }
-        .btn-delete {
-            background-color: #ef4444;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .btn-delete:hover { background-color: #dc2626; }
-        .badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
+            font-size: 16px;
             font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s;
         }
-        .badge-charge { background: #fee2e2; color: #991b1b; }
-        .badge-produit { background: #dcfce7; color: #166534; }
-        .badge-tresorerie { background: #e0f2fe; color: #075985; }
-        .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
-        .link-doc { color: #2563eb; text-decoration: none; font-weight: 600; }
-        .link-doc:hover { text-decoration: underline; }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        .status-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .status-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🩺 Comptabilité Libérale</h1>
-
-    <!-- BARRE DE NAVIGATION (ONGLETS) -->
-    <div class="tabs-nav">
-        <button class="tab-btn active" onclick="changerOnglet('onglet-pc', this)">1. Plan Comptable</button>
-        <button class="tab-btn" onclick="changerOnglet('onglet-saisie', this)">2. Saisie & Scan</button>
-        <button class="tab-btn" onclick="changerOnglet('onglet-journal', this)">3. Journal des Transactions</button>
-    </div>
-
-    <!-- ONGLET 1 : PLAN COMPTABLE -->
-    <div id="onglet-pc" class="tab-content active">
-        <div class="card">
-            <h2>Ajouter un Compte au Plan Comptable</h2>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="pcCode">Code Compte</label>
-                    <input type="text" id="pcCode" placeholder="ex: 606300">
-                </div>
-                <div class="form-group">
-                    <label for="pcLibelle">Libellé du compte</label>
-                    <input type="text" id="pcLibelle" placeholder="ex: Petit matériel médical">
-                </div>
-                <div class="form-group">
-                    <label for="pcType">Type de compte</label>
-                    <select id="pcType">
-                        <option value="Charge">Charge (Classe 6)</option>
-                        <option value="Produit">Produit (Classe 7)</option>
-                        <option value="Trésorerie">Trésorerie (Classe 5)</option>
-                    </select>
-                </div>
-            </div>
-            <button class="btn-primary" onclick="ajouterComptePC()">+ Ajouter au Plan</button>
+    <h2>Nouvelle Transaction avec Justificatif</h2>
+    
+    <form id="formTransaction" onsubmit="enregistrerTransaction(event)">
+        <!-- Date de la transaction -->
+        <div class="form-group">
+            <label for="dateTransaction">Date :</label>
+            <input type="date" id="dateTransaction" required>
         </div>
 
-        <h2>Plan Comptable Actuel</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Code</th>
-                    <th>Libellé</th>
-                    <th>Type</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="tbodyPlanComptable">
-                <tr><td colspan="4" style="text-align: center;">Chargement...</td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- ONGLET 2 : SAISIE & SCAN -->
-    <div id="onglet-saisie" class="tab-content">
-        <div class="card">
-            <h2>Nouvelle Ecriture Comptable</h2>
-            <form id="formTransaction" onsubmit="enregistrerTransaction(event)">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="txDate">Date de l'opération *</label>
-                        <input type="date" id="txDate" required>
-                    </div>
-                    <div class="form-group" style="flex: 2;">
-                        <label for="txLibelle">Libellé / Description *</label>
-                        <input type="text" id="txLibelle" placeholder="Ex: Stéthoscope - Pharmacie Centrale" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="txMontant">Montant (€) *</label>
-                        <input type="number" step="0.01" id="txMontant" placeholder="0.00" required>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="txCompte">Compte Comptable *</label>
-                        <select id="txCompte" required>
-                            <option value="">Chargement des comptes...</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="txFile">Scan / Pièce Justificative</label>
-                        <input type="file" id="txFile" accept="image/*,application/pdf" capture="environment">
-                        <span class="hint">Prenez une photo sur mobile ou joignez un fichier/PDF.</span>
-                    </div>
-                </div>
-
-                <button type="submit" id="btnSubmitTx" class="btn-primary" style="width: 100%; margin-top: 10px; padding: 12px;">
-                    Enregistrer la Transaction
-                </button>
-            </form>
+        <!-- Libellé de la dépense/recette -->
+        <div class="form-group">
+            <label for="libelleTransaction">Libellé / Description :</label>
+            <input type="text" id="libelleTransaction" placeholder="Ex: Achat petit matériel médical" required>
         </div>
-    </div>
 
-    <!-- ONGLET 3 : JOURNAL DES TRANSACTIONS -->
-    <div id="onglet-journal" class="tab-content">
-        <h2>Journal des Ecritures Saisies</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Libellé</th>
-                    <th>Compte</th>
-                    <th>Montant (€)</th>
-                    <th>Justificatif</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="tbodyTransactions">
-                <tr><td colspan="6" style="text-align: center;">Chargement des transactions...</td></tr>
-            </tbody>
-        </table>
-    </div>
+        <!-- Montant -->
+        <div class="form-group">
+            <label for="montantTransaction">Montant (€) :</label>
+            <input type="number" step="0.01" id="montantTransaction" placeholder="0.00" required>
+        </div>
 
+        <!-- Code compte associé -->
+        <div class="form-group">
+            <label for="compteTransaction">Compte Comptable :</label>
+            <select id="compteTransaction" required>
+                <option value="606300">606300 - Achats petit matériel</option>
+                <option value="613200">613200 - Loyer professionnel</option>
+                <option value="625100">625100 - Frais de déplacements</option>
+                <option value="706000">706000 - Honoraires / Prestations</option>
+            </select>
+        </div>
+
+        <!-- Champ d'importation / Scan du document -->
+        <div class="form-group">
+            <label for="fichierJustificatif">Scanner / Joindre le justificatif :</label>
+            <input type="file" id="fichierJustificatif" accept="image/*,application/pdf" capture="environment">
+            <small style="color: #666;">Sur smartphone, cela ouvrira directement l'appareil photo.</small>
+        </div>
+
+        <!-- Bouton d'action -->
+        <button type="submit" id="btnSubmit">Enregistrer la transaction</button>
+    </form>
+
+    <!-- Zone d'affichage des messages de confirmation ou d'erreur -->
+    <div id="messageStatut" class="status-message"></div>
 </div>
 
-<!-- Logiciel applicatif JS -->
-<script src="app.js"></script>
+<script>
+    // =======================================================
+    // 1. INITIALISATION DE SUPABASE
+    // =======================================================
+    const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co'; // Remplace par ton URL
+    const SUPABASE_ANON_KEY = 'VOTRE_SUPABASE_ANON_KEY';             // Remplace par ta clé ANON
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Initialise la date du jour par défaut dans le formulaire
+    document.getElementById('dateTransaction').valueAsDate = new Date();
+
+    // =======================================================
+    // 2. FONCTION : UPLOAD DU JUSTIFICATIF SUR SUPABASE STORAGE
+    // =======================================================
+    /**
+     * Téléverse un fichier dans le bucket Supabase 'justificatifs'
+     * @param {File} fichier - Le fichier sélectionné par l'utilisateur
+     * @returns {Promise<string|null>} - L'URL publique du fichier téléversé
+     */
+    async function uploaderJustificatif(fichier) {
+        if (!fichier) return null;
+
+        try {
+            // Nettoyage et création d'un nom de fichier unique avec timestamp
+            const extension = fichier.name.split('.').pop();
+            const nomFichierUnique = `scan_${Date.now()}.${extension}`;
+
+            // Transfert vers le bucket Supabase
+            const { data, error } = await supabaseClient
+                .storage
+                .from('justificatifs')
+                .upload(nomFichierUnique, fichier, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
+
+            if (error) {
+                throw new Error("Erreur lors de l'upload : " + error.message);
+            }
+
+            // Récupération de l'URL publique générée
+            const { data: urlData } = supabaseClient
+                .storage
+                .from('justificatifs')
+                .getPublicUrl(nomFichierUnique);
+
+            return urlData.publicUrl;
+
+        } catch (erreur) {
+            console.error("Détails erreur uploaderJustificatif :", erreur);
+            throw erreur;
+        }
+    }
+
+    // =======================================================
+    // 3. FONCTION PRINCIPALE : ENREGISTREMENT DE LA TRANSACTION
+    // =======================================================
+    async function enregistrerTransaction(event) {
+        event.preventDefault(); // Empêche le rechargement de la page
+
+        const btn = document.getElementById('btnSubmit');
+        const messageBox = document.getElementById('messageStatut');
+        
+        btn.disabled = true;
+        btn.textContent = "Enregistrement en cours...";
+        afficherMessage("", false);
+
+        try {
+            // Récupération des données du formulaire
+            const date = document.getElementById('dateTransaction').value;
+            const libelle = document.getElementById('libelleTransaction').value;
+            const montant = parseFloat(document.getElementById('montantTransaction').value);
+            const codeCompte = document.getElementById('compteTransaction').value;
+            const inputFichier = document.getElementById('fichierJustificatif');
+            const fichier = inputFichier.files[0];
+
+            let urlJustificatif = null;
+
+            // Étape A : Téléversement du justificatif s'il y en a un
+            if (fichier) {
+                btn.textContent = "Téléversement du justificatif...";
+                urlJustificatif = await uploaderJustificatif(fichier);
+            }
+
+            // Étape B : Insertion de la transaction dans la table Supabase 'transactions'
+            btn.textContent = "Sauvegarde en BDD...";
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .insert([
+                    {
+                        date_transaction: date,
+                        libelle: libelle,
+                        montant: montant,
+                        code_compte: codeCompte,
+                        justificatif_url: urlJustificatif
+                    }
+                ]);
+
+            if (error) {
+                throw new Error("Erreur base de données : " + error.message);
+            }
+
+            // Succès
+            afficherMessage("✅ Transaction enregistrée avec succès !", true);
+            document.getElementById('formTransaction').reset();
+            document.getElementById('dateTransaction').valueAsDate = new Date();
+
+        } catch (err) {
+            afficherMessage("❌ " + err.message, false);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Enregistrer la transaction";
+        }
+    }
+
+    // Fonction utilitaire pour afficher les retours visuels
+    function afficherMessage(texte, estSucces) {
+        const messageBox = document.getElementById('messageStatut');
+        if (!texte) {
+            messageBox.style.display = 'none';
+            return;
+        }
+        messageBox.style.display = 'block';
+        messageBox.className = 'status-message ' + (estSucces ? 'status-success' : 'status-error');
+        messageBox.textContent = texte;
+    }
+</script>
 
 </body>
 </html>
