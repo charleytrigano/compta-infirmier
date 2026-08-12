@@ -2,16 +2,16 @@
 // CONFIGURATION ET INITIALISATION SUPABASE
 // ==========================================
 
-// 1. URL racine exacte du projet (SANS le suffixe /rest/v1/)
+// URL racine exacte du projet (Sans /rest/v1/)
 const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co"; 
 
-// 2. Clé d'accès anonyme publique (anon key)
+// Clé d'accès anonyme publique exacte
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
 // Initialisation du client officiel Supabase
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Nom du dossier (Bucket) dans Supabase Storage pour les justificatifs
+// Nom du Bucket Storage dans Supabase pour les pièces jointes
 const BUCKET_NAME = 'documents';
 
 // ==========================================
@@ -19,25 +19,25 @@ const BUCKET_NAME = 'documents';
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Définir la date par défaut sur la date du jour
+    // 1. Définir la date par défaut du formulaire sur aujourd'hui
     const dateInput = document.getElementById('tx-date');
     if (dateInput) {
         dateInput.valueAsDate = new Date();
     }
     
-    // 2. Associer la soumission du formulaire d'enregistrement
+    // 2. Écouter la soumission du formulaire d'ajout
     const form = document.getElementById('transaction-form');
     if (form) {
         form.addEventListener('submit', handleAddTransaction);
     }
 
-    // 3. Charger les transactions au démarrage
+    // 3. Charger la liste des transactions au démarrage
     loadTransactions();
 });
 
 /**
  * Permet de basculer d'un onglet à un autre
- * @param {string} tabId - Identifiant de l'onglet (ex: 'transactions', 'urssaf')
+ * @param {string} tabId - L'identifiant de l'onglet à afficher
  */
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -58,14 +58,14 @@ function switchTab(tabId) {
 // ==========================================
 
 /**
- * Envoie un fichier scanné vers Supabase Storage
- * @param {File} file - Le fichier à téléverser
- * @returns {Promise<string|null>} Chemin du fichier ou null en cas d'erreur
+ * Téléverse un fichier vers Supabase Storage
+ * @param {File} file - Fichier sélectionné par l'utilisateur
+ * @returns {Promise<string|null>} Chemin relatif du fichier stocké
  */
 async function uploadFile(file) {
     if (!file) return null;
 
-    // Nom unique basé sur le temps présent pour éviter tout conflit de nom
+    // Nom unique basé sur l'horodatage pour éviter toute collision
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -84,9 +84,9 @@ async function uploadFile(file) {
 }
 
 /**
- * Récupère l'URL publique de consultation d'un fichier
- * @param {string} filePath - Chemin relatif du fichier
- * @returns {string|null} URL d'accès direct
+ * Génère l'URL publique de consultation d'une pièce jointe
+ * @param {string} filePath - Chemin relatif dans Supabase Storage
+ * @returns {string|null} URL d'accès direct au fichier
  */
 function getDocumentUrl(filePath) {
     if (!filePath) return null;
@@ -104,7 +104,7 @@ function getDocumentUrl(filePath) {
 // ==========================================
 
 /**
- * Traite la création d'une nouvelle transaction
+ * Enregistre une nouvelle transaction
  */
 async function handleAddTransaction(event) {
     event.preventDefault();
@@ -151,7 +151,7 @@ async function handleAddTransaction(event) {
 }
 
 /**
- * Récupère les transactions depuis la base de données
+ * Charge les transactions depuis Supabase et met à jour l'état de connexion
  */
 async function loadTransactions() {
     const statusElement = document.getElementById('connection-status');
@@ -182,7 +182,8 @@ async function loadTransactions() {
 }
 
 /**
- * Affiche le tableau HTML des écritures
+ * Génère le tableau HTML des écritures comptables
+ * @param {Array} transactions - Liste des objets transactions reçus de Supabase
  */
 function renderTransactionsTable(transactions) {
     const tbody = document.getElementById('transactions-list');
@@ -226,7 +227,8 @@ function renderTransactionsTable(transactions) {
 }
 
 /**
- * Supprime une transaction spécifique
+ * Supprime une transaction de la base de données
+ * @param {string|number} id - Identifiant de la transaction
  */
 async function deleteTransaction(id) {
     if (!confirm("Voulez-vous vraiment supprimer cette écriture ?")) return;
