@@ -131,6 +131,14 @@ function showTab(tabName) {
     actualiserTousLesCalculs();
 }
 
+function actualiserTousLesCalculs() {
+    genererBilanEtCE();
+    genererDeclarations();
+    actualiserCalculsCarpimko();
+    afficherJournalEtBalance();
+    afficherGrandLivre(); // ◄── AJOUTER CETTE LIGNE
+}
+
 // ============================================================================
 // 5. CALCULS CARPIMKO
 // ============================================================================
