@@ -9,11 +9,11 @@ let currentTransactions = [];
 let currentProfileId = null;
 
 // ============================================================================
-// 2. DÉTECTION ET VENTILATION DÉTAILLÉE DES COMPTES PCG
+// 2. DÉTECTION ET VENTILATION FINE DES COMPTES PCG
 // ============================================================================
 
 /**
- * Analyse la catégorie ET la description pour assigner un compte PCG précis
+ * Analyse la catégorie et la description pour attribuer un sous-compte PCG exact
  */
 function obtenirComptePCG(transaction) {
     const isRecette = (transaction.type || '').toLowerCase().includes('recette');
@@ -31,15 +31,29 @@ function obtenirComptePCG(transaction) {
 
     // --- B. CHARGES ET DÉPENSES (Classe 6) ---
     
-    // Cotisations sociales détaillées
+    // Cotisations CARPIMKO Détaillées (Comptes individuels 6452xx)
+    if (texteComplet.includes('carpimko base') || texteComplet.includes('régime de base')) {
+        return { num: '645210', nom: 'CARPIMKO - Régime de base' };
+    }
+    if (texteComplet.includes('carpimko comp') || texteComplet.includes('complémentaire')) {
+        return { num: '645220', nom: 'CARPIMKO - Régime complémentaire' };
+    }
+    if (texteComplet.includes('asv') || texteComplet.includes('avantage social')) {
+        return { num: '645230', nom: 'CARPIMKO - ASV' };
+    }
+    if (texteComplet.includes('invalidité') || texteComplet.includes('deces') || texteComplet.includes('décès')) {
+        return { num: '645240', nom: 'CARPIMKO - Invalidité / Décès' };
+    }
+    if (texteComplet.includes('carpimko')) {
+        return { num: '645200', nom: 'Cotisations CARPIMKO Globales' };
+    }
+
+    // Cotisations URSSAF
     if (texteComplet.includes('urssaf')) {
         return { num: '645100', nom: 'Cotisations URSSAF' };
     }
-    if (texteComplet.includes('carpimko')) {
-        return { num: '645200', nom: 'Cotisations CARPIMKO' };
-    }
     if (texteComplet.includes('cotisation')) {
-        return { num: '645000', nom: 'Autres cotisations sociales' };
+        return { num: '645000', nom: 'Autres charges sociales' };
     }
 
     // Achats et fournitures
@@ -60,17 +74,17 @@ function obtenirComptePCG(transaction) {
     if (texteComplet.includes('carburant') || texteComplet.includes('essence') || texteComplet.includes('déplacement') || texteComplet.includes('deplacement') || texteComplet.includes('péage')) {
         return { num: '625100', nom: 'Frais de déplacements et carburant' };
     }
-    if (texteComplet.includes('téléphone') || texteComplet.includes('telephone') || texteComplet.includes('internet') || texteComplet.includes('forfait')) {
+    if (texteComplet.includes('téléphone') || texteComplet.includes('telephone') || texteComplet.includes('internet')) {
         return { num: '626000', nom: 'Frais de télécommunications' };
     }
     if (texteComplet.includes('comptable') || texteComplet.includes('honoraires')) {
-        return { num: '622600', nom: 'Honoraires comptables / juridiques' };
+        return { num: '622600', nom: 'Honoraires comptables' };
     }
     if (texteComplet.includes('banque') || texteComplet.includes('frais bancaire')) {
         return { num: '627000', nom: 'Services bancaires' };
     }
 
-    // Compte de secours pour charges diverses
+    // Compte par défaut pour divers
     return { num: '628000', nom: 'Divers services extérieurs' };
 }
 
@@ -323,13 +337,67 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 7. CALCULS COMPTABLES AUTOMATISÉS
+// 7. CALCULS COMPTABLES AUTOMATISÉS ET CARPIMKO
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
     genererDeclarations();
-    calculerCarpimkoTab();
+    actualiserCalculsCarpimko();
     afficherJournalEtBalance();
+}
+
+function actualiserCalculsCarpimko() {
+    const bnc = parseFloat(document.getElementById('carpBncReel')?.value) || 0;
+    const revConv = parseFloat(document.getElementById('carpRevConv')?.value) || 0;
+    const dejaRegle = parseFloat(document.getElementById('carpDejaRegle')?.value) || 0;
+
+    // Plafond Annuel Sécurité Sociale (PASS)
+    const PASS_2026 = 46368; 
+    const t1Base = Math.min(bnc, PASS_2026);
+    const t2Base = bnc;
+
+    const reelT1 = t1Base * 0.0873;
+    const reelT2 = t2Base * 0.0187;
+
+    const reelComp = 2091.00;
+    const asvForfait = 224.00;
+    const reelAsvProp = revConv * 0.004 * 0.40;
+    const invDeces = 1022.00;
+    const regu2025 = 1027.96 + 220.90;
+
+    const totalReelDu = reelT1 + reelT2 + reelComp + asvForfait + reelAsvProp + invDeces + regu2025;
+    const soldeReel = totalReelDu - dejaRegle;
+
+    remplir('baseT1', bnc.toFixed(2) + ' €');
+    remplir('baseT2', bnc.toFixed(2) + ' €');
+    remplir('reelT1', reelT1.toFixed(2) + ' €');
+    remplir('reelT2', reelT2.toFixed(2) + ' €');
+    remplir('baseAsv', revConv.toFixed(2) + ' €');
+    remplir('reelAsvProp', reelAsvProp.toFixed(2) + ' €');
+
+    remplir('totalReelDu', totalReelDu.toFixed(2) + ' €');
+    remplir('dejaRegleAffichage', '- ' + dejaRegle.toFixed(2) + ' €');
+    remplir('soldeReelPaye', soldeReel.toFixed(2) + ' €');
+
+    const appelOfficielSolde = 8896.86;
+    const ecart = soldeReel - appelOfficielSolde;
+    const divAnalyse = document.getElementById('analyseEcart');
+
+    if (divAnalyse) {
+        if (ecart > 10) {
+            divAnalyse.style.background = '#f8d7da';
+            divAnalyse.style.color = '#721c24';
+            divAnalyse.innerHTML = `⚠️ Vos revenus réels sont supérieurs à la base d'appel. Prévoyez une régularisation de **+${ecart.toFixed(2)} €** lors du décompte définitif.`;
+        } else if (ecart < -10) {
+            divAnalyse.style.background = '#d4edda';
+            divAnalyse.style.color = '#155724';
+            divAnalyse.innerHTML = `💡 Vous payez actuellement plus que ce que vous devez par rapport à votre réel ! Un trop-perçu de **${Math.abs(ecart).toFixed(2)} €** vous sera régularisé.`;
+        } else {
+            divAnalyse.style.background = '#d1ecf1';
+            divAnalyse.style.color = '#0c5460';
+            divAnalyse.innerHTML = `✅ L'appel de cotisation est parfaitement ajusté à votre niveau de revenus actuels.`;
+        }
+    }
 }
 
 function genererBilanEtCE() {
@@ -399,85 +467,16 @@ function genererDeclarations() {
         }
     });
 
-    const estRemplacant = document.getElementById('urssafRemplacant')?.checked;
-    const tauxUrssaf = estRemplacant ? 0.138 : 0.145;
-
     remplir('declCA', totalCA);
     remplir('caT1', t1);
     remplir('caT2', t2);
     remplir('caT3', t3);
     remplir('caT4', t4);
-
-    remplir('urssafT1', t1 * tauxUrssaf);
-    remplir('urssafT2', t2 * tauxUrssaf);
-    remplir('urssafT3', t3 * tauxUrssaf);
-    remplir('urssafT4', t4 * tauxUrssaf);
-
-    const abattement = totalCA * 0.34;
-    remplir('microCA', totalCA);
-    remplir('microAbattement', abattement);
-    remplir('microImposable', Math.max(0, totalCA - abattement));
-
-    remplir('reelCA', totalCA);
-    remplir('reelDepenses', totalDepenses);
-    remplir('reelBenefice', totalCA - totalDepenses);
 }
 
 // ============================================================================
 // 8. ACTIONS ET EXPORTS
 // ============================================================================
-async function incorporerCotisationsUrssaf() {
-    if (!supabaseClient) return;
-
-    const estRemplacant = document.getElementById('urssafRemplacant')?.checked;
-    const tauxUrssaf = estRemplacant ? 0.138 : 0.145;
-    const anneeSel = document.getElementById('selectAnnee')?.value;
-    const annee = (anneeSel === 'Toutes') ? new Date().getFullYear().toString() : anneeSel;
-
-    let trimestres = [0, 0, 0, 0];
-    currentTransactions.forEach(t => {
-        if ((t.type || '').toLowerCase().includes('recette') && t.date && t.date.startsWith(annee)) {
-            const mois = new Date(t.date).getMonth() + 1;
-            const val = parseFloat(t.amount) || 0;
-            if (mois >= 1 && mois <= 3) trimestres[0] += val;
-            else if (mois >= 4 && mois <= 6) trimestres[1] += val;
-            else if (mois >= 7 && mois <= 9) trimestres[2] += val;
-            else if (mois >= 10 && mois <= 12) trimestres[3] += val;
-        }
-    });
-
-    const datesTrimestres = [`${annee}-03-31`, `${annee}-06-30`, `${annee}-09-30`, `${annee}-12-31`];
-    let nouvellesDepenses = [];
-
-    trimestres.forEach((caTrim, index) => {
-        const montantUrssaf = caTrim * tauxUrssaf;
-        if (montantUrssaf > 0) {
-            nouvellesDepenses.push({
-                date: datesTrimestres[index],
-                type: 'depense',
-                category: 'Cotisations URSSAF',
-                description: `Cotisation URSSAF T${index + 1} (${annee})`,
-                amount: parseFloat(montantUrssaf.toFixed(2))
-            });
-        }
-    });
-
-    if (nouvellesDepenses.length === 0) {
-        alert("Aucune cotisation URSSAF à incorporer pour cette période.");
-        return;
-    }
-
-    if (confirm(`Enregistrer ${nouvellesDepenses.length} dépense(s) d'URSSAF dans votre comptabilité ?`)) {
-        const { error } = await supabaseClient.from('transactions').insert(nouvellesDepenses);
-        if (!error) {
-            alert("✅ Cotisations URSSAF ajoutées aux dépenses !");
-            await chargerTransactions();
-        } else {
-            alert("⚠️ Erreur : " + error.message);
-        }
-    }
-}
-
 async function sauvegarderDeclaration() {
     if (!supabaseClient) return;
 
@@ -494,16 +493,14 @@ async function sauvegarderDeclaration() {
         annee: annee,
         recettes_brutes: totalCA,
         depenses_deductibles: totalDepenses,
-        benefice_imposable: totalCA - totalDepenses,
-        urssaf_estimee: totalCA * 0.145,
-        carpimko_estimee: Math.max(0, (totalCA - totalDepenses) * 0.14)
+        benefice_imposable: totalCA - totalDepenses
     };
 
     const { error } = await supabaseClient.from('declarations').insert([payload]);
     if (!error) {
         alert(`✅ Déclaration ${annee} sauvegardée avec succès !`);
     } else {
-        alert("⚠️ Note : Assurez-vous d'avoir créé la table 'declarations' dans Supabase.");
+        alert("⚠️ Erreur lors de la sauvegarde.");
     }
 }
 
@@ -528,41 +525,8 @@ function exporterPourComptable() {
     document.body.removeChild(link);
 }
 
-function envoyerEmailComptable() {
-    let totalCA = 0, totalDepenses = 0;
-    currentTransactions.forEach(t => {
-        const val = parseFloat(t.amount) || 0;
-        if ((t.type || '').toLowerCase().includes('recette')) totalCA += val;
-        else totalDepenses += val;
-    });
-
-    const sujet = encodeURIComponent("Bilan Comptable Infirmier");
-    const corps = encodeURIComponent(
-        `Bonjour,\n\nVoici le bilan de ma comptabilité :\n` +
-        `- Recettes brutes : ${totalCA.toFixed(2)} €\n` +
-        `- Dépenses déductibles : ${totalDepenses.toFixed(2)} €\n` +
-        `- Résultat / Bénéfice : ${(totalCA - totalDepenses).toFixed(2)} €\n\nCordialement,`
-    );
-
-    window.location.href = `mailto:?subject=${sujet}&body=${corps}`;
-}
-
-function calculerCarpimkoTab() {
-    const bnc = parseFloat(document.getElementById('carpBnc')?.value) || 0;
-    const statut = document.getElementById('carpStatut')?.value || 'croisiere';
-
-    let totalCarpimko = 0;
-    if (statut === 'annee1') totalCarpimko = 3524;
-    else if (statut === 'annee2') totalCarpimko = 6080;
-    else totalCarpimko = (bnc * 0.14) + 824;
-
-    remplir('carpTotal', totalCarpimko);
-    remplir('carpMensuel', totalCarpimko / 12);
-    remplir('carpTrim', totalCarpimko / 4);
-}
-
 // ============================================================================
-// 9. AFFICHAGE DU LIVRE-JOURNAL ET DE LA BALANCE DES COMPTES
+// 9. LIVRE JOURNAL ET BALANCE DES COMPTES
 // ============================================================================
 function afficherJournalEtBalance() {
     afficherLivreJournal();
