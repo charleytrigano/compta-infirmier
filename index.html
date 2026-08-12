@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
-    <!-- Script SDK Supabase CDN -->
+    <!-- SDK Supabase & Librairies Export Excel / ZIP -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
         :root {
             --primary: #2b6cb0;
@@ -69,18 +71,9 @@
             transition: all 0.2s;
         }
 
-        .tab:hover {
-            background: #e2e8f0;
-        }
-
-        .tab.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .tab-content.hidden {
-            display: none;
-        }
+        .tab:hover { background: #e2e8f0; }
+        .tab.active { background: var(--primary); color: white; }
+        .tab-content.hidden { display: none; }
 
         .form-grid {
             display: grid;
@@ -95,17 +88,8 @@
             gap: 5px;
         }
 
-        label {
-            font-size: 0.9em;
-            font-weight: 600;
-        }
-
-        input, select {
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 1em;
-        }
+        label { font-size: 0.9em; font-weight: 600; }
+        input, select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 1em; }
 
         .btn {
             padding: 8px 16px;
@@ -117,29 +101,13 @@
             font-weight: 600;
         }
 
-        .btn:hover {
-            background: var(--primary-hover);
-        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); }
+        .btn-success { background: var(--success); }
 
-        .btn-danger {
-            background: var(--danger);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
-            padding: 10px;
-            border-bottom: 1px solid var(--border);
-            text-align: left;
-        }
-
-        th {
-            background: #f7fafc;
-        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+        th { background: #f7fafc; }
 
         .compte-badge {
             background: #e2e8f0;
@@ -160,12 +128,7 @@
         .transaction.recette { border-left: 4px solid var(--success); }
         .transaction.depense { border-left: 4px solid var(--danger); }
 
-        #loading {
-            text-align: center;
-            padding: 40px;
-            font-size: 1.2em;
-            color: #718096;
-        }
+        #loading { text-align: center; padding: 40px; font-size: 1.2em; color: #718096; }
     </style>
 </head>
 <body>
@@ -181,6 +144,7 @@
 
         <div class="tabs">
             <button class="tab active" onclick="showTab('transactions')">📝 Transactions</button>
+            <button class="tab" onclick="showTab('plancomptable')">📚 Plan Comptable</button>
             <button class="tab" onclick="showTab('urssaf')">🏛️ URSSAF</button>
             <button class="tab" onclick="showTab('carpimko')">🏛️ CARPIMKO</button>
             <button class="tab" onclick="showTab('bilan')">📊 Bilan / CE</button>
@@ -218,13 +182,59 @@
                         <label for="amount">Montant (€)</label>
                         <input type="number" step="0.01" id="amount" placeholder="0.00">
                     </div>
+                    <div class="form-group">
+                        <label for="fileInput">📎 Scanner / Pièce jointe</label>
+                        <input type="file" id="fileInput" accept="image/*,application/pdf">
+                    </div>
                 </div>
-                <button class="btn" onclick="addTransaction()">➕ Ajouter</button>
+                <button class="btn" onclick="addTransaction()">➕ Ajouter l'écriture</button>
             </div>
 
             <div class="card">
                 <h3>Historique des transactions</h3>
                 <div id="transactions"></div>
+            </div>
+        </div>
+
+        <!-- TAB PLAN COMPTABLE -->
+        <div id="tab-plancomptable" class="tab-content hidden">
+            <div class="card">
+                <h3>Nouveau compte comptable</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="pcCode">Code Compte (ex: 606300)</label>
+                        <input type="text" id="pcCode" placeholder="606300">
+                    </div>
+                    <div class="form-group">
+                        <label for="pcLibelle">Libellé du compte</label>
+                        <input type="text" id="pcLibelle" placeholder="Achats petit matériel">
+                    </div>
+                    <div class="form-group">
+                        <label for="pcType">Type de compte</label>
+                        <select id="pcType">
+                            <option value="Charge">Charge (6...)</option>
+                            <option value="Produit">Produit (7...)</option>
+                            <option value="Trésorerie">Trésorerie (5...)</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn" onclick="ajouterComptePC()">➕ Ajouter au Plan Comptable</button>
+            </div>
+
+            <div class="card">
+                <h3>Plan Comptable du Cabinet</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code Compte</th>
+                            <th>Libellé</th>
+                            <th>Type</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPlanComptable"></tbody>
+                </table>
             </div>
         </div>
 
@@ -312,36 +322,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td><span class="compte-badge">645110</span></td>
-                            <td>URSSAF - Assurance Maladie / Maternité</td>
-                            <td style="text-align: right;" id="uMaladie">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">645120</span></td>
-                            <td>URSSAF - Allocations Familiales</td>
-                            <td style="text-align: right;" id="uAF">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">645130</span></td>
-                            <td>URSSAF - CSG Déductible (6,80%)</td>
-                            <td style="text-align: right;" id="uCsgDed">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">635800</span></td>
-                            <td>URSSAF - CSG Non Déductible (2,40%) & CRDS (0,50%)</td>
-                            <td style="text-align: right;" id="uCsgNDed">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">637800</span></td>
-                            <td>URSSAF - Contribution Formation Professionnelle (CFP)</td>
-                            <td style="text-align: right;" id="uCFP">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">637810</span></td>
-                            <td>URSSAF - CURPS</td>
-                            <td style="text-align: right;" id="uCURPS">0.00 €</td>
-                        </tr>
+                        <tr><td><span class="compte-badge">645110</span></td><td>URSSAF - Assurance Maladie / Maternité</td><td style="text-align: right;" id="uMaladie">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645120</span></td><td>URSSAF - Allocations Familiales</td><td style="text-align: right;" id="uAF">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645130</span></td><td>URSSAF - CSG Déductible (6,80%)</td><td style="text-align: right;" id="uCsgDed">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">635800</span></td><td>URSSAF - CSG Non Déductible (2,40%) & CRDS (0,50%)</td><td style="text-align: right;" id="uCsgNDed">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">637800</span></td><td>URSSAF - Contribution Formation Professionnelle (CFP)</td><td style="text-align: right;" id="uCFP">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">637810</span></td><td>URSSAF - CURPS</td><td style="text-align: right;" id="uCURPS">0.00 €</td></tr>
                         <tr style="font-weight: bold; background: #edf2f7;">
                             <td colspan="2">Total Général Cotisations URSSAF</td>
                             <td style="text-align: right;" id="uTotal">0.00 €</td>
@@ -382,21 +368,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>Régime de base - Tranche 1 (8.73%)</td>
-                            <td id="baseT1">0.00 €</td>
-                            <td id="reelT1">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Régime de base - Tranche 2 (1.87%)</td>
-                            <td id="baseT2">0.00 €</td>
-                            <td id="reelT2">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>ASV Proportionnel (0.16%)</td>
-                            <td id="baseAsv">0.00 €</td>
-                            <td id="reelAsvProp">0.00 €</td>
-                        </tr>
+                        <tr><td>Régime de base - Tranche 1 (8.73%)</td><td id="baseT1">0.00 €</td><td id="reelT1">0.00 €</td></tr>
+                        <tr><td>Régime de base - Tranche 2 (1.87%)</td><td id="baseT2">0.00 €</td><td id="reelT2">0.00 €</td></tr>
+                        <tr><td>ASV Proportionnel (0.16%)</td><td id="baseAsv">0.00 €</td><td id="reelAsvProp">0.00 €</td></tr>
                         <tr style="font-weight: bold; background: #edf2f7;">
                             <td>Total Cotisations Réelles Dues</td>
                             <td>-</td>
@@ -425,26 +399,10 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td><span class="compte-badge">645210</span></td>
-                            <td>CARPIMKO - Régime de base (avec régularisation)</td>
-                            <td style="text-align: right;" id="ciBase">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">645220</span></td>
-                            <td>CARPIMKO - Régime complémentaire (Forfait)</td>
-                            <td style="text-align: right;" id="ciComp">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">645230</span></td>
-                            <td>CARPIMKO - ASV (Forfait + Prop.)</td>
-                            <td style="text-align: right;" id="ciAsv">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td><span class="compte-badge">645240</span></td>
-                            <td>CARPIMKO - Invalidité / Décès</td>
-                            <td style="text-align: right;" id="ciInv">0.00 €</td>
-                        </tr>
+                        <tr><td><span class="compte-badge">645210</span></td><td>CARPIMKO - Régime de base (avec régularisation)</td><td style="text-align: right;" id="ciBase">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645220</span></td><td>CARPIMKO - Régime complémentaire (Forfait)</td><td style="text-align: right;" id="ciComp">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645230</span></td><td>CARPIMKO - ASV (Forfait + Prop.)</td><td style="text-align: right;" id="ciAsv">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645240</span></td><td>CARPIMKO - Invalidité / Décès</td><td style="text-align: right;" id="ciInv">0.00 €</td></tr>
                         <tr style="font-weight: bold; background: #edf2f7;">
                             <td colspan="2">Total Général CARPIMKO</td>
                             <td style="text-align: right;" id="ciTotal">0.00 €</td>
@@ -460,20 +418,11 @@
                 <h3>Compte d'Exploitation / Bilan Simplifié</h3>
                 <table>
                     <thead>
-                        <tr>
-                            <th>PRODUITS (RECETTES)</th>
-                            <th style="text-align: right;">Montant</th>
-                        </tr>
+                        <tr><th>PRODUITS (RECETTES)</th><th style="text-align: right;">Montant</th></tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>Honoraires PAI / Patients / Soins</td>
-                            <td style="text-align: right;" id="ceHonoraires">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Autres produits annexes</td>
-                            <td style="text-align: right;" id="ceAutresRecettes">0.00 €</td>
-                        </tr>
+                        <tr><td>Honoraires PAI / Patients / Soins</td><td style="text-align: right;" id="ceHonoraires">0.00 €</td></tr>
+                        <tr><td>Autres produits annexes</td><td style="text-align: right;" id="ceAutresRecettes">0.00 €</td></tr>
                         <tr style="font-weight: bold; background: #e6fffa;">
                             <td>TOTAL DES PRODUITS</td>
                             <td style="text-align: right;" id="ceProduits">0.00 €</td>
@@ -483,32 +432,14 @@
 
                 <table style="margin-top: 20px;">
                     <thead>
-                        <tr>
-                            <th>CHARGES (DÉPENSES)</th>
-                            <th style="text-align: right;">Montant</th>
-                        </tr>
+                        <tr><th>CHARGES (DÉPENSES)</th><th style="text-align: right;">Montant</th></tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>Cotisations Sociales (URSSAF / CARPIMKO)</td>
-                            <td style="text-align: right;" id="ceCotis">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Petit matériel médical</td>
-                            <td style="text-align: right;" id="ceMateriel">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Frais de déplacements / Carburant</td>
-                            <td style="text-align: right;" id="ceFraisDeplacement">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Assurances Professionnelles</td>
-                            <td style="text-align: right;" id="ceAssurances">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Autres charges extérieures</td>
-                            <td style="text-align: right;" id="ceCharges">0.00 €</td>
-                        </tr>
+                        <tr><td>Cotisations Sociales (URSSAF / CARPIMKO)</td><td style="text-align: right;" id="ceCotis">0.00 €</td></tr>
+                        <tr><td>Petit matériel médical</td><td style="text-align: right;" id="ceMateriel">0.00 €</td></tr>
+                        <tr><td>Frais de déplacements / Carburant</td><td style="text-align: right;" id="ceFraisDeplacement">0.00 €</td></tr>
+                        <tr><td>Assurances Professionnelles</td><td style="text-align: right;" id="ceAssurances">0.00 €</td></tr>
+                        <tr><td>Autres charges extérieures</td><td style="text-align: right;" id="ceCharges">0.00 €</td></tr>
                         <tr style="font-weight: bold; background: #fff5f5;">
                             <td>TOTAL DES CHARGES</td>
                             <td style="text-align: right;" id="ceChargesTotal">0.00 €</td>
@@ -525,7 +456,7 @@
         <!-- TAB DECLARATIONS -->
         <div id="tab-declarations" class="tab-content hidden">
             <div class="card">
-                <h3>Récapitulatif pour Déclarations (2035 / URSSAF)</h3>
+                <h3>Récapitulatif & Export Comptable Réel</h3>
                 <div class="form-group" style="max-width: 200px; margin-bottom: 15px;">
                     <label for="selectAnnee">Filtrer par année</label>
                     <select id="selectAnnee" onchange="genererDeclarations()">
@@ -541,28 +472,16 @@
                             <td>Chiffre d'Affaires / Recettes Totales Encaissées</td>
                             <td style="text-align: right;" id="declCA">0.00 €</td>
                         </tr>
-                        <tr>
-                            <td>Trimestre 1 (Janvier - Mars)</td>
-                            <td style="text-align: right;" id="caT1">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Trimestre 2 (Avril - Juin)</td>
-                            <td style="text-align: right;" id="caT2">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Trimestre 3 (Juillet - Septembre)</td>
-                            <td style="text-align: right;" id="caT3">0.00 €</td>
-                        </tr>
-                        <tr>
-                            <td>Trimestre 4 (Octobre - Décembre)</td>
-                            <td style="text-align: right;" id="caT4">0.00 €</td>
-                        </tr>
+                        <tr><td>Trimestre 1 (Janvier - Mars)</td><td style="text-align: right;" id="caT1">0.00 €</td></tr>
+                        <tr><td>Trimestre 2 (Avril - Juin)</td><td style="text-align: right;" id="caT2">0.00 €</td></tr>
+                        <tr><td>Trimestre 3 (Juillet - Septembre)</td><td style="text-align: right;" id="caT3">0.00 €</td></tr>
+                        <tr><td>Trimestre 4 (Octobre - Décembre)</td><td style="text-align: right;" id="caT4">0.00 €</td></tr>
                     </tbody>
                 </table>
 
-                <div style="margin-top: 20px; display: flex; gap: 10px;">
-                    <button class="btn" onclick="sauvegarderDeclaration()">💾 Enregistrer la déclaration</button>
-                    <button class="btn" onclick="exporterPourComptable()">📥 Exporter au format CSV</button>
+                <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn btn-success" onclick="exporterSauvegardeZIP()">📦 Export Complet pour Comptable (.ZIP)</button>
+                    <button class="btn" onclick="exporterPourComptable()">📥 Export CSV Simple</button>
                 </div>
             </div>
         </div>
@@ -577,6 +496,7 @@
                             <th>Date</th>
                             <th>Compte PCG</th>
                             <th>Libellé</th>
+                            <th>Pièce Jointe</th>
                             <th style="text-align: right;">Débit (€)</th>
                             <th style="text-align: right;">Crédit (€)</th>
                         </tr>
@@ -608,9 +528,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
                     <div>
                         <h3 style="margin: 0;">📖 Grand Livre Détaillé</h3>
-                        <p style="color: #718096; margin: 5px 0 0 0;">
-                            Mouvements détaillés par compte avec reprise des à-nouveaux (bilan).
-                        </p>
+                        <p style="color: #718096; margin: 5px 0 0 0;">Mouvements détaillés par compte avec reprise des à-nouveaux.</p>
                     </div>
                     <div class="form-group" style="min-width: 180px;">
                         <label for="selectAnneeGrandLivre">Exercice / Année :</label>
@@ -626,26 +544,11 @@
             <div class="card">
                 <h3>Profil Praticien / Cabinet</h3>
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label for="nom">Nom</label>
-                        <input type="text" id="nom">
-                    </div>
-                    <div class="form-group">
-                        <label for="prenom">Prénom</label>
-                        <input type="text" id="prenom">
-                    </div>
-                    <div class="form-group">
-                        <label for="siret">N° SIRET</label>
-                        <input type="text" id="siret">
-                    </div>
-                    <div class="form-group">
-                        <label for="rpps">N° RPPS / ADELI</label>
-                        <input type="text" id="rpps">
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Adresse Email</label>
-                        <input type="email" id="email">
-                    </div>
+                    <div class="form-group"><label for="nom">Nom</label><input type="text" id="nom"></div>
+                    <div class="form-group"><label for="prenom">Prénom</label><input type="text" id="prenom"></div>
+                    <div class="form-group"><label for="siret">N° SIRET</label><input type="text" id="siret"></div>
+                    <div class="form-group"><label for="rpps">N° RPPS / ADELI</label><input type="text" id="rpps"></div>
+                    <div class="form-group"><label for="email">Adresse Email</label><input type="email" id="email"></div>
                 </div>
                 <button class="btn" onclick="saveProfile()">💾 Enregistrer le profil</button>
             </div>
