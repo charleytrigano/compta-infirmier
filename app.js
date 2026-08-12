@@ -1,5 +1,5 @@
 // ==========================================
-// 1. CONFIGURATION & VARIABLES GLOBALES
+// 1. DÉCLARATIONS GLOBALES
 // ==========================================
 var SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
 var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5tajirgilIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
@@ -23,16 +23,16 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initApp() {
-    // Recherche globale de l'objet Supabase
-    var supabaseObj = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+    // Récupération sécurisée de la bibliothèque Supabase
+    var supabaseLib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
 
-    if (supabaseObj && typeof supabaseObj.createClient === 'function') {
-        supabaseClient = supabaseObj.createClient(SUPABASE_URL, SUPABASE_KEY);
+    if (supabaseLib && typeof supabaseLib.createClient === 'function') {
+        supabaseClient = supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY);
     } else {
-        console.error("Supabase n'a pas pu être initialisé.");
+        console.error("Supabase CDN inaccessible.");
         var statusElement = document.getElementById('connection-status');
         if (statusElement) {
-            statusElement.textContent = "Erreur : CDN Supabase bloqué ou non chargé";
+            statusElement.textContent = "Erreur : CDN Supabase non chargé";
             statusElement.style.background = "#fecaca";
             statusElement.style.color = "#991b1b";
         }
@@ -53,7 +53,7 @@ function initApp() {
 }
 
 // ==========================================
-// 3. FONCTIONS TRANSACTIONS
+// 3. TRANSACTIONS
 // ==========================================
 async function loadTransactions() {
     if (!supabaseClient) return;
@@ -153,7 +153,7 @@ async function deleteTransaction(id) {
 }
 
 // ==========================================
-// 4. FONCTIONS PLAN COMPTABLE
+// 4. PLAN COMPTABLE
 // ==========================================
 async function loadPlanComptable() {
     if (!supabaseClient) {
