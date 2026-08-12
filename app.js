@@ -2,16 +2,16 @@
 // CONFIGURATION ET INITIALISATION SUPABASE
 // ==========================================
 
-// URL officielle et fonctionnelle de votre projet Supabase
-const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co/rest/v1/"; 
+// URL officielle de votre projet Supabase
+const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co"; 
 
-// Clé d'accès publique anonyme (anon key)
+// Clé anonyme publique exacte correspondant au projet
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
 // Initialisation du client Supabase
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Nom du Bucket Supabase Storage où sont enregistrées les pièces jointes
+// Nom du Bucket Supabase Storage pour les pièces jointes
 const BUCKET_NAME = 'documents';
 
 // ==========================================
