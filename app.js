@@ -2,16 +2,16 @@
 // CONFIGURATION ET INITIALISATION SUPABASE
 // ==========================================
 
-// URL officielle de votre projet Supabase
+// 1. URL racine exacte du projet (SANS le suffixe /rest/v1/)
 const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co"; 
 
-// Clé anonyme publique exacte correspondant au projet
+// 2. Clé d'accès anonyme publique (anon key)
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
-// Initialisation du client Supabase
+// Initialisation du client officiel Supabase
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Nom du Bucket Supabase Storage pour les pièces jointes
+// Nom du dossier (Bucket) dans Supabase Storage pour les justificatifs
 const BUCKET_NAME = 'documents';
 
 // ==========================================
@@ -19,79 +19,74 @@ const BUCKET_NAME = 'documents';
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialiser la date du formulaire à la date du jour par défaut
+    // 1. Définir la date par défaut sur la date du jour
     const dateInput = document.getElementById('tx-date');
     if (dateInput) {
         dateInput.valueAsDate = new Date();
     }
     
-    // 2. Associer la soumission du formulaire à la fonction d'enregistrement
+    // 2. Associer la soumission du formulaire d'enregistrement
     const form = document.getElementById('transaction-form');
     if (form) {
         form.addEventListener('submit', handleAddTransaction);
     }
 
-    // 3. Charger et afficher immédiatement les transactions enregistrées
+    // 3. Charger les transactions au démarrage
     loadTransactions();
 });
 
 /**
- * Permet de basculer d'un onglet à un autre dans l'interface
- * @param {string} tabId - L'identifiant de l'onglet à afficher (ex: 'transactions', 'urssaf', etc.)
+ * Permet de basculer d'un onglet à un autre
+ * @param {string} tabId - Identifiant de l'onglet (ex: 'transactions', 'urssaf')
  */
 function switchTab(tabId) {
-    // Masquer tous les onglets
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
-    // Afficher l'onglet ciblé
     const selectedTab = document.getElementById(`tab-${tabId}`);
     if (selectedTab) {
         selectedTab.classList.add('active');
     }
 
-    // Mettre le bouton cliqué en état actif
     if (window.event && window.event.currentTarget) {
         window.event.currentTarget.classList.add('active');
     }
 }
 
 // ==========================================
-// GESTION DU STORAGE SUPABASE (PIÈCES JOINTES)
+// GESTION DU STORAGE SUPABASE (FICHIERS SCANNÉS)
 // ==========================================
 
 /**
- * Envoyer un fichier scanné (image ou PDF) vers Supabase Storage
- * @param {File} file - Le fichier sélectionné dans le champ HTML
- * @returns {Promise<string|null>} Le chemin d'accès unique du fichier ou null en cas d'erreur
+ * Envoie un fichier scanné vers Supabase Storage
+ * @param {File} file - Le fichier à téléverser
+ * @returns {Promise<string|null>} Chemin du fichier ou null en cas d'erreur
  */
 async function uploadFile(file) {
     if (!file) return null;
 
-    // Générer un nom de fichier unique basé sur le temps pour éviter les doublons
+    // Nom unique basé sur le temps présent pour éviter tout conflit de nom
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-    // Téléversement du fichier dans le bucket Storage
     const { data, error } = await supabaseClient
         .storage
         .from(BUCKET_NAME)
         .upload(fileName, file);
 
     if (error) {
-        console.error("Erreur lors du téléversement du fichier :", error);
-        alert("Attention : la pièce jointe n'a pas pu être envoyée. " + error.message);
+        console.error("Erreur lors de l'envoi du fichier :", error);
+        alert("Attention : le fichier n'a pas pu être téléversé : " + error.message);
         return null;
     }
 
-    // Renvoie le chemin relatif enregistré dans le bucket
     return data.path;
 }
 
 /**
- * Obtenir le lien web public pour consulter un document scanné
- * @param {string} filePath - Le chemin du fichier stocké dans Supabase
- * @returns {string|null} L'URL complète d'accès au fichier
+ * Récupère l'URL publique de consultation d'un fichier
+ * @param {string} filePath - Chemin relatif du fichier
+ * @returns {string|null} URL d'accès direct
  */
 function getDocumentUrl(filePath) {
     if (!filePath) return null;
@@ -109,13 +104,11 @@ function getDocumentUrl(filePath) {
 // ==========================================
 
 /**
- * Traite la création et l'enregistrement d'une nouvelle opération
- * @param {Event} event - L'événement de soumission du formulaire
+ * Traite la création d'une nouvelle transaction
  */
 async function handleAddTransaction(event) {
     event.preventDefault();
 
-    // Récupération des valeurs saisies dans le formulaire
     const date = document.getElementById('tx-date').value;
     const type = document.getElementById('tx-type').value;
     const category = document.getElementById('tx-category').value;
@@ -123,19 +116,16 @@ async function handleAddTransaction(event) {
     const amountVal = parseFloat(document.getElementById('tx-amount').value);
     const fileInput = document.getElementById('tx-file');
 
-    // Validation des données obligatoires
     if (!date || !type || !category || !description || isNaN(amountVal)) {
         alert("Veuillez remplir correctement tous les champs obligatoires.");
         return;
     }
 
-    // Gestion de la pièce jointe si un fichier est sélectionné
     let filePath = null;
     if (fileInput && fileInput.files.length > 0) {
         filePath = await uploadFile(fileInput.files[0]);
     }
 
-    // Préparation de l'objet transaction envoyé à Supabase
     const newTransaction = {
         date: date,
         type: type,
@@ -145,7 +135,6 @@ async function handleAddTransaction(event) {
         file_path: filePath
     };
 
-    // Insertion dans la table 'transactions' de la base de données
     const { data, error } = await supabaseClient
         .from('transactions')
         .insert([newTransaction]);
@@ -155,29 +144,23 @@ async function handleAddTransaction(event) {
         alert("Impossible d'enregistrer l'écriture : " + error.message);
     } else {
         alert("Écriture enregistrée avec succès !");
-        
-        // Réinitialisation du formulaire
         document.getElementById('transaction-form').reset();
         document.getElementById('tx-date').valueAsDate = new Date();
-        
-        // Rafraîchissement de la liste des transactions
         loadTransactions();
     }
 }
 
 /**
- * Charge les transactions depuis la base de données Supabase et met à jour l'interface
+ * Récupère les transactions depuis la base de données
  */
 async function loadTransactions() {
     const statusElement = document.getElementById('connection-status');
 
-    // Requête vers Supabase : Récupère toutes les transactions triées par date décroissante
     const { data: transactions, error } = await supabaseClient
         .from('transactions')
         .select('*')
         .order('date', { ascending: false });
 
-    // En cas d'erreur de connexion ou de requête
     if (error) {
         console.error("Erreur de chargement des transactions :", error);
         if (statusElement) {
@@ -188,20 +171,18 @@ async function loadTransactions() {
         return;
     }
 
-    // Si la connexion réussit
+    // Connexion réussie
     if (statusElement) {
         statusElement.textContent = "Connecté à Supabase";
         statusElement.style.background = "#dcfce7";
         statusElement.style.color = "#166534";
     }
 
-    // Génération du tableau dans le HTML
     renderTransactionsTable(transactions);
 }
 
 /**
- * Construit le tableau HTML affichant la liste des écritures
- * @param {Array} transactions - La liste des objets transactions reçus de Supabase
+ * Affiche le tableau HTML des écritures
  */
 function renderTransactionsTable(transactions) {
     const tbody = document.getElementById('transactions-list');
@@ -209,24 +190,20 @@ function renderTransactionsTable(transactions) {
 
     tbody.innerHTML = '';
 
-    // Si aucune transaction n'existe en base de données
     if (!transactions || transactions.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucune transaction enregistrée pour le moment.</td></tr>';
         return;
     }
 
-    // Parcourir chaque transaction et générer sa ligne dans le tableau
     transactions.forEach(tx => {
         const tr = document.createElement('tr');
 
-        // Génération du bouton/lien pour la pièce jointe
         let docHtml = '-';
         if (tx.file_path) {
             const fileUrl = getDocumentUrl(tx.file_path);
             docHtml = `<a href="${fileUrl}" target="_blank" class="btn-view-doc">📄 Voir</a>`;
         }
 
-        // Formatage du montant (Vert pour Recette, Rouge pour Dépense)
         const amountColor = tx.type === 'Recette' ? '#10b981' : '#ef4444';
         const formattedAmount = typeof tx.amount === 'number' ? tx.amount.toFixed(2) : '0.00';
 
@@ -249,8 +226,7 @@ function renderTransactionsTable(transactions) {
 }
 
 /**
- * Supprime une transaction spécifique de la base de données
- * @param {string|number} id - L'identifiant unique de la transaction à supprimer
+ * Supprime une transaction spécifique
  */
 async function deleteTransaction(id) {
     if (!confirm("Voulez-vous vraiment supprimer cette écriture ?")) return;
