@@ -1,26 +1,28 @@
 // ==========================================
-// LOGIQUE DE L'APPLICATION (APP.JS) - VERSION CORRIGÉE
+// LOGIQUE DE L'APPLICATION (APP.JS)
 // ==========================================
 
-// Variable globale pour stocker les transactions en mémoire
+// Déclarations des variables globales
 let allTransactions = [];
 
-// Plan comptable par défaut pour infirmiers libéraux
-let defaultPlanComptable = [
-    { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette" },
-    { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge" },
-    { code: "645100", label: "Cotisations URSSAF", type: "Charge" },
-    { code: "645200", label: "Cotisations CARPIMKO", type: "Charge" },
-    { code: "606000", label: "Achats / Fournitures médicales", type: "Charge" }
-];
+// Si defaultPlanComptable n'existe pas encore, on l'initialise
+if (typeof defaultPlanComptable === 'undefined') {
+    var defaultPlanComptable = [
+        { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette" },
+        { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge" },
+        { code: "645100", label: "Cotisations URSSAF", type: "Charge" },
+        { code: "645200", label: "Cotisations CARPIMKO", type: "Charge" },
+        { code: "606000", label: "Achats / Fournitures médicales", type: "Charge" }
+    ];
+}
 
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
-    // Date du jour par défaut
+    // Ajuster la date par défaut
     const dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
 
-    // Attacher les formulaires
+    // Attacher les formulaires s'ils existent
     const txForm = document.getElementById('transaction-form');
     if (txForm) txForm.addEventListener('submit', handleAddTransaction);
 
@@ -30,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profForm = document.getElementById('profil-form');
     if (profForm) profForm.addEventListener('submit', handleSaveProfil);
 
-    // Attacher les boutons de simulation URSSAF et CARPIMKO
+    // Attacher les calculs URSSAF & CARPIMKO
     const btnUrssaf = document.getElementById('btn-calc-urssaf');
     if (btnUrssaf) btnUrssaf.addEventListener('click', calculateUrssaf);
 
@@ -58,25 +60,23 @@ function switchTab(tabId, element) {
     if (tabId === 'grand-livre') renderGrandLivre();
 }
 
-// Fonction utilitaire : Attribution automatique du numéro de compte
+// Association entre catégories et numéros de comptes comptables
 function getAccountCodeForCategory(category, type) {
     const catLower = (category || '').toLowerCase();
 
-    // Si c'est une recette (Encaissement)
     if (type === 'Recette') {
         return "706000";
     }
 
-    // Si c'est une dépense / charge (Décaissement)
     if (catLower.includes('urssaf')) return "645100";
     if (catLower.includes('carpimko')) return "645200";
     if (catLower.includes('soins') || catLower.includes('retrocession') || catLower.includes('remplacement')) return "622600";
     if (catLower.includes('achat') || catLower.includes('fourniture')) return "606000";
 
-    return "606000"; // Compte de charge général par défaut
+    return "606000";
 }
 
-// Gestion des transactions Supabase
+// Gestion des transactions avec Supabase
 async function handleAddTransaction(event) {
     event.preventDefault();
 
@@ -136,7 +136,7 @@ function renderTransactionsTable(transactions) {
     if (!tbody) return;
 
     if (transactions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucune transaction.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucune transaction enregistrée.</td></tr>';
         return;
     }
 
@@ -158,13 +158,13 @@ function renderTransactionsTable(transactions) {
 }
 
 async function deleteTransaction(id) {
-    if (!confirm("Supprimer cette transaction ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
     const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
     if (error) alert("Erreur : " + error.message);
     else loadTransactions();
 }
 
-// Calculateur URSSAF
+// Simulateur URSSAF
 function calculateUrssaf() {
     const inputVal = document.getElementById('urssaf-income').value;
     const income = parseFloat(inputVal) || 0;
@@ -192,7 +192,7 @@ function calculateUrssaf() {
     }
 }
 
-// Calculateur CARPIMKO
+// Simulateur CARPIMKO
 function calculateCarpimko() {
     const inputVal = document.getElementById('carpimko-income').value;
     const income = parseFloat(inputVal) || 0;
@@ -220,7 +220,7 @@ function calculateCarpimko() {
     }
 }
 
-// Vues Bilan, 2035, Journal et Balance
+// Vues Bilan, 2035, Journal & Balance
 function renderBilan() {
     let recettes = 0, depenses = 0;
     const catMap = {};
@@ -236,19 +236,24 @@ function renderBilan() {
     });
 
     const res = recettes - depenses;
-    document.getElementById('bilan-total-recettes').textContent = `${recettes.toFixed(2)} €`;
-    document.getElementById('bilan-total-depenses').textContent = `${depenses.toFixed(2)} €`;
-
+    const rElem = document.getElementById('bilan-total-recettes');
+    const dElem = document.getElementById('bilan-total-depenses');
     const resElem = document.getElementById('bilan-resultat');
-    resElem.textContent = `${res.toFixed(2)} €`;
-    resElem.className = `value ${res >= 0 ? 'val-positive' : 'val-negative'}`;
+
+    if (rElem) rElem.textContent = `${recettes.toFixed(2)} €`;
+    if (dElem) dElem.textContent = `${depenses.toFixed(2)} €`;
+    if (resElem) {
+        resElem.textContent = `${res.toFixed(2)} €`;
+        resElem.className = `value ${res >= 0 ? 'val-positive' : 'val-negative'}`;
+    }
 
     let rows = '';
     for (const [cat, sum] of Object.entries(catMap)) {
         const pct = depenses > 0 ? ((sum / depenses) * 100).toFixed(1) : '0.0';
         rows += `<tr><td>${cat}</td><td>${sum.toFixed(2)} €</td><td>${pct} %</td></tr>`;
     }
-    document.getElementById('bilan-categories-list').innerHTML = rows || '<tr><td colspan="3" class="text-center">Aucune dépense.</td></tr>';
+    const catElem = document.getElementById('bilan-categories-list');
+    if (catElem) catElem.innerHTML = rows || '<tr><td colspan="3" class="text-center">Aucune dépense.</td></tr>';
 }
 
 function render2035() {
@@ -269,15 +274,18 @@ function render2035() {
     });
 
     const totalD = ach + urssaf + carpimko + autres;
-    document.getElementById('2035-list').innerHTML = `
-        <tr><td>Ligne 1 (AA)</td><td>Honoraires encaissés</td><td><strong>${recettes.toFixed(2)} €</strong></td></tr>
-        <tr><td>Ligne 9 (BU)</td><td>Achats de fournitures</td><td>${ach.toFixed(2)} €</td></tr>
-        <tr><td>Ligne 25 (BT)</td><td>Cotisations URSSAF</td><td>${urssaf.toFixed(2)} €</td></tr>
-        <tr><td>Ligne 25 (BS)</td><td>Cotisations CARPIMKO</td><td>${carpimko.toFixed(2)} €</td></tr>
-        <tr><td>Lignes diverses</td><td>Autres charges d'exploitation</td><td>${autres.toFixed(2)} €</td></tr>
-        <tr style="background: #f1f5f9;"><td>Ligne 36 (BM)</td><td>TOTAL DÉPENSES DÉDUCTIBLES</td><td><strong>${totalD.toFixed(2)} €</strong></td></tr>
-        <tr style="background: #dcfce7; font-weight: bold;"><td>Ligne 46 (CP)</td><td>BÉNÉFICE COMPTABLE</td><td style="color: #166534;">${(recettes - totalD).toFixed(2)} €</td></tr>
-    `;
+    const elem2035 = document.getElementById('2035-list');
+    if (elem2035) {
+        elem2035.innerHTML = `
+            <tr><td>Ligne 1 (AA)</td><td>Honoraires encaissés</td><td><strong>${recettes.toFixed(2)} €</strong></td></tr>
+            <tr><td>Ligne 9 (BU)</td><td>Achats de fournitures</td><td>${ach.toFixed(2)} €</td></tr>
+            <tr><td>Ligne 25 (BT)</td><td>Cotisations URSSAF</td><td>${urssaf.toFixed(2)} €</td></tr>
+            <tr><td>Ligne 25 (BS)</td><td>Cotisations CARPIMKO</td><td>${carpimko.toFixed(2)} €</td></tr>
+            <tr><td>Lignes diverses</td><td>Autres charges d'exploitation</td><td>${autres.toFixed(2)} €</td></tr>
+            <tr style="background: #f1f5f9;"><td>Ligne 36 (BM)</td><td>TOTAL DÉPENSES DÉDUCTIBLES</td><td><strong>${totalD.toFixed(2)} €</strong></td></tr>
+            <tr style="background: #dcfce7; font-weight: bold;"><td>Ligne 46 (CP)</td><td>BÉNÉFICE COMPTABLE</td><td style="color: #166534;">${(recettes - totalD).toFixed(2)} €</td></tr>
+        `;
+    }
 }
 
 function renderJournalAndBalance() {
@@ -298,17 +306,21 @@ function renderJournalAndBalance() {
         bMap[code].credit += credit;
     });
 
-    document.getElementById('journal-list').innerHTML = jHtml || '<tr><td colspan="5" class="text-center">Aucune écriture.</td></tr>';
+    const jElem = document.getElementById('journal-list');
+    if (jElem) jElem.innerHTML = jHtml || '<tr><td colspan="5" class="text-center">Aucune écriture.</td></tr>';
 
     for (const [code, data] of Object.entries(bMap)) {
         const solde = data.credit - data.debit;
         bHtml += `<tr><td><strong>${code}</strong></td><td>${data.label}</td><td>${data.debit.toFixed(2)} €</td><td>${data.credit.toFixed(2)} €</td><td><strong>${solde.toFixed(2)} €</strong></td></tr>`;
     }
-    document.getElementById('balance-list').innerHTML = bHtml || '<tr><td colspan="5" class="text-center">Aucun compte.</td></tr>';
+    const bElem = document.getElementById('balance-list');
+    if (bElem) bElem.innerHTML = bHtml || '<tr><td colspan="5" class="text-center">Aucun compte.</td></tr>';
 }
 
 function renderGrandLivre() {
     const container = document.getElementById('grand-livre-content');
+    if (!container) return;
+
     if (allTransactions.length === 0) {
         container.innerHTML = '<p class="text-center">Aucune transaction.</p>';
         return;
@@ -343,7 +355,7 @@ function renderGrandLivre() {
 
 function handleSaveProfil(e) {
     e.preventDefault();
-    alert("Profil mis à jour !");
+    alert("Profil enregistré !");
 }
 
 function loadProfil() {}
