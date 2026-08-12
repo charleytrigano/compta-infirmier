@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comptabilité Libérale</title>
   
-  <!-- Styles Bootstrap & personnalisés -->
+  <!-- Styles Bootstrap & Personnalisation -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background-color: #f8f9fa; font-family: system-ui, -apple-system, sans-serif; }
     .hidden { display: none !important; }
-    .tab-btn.active { font-weight: bold; border-bottom: 2px solid #0d6efd; }
+    .nav-tabs .nav-link { color: #495057; cursor: pointer; }
+    .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; border-bottom: 2px solid #0d6efd; }
     #loading { text-align: center; padding: 50px; font-size: 1.2rem; color: #6c757d; }
   </style>
 </head>
@@ -28,20 +29,32 @@
       <span id="sync-status" class="badge bg-secondary">Connexion...</span>
     </header>
 
-    <!-- Navigation Onglets -->
+    <!-- Navigation à 7 Onglets -->
     <ul class="nav nav-tabs mb-4">
       <li class="nav-item">
-        <button class="nav-link tab-btn active" onclick="showTab('transactions')">📄 Transactions</button>
+        <button class="nav-link tab-btn active" onclick="showTab('transactions')">📑 Transactions</button>
       </li>
       <li class="nav-item">
         <button class="nav-link tab-btn" onclick="showTab('carpimko')">🏛️ CARPIMKO</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link tab-btn" onclick="showTab('bilan')">📊 Bilan / CE</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link tab-btn" onclick="showTab('declarations')">📑 Déclarations</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link tab-btn" onclick="showTab('journal')">📖 Journal & Balance</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link tab-btn" onclick="showTab('grandlivre')">📘 Grand Livre</button>
       </li>
       <li class="nav-item">
         <button class="nav-link tab-btn" onclick="showTab('profil')">👤 Profil</button>
       </li>
     </ul>
 
-    <!-- Contenu Onglet Transactions -->
+    <!-- 1. Onglet Transactions -->
     <div id="tab-transactions" class="tab-content">
       
       <!-- Formulaire d'ajout d'opération -->
@@ -79,7 +92,7 @@
         </div>
       </div>
 
-      <!-- Historique des transactions -->
+      <!-- Table Historique -->
       <div class="card shadow-sm">
         <div class="card-body">
           <h5 class="card-title mb-3">Historique des transactions</h5>
@@ -95,7 +108,7 @@
                 </tr>
               </thead>
               <tbody id="transactions-tbody">
-                <!-- Les lignes s'afficheront dynamiquement ici -->
+                <tr><td colspan="5" class="text-center text-muted">Chargement des données...</td></tr>
               </tbody>
             </table>
           </div>
@@ -104,25 +117,77 @@
 
     </div>
 
-    <!-- Contenu Onglet Profil -->
+    <!-- 2. Onglet CARPIMKO -->
+    <div id="tab-carpimko" class="tab-content hidden">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">🏛️ Cotisations CARPIMKO</h5>
+          <p class="text-muted">Module d'estimation et de suivi des cotisations CARPIMKO.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Onglet Bilan / CE -->
+    <div id="tab-bilan" class="tab-content hidden">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">📊 Bilan / Compte d'Exploitation</h5>
+          <p class="text-muted">Synthèse financière et résultats comptables.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Onglet Déclarations -->
+    <div id="tab-declarations" class="tab-content hidden">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">📑 Déclarations Fiscales (2035)</h5>
+          <p class="text-muted">Préparation des éléments pour la déclaration 2035.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Onglet Journal & Balance -->
+    <div id="tab-journal" class="tab-content hidden">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">📖 Journal des recettes / dépenses & Balance</h5>
+          <p class="text-muted">Écritures comptables chronologiques.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Onglet Grand Livre -->
+    <div id="tab-grandlivre" class="tab-content hidden">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">📘 Grand Livre</h5>
+          <p class="text-muted">Détail des comptes comptables.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Onglet Profil -->
     <div id="tab-profil" class="tab-content hidden">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h5 class="card-title mb-3">Profil Professionnel</h5>
-          <p><strong>Nom :</strong> <span id="nom">-</span></p>
-          <p><strong>Prénom :</strong> <span id="prenom">-</span></p>
-          <p><strong>SIRET :</strong> <span id="siret">-</span></p>
-          <p><strong>Adresse :</strong> <span id="adresse">-</span></p>
+          <h5 class="card-title mb-3">👤 Profil Professionnel</h5>
+          <div class="row">
+            <div class="col-md-6 mb-2"><strong>Nom :</strong> <span id="nom">-</span></div>
+            <div class="col-md-6 mb-2"><strong>Prénom :</strong> <span id="prenom">-</span></div>
+            <div class="col-md-6 mb-2"><strong>SIRET :</strong> <span id="siret">-</span></div>
+            <div class="col-md-6 mb-2"><strong>Adresse :</strong> <span id="adresse">-</span></div>
+          </div>
         </div>
       </div>
     </div>
 
   </div>
 
-  <!-- Chargement du SDK Supabase JS via CDN -->
+  <!-- Chargement du SDK Supabase JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
-  
-  <!-- Chargement unique du script applicatif -->
+
+  <!-- Script Applicatif Unique -->
   <script src="app.js"></script>
 
 </body>
