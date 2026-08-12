@@ -3,7 +3,7 @@
 // ==========================================
 
 // URL officielle et fonctionnelle de votre projet Supabase
-const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co"; 
+const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co/rest/v1/"; 
 
 // Clé d'accès publique anonyme (anon key)
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWhsMmR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA5ODg1ODQsImV4cCI6MjA1NjU2NDU4NH0.L30G8Snp-u_l3P9JmU0E9wz4V-U4R3Yq_N8kL3I4_vU";
