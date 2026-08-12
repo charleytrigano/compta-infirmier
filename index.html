@@ -52,8 +52,8 @@
             border-radius: 20px;
             font-size: 13px;
             font-weight: 600;
-            background: #dcfce7;
-            color: #166534;
+            background: #fef08a;
+            color: #854d0e;
         }
 
         /* Navigation par onglets */
@@ -75,6 +75,7 @@
             font-weight: 500;
             color: var(--text-muted);
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
         .tab-btn.active, .tab-btn:hover {
@@ -314,9 +315,8 @@
         </div>
     </div>
 
-    <!-- Chargement des scripts Supabase et de l'application -->
+    <!-- Chargement de la librairie Supabase officielle puis de l'application -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
-    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
