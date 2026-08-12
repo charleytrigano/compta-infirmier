@@ -66,7 +66,16 @@ function obtenirComptePCG(transaction) {
     if (texteComplet.includes('asv')) return { num: '645230', nom: 'CARPIMKO - ASV' };
     if (texteComplet.includes('invalidité') || texteComplet.includes('deces') || texteComplet.includes('décès')) return { num: '645240', nom: 'CARPIMKO - Invalidité / Décès' };
     if (texteComplet.includes('carpimko')) return { num: '645200', nom: 'Cotisations CARPIMKO' };
-    if (texteComplet.includes('urssaf')) return { num: '645100', nom: 'Cotisations URSSAF' };
+    
+    // Comptes URSSAF
+    if (texteComplet.includes('urssaf maladie')) return { num: '645110', nom: 'URSSAF - Assurance Maladie' };
+    if (texteComplet.includes('urssaf af') || texteComplet.includes('allocations')) return { num: '645120', nom: 'URSSAF - Allocations Familiales' };
+    if (texteComplet.includes('csg ded') || texteComplet.includes('déductible')) return { num: '645130', nom: 'URSSAF - CSG Déductible' };
+    if (texteComplet.includes('csg non') || texteComplet.includes('crds')) return { num: '635800', nom: 'URSSAF - CSG Non Déductible / CRDS' };
+    if (texteComplet.includes('cfp') || texteComplet.includes('formation')) return { num: '637800', nom: 'URSSAF - Formation Professionnelle' };
+    if (texteComplet.includes('curps')) return { num: '637810', nom: 'URSSAF - CURPS' };
+    if (texteComplet.includes('urssaf')) return { num: '645100', nom: 'Cotisations URSSAF Globales' };
+
     if (texteComplet.includes('matériel') || texteComplet.includes('materiel')) return { num: '606300', nom: 'Petit matériel médical' };
     if (texteComplet.includes('loyer') || texteComplet.includes('location')) return { num: '613200', nom: 'Loyer professionnel' };
     if (texteComplet.includes('assurance')) return { num: '616000', nom: 'Assurance professionnelle' };
@@ -130,7 +139,98 @@ function showTab(tabName) {
 }
 
 // ============================================================================
-// 5. CALCULS CARPIMKO
+// 5. CALCULS URSSAF (PAMC 2026)
+// ============================================================================
+function actualiserCalculsUrssaf() {
+    const bnc = parseFloat(document.getElementById('urssafBncReel')?.value) || 0;
+    const revConv = parseFloat(document.getElementById('urssafRevConv')?.value) || 0;
+    const dejaRegle = parseFloat(document.getElementById('urssafDejaRegle')?.value) || 0;
+
+    const PASS_2026 = 46368;
+
+    // 1. Assurance Maladie / Maternité (Prise en charge PAMC : 0.10% pour revenus conventionnés)
+    const reelMaladie = revConv * 0.0010;
+
+    // 2. Allocations Familiales (Taux progressif entre 0% et 3.10%)
+    let tauxAF = 0;
+    const seuilBas = 1.1 * PASS_2026;
+    const seuilHaut = 1.4 * PASS_2026;
+
+    if (bnc <= seuilBas) {
+        tauxAF = 0;
+    } else if (bnc >= seuilHaut) {
+        tauxAF = 0.0310;
+    } else {
+        tauxAF = ((bnc - seuilBas) / (seuilHaut - seuilBas)) * 0.0310;
+    }
+    const reelAF = bnc * tauxAF;
+
+    // 3. CSG / CRDS (Taux global 9.70%)
+    // Base CSG/CRDS = BNC
+    const csgTotal = bnc * 0.0970;
+    const csgDed = bnc * 0.0680;      // 6.80% déductibles
+    const csgNDed = bnc * 0.0290;     // 2.40% non déductible + 0.50% CRDS
+
+    // 4. Formation Professionnelle (CFP - Forfait annuel 2026)
+    const reelCFP = 123.00;
+
+    // 5. CURPS (0.50% plafonné)
+    const reelCURPS = Math.min(bnc * 0.0050, 231.84);
+
+    // Totaux URSSAF
+    const totalReelDu = reelMaladie + reelAF + csgTotal + reelCFP + reelCURPS;
+    const soldeReel = totalReelDu - dejaRegle;
+
+    // Mise à jour de l'échéancier
+    remplir('urssafBaseMaladie', revConv.toFixed(2) + ' €');
+    remplir('urssafReelMaladie', reelMaladie.toFixed(2) + ' €');
+
+    remplir('urssafBaseAF', bnc.toFixed(2) + ' € (' + (tauxAF * 100).toFixed(2) + '%)');
+    remplir('urssafReelAF', reelAF.toFixed(2) + ' €');
+
+    remplir('urssafBaseCsg', bnc.toFixed(2) + ' €');
+    remplir('urssafReelCsg', csgTotal.toFixed(2) + ' €');
+
+    remplir('urssafBaseCfp', 'Forfait annuel');
+    remplir('urssafReelCfp', reelCFP.toFixed(2) + ' €');
+
+    remplir('urssafBaseCurps', bnc.toFixed(2) + ' €');
+    remplir('urssafReelCurps', reelCURPS.toFixed(2) + ' €');
+
+    remplir('urssafTotalReelDu', totalReelDu.toFixed(2) + ' €');
+    remplir('urssafDejaRegleAffichage', '- ' + dejaRegle.toFixed(2) + ' €');
+    remplir('urssafSoldeReelPaye', soldeReel.toFixed(2) + ' €');
+
+    // Mise à jour des comptes comptables PCG
+    remplir('uMaladie', reelMaladie.toFixed(2) + ' €');
+    remplir('uAF', reelAF.toFixed(2) + ' €');
+    remplir('uCsgDed', csgDed.toFixed(2) + ' €');
+    remplir('uCsgNDed', csgNDed.toFixed(2) + ' €');
+    remplir('uCFP', reelCFP.toFixed(2) + ' €');
+    remplir('uCURPS', reelCURPS.toFixed(2) + ' €');
+    remplir('uTotal', totalReelDu.toFixed(2) + ' €');
+
+    // Analyse dynamique de l'écart
+    const divAnalyse = document.getElementById('analyseEcartUrssaf');
+    if (divAnalyse) {
+        if (soldeReel > 10) {
+            divAnalyse.style.background = '#f8d7da';
+            divAnalyse.style.color = '#721c24';
+            divAnalyse.innerHTML = `⚠️ Vos cotisations réelles URSSAF dépassent vos acomptes versés. Prévoyez un reste à payer de **+${soldeReel.toFixed(2)} €**.`;
+        } else if (soldeReel < -10) {
+            divAnalyse.style.background = '#d4edda';
+            divAnalyse.style.color = '#155724';
+            divAnalyse.innerHTML = `💡 Vos acomptes actuels couvrent largement vos cotisations réelles. Un trop-perçu de **${Math.abs(soldeReel).toFixed(2)} €** vous sera crédité ou régularisé.`;
+        } else {
+            divAnalyse.style.background = '#d1ecf1';
+            divAnalyse.style.color = '#0c5460';
+            divAnalyse.innerHTML = `✅ Vos versements URSSAF sont parfaitement alignés avec vos cotisations réelles dues.`;
+        }
+    }
+}
+
+// ============================================================================
+// 6. CALCULS CARPIMKO
 // ============================================================================
 function actualiserCalculsCarpimko() {
     const bnc = parseFloat(document.getElementById('carpBncReel')?.value) || 0;
@@ -194,7 +294,7 @@ function actualiserCalculsCarpimko() {
 }
 
 // ============================================================================
-// 6. GESTION DES TRANSACTIONS & PROFIL
+// 7. GESTION DES TRANSACTIONS & PROFIL
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -291,11 +391,12 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 7. COMPTABILITÉ : BILAN, DÉCLARATIONS, JOURNAL & BALANCE
+// 8. COMPTABILITÉ : BILAN, DÉCLARATIONS, JOURNAL & BALANCE
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
     genererDeclarations();
+    actualiserCalculsUrssaf();
     actualiserCalculsCarpimko();
     afficherJournalEtBalance();
     afficherGrandLivre();
@@ -460,10 +561,8 @@ function afficherJournalEtBalance() {
 }
 
 // ============================================================================
-// 8. GRAND LIVRE DÉTAILLÉ (AVEC FILTRE D'ANNÉE ET À-NOUVEAUX)
+// 9. GRAND LIVRE DÉTAILLÉ
 // ============================================================================
-
-// Initialise le menu déroulant des années dans le Grand Livre
 function initialiserAnneesGrandLivre() {
     const select = document.getElementById('selectAnneeGrandLivre');
     if (!select) return;
@@ -503,21 +602,18 @@ function afficherGrandLivre() {
     const anneeFiltre = document.getElementById('selectAnneeGrandLivre')?.value || 'Toutes';
     const comptesMap = {};
 
-    // Initialisation explicite du compte banque de bilan (512000)
     comptesMap['512000'] = {
         num: '512000',
         nom: 'Compte Bancaire Pro',
         mouvements: []
     };
 
-    // Traitement de chaque transaction
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
         const isRecette = (t.type || '').toLowerCase().includes('recette');
         const compteInfo = obtenirComptePCG(t);
         const numCompte = compteInfo.num;
 
-        // Inscription dans le compte de contrepartie (Charges 6xx ou Produits 7xx)
         if (!comptesMap[numCompte]) {
             comptesMap[numCompte] = {
                 num: numCompte,
@@ -534,7 +630,6 @@ function afficherGrandLivre() {
             credit: isRecette ? val : 0
         });
 
-        // Inscription miroir dans le compte Banque 512000 (Partie Double)
         comptesMap['512000'].mouvements.push({
             date: t.date || '',
             description: t.description || 'Sans libellé',
@@ -550,7 +645,7 @@ function afficherGrandLivre() {
 
     codesComptesTries.forEach(num => {
         const compte = comptesMap[num];
-        const estCompteBilan = parseInt(num.substring(0, 1)) <= 5; // Classes 1 à 5 = Bilan
+        const estCompteBilan = parseInt(num.substring(0, 1)) <= 5;
 
         let reportANouveauDebit = 0;
         let reportANouveauCredit = 0;
@@ -562,7 +657,6 @@ function afficherGrandLivre() {
             compte.mouvements.forEach(m => {
                 const anneeMvt = m.date ? m.date.substring(0, 4) : '';
                 if (anneeMvt < anneeFiltre) {
-                    // Pour les comptes de bilan, accumuler le solde antérieur (À-Nouveaux)
                     if (estCompteBilan) {
                         reportANouveauDebit += m.debit;
                         reportANouveauCredit += m.credit;
@@ -573,14 +667,11 @@ function afficherGrandLivre() {
             });
         }
 
-        // Si aucune écriture ni à-nouveau sur la période, passer le compte
         if (mouvementsExercice.length === 0 && reportANouveauDebit === 0 && reportANouveauCredit === 0) {
             return;
         }
 
         nbComptesAffiches++;
-
-        // Tri chronologique des mouvements
         mouvementsExercice.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         let totalDebitPériode = 0;
@@ -589,7 +680,6 @@ function afficherGrandLivre() {
 
         let lignesHtml = '';
 
-        // Affichage de la ligne d'À-Nouveaux pour les comptes de bilan
         if (estCompteBilan && (reportANouveauDebit > 0 || reportANouveauCredit > 0)) {
             lignesHtml += `
                 <tr style="background-color: #f7fafc; font-style: italic;">
@@ -602,7 +692,6 @@ function afficherGrandLivre() {
             `;
         }
 
-        // Affichage des écritures de l'exercice
         mouvementsExercice.forEach(m => {
             totalDebitPériode += m.debit;
             totalCreditPériode += m.credit;
