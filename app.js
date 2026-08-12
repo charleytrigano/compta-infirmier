@@ -6,17 +6,16 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabaseClient = null;
 let currentTransactions = [];
+let currentPlanComptable = [];
 let currentProfileId = null;
 
 // ============================================================================
-// 2. UTILITAIRES DE VENTILATION ET D'AFFICHAGE
+// 2. UTILITAIRES ET RENDU D'AFFICHAGE
 // ============================================================================
 function remplir(id, valeur) {
     const el = document.getElementById(id);
     if (!el) return;
-
     const valFormatee = typeof valeur === 'number' ? valeur.toFixed(2) + ' €' : valeur;
-    
     if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
         el.value = typeof valeur === 'number' ? valeur.toFixed(2) : valeur;
     } else {
@@ -30,7 +29,6 @@ function updateCategories() {
     if (!typeSelect || !catSelect) return;
 
     const type = typeSelect.value;
-
     if (type === 'recette') {
         catSelect.innerHTML = `
             <option value="Honoraires PAI">Honoraires PAI / Mutuelles</option>
@@ -67,7 +65,6 @@ function obtenirComptePCG(transaction) {
     if (texteComplet.includes('invalidité') || texteComplet.includes('deces') || texteComplet.includes('décès')) return { num: '645240', nom: 'CARPIMKO - Invalidité / Décès' };
     if (texteComplet.includes('carpimko')) return { num: '645200', nom: 'Cotisations CARPIMKO' };
     
-    // Comptes URSSAF
     if (texteComplet.includes('urssaf maladie')) return { num: '645110', nom: 'URSSAF - Assurance Maladie' };
     if (texteComplet.includes('urssaf af') || texteComplet.includes('allocations')) return { num: '645120', nom: 'URSSAF - Allocations Familiales' };
     if (texteComplet.includes('csg ded') || texteComplet.includes('déductible')) return { num: '645130', nom: 'URSSAF - CSG Déductible' };
@@ -104,11 +101,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updateCategories();
-
         const inputDate = document.getElementById('date');
         if (inputDate) inputDate.value = new Date().toISOString().split('T')[0];
 
         await chargerProfil();
+        await chargerPlanComptable();
         await chargerTransactions();
 
     } catch (err) {
@@ -117,9 +114,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ============================================================================
-// 4. NAVIGATION
-// ============================================================================
 function showTab(tabName) {
     const allTabs = document.querySelectorAll('.tab-content');
     allTabs.forEach(tab => tab.classList.add('hidden'));
@@ -139,6 +133,78 @@ function showTab(tabName) {
 }
 
 // ============================================================================
+// 4. GESTION DU PLAN COMPTABLE (NOUVEAU)
+// ============================================================================
+async function chargerPlanComptable() {
+    if (!supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('plan_comptable')
+            .select('*')
+            .order('code_compte', { ascending: true });
+        
+        if (!error && data) {
+            currentPlanComptable = data;
+            afficherPlanComptable();
+        }
+    } catch (e) {
+        console.error("Erreur Plan Comptable :", e);
+    }
+}
+
+function afficherPlanComptable() {
+    const tbody = document.getElementById('tbodyPlanComptable');
+    if (!tbody) return;
+
+    if (currentPlanComptable.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:#718096;">Aucun compte personnalisé trouvé.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = currentPlanComptable.map(c => `
+        <tr>
+            <td><span class="compte-badge">${c.code_compte}</span></td>
+            <td>${c.libelle}</td>
+            <td>${c.type_compte || 'Général'}</td>
+            <td style="text-align: right;">
+                <button class="btn btn-danger" onclick="supprimerComptePC('${c.id}')">🗑️ Supprimer</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function ajouterComptePC() {
+    if (!supabaseClient) return;
+    const code = document.getElementById('pcCode')?.value;
+    const libelle = document.getElementById('pcLibelle')?.value;
+    const type = document.getElementById('pcType')?.value;
+
+    if (!code || !libelle) {
+        alert("Veuillez saisir le code et le libellé du compte.");
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('plan_comptable')
+        .insert([{ code_compte: code, libelle: libelle, type_compte: type }]);
+
+    if (!error) {
+        document.getElementById('pcCode').value = '';
+        document.getElementById('pcLibelle').value = '';
+        await chargerPlanComptable();
+        alert("✅ Compte ajouté au plan comptable.");
+    } else {
+        alert("Erreur lors de l'ajout : " + error.message);
+    }
+}
+
+async function supprimerComptePC(id) {
+    if (!supabaseClient || !confirm("Supprimer ce compte du plan comptable ?")) return;
+    const { error } = await supabaseClient.from('plan_comptable').delete().eq('id', id);
+    if (!error) await chargerPlanComptable();
+}
+
+// ============================================================================
 // 5. CALCULS URSSAF (PAMC 2026)
 // ============================================================================
 function actualiserCalculsUrssaf() {
@@ -147,11 +213,8 @@ function actualiserCalculsUrssaf() {
     const dejaRegle = parseFloat(document.getElementById('urssafDejaRegle')?.value) || 0;
 
     const PASS_2026 = 46368;
-
-    // 1. Assurance Maladie / Maternité (Prise en charge PAMC : 0.10% pour revenus conventionnés)
     const reelMaladie = revConv * 0.0010;
 
-    // 2. Allocations Familiales (Taux progressif entre 0% et 3.10%)
     let tauxAF = 0;
     const seuilBas = 1.1 * PASS_2026;
     const seuilHaut = 1.4 * PASS_2026;
@@ -165,35 +228,24 @@ function actualiserCalculsUrssaf() {
     }
     const reelAF = bnc * tauxAF;
 
-    // 3. CSG / CRDS (Taux global 9.70%)
-    // Base CSG/CRDS = BNC
     const csgTotal = bnc * 0.0970;
-    const csgDed = bnc * 0.0680;      // 6.80% déductibles
-    const csgNDed = bnc * 0.0290;     // 2.40% non déductible + 0.50% CRDS
+    const csgDed = bnc * 0.0680;
+    const csgNDed = bnc * 0.0290;
 
-    // 4. Formation Professionnelle (CFP - Forfait annuel 2026)
     const reelCFP = 123.00;
-
-    // 5. CURPS (0.50% plafonné)
     const reelCURPS = Math.min(bnc * 0.0050, 231.84);
 
-    // Totaux URSSAF
     const totalReelDu = reelMaladie + reelAF + csgTotal + reelCFP + reelCURPS;
     const soldeReel = totalReelDu - dejaRegle;
 
-    // Mise à jour de l'échéancier
     remplir('urssafBaseMaladie', revConv.toFixed(2) + ' €');
     remplir('urssafReelMaladie', reelMaladie.toFixed(2) + ' €');
-
     remplir('urssafBaseAF', bnc.toFixed(2) + ' € (' + (tauxAF * 100).toFixed(2) + '%)');
     remplir('urssafReelAF', reelAF.toFixed(2) + ' €');
-
     remplir('urssafBaseCsg', bnc.toFixed(2) + ' €');
     remplir('urssafReelCsg', csgTotal.toFixed(2) + ' €');
-
     remplir('urssafBaseCfp', 'Forfait annuel');
     remplir('urssafReelCfp', reelCFP.toFixed(2) + ' €');
-
     remplir('urssafBaseCurps', bnc.toFixed(2) + ' €');
     remplir('urssafReelCurps', reelCURPS.toFixed(2) + ' €');
 
@@ -201,7 +253,6 @@ function actualiserCalculsUrssaf() {
     remplir('urssafDejaRegleAffichage', '- ' + dejaRegle.toFixed(2) + ' €');
     remplir('urssafSoldeReelPaye', soldeReel.toFixed(2) + ' €');
 
-    // Mise à jour des comptes comptables PCG
     remplir('uMaladie', reelMaladie.toFixed(2) + ' €');
     remplir('uAF', reelAF.toFixed(2) + ' €');
     remplir('uCsgDed', csgDed.toFixed(2) + ' €');
@@ -210,7 +261,6 @@ function actualiserCalculsUrssaf() {
     remplir('uCURPS', reelCURPS.toFixed(2) + ' €');
     remplir('uTotal', totalReelDu.toFixed(2) + ' €');
 
-    // Analyse dynamique de l'écart
     const divAnalyse = document.getElementById('analyseEcartUrssaf');
     if (divAnalyse) {
         if (soldeReel > 10) {
@@ -220,11 +270,11 @@ function actualiserCalculsUrssaf() {
         } else if (soldeReel < -10) {
             divAnalyse.style.background = '#d4edda';
             divAnalyse.style.color = '#155724';
-            divAnalyse.innerHTML = `💡 Vos acomptes actuels couvrent largement vos cotisations réelles. Un trop-perçu de **${Math.abs(soldeReel).toFixed(2)} €** vous sera crédité ou régularisé.`;
+            divAnalyse.innerHTML = `💡 Vos acomptes actuels couvrent vos cotisations réelles. Un trop-perçu de **${Math.abs(soldeReel).toFixed(2)} €** vous sera régularisé.`;
         } else {
             divAnalyse.style.background = '#d1ecf1';
             divAnalyse.style.color = '#0c5460';
-            divAnalyse.innerHTML = `✅ Vos versements URSSAF sont parfaitement alignés avec vos cotisations réelles dues.`;
+            divAnalyse.innerHTML = `✅ Vos versements URSSAF sont parfaitement ajustés.`;
         }
     }
 }
@@ -280,21 +330,21 @@ function actualiserCalculsCarpimko() {
         if (ecart > 10) {
             divAnalyse.style.background = '#f8d7da';
             divAnalyse.style.color = '#721c24';
-            divAnalyse.innerHTML = `⚠️ Vos revenus réels sont supérieurs à la base d'appel. Prévoyez une régularisation de **+${ecart.toFixed(2)} €**.`;
+            divAnalyse.innerHTML = `⚠️ Vos revenus réels dépassent la base d'appel. Prévoyez une régularisation de **+${ecart.toFixed(2)} €**.`;
         } else if (ecart < -10) {
             divAnalyse.style.background = '#d4edda';
             divAnalyse.style.color = '#155724';
-            divAnalyse.innerHTML = `💡 Vous payez actuellement plus que ce que vous devez par rapport à votre réel ! Un trop-perçu de **${Math.abs(ecart).toFixed(2)} €** vous sera régularisé.`;
+            divAnalyse.innerHTML = `💡 Trop-perçu de **${Math.abs(ecart).toFixed(2)} €** à votre avantage.`;
         } else {
             divAnalyse.style.background = '#d1ecf1';
             divAnalyse.style.color = '#0c5460';
-            divAnalyse.innerHTML = `✅ L'appel de cotisation est parfaitement ajusté à votre niveau de revenus actuels.`;
+            divAnalyse.innerHTML = `✅ Appel de cotisation parfaitement ajusté.`;
         }
     }
 }
 
 // ============================================================================
-// 7. GESTION DES TRANSACTIONS & PROFIL
+// 7. TRANSACTIONS & SCAN DE PIÈCES JOINTES
 // ============================================================================
 async function chargerProfil() {
     if (!supabaseClient) return;
@@ -355,6 +405,7 @@ function afficherTransactions(liste) {
             <div>
                 <strong>${t.date}</strong> - <span>${t.description || 'Sans libellé'}</span><br>
                 <small><strong>${parseFloat(t.amount).toFixed(2)} €</strong> (${t.type.toUpperCase()}) - <em>${t.category || ''}</em></small>
+                ${t.file_path ? `<br><small>📎 <a href="${supabaseClient.storage.from('justificatifs').getPublicUrl(t.file_path).data.publicUrl}" target="_blank">Voir le justificatif</a></small>` : ''}
             </div>
             <div>
                 <button class="btn btn-danger" onclick="supprimerTransaction('${t.id}')">🗑️</button>
@@ -370,16 +421,40 @@ async function addTransaction() {
     const category = document.getElementById('category')?.value;
     const description = document.getElementById('description')?.value;
     const amount = parseFloat(document.getElementById('amount')?.value);
+    const fileInput = document.getElementById('fileInput');
 
     if (!date || isNaN(amount) || !description) {
-        alert('Veuillez remplir tous les champs.');
+        alert('Veuillez remplir tous les champs obligatoires.');
         return;
     }
 
-    const { error } = await supabaseClient.from('transactions').insert([{ date, type, category, description, amount }]);
+    let filePath = null;
+
+    // Envoi du fichier scanné dans Supabase Storage (bucket justificatifs)
+    if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        const { data: uploadData, error: uploadError } = await supabaseClient.storage
+            .from('justificatifs')
+            .upload(fileName, file);
+
+        if (uploadError) {
+            console.error("Erreur d'envoi du justificatif :", uploadError);
+        } else {
+            filePath = fileName;
+        }
+    }
+
+    const { error } = await supabaseClient.from('transactions').insert([{ 
+        date, type, category, description, amount, file_path: filePath 
+    }]);
+
     if (!error) {
         document.getElementById('description').value = '';
         document.getElementById('amount').value = '';
+        if (fileInput) fileInput.value = '';
         await chargerTransactions();
     }
 }
@@ -391,7 +466,78 @@ async function supprimerTransaction(id) {
 }
 
 // ============================================================================
-// 8. COMPTABILITÉ : BILAN, DÉCLARATIONS, JOURNAL & BALANCE
+// 8. SAUVEGARDE ET EXPORTATION COMPLÈTE EN ZIP (+ XLSX + SCANS)
+// ============================================================================
+async function exporterSauvegardeZIP() {
+    if (!window.JSZip || !window.XLSX) {
+        alert("Les librairies d'exportation sont en cours de chargement, réessayez dans un instant.");
+        return;
+    }
+
+    try {
+        const zip = new JSZip();
+
+        // 1. Feuille de calcul Excel avec Transactions & Plan Comptable
+        const workbook = XLSX.utils.book_new();
+
+        // Onglet 1 : Écritures / Journal
+        const dataEcritures = currentTransactions.map(t => ({
+            Date: t.date,
+            Type: t.type,
+            Categorie: t.category,
+            Description: t.description,
+            Montant: t.amount,
+            CodeCompte: obtenirComptePCG(t).num,
+            NomCompte: obtenirComptePCG(t).nom,
+            FichierJoint: t.file_path || 'Aucun'
+        }));
+        const wsEcritures = XLSX.utils.json_to_sheet(dataEcritures);
+        XLSX.utils.book_append_sheet(workbook, wsEcritures, "Ecritures");
+
+        // Onglet 2 : Plan Comptable
+        const wsPlan = XLSX.utils.json_to_sheet(currentPlanComptable);
+        XLSX.utils.book_append_sheet(workbook, wsPlan, "Plan Comptable");
+
+        // Fichier Excel dans le ZIP
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        zip.file("Comptabilite_Cabinet.xlsx", excelBuffer);
+
+        // 2. Dossier des Pièces Jointes / Scans
+        const folderScans = zip.folder("Justificatifs_Scannes");
+        let nbFilesDownloaded = 0;
+
+        for (const t of currentTransactions) {
+            if (t.file_path) {
+                const { data: blob, error } = await supabaseClient.storage
+                    .from('justificatifs')
+                    .download(t.file_path);
+
+                if (!error && blob) {
+                    folderScans.file(`${t.date}_${t.file_path}`, blob);
+                    nbFilesDownloaded++;
+                }
+            }
+        }
+
+        // 3. Téléchargement du fichier ZIP global
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(zipBlob);
+        link.download = `Comptabilite_Export_${new Date().toISOString().split('T')[0]}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert(`✅ Export réussi ! Le fichier ZIP contenant le fichier Excel et ${nbFilesDownloaded} justificatif(s) a été téléchargé.`);
+
+    } catch (err) {
+        console.error("Erreur Export ZIP :", err);
+        alert("Une erreur est survenue lors de la création du fichier ZIP.");
+    }
+}
+
+// ============================================================================
+// 9. BILAN, DECLARATIONS, JOURNAL & BALANCE
 // ============================================================================
 function actualiserTousLesCalculs() {
     genererBilanEtCE();
@@ -480,10 +626,6 @@ function genererDeclarations() {
     remplir('caT4', t4);
 }
 
-function sauvegarderDeclaration() {
-    alert("✅ Déclaration sauvegardée localement.");
-}
-
 function exporterPourComptable() {
     if (currentTransactions.length === 0) {
         alert("Aucune transaction à exporter.");
@@ -518,6 +660,7 @@ function afficherJournalEtBalance() {
                     <td>${t.date}</td>
                     <td><span class="compte-badge">${compteInfo.num}</span></td>
                     <td>${t.description || ''}</td>
+                    <td>${t.file_path ? '📎 Oui' : '-'}</td>
                     <td style="text-align:right;">${!isRecette ? val.toFixed(2) + ' €' : '-'}</td>
                     <td style="text-align:right;">${isRecette ? val.toFixed(2) + ' €' : '-'}</td>
                 </tr>
@@ -561,7 +704,7 @@ function afficherJournalEtBalance() {
 }
 
 // ============================================================================
-// 9. GRAND LIVRE DÉTAILLÉ
+// 10. GRAND LIVRE
 // ============================================================================
 function initialiserAnneesGrandLivre() {
     const select = document.getElementById('selectAnneeGrandLivre');
@@ -595,18 +738,14 @@ function afficherGrandLivre() {
     if (!container) return;
 
     if (!currentTransactions || currentTransactions.length === 0) {
-        container.innerHTML = '<p style="color:#718096; padding: 10px;">Aucune transaction enregistrée pour alimenter le Grand Livre.</p>';
+        container.innerHTML = '<p style="color:#718096; padding: 10px;">Aucune transaction enregistrée.</p>';
         return;
     }
 
     const anneeFiltre = document.getElementById('selectAnneeGrandLivre')?.value || 'Toutes';
     const comptesMap = {};
 
-    comptesMap['512000'] = {
-        num: '512000',
-        nom: 'Compte Bancaire Pro',
-        mouvements: []
-    };
+    comptesMap['512000'] = { num: '512000', nom: 'Compte Bancaire Pro', mouvements: [] };
 
     currentTransactions.forEach(t => {
         const val = parseFloat(t.amount) || 0;
@@ -615,11 +754,7 @@ function afficherGrandLivre() {
         const numCompte = compteInfo.num;
 
         if (!comptesMap[numCompte]) {
-            comptesMap[numCompte] = {
-                num: numCompte,
-                nom: compteInfo.nom,
-                mouvements: []
-            };
+            comptesMap[numCompte] = { num: numCompte, nom: compteInfo.nom, mouvements: [] };
         }
 
         comptesMap[numCompte].mouvements.push({
@@ -667,9 +802,7 @@ function afficherGrandLivre() {
             });
         }
 
-        if (mouvementsExercice.length === 0 && reportANouveauDebit === 0 && reportANouveauCredit === 0) {
-            return;
-        }
+        if (mouvementsExercice.length === 0 && reportANouveauDebit === 0 && reportANouveauCredit === 0) return;
 
         nbComptesAffiches++;
         mouvementsExercice.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -677,14 +810,13 @@ function afficherGrandLivre() {
         let totalDebitPériode = 0;
         let totalCreditPériode = 0;
         let soldeProgressif = reportANouveauDebit - reportANouveauCredit;
-
         let lignesHtml = '';
 
         if (estCompteBilan && (reportANouveauDebit > 0 || reportANouveauCredit > 0)) {
             lignesHtml += `
                 <tr style="background-color: #f7fafc; font-style: italic;">
                     <td>01/01/${anneeFiltre}</td>
-                    <td><strong>À-Nouveaux (Solde reporté de l'exercice précédent)</strong></td>
+                    <td><strong>À-Nouveaux (Solde reporté)</strong></td>
                     <td style="text-align:right;">${reportANouveauDebit > 0 ? reportANouveauDebit.toFixed(2) + ' €' : '-'}</td>
                     <td style="text-align:right;">${reportANouveauCredit > 0 ? reportANouveauCredit.toFixed(2) + ' €' : '-'}</td>
                     <td style="text-align:right; font-weight: bold;">${soldeProgressif.toFixed(2)} €</td>
@@ -700,10 +832,7 @@ function afficherGrandLivre() {
             lignesHtml += `
                 <tr>
                     <td>${m.date}</td>
-                    <td>
-                        ${m.description} 
-                        <small style="color:#718096;">(${m.category})</small>
-                    </td>
+                    <td>${m.description} <small style="color:#718096;">(${m.category})</small></td>
                     <td style="text-align:right;">${m.debit > 0 ? m.debit.toFixed(2) + ' €' : '-'}</td>
                     <td style="text-align:right;">${m.credit > 0 ? m.credit.toFixed(2) + ' €' : '-'}</td>
                     <td style="text-align:right; font-weight: 500;">${soldeProgressif.toFixed(2)} €</td>
@@ -730,17 +859,13 @@ function afficherGrandLivre() {
                             <th style="text-align:right; width: 140px;">Solde progressif</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${lignesHtml}
-                    </tbody>
+                    <tbody>${lignesHtml}</tbody>
                     <tfoot>
                         <tr style="font-weight: bold; background-color: #edf2f7;">
                             <td colspan="2">Totaux et Solde de clôture</td>
                             <td style="text-align:right;">${totalGeneralDebit.toFixed(2)} €</td>
                             <td style="text-align:right;">${totalGeneralCredit.toFixed(2)} €</td>
-                            <td style="text-align:right; color: ${soldeCloture >= 0 ? '#2b6cb0' : '#c53030'};">
-                                ${soldeCloture.toFixed(2)} €
-                            </td>
+                            <td style="text-align:right; color: ${soldeCloture >= 0 ? '#2b6cb0' : '#c53030'};">${soldeCloture.toFixed(2)} €</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -748,9 +873,5 @@ function afficherGrandLivre() {
         `;
     });
 
-    if (nbComptesAffiches === 0) {
-        container.innerHTML = `<p style="color:#718096; padding: 10px;">Aucune écriture trouvée pour l'exercice ${anneeFiltre}.</p>`;
-    } else {
-        container.innerHTML = htmlGlobal;
-    }
+    container.innerHTML = htmlGlobal || `<p style="color:#718096; padding: 10px;">Aucune écriture pour l'exercice ${anneeFiltre}.</p>`;
 }
