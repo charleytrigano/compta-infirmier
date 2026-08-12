@@ -65,6 +65,29 @@ function getDocumentUrl(filePath) {
     return data.publicUrl;
 }
 
+// Associateur de catégorie vers numéro de compte du Plan Comptable
+function getAccountCodeForCategory(category, type) {
+    if (type === 'Recette') return "706000";
+    
+    const matchedAccount = defaultPlanComptable.find(acc => 
+        acc.label.toLowerCase().includes(category.toLowerCase()) || 
+        category.toLowerCase().includes(acc.label.toLowerCase())
+    );
+
+    if (matchedAccount) return matchedAccount.code;
+
+    // Codes par défaut selon mots-clés courants
+    const catLower = (category || '').toLowerCase();
+    if (catLower.includes('urssaf')) return "645100";
+    if (catLower.includes('carpimko')) return "645200";
+    if (catLower.includes('soins') || catLower.includes('honoraires')) return "706000";
+    if (catLower.includes('achat') || catLower.includes('fourniture')) return "606000";
+    if (catLower.includes('loyer') || catLower.includes('location')) return "613200";
+    if (catLower.includes('deplacement') || catLower.includes('carburant')) return "625100";
+
+    return "606000"; // Compte de charge par défaut
+}
+
 // Gestion des transactions
 async function handleAddTransaction(event) {
     event.preventDefault();
@@ -197,7 +220,14 @@ function handleAddPlanComptable(e) {
 
 // Calculateurs URSSAF & CARPIMKO
 function calculateUrssaf() {
-    const income = parseFloat(document.getElementById('urssaf-income').value) || 0;
+    const inputVal = document.getElementById('urssaf-income').value;
+    const income = parseFloat(inputVal) || 0;
+
+    if (income <= 0) {
+        alert("Veuillez indiquer un revenu supérieur à 0 €.");
+        return;
+    }
+
     const maladie = income * 0.065;
     const alloc = income * 0.031;
     const csg = income * 0.097;
@@ -214,7 +244,14 @@ function calculateUrssaf() {
 }
 
 function calculateCarpimko() {
-    const income = parseFloat(document.getElementById('carpimko-income').value) || 0;
+    const inputVal = document.getElementById('carpimko-income').value;
+    const income = parseFloat(inputVal) || 0;
+
+    if (income <= 0) {
+        alert("Veuillez indiquer un bénéfice supérieur à 0 €.");
+        return;
+    }
+
     const regBase = income * 0.0823;
     const regComp = 1980.00;
     const asv = 1960.00;
@@ -237,8 +274,9 @@ function renderBilan() {
 
     allTransactions.forEach(tx => {
         const amt = tx.amount || 0;
-        if (tx.type === 'Recette') recettes += amt;
-        else {
+        if (tx.type === 'Recette') {
+            recettes += amt;
+        } else {
             depenses += amt;
             catMap[tx.category] = (catMap[tx.category] || 0) + amt;
         }
@@ -265,11 +303,14 @@ function render2035() {
 
     allTransactions.forEach(tx => {
         const amt = tx.amount || 0;
-        if (tx.type === 'Recette') recettes += amt;
-        else {
-            if (tx.category.includes('URSSAF')) urssaf += amt;
-            else if (tx.category.includes('CARPIMKO')) carpimko += amt;
-            else if (tx.category.includes('Achats')) ach += amt;
+        const cat = (tx.category || '').toLowerCase();
+
+        if (tx.type === 'Recette') {
+            recettes += amt;
+        } else {
+            if (cat.includes('urssaf')) urssaf += amt;
+            else if (cat.includes('carpimko')) carpimko += amt;
+            else if (cat.includes('achats') || cat.includes('fournitures')) ach += amt;
             else autres += amt;
         }
     });
@@ -295,11 +336,11 @@ function renderJournalAndBalance() {
         const isR = tx.type === 'Recette';
         const debit = isR ? 0 : amt;
         const credit = isR ? amt : 0;
-        const code = isR ? "706000" : "600000";
+        const code = getAccountCodeForCategory(tx.category, tx.type);
 
         jHtml += `<tr><td>${tx.date}</td><td>${tx.description}</td><td>${code}</td><td>${debit ? debit.toFixed(2) + ' €' : '-'}</td><td>${credit ? credit.toFixed(2) + ' €' : '-'}</td></tr>`;
 
-        if (!bMap[code]) bMap[code] = { debit: 0, credit: 0, label: isR ? 'Honoraires' : 'Dépenses' };
+        if (!bMap[code]) bMap[code] = { debit: 0, credit: 0, label: tx.category || (isR ? 'Honoraires' : 'Dépenses') };
         bMap[code].debit += debit;
         bMap[code].credit += credit;
     });
