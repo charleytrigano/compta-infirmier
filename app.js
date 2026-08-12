@@ -2,19 +2,14 @@
 // 1. CONFIGURATION ET VARIABLES GLOBALES
 // ==========================================
 
-// Identifiants de connexion à Supabase (déclarés UNE SEULE FOIS)
+// Identifiants de connexion à Supabase
 const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjMwOTQ0OTQsImV4cCI6MjAzODY3MDQ5NH0.Lt7eU9UBVY94tIIMUNOzLeJOpWr';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
 
-// Variables d'état globales de l'application
+// Variables d'état de l'application
 let supabaseClient = null;
 let currentTransactions = [];
 let currentProfileId = null;
-
-// Éléments du DOM (interface utilisateur)
-const loadingEl = document.getElementById('loading');
-const appEl = document.getElementById('app');
-const syncStatus = document.getElementById('sync-status');
 
 
 // ==========================================
@@ -23,8 +18,6 @@ const syncStatus = document.getElementById('sync-status');
 
 /**
  * Remplit la valeur d'un élément HTML par son ID
- * @param {string} id - L'ID de l'élément HTML
- * @param {string|number} valeur - La valeur à afficher
  */
 function remplir(id, valeur) {
   const el = document.getElementById(id);
@@ -38,15 +31,13 @@ function remplir(id, valeur) {
 
 /**
  * Formate un nombre en montant monétaire (€)
- * @param {number} montant - Le montant à formater
- * @returns {string} - Le montant formaté en Euros
  */
 function formatMonnaie(montant) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(montant || 0);
 }
 
 /**
- * Met à jour la liste des catégories selon le type d'opération sélectionné (Recette ou Dépense)
+ * Met à jour la liste des catégories selon le type d'opération (Recette ou Dépense)
  */
 function updateCategories() {
   const typeEl = document.getElementById('type');
@@ -104,9 +95,9 @@ async function chargerProfil() {
       .from('profiles')
       .select('*')
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error('Erreur profil :', error);
       return;
     }
@@ -124,7 +115,7 @@ async function chargerProfil() {
 }
 
 /**
- * Charge la liste des transactions depuis Supabase et rafraîchit le tableau
+ * Charge la liste des transactions depuis Supabase
  */
 async function chargerTransactions() {
   if (!supabaseClient) return;
@@ -148,7 +139,7 @@ async function chargerTransactions() {
 }
 
 /**
- * Affiche les transactions dans la table HTML
+ * Affiche les transactions dans le tableau HTML
  */
 function afficherTransactions() {
   const tbody = document.getElementById('transactions-tbody');
@@ -182,7 +173,7 @@ function afficherTransactions() {
 }
 
 /**
- * Ajoute une nouvelle transaction dans Supabase
+ * Ajoute une nouvelle opération dans Supabase
  */
 async function ajouterOperation(e) {
   if (e) e.preventDefault();
@@ -214,11 +205,11 @@ async function ajouterOperation(e) {
       return;
     }
 
-    // Réinitialisation du champ montant et description
+    // Réinitialisation du formulaire
     if (document.getElementById('description')) document.getElementById('description').value = '';
     if (document.getElementById('montant')) document.getElementById('montant').value = '0.00';
 
-    // Rechargement des données
+    // Recharge les transactions mises à jour
     await chargerTransactions();
 
   } catch (err) {
@@ -228,13 +219,9 @@ async function ajouterOperation(e) {
 
 
 // ==========================================
-// 4. NAVIGATION ET GESTION DES ONGLETS
+// 4. NAVIGATION ENTRE ONGLETS
 // ==========================================
 
-/**
- * Permet d'afficher l'onglet sélectionné et d'masquer les autres
- * @param {string} tabName - Le nom de l'onglet à afficher
- */
 function showTab(tabName) {
   const allTabs = document.querySelectorAll('.tab-content');
   allTabs.forEach(tab => tab.classList.add('hidden'));
@@ -259,23 +246,27 @@ function showTab(tabName) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Masquage de l'écran de chargement principal
+  const loadingEl = document.getElementById('loading');
+  const appEl = document.getElementById('app');
+  const syncStatus = document.getElementById('sync-status');
+
+  // Affichage de l'interface principale
   if (loadingEl) loadingEl.style.display = 'none';
   if (appEl) appEl.classList.remove('hidden');
 
-  // Initialisation de la sélection de type
+  // Écouteur sur la sélection du type (Recette / Dépense)
   const typeSelect = document.getElementById('type');
   if (typeSelect) {
     typeSelect.addEventListener('change', updateCategories);
   }
 
-  // Écouteur sur le formulaire d'ajout d'opération
+  // Écouteur sur le formulaire d'ajout
   const formOperation = document.getElementById('form-operation');
   if (formOperation) {
     formOperation.addEventListener('submit', ajouterOperation);
   }
 
-  // Connexion à Supabase
+  // Initialisation du client Supabase
   try {
     if (window.supabase) {
       supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -284,7 +275,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncStatus.textContent = '☁️ Connecté à Supabase';
       }
 
-      // Initialisation des éléments
       updateCategories();
 
       const inputDate = document.getElementById('date');
@@ -292,7 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         inputDate.value = new Date().toISOString().split('T')[0];
       }
 
-      // Chargement initial des données depuis Supabase
+      // Chargement initial des données
       await chargerProfil();
       await chargerTransactions();
 
@@ -302,7 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } catch (err) {
-    console.error('Erreur lors de l\'initialisation de l\'application :', err);
+    console.error('Erreur lors de l\'initialisation :', err);
     if (syncStatus) {
       syncStatus.textContent = '⚠️ Erreur de chargement';
     }
