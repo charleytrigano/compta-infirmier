@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
+    <!-- Favicon neutre pour éviter l'erreur 404 dans la console -->
+    <link rel="icon" href="data:,">
     <style>
         :root {
             --primary: #2563eb;
@@ -51,8 +53,8 @@
             border-radius: 20px;
             font-size: 13px;
             font-weight: 600;
-            background: #fef08a;
-            color: #854d0e;
+            background: #dcfce7;
+            color: #166534;
         }
 
         /* Navigation par onglets */
@@ -194,13 +196,13 @@
         <div class="logo">
             🩺 <span>Comptabilité Libérale</span>
         </div>
-        <div id="connection-status" class="status-badge">Connexion en cours...</div>
+        <div id="connection-status" class="status-badge">Mode Autonome Actif</div>
     </div>
 
     <!-- Barre d'onglets -->
     <div class="tabs-nav">
-        <button class="tab-btn active" onclick="switchTab('transactions', this)">📄 Transactions</button>
-        <button class="tab-btn" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
+        <button class="tab-btn" onclick="switchTab('transactions', this)">📄 Transactions</button>
+        <button class="tab-btn active" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
         <button class="tab-btn" onclick="switchTab('urssaf', this)">🏛️ URSSAF</button>
         <button class="tab-btn" onclick="switchTab('carpimko', this)">🏛️ CARPIMKO</button>
         <button class="tab-btn" onclick="switchTab('bilan', this)">📊 Bilan / CE</button>
@@ -211,7 +213,7 @@
     </div>
 
     <!-- ONGLET 1 : TRANSACTIONS -->
-    <div id="tab-transactions" class="tab-content active">
+    <div id="tab-transactions" class="tab-content">
         <form id="transaction-form" class="card">
             <h3>Ajouter une opération</h3>
             <div class="form-grid">
@@ -260,18 +262,17 @@
                         <th>Catégorie</th>
                         <th>Description</th>
                         <th>Montant</th>
-                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="transactions-list">
-                    <tr><td colspan="6" class="text-center">Chargement des opérations...</td></tr>
+                    <tr><td colspan="5" class="text-center">Aucune transaction enregistrée.</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <!-- ONGLET 2 : PLAN COMPTABLE -->
-    <div id="tab-plan-comptable" class="tab-content">
+    <div id="tab-plan-comptable" class="tab-content active">
         <form id="pc-form" class="card">
             <h3>Ajouter un compte au Plan Comptable</h3>
             <div class="form-grid">
@@ -307,137 +308,74 @@
                     </tr>
                 </thead>
                 <tbody id="pc-list">
-                    <tr><td colspan="3" class="text-center">Chargement du plan comptable...</td></tr>
+                    <!-- Généré par JavaScript -->
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- ONGLET 3 : URSSAF -->
-    <div id="tab-urssaf" class="tab-content">
-        <div class="card">
-            <h3>Simulateur de Cotisations URSSAF</h3>
-            <div class="form-grid" style="margin-bottom: 20px;">
-                <div class="form-group">
-                    <label>Revenu Net Estimé (€)</label>
-                    <input type="number" id="urssaf-income" placeholder="Ex: 40000">
-                </div>
-                <div>
-                    <button type="button" id="btn-calc-urssaf" class="btn btn-primary">Calculer URSSAF</button>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr><th>Cotisation</th><th>Taux / Base</th><th>Montant Estimé</th></tr>
-                </thead>
-                <tbody id="urssaf-results">
-                    <tr><td colspan="3" class="text-center">Saisissez un revenu et cliquez sur Calculer.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <!-- LOGIQUE JAVASCRIPT EMBARQUÉE POUR SÉCURITÉ MAXIMALE -->
+    <script>
+        // Comptes par défaut du plan comptable BNC
+        const defaultAccounts = [
+            { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
+            { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge (Classe 6)" },
+            { code: "645100", label: "Cotisations URSSAF", type: "Charge (Classe 6)" },
+            { code: "645200", label: "Cotisations CARPIMKO", type: "Charge (Classe 6)" },
+            { code: "606000", label: "Achats / Fournitures médicales", type: "Charge (Classe 6)" }
+        ];
 
-    <!-- ONGLET 4 : CARPIMKO -->
-    <div id="tab-carpimko" class="tab-content">
-        <div class="card">
-            <h3>Simulateur de Cotisations CARPIMKO</h3>
-            <div class="form-grid" style="margin-bottom: 20px;">
-                <div class="form-group">
-                    <label>Bénéfice Net Estimé (€)</label>
-                    <input type="number" id="carpimko-income" placeholder="Ex: 40000">
-                </div>
-                <div>
-                    <button type="button" id="btn-calc-carpimko" class="btn btn-primary">Calculer CARPIMKO</button>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr><th>Régime</th><th>Type</th><th>Montant Estimé</th></tr>
-                </thead>
-                <tbody id="carpimko-results">
-                    <tr><td colspan="3" class="text-center">Saisissez un bénéfice et cliquez sur Calculer.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+        let customAccounts = [];
 
-    <!-- ONGLET 5 : BILAN -->
-    <div id="tab-bilan" class="tab-content">
-        <div class="card">
-            <h3>Compte de Résultat Simplifié</h3>
-            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                <div><strong>Total Recettes :</strong> <span id="bilan-total-recettes">0.00 €</span></div>
-                <div><strong>Total Dépenses :</strong> <span id="bilan-total-depenses">0.00 €</span></div>
-                <div><strong>Résultat :</strong> <span id="bilan-resultat" style="font-weight: bold;">0.00 €</span></div>
-            </div>
-            <h4>Répartition des Dépenses par Catégorie</h4>
-            <table>
-                <thead><tr><th>Catégorie</th><th>Montant Total</th><th>% Dépenses</th></tr></thead>
-                <tbody id="bilan-categories-list"></tbody>
-            </table>
-        </div>
-    </div>
+        // Gestion du changement d'onglet
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
-    <!-- ONGLET 6 : 2035 -->
-    <div id="tab-declarations" class="tab-content">
-        <div class="card">
-            <h3>Préparation Déclaration 2035</h3>
-            <table>
-                <thead><tr><th>Ligne 2035</th><th>Libellé</th><th>Montant</th></tr></thead>
-                <tbody id="2035-list"></tbody>
-            </table>
-        </div>
-    </div>
+            const selectedTab = document.getElementById(`tab-${tabId}`);
+            if (selectedTab) selectedTab.classList.add('active');
+            if (element) element.classList.add('active');
+        }
 
-    <!-- ONGLET 7 : JOURNAL -->
-    <div id="tab-journal" class="tab-content">
-        <div class="card">
-            <h3>Journal Général</h3>
-            <table>
-                <thead><tr><th>Date</th><th>Libellé</th><th>Compte</th><th>Débit (€)</th><th>Crédit (€)</th></tr></thead>
-                <tbody id="journal-list"></tbody>
-            </table>
-        </div>
-        <div class="card">
-            <h3>Balance des Comptes</h3>
-            <table>
-                <thead><tr><th>Compte</th><th>Libellé</th><th>Total Débit</th><th>Total Crédit</th><th>Solde</th></tr></thead>
-                <tbody id="balance-list"></tbody>
-            </table>
-        </div>
-    </div>
+        // Affichage du plan comptable dans la table HTML
+        function renderPlanComptable() {
+            const tbody = document.getElementById('pc-list');
+            if (!tbody) return;
 
-    <!-- ONGLET 8 : GRAND LIVRE -->
-    <div id="tab-grand-livre" class="tab-content">
-        <div class="card">
-            <h3>Grand Livre des Comptes</h3>
-            <div id="grand-livre-content"></div>
-        </div>
-    </div>
+            const allAccounts = [...defaultAccounts, ...customAccounts];
+            let html = '';
 
-    <!-- ONGLET 9 : PROFIL -->
-    <div id="tab-profil" class="tab-content">
-        <div class="card">
-            <h3>Informations du Praticien</h3>
-            <form id="profil-form" class="form-grid">
-                <div class="form-group">
-                    <label>Nom & Prénom</label>
-                    <input type="text" placeholder="Infirmier(ère) Libéral(e)">
-                </div>
-                <div class="form-group">
-                    <label>Numéro ADELI / RPPS</label>
-                    <input type="text" placeholder="10000000000">
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary">Enregistrer Profil</button>
-                </div>
-            </form>
-        </div>
-    </div>
+            allAccounts.forEach(acc => {
+                html += `
+                    <tr>
+                        <td><strong>${acc.code}</strong></td>
+                        <td>${acc.label}</td>
+                        <td>${acc.type}</td>
+                    </tr>
+                `;
+            });
 
-    <!-- Scripts JS -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-javascript@2"></script>
-    <script src="supabase-config.js"></script>
-    <script src="app.js"></script>
+            tbody.innerHTML = html;
+        }
+
+        // Ajout d'un nouveau compte via le formulaire
+        document.getElementById('pc-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const code = document.getElementById('pc-code').value.trim();
+            const label = document.getElementById('pc-label').value.trim();
+            const type = document.getElementById('pc-type').value;
+
+            if (code && label) {
+                customAccounts.push({ code, label, type });
+                renderPlanComptable();
+                this.reset();
+            }
+        });
+
+        // Initialisation automatique au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            renderPlanComptable();
+        });
+    </script>
 </body>
 </html>
