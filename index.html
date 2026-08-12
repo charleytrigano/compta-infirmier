@@ -181,6 +181,7 @@
 
         <div class="tabs">
             <button class="tab active" onclick="showTab('transactions')">📝 Transactions</button>
+            <button class="tab" onclick="showTab('urssaf')">🏛️ URSSAF</button>
             <button class="tab" onclick="showTab('carpimko')">🏛️ CARPIMKO</button>
             <button class="tab" onclick="showTab('bilan')">📊 Bilan / CE</button>
             <button class="tab" onclick="showTab('declarations')">📄 Déclarations</button>
@@ -224,6 +225,129 @@
             <div class="card">
                 <h3>Historique des transactions</h3>
                 <div id="transactions"></div>
+            </div>
+        </div>
+
+        <!-- TAB URSSAF -->
+        <div id="tab-urssaf" class="tab-content hidden">
+            <div class="card">
+                <h3>Calcul & Décompte Officiel URSSAF (PAMC 2026)</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="urssafBncReel">BNC Réel Estimé (€)</label>
+                        <input type="number" id="urssafBncReel" value="40000" oninput="actualiserCalculsUrssaf()">
+                    </div>
+                    <div class="form-group">
+                        <label for="urssafRevConv">Revenus Conventionnés (€)</label>
+                        <input type="number" id="urssafRevConv" value="40000" oninput="actualiserCalculsUrssaf()">
+                    </div>
+                    <div class="form-group">
+                        <label for="urssafDejaRegle">Acomptes URSSAF Déjà Réglés (€)</label>
+                        <input type="number" id="urssafDejaRegle" value="5000" oninput="actualiserCalculsUrssaf()">
+                    </div>
+                </div>
+
+                <div id="analyseEcartUrssaf" style="padding: 12px; border-radius: 6px; margin: 15px 0; font-weight: 500;"></div>
+
+                <h4>Échéancier & Ventilation Officielle URSSAF</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cotisation / Contribution</th>
+                            <th>Base de calcul</th>
+                            <th>Montant Réel Dû</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Assurance Maladie / Maternité (Part PAMC - 0,10%)</td>
+                            <td id="urssafBaseMaladie">0.00 €</td>
+                            <td id="urssafReelMaladie">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Allocations Familiales (Taux progressif 0% à 3.10%)</td>
+                            <td id="urssafBaseAF">0.00 €</td>
+                            <td id="urssafReelAF">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>CSG / CRDS (9.70% total sur BNC réintégré)</td>
+                            <td id="urssafBaseCsg">0.00 €</td>
+                            <td id="urssafReelCsg">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Formation Professionnelle (CFP - Forfait annuel)</td>
+                            <td id="urssafBaseCfp">Forfait</td>
+                            <td id="urssafReelCfp">123.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>CURPS (Professionnels de santé - 0,50%)</td>
+                            <td id="urssafBaseCurps">0.00 €</td>
+                            <td id="urssafReelCurps">0.00 €</td>
+                        </tr>
+                        <tr style="font-weight: bold; background: #edf2f7;">
+                            <td>Total Cotisations Réelles Dues</td>
+                            <td>-</td>
+                            <td id="urssafTotalReelDu">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Acomptes déjà réglés</td>
+                            <td>-</td>
+                            <td id="urssafDejaRegleAffichage">0.00 €</td>
+                        </tr>
+                        <tr style="font-weight: bold; color: var(--primary);">
+                            <td>Solde estimé à régulariser / payer</td>
+                            <td>-</td>
+                            <td id="urssafSoldeReelPaye">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4 style="margin-top: 25px;">Comptes Individuels URSSAF (Comptabilité PCG)</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code PCG</th>
+                            <th>Intitulé du compte</th>
+                            <th style="text-align: right;">Montant Réel Dû</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="compte-badge">645110</span></td>
+                            <td>URSSAF - Assurance Maladie / Maternité</td>
+                            <td style="text-align: right;" id="uMaladie">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td><span class="compte-badge">645120</span></td>
+                            <td>URSSAF - Allocations Familiales</td>
+                            <td style="text-align: right;" id="uAF">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td><span class="compte-badge">645130</span></td>
+                            <td>URSSAF - CSG Déductible (6,80%)</td>
+                            <td style="text-align: right;" id="uCsgDed">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td><span class="compte-badge">635800</span></td>
+                            <td>URSSAF - CSG Non Déductible (2,40%) & CRDS (0,50%)</td>
+                            <td style="text-align: right;" id="uCsgNDed">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td><span class="compte-badge">637800</span></td>
+                            <td>URSSAF - Contribution Formation Professionnelle (CFP)</td>
+                            <td style="text-align: right;" id="uCFP">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td><span class="compte-badge">637810</span></td>
+                            <td>URSSAF - CURPS</td>
+                            <td style="text-align: right;" id="uCURPS">0.00 €</td>
+                        </tr>
+                        <tr style="font-weight: bold; background: #edf2f7;">
+                            <td colspan="2">Total Général Cotisations URSSAF</td>
+                            <td style="text-align: right;" id="uTotal">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -393,7 +517,7 @@
                 </table>
 
                 <div style="margin-top: 20px; padding: 15px; background: #edf2f7; border-radius: 6px; text-align: right;">
-                    <h3 style="margin: 0;">Résultat Net Estime : <span id="ceResultat" style="color: var(--primary);">0.00 €</span></h3>
+                    <h3 style="margin: 0;">Résultat Net Estimé : <span id="ceResultat" style="color: var(--primary);">0.00 €</span></h3>
                 </div>
             </div>
         </div>
