@@ -1,13 +1,13 @@
 // ==========================================
-// LOGIQUE DE L'APPLICATION (APP.JS)
+// LOGIQUE DE L'APPLICATION (APP.JS) - SÉCURISÉE
 // ==========================================
 
-// Déclarations des variables globales
+// Variable globale pour stocker les transactions
 let allTransactions = [];
 
-// Si defaultPlanComptable n'existe pas encore, on l'initialise
+// Définition sécurisée du Plan Comptable (évite l'erreur 'has already been declared')
 if (typeof defaultPlanComptable === 'undefined') {
-    var defaultPlanComptable = [
+    window.defaultPlanComptable = [
         { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette" },
         { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge" },
         { code: "645100", label: "Cotisations URSSAF", type: "Charge" },
@@ -18,11 +18,11 @@ if (typeof defaultPlanComptable === 'undefined') {
 
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
-    // Ajuster la date par défaut
+    // 1. Définir la date du jour
     const dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
 
-    // Attacher les formulaires s'ils existent
+    // 2. Écouteurs pour les formulaires
     const txForm = document.getElementById('transaction-form');
     if (txForm) txForm.addEventListener('submit', handleAddTransaction);
 
@@ -32,14 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const profForm = document.getElementById('profil-form');
     if (profForm) profForm.addEventListener('submit', handleSaveProfil);
 
-    // Attacher les calculs URSSAF & CARPIMKO
+    // 3. Écouteurs pour les boutons de simulation URSSAF et CARPIMKO
     const btnUrssaf = document.getElementById('btn-calc-urssaf');
     if (btnUrssaf) btnUrssaf.addEventListener('click', calculateUrssaf);
 
     const btnCarpimko = document.getElementById('btn-calc-carpimko');
     if (btnCarpimko) btnCarpimko.addEventListener('click', calculateCarpimko);
 
-    // Charger les données
+    // 4. Chargement initial des données
     loadTransactions();
     loadPlanComptable();
     loadProfil();
@@ -64,10 +64,12 @@ function switchTab(tabId, element) {
 function getAccountCodeForCategory(category, type) {
     const catLower = (category || '').toLowerCase();
 
+    // Si c'est une Recette
     if (type === 'Recette') {
         return "706000";
     }
 
+    // Si c'est une Dépense / Charge
     if (catLower.includes('urssaf')) return "645100";
     if (catLower.includes('carpimko')) return "645200";
     if (catLower.includes('soins') || catLower.includes('retrocession') || catLower.includes('remplacement')) return "622600";
@@ -76,7 +78,7 @@ function getAccountCodeForCategory(category, type) {
     return "606000";
 }
 
-// Gestion des transactions avec Supabase
+// Transactions Supabase
 async function handleAddTransaction(event) {
     event.preventDefault();
 
@@ -220,7 +222,7 @@ function calculateCarpimko() {
     }
 }
 
-// Vues Bilan, 2035, Journal & Balance
+// Bilan, 2035, Journal & Balance
 function renderBilan() {
     let recettes = 0, depenses = 0;
     const catMap = {};
