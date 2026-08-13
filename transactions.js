@@ -1,11 +1,11 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Grand Livre aux normes du Plan Comptable Général (PCG)
+// Gestion complète des transactions, banques et Grand Livre PCG
 // ==========================================
 
 window.listeTransactions = [];
 
-// Table de correspondance des catégories vers la numérotation PCG
+// Table de correspondance vers la numérotation du Plan Comptable Général (PCG)
 const MAPPING_PCG = {
     "soins infirmiers": { code: "706000", nom: "706000 - Prestations de services / Honoraires (Classe 7)" },
     "cotisations carpimko": { code: "645200", nom: "645200 - Cotisations CARPIMKO (Classe 6)" },
@@ -87,7 +87,7 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. ACTIONS SUR LE STATUT ENCAISSÉ
+// 2. ACTIONS : ENCAISSÉ / PAYÉ & SUPPRESSION
 // ------------------------------------------
 window.validerReglement = async function(idTx) {
     try {
@@ -116,6 +116,26 @@ window.annulerReglement = async function(idTx) {
         await window.chargerTransactions();
     } catch (err) {
         console.error("Erreur d'annulation du règlement :", err.message);
+    }
+};
+
+// FONCTION DE SUPPRESSION
+window.supprimerTransaction = async function(idTx) {
+    const confirmation = confirm("Voulez-vous vraiment supprimer cette transaction ?");
+    if (!confirmation) return;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .delete()
+            .eq('id', idTx);
+
+        if (error) throw error;
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur lors de la suppression :", err.message);
+        alert("Erreur de suppression : " + err.message);
     }
 };
 
@@ -156,7 +176,7 @@ window.afficherTransactions = function(transactions) {
             </td>
             <td>${boutonAction}</td>
             <td>
-                <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
+                <button style="background:none; border:none; cursor:pointer; font-size:1.1rem;" onclick="window.supprimerTransaction('${tx.id}')" title="Supprimer">🗑️</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -269,7 +289,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE NORME PCG (CLASSES 4, 5, 6, 7)
+// 6. ONGLET : GRAND LIVRE NORME PCG
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
@@ -277,10 +297,9 @@ window.afficherGrandLivre = function(transactions) {
 
     const comptes = {};
 
-    // A. Initialiser le compte 512000 (Banque)
+    // Initialiser le compte 512000 (Banque)
     comptes["512000"] = { nom: "512000 - Banque (Classe 5)", items: [] };
 
-    // B. Classer chaque écriture dans son compte de Charges/Produits ET dans le compte 512 (Banque)
     transactions.forEach(tx => {
         let catBrute = ExtraireCategorie(tx);
         let cleNorme = catBrute.toLowerCase();
@@ -296,16 +315,12 @@ window.afficherGrandLivre = function(transactions) {
             comptes[codeCompte] = { nom: pcgInfo.nom, items: [] };
         }
 
-        // Ajout dans le compte de nature (6, 7 ou 4)
         comptes[codeCompte].items.push(tx);
-
-        // Ajout automatique dans le compte 512000 (Banque)
         comptes["512000"].items.push(tx);
     });
 
     let htmlComplet = `<h2 style="margin-bottom:20px;">📖 Grand Livre des Comptes (Norme PCG)</h2>`;
 
-    // C. Affichage trié par numéro de compte
     Object.keys(comptes).sort().forEach(codeCompte => {
         const compte = comptes[codeCompte];
         let totalDebit = 0;
@@ -319,16 +334,12 @@ window.afficherGrandLivre = function(transactions) {
             let debit = 0;
             let credit = 0;
 
-            // Règles de comptabilité en partie double
             if (codeCompte === "512000") {
-                // Pour la Banque : Recette = Débit (+), Dépense = Crédit (-)
                 if (estRecette) debit = montantNum;
                 else credit = montantNum;
             } else if (codeCompte.startsWith('7')) {
-                // Compte de Produit : Recette = Crédit
                 credit = montantNum;
             } else {
-                // Compte de Charge / Tiers : Dépense = Débit
                 debit = montantNum;
             }
 
