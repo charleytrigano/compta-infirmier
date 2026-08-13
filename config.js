@@ -1,29 +1,17 @@
 // ==========================================
-// CONFIGURATION SUPABASE ET CONSTANTES GLOBALES
+// CONFIGURATION ET INITIALISATION SUPABASE
 // ==========================================
 
-const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3M00QxO0.Lt7eU9UBVY94tIIMUNOzLeJOpWn"; // Ta clé anon
+// 1. URL de ton projet Supabase
+const SUPABASE_URL = 'https://qfwhzuhwldurnmhirgil.supabase.co';
 
-// Nom du bucket Supabase Storage pour les pièces jointes
-window.BUCKET_NAME = 'documents';
+// 2. Clé publique d'API (anon public key)
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg';
 
-// Initialisation unique et globale du client Supabase
+// 3. Initialisation du client Supabase
 if (typeof supabase !== 'undefined') {
-    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("✅ Client Supabase initialisé avec succès.");
 } else {
-    console.error("❌ Erreur : La librairie Supabase JS n'est pas chargée dans index.html avant config.js !");
+    console.error("❌ La bibliothèque Supabase JS n'est pas chargée. Vérifiez l'ordre des scripts dans index.html.");
 }
-
-// Plan comptable par défaut pour la profession libérale (BNC)
-window.defaultPlanComptable = [
-    { code: "706000", label: "Honoraires & Prestations de soins", type: "Recette" },
-    { code: "606000", label: "Achats de petit matériel & fournitures", type: "Dépense" },
-    { code: "613200", label: "Locations immobilières / Loyer pro", type: "Dépense" },
-    { code: "625100", label: "Frais de déplacements & carburant", type: "Dépense" },
-    { code: "626000", label: "Frais postaux et télécommunications", type: "Dépense" },
-    { code: "645100", label: "Cotisations sociales URSSAF", type: "Dépense" },
-    { code: "645200", label: "Cotisations retraite CARPIMKO", type: "Dépense" },
-    { code: "622600", label: "Honoraires comptables & AGA", type: "Dépense" }
-];
