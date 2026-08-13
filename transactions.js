@@ -1,5 +1,6 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
+// Transactions, Journal de Banque, Journal & Grand Livre
 // ==========================================
 
 window.listeTransactions = [];
@@ -13,9 +14,6 @@ window.schemaColonnes = {
     montant: 'montant'
 };
 
-/**
- * Détecte les noms de colonnes réels utilisés dans la table Supabase
- */
 window.detecterSchema = function(premierObjet) {
     if (!premierObjet) return;
 
@@ -61,6 +59,7 @@ window.chargerTransactions = async function() {
 
 window.rafraichirToutesLesVues = function() {
     window.afficherTransactions(window.listeTransactions);
+    window.afficherBanque(window.listeTransactions);
     window.afficherJournal(window.listeTransactions);
     window.afficherGrandLivre(window.listeTransactions);
 };
@@ -112,7 +111,91 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 3. ONGLET : JOURNAL COMPTABLE
+// 3. ONGLET : JOURNAL DE BANQUE
+// ------------------------------------------
+window.afficherBanque = function(transactions) {
+    const tbody = document.getElementById('body-tableau-banque');
+    const elSolde = document.getElementById('solde-banque');
+
+    let totalBanque = 0;
+
+    if (tbody) tbody.innerHTML = '';
+
+    transactions.forEach(tx => {
+        const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
+        const estRecette = typeBrut === 'recette';
+
+        let valeurMontant = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
+        if (typeof valeurMontant === 'string') valeurMontant = valeurMontant.replace(',', '.');
+        const montantNum = Math.abs(parseFloat(valeurMontant) || 0);
+
+        if (estRecette) totalBanque += montantNum;
+        else totalBanque -= montantNum;
+
+        if (tbody) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${tx[window.schemaColonnes.date] || tx.date || ''}</td>
+                <td><strong>${estRecette ? 'Encaissement' : 'Décaissement'}</strong></td>
+                <td>${tx[window.schemaColonnes.categorie] || tx.categorie || '-'}</td>
+                <td>${tx[window.schemaColonnes.description] || tx.description || ''}</td>
+                <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantNum.toFixed(2) + ' €'}</td>
+                <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantNum.toFixed(2) + ' €' : ''}</td>
+                <td>
+                    <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️</button>
+                    <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    });
+
+    if (elSolde) {
+        elSolde.textContent = totalBanque.toFixed(2) + ' €';
+        elSolde.style.color = totalBanque >= 0 ? '#16a34a' : '#dc2626';
+    }
+};
+
+window.ajouterPaiement = async function() {
+    const date = document.getElementById('pay-date').value;
+    const type = document.getElementById('pay-type').value;
+    const categorie = document.getElementById('pay-categorie').value;
+    const description = document.getElementById('pay-description').value;
+    const montantInput = parseFloat(document.getElementById('pay-montant').value) || 0;
+
+    if (!date || !description || isNaN(montantInput)) {
+        alert("Veuillez remplir tous les champs du paiement.");
+        return;
+    }
+
+    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
+
+    const objetPayload = {};
+    objetPayload[window.schemaColonnes.date] = date;
+    objetPayload[window.schemaColonnes.type] = type;
+    objetPayload[window.schemaColonnes.categorie] = categorie;
+    objetPayload[window.schemaColonnes.description] = description;
+    objetPayload[window.schemaColonnes.montant] = montantFinal;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .insert([objetPayload]);
+
+        if (error) throw error;
+
+        const form = document.getElementById('form-ajouter-paiement');
+        if (form) form.reset();
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur d'enregistrement du paiement :", err.message);
+        alert("Erreur lors du paiement : " + err.message);
+    }
+};
+
+// ------------------------------------------
+// 4. ONGLET : JOURNAL COMPTABLE
 // ------------------------------------------
 window.afficherJournal = function(transactions) {
     let conteneur = document.getElementById('journal') || 
@@ -187,7 +270,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : GRAND LIVRE (FUSION DES COMPTES)
+// 5. ONGLET : GRAND LIVRE
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('grand-livre') || 
@@ -212,14 +295,11 @@ window.afficherGrandLivre = function(transactions) {
         return;
     }
 
-    // Regroupement par clé normalisée (minuscules + nettoyage des espaces)
     const groupes = {};
     const nomsCatOriginal = {};
 
     transactions.forEach(tx => {
         let catBrute = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || 'Non classé';
-        
-        // Clé unique insensible aux espaces et majuscules
         const cleNormale = catBrute.toString().toLowerCase().replace(/\s+/g, ' ').trim();
 
         if (!groupes[cleNormale]) {
@@ -289,8 +369,46 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 5. FONCTIONS DE MODALE & ÉDITION
+// 6. FONCTIONS DE MODALE & ÉDITION
 // ------------------------------------------
+window.ajouterTransaction = async function() {
+    const date = document.getElementById('tx-date').value;
+    const type = document.getElementById('tx-type').value;
+    const categorie = document.getElementById('tx-categorie').value;
+    const description = document.getElementById('tx-description').value;
+    const montantInput = parseFloat(document.getElementById('tx-montant').value) || 0;
+
+    if (!date || !description || isNaN(montantInput)) {
+        alert("Veuillez remplir tous les champs obligatoires (*).");
+        return;
+    }
+
+    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
+
+    const objetPayload = {};
+    objetPayload[window.schemaColonnes.date] = date;
+    objetPayload[window.schemaColonnes.type] = type;
+    objetPayload[window.schemaColonnes.categorie] = categorie;
+    objetPayload[window.schemaColonnes.description] = description;
+    objetPayload[window.schemaColonnes.montant] = montantFinal;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .insert([objetPayload]);
+
+        if (error) throw error;
+
+        const form = document.getElementById('form-ajouter-transaction');
+        if (form) form.reset();
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur d'ajout dans Supabase :", err.message);
+        alert("Erreur lors de l'enregistrement : " + err.message);
+    }
+};
+
 window.sauvegarderModification = async function() {
     const elId = document.getElementById('edit-id');
     const elDate = document.getElementById('edit-date');
@@ -299,10 +417,7 @@ window.sauvegarderModification = async function() {
     const elDesc = document.getElementById('edit-description');
     const elMontant = document.getElementById('edit-montant');
 
-    if (!elId || !elId.value) {
-        alert("Identifiant de transaction introuvable.");
-        return;
-    }
+    if (!elId || !elId.value) return;
 
     const id = elId.value;
     const date = elDate ? elDate.value : '';
@@ -390,7 +505,7 @@ window.supprimerTransaction = async function(id) {
 };
 
 // ------------------------------------------
-// 6. ÉCOUTEURS & INITIALISATION
+// 7. ÉCOUTEURS & INITIALISATION
 // ------------------------------------------
 document.addEventListener('click', function(e) {
     const cible = e.target.closest('button, a, .nav-link, .tab-btn');
