@@ -1,6 +1,6 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Correction dynamique de la lecture du formulaire HTML
+// Correction de la variable montantBrut & Gestion des comptes de tiers
 // ==========================================
 
 window.listeTransactions = [];
@@ -108,7 +108,7 @@ window.chargerTransactions = async function() {
     }
 };
 
-// RECUPERATION ROBUSTE DU FORMULAIRE
+// LECTURE DU FORMULAIRE ET CORRECTION DE VARIABLE
 window.ajouterTransaction = async function(event) {
     if (event) event.preventDefault();
 
@@ -117,7 +117,7 @@ window.ajouterTransaction = async function(event) {
         return;
     }
 
-    // Recherche très flexible des éléments du formulaire
+    // Recherche souple des éléments HTML
     const inputDate = document.getElementById('date') || 
                       document.querySelector('input[type="date"]') || 
                       document.querySelector('[name="date"]');
@@ -141,21 +141,21 @@ window.ajouterTransaction = async function(event) {
                         document.querySelector('input[type="number"]') || 
                         document.querySelector('[name="montant"]');
 
-    // Récupération des valeurs avec sécurité
+    // Récupération sécurisée des valeurs
     const dateVal = inputDate ? inputDate.value : '';
     const typeVal = selectType ? selectType.value : 'Dépense';
     const catVal = selectCat ? selectCat.value : 'Divers';
     const descVal = inputDesc ? inputDesc.value : '';
     
-    let montant Brut = inputMontant ? inputMontant.value : '0';
+    // Correction ici : nom de variable en un seul mot
+    let montantBrut = inputMontant ? inputMontant.value : '0';
     let montantVal = parseFloat(montantBrut.replace(',', '.')) || 0;
 
     if (!dateVal || isNaN(montantVal) || montantVal === 0) {
-        alert("⚠️ Veuillez remplir au moins une date et un montant valide (non nul).");
+        alert("⚠️ Veuillez remplir une date et un montant valide (non nul).");
         return;
     }
 
-    // Préparation de l'enregistrement (On garde le nombre négatif ou positif saisi)
     const nouvelleEcriture = {
         date: dateVal,
         type: typeVal,
@@ -172,11 +172,9 @@ window.ajouterTransaction = async function(event) {
 
         if (error) throw error;
 
-        // Vider les champs texte après succès
         if (inputDesc) inputDesc.value = '';
         if (inputMontant) inputMontant.value = '';
 
-        // Recharger les données
         await window.chargerTransactions();
 
     } catch (err) {
