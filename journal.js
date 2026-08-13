@@ -1,20 +1,25 @@
 // ==========================================
-// MODULE COMPTABLE : JOURNAUX, TIERS, RECEPTIONS & DÉPENSES
+// MODULE COMPTABLE : JOURNAUX & TIERS INDIVIDUELS
 // ==========================================
 
-// 1. Comptes de tiers
+// 1. Répertoire des comptes Clients (411)
 window.comptesTiersClients = JSON.parse(localStorage.getItem('comptesTiersClients')) || [
     { id: '1', nom: 'Abadie', code: '411ABADIE' },
     { id: '2', nom: 'Saint-André', code: '411STANDRE' }
 ];
 
-window.comptesTiersFournisseurs = JSON.parse(localStorage.getItem('comptesTiersFournisseurs')) || [
-    { id: '101', nom: 'URSSAF', code: '401URSSAF' },
-    { id: '102', nom: 'CARPIMKO', code: '401CARPIMKO' },
-    { id: '103', nom: 'Fournisseur Matériel', code: '401MATERIEL' }
+// 2. Répertoire des comptes Sociaux (438), Fiscaux (447) et Fournisseurs (401)
+window.comptesTiersAutres = JSON.parse(localStorage.getItem('comptesTiersAutres')) || [
+    // Charges Sociales
+    { id: 's1', nom: 'URSSAF', code: '438URSSAF', type: 'social' },
+    { id: 's2', nom: 'CARPIMKO', code: '438CARPIMKO', type: 'social' },
+    // Charges Fiscales
+    { id: 'f1', nom: 'Impôts (CFE / PAS)', code: '447IMPOTS', type: 'fiscal' },
+    // Fournisseurs Individuels
+    { id: 'm1', nom: 'Matériel Médical', code: '401MATERIEL', type: 'fournisseur' }
 ];
 
-// 2. Registres des validations manuelles de l'utilisateur
+// Registres des validations
 window.encaissementsValides = JSON.parse(localStorage.getItem('encaissementsValides')) || [];
 window.decaissementsValides = JSON.parse(localStorage.getItem('decaissementsValides')) || [];
 
@@ -33,6 +38,43 @@ window.initJournal = function() {
     if (!container) return;
 
     window.afficherModuleJournaux(container);
+};
+
+// Fonction pour récupérer ou créer automatiquement un compte individuel
+window.obtenirCompteIndividuel = function(label) {
+    var cleanLabel = label.trim();
+    var lower = cleanLabel.toLowerCase();
+
+    // Recherche d'un tiers existant
+    var tiersExistant = window.comptesTiersAutres.find(t => lower.includes(t.nom.toLowerCase()));
+    if (tiersExistant) return tiersExistant;
+
+    // Détermination automatique du type et du préfixe de compte
+    var prefixe = '401';
+    var type = 'fournisseur';
+
+    if (lower.includes('urssaf') || lower.includes('carpimko') || lower.includes('retraite') || lower.includes('mutuelle') || lower.includes('prevoyance')) {
+        prefixe = '438';
+        type = 'social';
+    } else if (lower.includes('impot') || lower.includes('taxe') || lower.includes('cfe') || lower.includes('tresor public')) {
+        prefixe = '447';
+        type = 'fiscal';
+    }
+
+    // Création d'un code individuel propre sans espaces ni caractères spéciaux
+    var codeNom = cleanLabel.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10);
+    var nouveauTiers = {
+        id: 't-' + Date.now() + Math.random().toString(36).substr(2, 4),
+        nom: cleanLabel,
+        code: prefixe + codeNom,
+        type: type
+    };
+
+    // Ajout et sauvegarde
+    window.comptesTiersAutres.push(nouveauTiers);
+    localStorage.setItem('comptesTiersAutres', JSON.stringify(window.comptesTiersAutres));
+
+    return nouveauTiers;
 };
 
 window.afficherModuleJournaux = function(container) {
@@ -55,8 +97,8 @@ window.afficherModuleJournaux = function(container) {
         if (type === 'recette' || montant > 0) {
             var valMontant = Math.abs(montant);
             var tiersC = window.comptesTiersClients.find(t => label.toLowerCase().includes(t.nom.toLowerCase()));
-            var codeTiersC = tiersC ? tiersC.code : '411DIVERS';
-            var nomTiersC = tiersC ? tiersC.nom : 'Client Divers';
+            var codeTiersC = tiersC ? tiersC.code : ('411' + label.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8));
+            var nomTiersC = tiersC ? tiersC.nom : label;
 
             ecrituresVE.push({ date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), compte: codeTiersC, libelle: 'Prestation - ' + nomTiersC, debit: valMontant, credit: 0 });
             ecrituresVE.push({ date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), compte: '706000', libelle: 'Honoraires BNC', debit: 0, credit: valMontant });
@@ -65,25 +107,25 @@ window.afficherModuleJournaux = function(container) {
                 prestationsEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersC, codeTiers: codeTiersC, label: label, montant: valMontant, piece: 'FAC-' + (1000 + index) });
             }
         } 
-        // --- DÉPENSES (ACHATS - HA) ---
+        // --- DÉPENSES (ACHATS / CHARGES - HA) ---
         else if (type === 'depense' || montant < 0) {
             var valMontantD = Math.abs(montant);
-            var tiersF = window.comptesTiersFournisseurs.find(t => label.toLowerCase().includes(t.nom.toLowerCase()));
-            var codeTiersF = tiersF ? tiersF.code : '401DIVERS';
-            var nomTiersF = tiersF ? tiersF.nom : 'Fournisseur Divers';
+            
+            // Attribution d'un compte individuel
+            var tiersIndividuel = window.obtenirCompteIndividuel(label);
 
-            ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: '606000', libelle: 'Achats / Charges - ' + label, debit: valMontantD, credit: 0 });
-            ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: codeTiersF, libelle: 'Facture Fournisseur - ' + nomTiersF, debit: 0, credit: valMontantD });
+            ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: '606000', libelle: 'Charge / Achat - ' + label, debit: valMontantD, credit: 0 });
+            ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: tiersIndividuel.code, libelle: 'Facture / Appel - ' + tiersIndividuel.nom, debit: 0, credit: valMontantD });
 
             if (!window.decaissementsValides.find(d => d.txId === txId)) {
-                depensesEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersF, codeTiers: codeTiersF, label: label, montant: valMontantD, piece: 'DEP-' + (2000 + index) });
+                depensesEnAttente.push({ txId: txId, date: dateOp, nomTiers: tiersIndividuel.nom, codeTiers: tiersIndividuel.code, label: label, montant: valMontantD, piece: 'DEP-' + (2000 + index) });
             }
         }
     });
 
     // --- JOURNAL DE BANQUE (BQ) ---
     var ecrituresBQ = [];
-    
+
     // Encaissements
     window.encaissementsValides.forEach(function(enc, index) {
         ecrituresBQ.push({ date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), compte: '512000', libelle: 'Encaissement - ' + enc.nomTiers, debit: enc.montant, credit: 0 });
@@ -92,11 +134,11 @@ window.afficherModuleJournaux = function(container) {
 
     // Décaissements
     window.decaissementsValides.forEach(function(dec, index) {
-        ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: dec.codeTiers, libelle: 'Règlement Fournisseur - ' + dec.nomTiers, debit: dec.montant, credit: 0 });
+        ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: dec.codeTiers, libelle: 'Règlement Tiers - ' + dec.nomTiers, debit: dec.montant, credit: 0 });
         ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: '512000', libelle: 'Prélèvement / Virement - ' + dec.piece, debit: 0, credit: dec.montant });
     });
 
-    // Interface HTML
+    // Rendu HTML
     container.innerHTML = `
         <style>
             .jrn-box { font-family: system-ui, -apple-system, sans-serif; }
@@ -114,10 +156,25 @@ window.afficherModuleJournaux = function(container) {
             .btn-red { background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; }
             .btn-red:hover { background: #b91c1c; }
             .input-date { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+
+            .badge-social { background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+            .badge-fiscal { background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+            .badge-fournisseur { background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
         </style>
 
         <div class="jrn-box">
-            <h2>📘 Journaux Comptables & Suivi des Flux</h2>
+            <h2>📘 Journaux Comptables & Tiers Individuels</h2>
+
+            <!-- REPERTOIRE DES COMPTES INDIVIDUELS -->
+            <div class="jrn-card">
+                <h4 style="margin-top:0;">👥 Plan des Comptes Tiers Individuels</h4>
+                <div style="display:flex; gap: 8px; flex-wrap: wrap;">
+                    ${window.comptesTiersAutres.map(t => {
+                        var classBadge = t.type === 'social' ? 'badge-social' : (t.type === 'fiscal' ? 'badge-fiscal' : 'badge-fournisseur');
+                        return `<span class="${classBadge}">${t.nom} (${t.code})</span>`;
+                    }).join('')}
+                </div>
+            </div>
 
             <!-- ONGLETS -->
             <div class="jrn-tabs">
@@ -128,40 +185,39 @@ window.afficherModuleJournaux = function(container) {
                 <button class="jrn-tab-btn" id="btn-tab-bq" onclick="window.changerOnglet('bq')">Journal Banque (BQ)</button>
             </div>
 
-            <!-- VUE 1 : ENCAISSEMENT RECETTES -->
+            <!-- VUE ENCAISSEMENTS -->
             <div id="vue-enc" class="jrn-card">
                 <h4 style="color:#16a34a;">🟢 Encaissements de Prestations à Valider</h4>
                 ${window.genererTableauAttente(prestationsEnAttente, 'recette')}
             </div>
 
-            <!-- VUE 2 : DÉCAISSEMENT DÉPENSES -->
+            <!-- VUE DÉPAISSES / RÈGLEMENTS -->
             <div id="vue-dec" class="jrn-card" style="display:none;">
-                <h4 style="color:#dc2626;">🔴 Dépenses à Valider (Sorties de Banque)</h4>
+                <h4 style="color:#dc2626;">🔴 Dépenses & Charges à Valider (Validation du Règlement)</h4>
                 ${window.genererTableauAttente(depensesEnAttente, 'depense')}
             </div>
 
-            <!-- VUE 3 : JOURNAL VE -->
+            <!-- VUE JOURNAL VE -->
             <div id="vue-ve" class="jrn-card" style="display:none;">
                 <h4>Journal des Ventes (VE)</h4>
                 ${window.genererTableauJournal(ecrituresVE)}
             </div>
 
-            <!-- VUE 4 : JOURNAL HA -->
+            <!-- VUE JOURNAL HA -->
             <div id="vue-ha" class="jrn-card" style="display:none;">
-                <h4>Journal des Dépenses / Achats (HA)</h4>
+                <h4>Journal des Dépenses (HA)</h4>
                 ${window.genererTableauJournal(ecrituresHA)}
             </div>
 
-            <!-- VUE 5 : JOURNAL BQ -->
+            <!-- VUE JOURNAL BQ -->
             <div id="vue-bq" class="jrn-card" style="display:none;">
-                <h4>Journal de Banque (BQ - Flux Validés)</h4>
+                <h4>Journal de Banque (BQ - Règlements Validés)</h4>
                 ${window.genererTableauJournal(ecrituresBQ)}
             </div>
         </div>
     `;
 };
 
-// Générateur de tableau pour la validation manuelle
 window.genererTableauAttente = function(liste, type) {
     if (liste.length === 0) return `<p style="color:#64748b; font-style:italic;">Aucune opération en attente.</p>`;
 
@@ -172,7 +228,7 @@ window.genererTableauAttente = function(liste, type) {
         return `
             <tr>
                 <td>${item.date}</td>
-                <td><strong>${item.nomTiers}</strong> <small>(${item.codeTiers})</small></td>
+                <td><strong>${item.nomTiers}</strong> <br/><small style="color:#2563eb;">${item.codeTiers}</small></td>
                 <td>${item.label}</td>
                 <td style="font-weight:bold; color:${isRecette ? '#16a34a' : '#dc2626'};">${item.montant.toFixed(2)} €</td>
                 <td><input type="date" id="date-flux-${item.txId}" class="input-date" value="${hoy}" /></td>
@@ -191,8 +247,8 @@ window.genererTableauAttente = function(liste, type) {
             <thead>
                 <tr>
                     <th>Date Engagement</th>
-                    <th>Tiers</th>
-                    <th>Libellé</th>
+                    <th>Compte Tiers Individuel</th>
+                    <th>Libellé Transaction</th>
                     <th>Montant</th>
                     <th>Date Relevé Banque</th>
                     <th>Action</th>
@@ -203,7 +259,6 @@ window.genererTableauAttente = function(liste, type) {
     `;
 };
 
-// Validation manuelle de l'utilisateur (Recette ou Dépense)
 window.validerFlux = function(txId, nomTiers, codeTiers, montant, piece, type) {
     var inputDate = document.getElementById('date-flux-' + txId);
     var dateBQ = inputDate ? inputDate.value : new Date().toISOString().split('T')[0];
@@ -242,7 +297,7 @@ window.genererTableauJournal = function(ecritures) {
         <table class="jrn-table">
             <thead>
                 <tr>
-                    <th>Date</th><th>Journal</th><th>N° Pièce</th><th>Compte</th><th>Libellé</th><th style="text-align:right;">Débit</th><th style="text-align:right;">Crédit</th>
+                    <th>Date</th><th>Journal</th><th>N° Pièce</th><th>Compte Tiers / Charge</th><th>Libellé</th><th style="text-align:right;">Débit</th><th style="text-align:right;">Crédit</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
