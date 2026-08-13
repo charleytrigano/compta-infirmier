@@ -1,10 +1,12 @@
 // ==========================================
-// GESTION COMPTA : TRANSACTIONS, JOURNAL & GRAND LIVRE
+// COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
+// Gestion des Transactions, Journal & Grand Livre
 // ==========================================
 
+// Variable globale pour stocker la liste des transactions
 window.listeTransactions = [];
 
-// Schéma de correspondance dynamique
+// Schéma de correspondance dynamique des colonnes Supabase
 window.schemaColonnes = {
     date: 'date',
     type: 'type',
@@ -14,7 +16,7 @@ window.schemaColonnes = {
 };
 
 /**
- * Détecte les noms de colonnes utilisés dans la table Supabase
+ * Détecte les noms de colonnes réels utilisés dans la table Supabase
  */
 window.detecterSchema = function(premierObjet) {
     if (!premierObjet) return;
@@ -30,11 +32,11 @@ window.detecterSchema = function(premierObjet) {
 };
 
 // ------------------------------------------
-// 1. CHARGEMENT DES DONNÉES
+// 1. CHARGEMENT DEPUIS SUPABASE
 // ------------------------------------------
 window.chargerTransactions = async function() {
     if (!window.supabaseClient) {
-        console.error("❌ Supabase n'est pas prêt.");
+        console.error("❌ Supabase n'est pas initialisé.");
         return;
     }
 
@@ -52,6 +54,7 @@ window.chargerTransactions = async function() {
             window.detecterSchema(window.listeTransactions[0]);
         }
 
+        // Rafraîchissement simultané de toutes les vues
         window.rafraichirToutesLesVues();
 
     } catch (err) {
@@ -66,7 +69,7 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. VUE TRANSACTIONS
+// 2. ONGLET : TABLEAU DES TRANSACTIONS
 // ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
@@ -112,7 +115,7 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 3. VUE JOURNAL (AVEC ACTIONS)
+// 3. ONGLET : JOURNAL COMPTABLE
 // ------------------------------------------
 window.afficherJournal = function(transactions) {
     let conteneur = document.getElementById('journal') || 
@@ -159,6 +162,7 @@ window.afficherJournal = function(transactions) {
         return;
     }
 
+    // Ordre chronologique
     const transactionsTriees = [...transactions].reverse();
 
     transactionsTriees.forEach(tx => {
@@ -187,7 +191,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. VUE GRAND LIVRE (AVEC ACTIONS)
+// 4. ONGLET : GRAND LIVRE (PAR COMPTE)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('grand-livre') || 
@@ -212,9 +216,12 @@ window.afficherGrandLivre = function(transactions) {
         return;
     }
 
+    // Regroupement par catégorie nettoyée (.trim())
     const groupes = {};
     transactions.forEach(tx => {
-        const cat = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || 'Non classé';
+        let catBrute = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || 'Non classé';
+        const cat = catBrute.toString().trim(); // Fusionne les libellés identiques avec des espaces superflus
+
         if (!groupes[cat]) groupes[cat] = [];
         groupes[cat].push(tx);
     });
@@ -278,8 +285,46 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 5. FONCTIONS D'ÉDITION & SUPPRESSION
+// 5. FONCTIONS CRUD (AJOUT, MODIFICATION, SUPPRESSION)
 // ------------------------------------------
+window.ajouterTransaction = async function() {
+    const date = document.getElementById('tx-date').value;
+    const type = document.getElementById('tx-type').value;
+    const categorie = document.getElementById('tx-categorie').value;
+    const description = document.getElementById('tx-description').value;
+    const montantInput = parseFloat(document.getElementById('tx-montant').value) || 0;
+
+    if (!date || !description || isNaN(montantInput)) {
+        alert("Veuillez remplir tous les champs obligatoires (*).");
+        return;
+    }
+
+    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
+
+    const objetPayload = {};
+    objetPayload[window.schemaColonnes.date] = date;
+    objetPayload[window.schemaColonnes.type] = type;
+    objetPayload[window.schemaColonnes.categorie] = categorie;
+    objetPayload[window.schemaColonnes.description] = description;
+    objetPayload[window.schemaColonnes.montant] = montantFinal;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .insert([objetPayload]);
+
+        if (error) throw error;
+
+        const form = document.getElementById('form-ajouter-transaction');
+        if (form) form.reset();
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur d'ajout dans Supabase :", err.message);
+        alert("Erreur lors de l'enregistrement : " + err.message);
+    }
+};
+
 window.supprimerTransaction = async function(id) {
     if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
 
@@ -328,12 +373,47 @@ window.ouvrirModalModification = function(id) {
     if (modal) modal.style.display = 'flex';
 };
 
+window.sauvegarderModification = async function() {
+    const id = document.getElementById('edit-id').value;
+    const date = document.getElementById('edit-date').value;
+    const type = document.getElementById('edit-type').value;
+    const categorie = document.getElementById('edit-categorie').value;
+    const description = document.getElementById('edit-description').value;
+    const montantInput = parseFloat(document.getElementById('edit-montant').value) || 0;
+
+    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
+
+    const objetModification = {};
+    objetModification[window.schemaColonnes.date] = date;
+    objetModification[window.schemaColonnes.type] = type;
+    objetModification[window.schemaColonnes.categorie] = categorie;
+    objetModification[window.schemaColonnes.description] = description;
+    objetModification[window.schemaColonnes.montant] = montantFinal;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .update(objetModification)
+            .eq('id', id);
+
+        if (error) throw error;
+
+        window.fermerModal();
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur de mise à jour :", err.message);
+        alert("Erreur lors de la modification : " + err.message);
+    }
+};
+
 window.fermerModal = function() {
     const modal = document.getElementById('modal-modifier');
     if (modal) modal.style.display = 'none';
 };
 
-// Écouteur sur les onglets pour rafraîchir la vue active
+// ------------------------------------------
+// 6. ÉCOUTEURS D'ÉVÉNEMENTS & INITIALISATION
+// ------------------------------------------
 document.addEventListener('click', function(e) {
     const cible = e.target.closest('button, a, .nav-link, .tab-btn');
     if (cible) {
@@ -343,7 +423,6 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Initialisation au chargement
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         if (window.supabaseClient) {
