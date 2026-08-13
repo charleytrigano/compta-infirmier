@@ -1,16 +1,36 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - PLAN COMPTABLE
-// Fichier complet : Gestion dynamique du Plan Comptable avec Supabase
+// Fichier complet : Chargement robuste et sécurisé
 // ==========================================
 
 window.listePlanComptable = [];
+
+// Catégories par défaut en cas de délai de réponse Supabase
+const CATEGORIES_DEFAUT = [
+    { code: "706000", nom: "Soins infirmiers / Honoraires", type: "recette" },
+    { code: "645200", nom: "Cotisations CARPIMKO", type: "depense" },
+    { code: "645100", nom: "Cotisations URSSAF", type: "depense" },
+    { code: "616000", nom: "Assurances & RCP", type: "depense" },
+    { code: "625100", nom: "Frais de déplacement / Carburant", type: "depense" },
+    { code: "606300", nom: "Petit matériel médical", type: "depense" },
+    { code: "622600", nom: "Frais de comptabilité & Logiciels", type: "depense" },
+    { code: "613200", nom: "Loyer & Charges locatives", type: "depense" },
+    { code: "627000", nom: "Frais bancaires", type: "depense" }
+];
 
 // ------------------------------------------
 // 1. CHARGEMENT DU PLAN COMPTABLE
 // ------------------------------------------
 window.chargerPlanComptable = async function() {
+    // Initialisation immédiate avec les données par défaut pour éviter le blocage
+    if (window.listePlanComptable.length === 0) {
+        window.listePlanComptable = CATEGORIES_DEFAUT;
+        window.afficherPlanComptable();
+        window.mettreAJourSelectsCategories();
+    }
+
     if (!window.supabaseClient) {
-        console.error("❌ Supabase n'est pas initialisé.");
+        console.warn("⚠️ Client Supabase non encore prêt, utilisation des catégories locales.");
         return;
     }
 
@@ -22,28 +42,46 @@ window.chargerPlanComptable = async function() {
 
         if (error) throw error;
 
-        window.listePlanComptable = data || [];
-        window.afficherPlanComptable();
-        window.mettreAJourSelectsCategories();
-
+        if (data && data.length > 0) {
+            window.listePlanComptable = data;
+            window.afficherPlanComptable();
+            window.mettreAJourSelectsCategories();
+        }
     } catch (err) {
-        console.error("Erreur lors du chargement du plan comptable :", err.message);
+        console.error("Erreur chargement plan comptable :", err.message);
     }
 };
 
 // ------------------------------------------
-// 2. AFFICHAGE DU TABLEAU DU PLAN COMPTABLE
+// 2. REMPLISSAGE DU SELECT DE CATÉGORIES
+// ------------------------------------------
+window.mettreAJourSelectsCategories = function() {
+    const selectCat = document.getElementById('categorie');
+    if (!selectCat) return;
+
+    const valeurSelectionnee = selectCat.value;
+    selectCat.innerHTML = '';
+
+    window.listePlanComptable.forEach(compte => {
+        const option = document.createElement('option');
+        option.value = compte.nom;
+        option.textContent = `${compte.code} - ${compte.nom}`;
+        selectCat.appendChild(option);
+    });
+
+    if (valeurSelectionnee && Array.from(selectCat.options).some(o => o.value === valeurSelectionnee)) {
+        selectCat.value = valeurSelectionnee;
+    }
+};
+
+// ------------------------------------------
+// 3. AFFICHAGE DU TABLEAU DU PLAN COMPTABLE
 // ------------------------------------------
 window.afficherPlanComptable = function() {
     const tbody = document.getElementById('body-tableau-plan-comptable');
     if (!tbody) return;
 
     tbody.innerHTML = '';
-
-    if (window.listePlanComptable.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:20px;">Aucun compte dans le plan comptable.</td></tr>`;
-        return;
-    }
 
     window.listePlanComptable.forEach(compte => {
         const estRecette = compte.type === 'recette';
@@ -53,12 +91,12 @@ window.afficherPlanComptable = function() {
             <td style="padding:10px; font-weight:bold;">${compte.code}</td>
             <td style="padding:10px;">${compte.nom}</td>
             <td style="padding:10px;">
-                <span style="background:${estRecette ? '#dcfce7' : '#fee2e2'}; color:${estRecette ? '#166534' : '#991b1b'}; padding:4px 8px; border-radius:4px; font-size:0.85rem; font-weight:bold;">
+                <span class="${estRecette ? 'badge-recette' : 'badge-depense'}">
                     ${estRecette ? 'Recette (Classe 7)' : 'Dépense (Classe 6)'}
                 </span>
             </td>
             <td style="padding:10px;">
-                <button style="background:none; border:none; cursor:pointer; font-size:1.1rem;" onclick="window.supprimerCompteComptable('${compte.id}')" title="Supprimer le compte">🗑️</button>
+                ${compte.id ? `<button style="background:none; border:none; cursor:pointer;" onclick="window.supprimerCompteComptable('${compte.id}')">🗑️</button>` : ''}
             </td>
         `;
         tbody.appendChild(tr);
@@ -66,47 +104,10 @@ window.afficherPlanComptable = function() {
 };
 
 // ------------------------------------------
-// 3. MISE À JOUR DYNAMIQUE DES SELECTS DE CATEGORIE
-// ------------------------------------------
-window.mettreAJourSelectsCategories = function() {
-    // Ciblage des listes déroulantes de catégories dans tous les formulaires
-    const selectsCategorie = document.querySelectorAll('select[id*="categorie"], select[id*="Catégorie"], select[name*="categorie"]');
-    
-    selectsCategorie.forEach(select => {
-        const valeurActuelle = select.value;
-        select.innerHTML = '';
-
-        if (window.listePlanComptable.length === 0) {
-            const optionDefaut = document.createElement('option');
-            optionDefaut.value = 'Divers';
-            optionDefaut.textContent = 'Divers';
-            select.appendChild(optionDefaut);
-            return;
-        }
-
-        window.listePlanComptable.forEach(compte => {
-            const option = document.createElement('option');
-            option.value = compte.nom;
-            option.textContent = `${compte.code} - ${compte.nom}`;
-            select.appendChild(option);
-        });
-
-        if (valeurActuelle) {
-            select.value = valeurActuelle;
-        }
-    });
-};
-
-// ------------------------------------------
-// 4. CRÉATION D'UN NOUVEAU COMPTE COMPTABLE
+// 4. CRÉATION D'UN NOUVEAU COMPTE
 // ------------------------------------------
 window.ajouterCompteComptable = async function(event) {
     if (event) event.preventDefault();
-
-    if (!window.supabaseClient) {
-        alert("❌ Connexion à Supabase introuvable.");
-        return;
-    }
 
     const inputCode = document.getElementById('pcg-code');
     const inputNom = document.getElementById('pcg-nom');
@@ -117,58 +118,51 @@ window.ajouterCompteComptable = async function(event) {
     const typeVal = selectType ? selectType.value : 'depense';
 
     if (!codeVal || !nomVal) {
-        alert("⚠️ Veuillez saisir un numéro de compte et un intitulé.");
+        alert("⚠️ Veuillez remplir le numéro et l'intitulé du compte.");
         return;
     }
 
     try {
-        const { error } = await window.supabaseClient
-            .from('plan_comptable')
-            .insert([{ code: codeVal, nom: nomVal, type: typeVal }]);
+        if (window.supabaseClient) {
+            const { error } = await window.supabaseClient
+                .from('plan_comptable')
+                .insert([{ code: codeVal, nom: nomVal, type: typeVal }]);
 
-        if (error) throw error;
+            if (error) throw error;
+        }
 
-        if (inputCode) inputCode.value = '';
-        if (inputNom) inputNom.value = '';
+        inputCode.value = '';
+        inputNom.value = '';
 
         await window.chargerPlanComptable();
 
     } catch (err) {
-        console.error("Erreur lors de la création du compte :", err.message);
-        alert("Erreur lors de la création du compte : " + err.message);
+        alert("Erreur lors de l'enregistrement : " + err.message);
     }
 };
 
 // ------------------------------------------
-// 5. SUPPRESSION D'UN COMPTE COMPTABLE
+// 5. SUPPRESSION D'UN COMPTE
 // ------------------------------------------
 window.supprimerCompteComptable = async function(id) {
-    const confirmation = confirm("Voulez-vous vraiment supprimer ce compte comptable ?");
-    if (!confirmation) return;
+    if (!confirm("Supprimer ce compte comptable ?")) return;
 
     try {
-        const { error } = await window.supabaseClient
-            .from('plan_comptable')
-            .delete()
-            .eq('id', id);
+        if (window.supabaseClient) {
+            const { error } = await window.supabaseClient
+                .from('plan_comptable')
+                .delete()
+                .eq('id', id);
 
-        if (error) throw error;
+            if (error) throw error;
+        }
 
         await window.chargerPlanComptable();
-
     } catch (err) {
-        console.error("Erreur lors de la suppression du compte :", err.message);
         alert("Erreur de suppression : " + err.message);
     }
 };
 
-// ------------------------------------------
-// INITIALISATION AUTOMATIQUE
-// ------------------------------------------
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        if (window.supabaseClient) {
-            window.chargerPlanComptable();
-        }
-    }, 350);
-});
+// Lancement automatique instantané + re-vérification après chargement DOM
+window.chargerPlanComptable();
+document.addEventListener('DOMContentLoaded', window.chargerPlanComptable);
