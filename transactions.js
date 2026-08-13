@@ -1,9 +1,16 @@
 // ==========================================
-// MODULE : JOURNAL ET GESTION DES TRANSACTIONS
+// MODULE : GESTION DES TRANSACTIONS
 // ==========================================
 
-// Initialisation au chargement de la page
+// 1. Chargement des transactions existantes ou initialisation d'un tableau vide
+window.allTransactions = JSON.parse(localStorage.getItem('allTransactions')) || [
+    { id: 'tx-1', date: '2026-08-01', categorie: 'Honoraires', label: 'Patient Abadie', amount: 50.00, type: 'recette' },
+    { id: 'tx-2', date: '2026-08-05', categorie: 'URSSAF', label: 'Cotisations Sociales URSSAF', amount: -350.00, type: 'depense' }
+];
+
+// Initialisation au chargement de la vue
 window.initTransactions = function() {
+    // Recherche du conteneur dans la page HTML
     var container = document.getElementById('transactions-container') || 
                     document.getElementById('view-transactions') || 
                     document.querySelector('.transactions-view');
@@ -22,7 +29,7 @@ window.initTransactions = function() {
     window.afficherModuleTransactions(container);
 };
 
-// Affichage principal du journal des transactions
+// Affichage principal de la liste des transactions
 window.afficherModuleTransactions = function(container) {
     var transactions = window.allTransactions || [];
 
@@ -67,7 +74,7 @@ window.afficherModuleTransactions = function(container) {
             .btn-tx-edit { background: #eab308; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 12px; }
             .btn-tx-del { background: #ef4444; color: white; border: none; padding: 5px 8px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 12px; margin-left: 4px; }
             
-            /* Fenêtre modale */
+            /* Fenêtre modale de modification */
             .tx-modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index:9999; }
             .tx-modal-content { background:#fff; padding:25px; border-radius:8px; width:420px; max-width:90%; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
             .tx-modal-group { margin-bottom: 15px; }
@@ -121,12 +128,12 @@ window.afficherModuleTransactions = function(container) {
 
                 <div class="tx-modal-group">
                     <label for="tx-edit-cat">Catégorie :</label>
-                    <input type="text" id="tx-edit-cat" placeholder="ex: URSSAF, CARPIMKO, Honoraires, Materiel...">
+                    <input type="text" id="tx-edit-cat" placeholder="ex: URSSAF, CARPIMKO, Honoraires...">
                 </div>
 
                 <div class="tx-modal-group">
                     <label for="tx-edit-label">Description / Libellé :</label>
-                    <input type="text" id="tx-edit-label" placeholder="ex: Paiement matériel de soin">
+                    <input type="text" id="tx-edit-label" placeholder="ex: Prestation soin">
                 </div>
 
                 <div class="tx-modal-group">
@@ -143,10 +150,7 @@ window.afficherModuleTransactions = function(container) {
     `;
 };
 
-// ==========================================
-// FONCTIONS DE GESTION DE LA MODALE & DÉLÉGATION
-// ==========================================
-
+// Ouvrir la fenêtre de modification avec les données actuelles
 window.ouvrirModalEditTx = function(txId) {
     var transactions = window.allTransactions || [];
     var tx = transactions.find(function(t, idx) {
@@ -168,11 +172,13 @@ window.ouvrirModalEditTx = function(txId) {
     document.getElementById('tx-modal-edit').style.display = 'flex';
 };
 
+// Fermer la fenêtre modale
 window.fermerModalEditTx = function() {
     var modal = document.getElementById('tx-modal-edit');
     if (modal) modal.style.display = 'none';
 };
 
+// Sauvegarder la modification
 window.sauvegarderTx = function() {
     var txId = document.getElementById('tx-edit-id').value;
     var typeOp = document.getElementById('tx-edit-type').value;
@@ -195,16 +201,17 @@ window.sauvegarderTx = function() {
         tx.description = nouveauLabel;
         tx.amount = (typeOp === 'depense') ? -Math.abs(nouveauMontant) : Math.abs(nouveauMontant);
 
-        // Sauvegarde locale
+        // Sauvegarde dans le localStorage
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
         window.fermerModalEditTx();
 
-        // Rafraîchissement global de toutes les vues
+        // Rafraîchissement global
         window.refreshToutesLesVues();
     }
 };
 
+// Supprimer une transaction
 window.supprimerTx = function(txId) {
     if (!confirm("Es-tu sûr(e) de vouloir supprimer cette transaction ?")) return;
 
@@ -216,13 +223,14 @@ window.supprimerTx = function(txId) {
     window.refreshToutesLesVues();
 };
 
-// Fonction universelle pour rafraîchir toutes les vues comptables simultanément
+// Fonction universelle de synchronisation
 window.refreshToutesLesVues = function() {
     if (typeof window.initTransactions === 'function') window.initTransactions();
     if (typeof window.initJournal === 'function') window.initJournal();
     if (typeof window.initGrandLivre === 'function') window.initGrandLivre();
 };
 
+// Lancement automatique
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(window.initTransactions, 100);
 } else {
