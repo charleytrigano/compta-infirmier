@@ -1,23 +1,22 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Gestion du Journal de Banque et Grand Livre Complet
+// Grand Livre aux normes du Plan Comptable Général (PCG)
 // ==========================================
 
 window.listeTransactions = [];
 
-// Liste de référence du Plan Comptable (pour afficher tous les comptes dans le Grand Livre)
-const PLAN_COMPTABLE_REFERENCE = [
-    "Soins infirmiers",
-    "Cotisations CARPIMKO",
-    "URSSAF",
-    "Assurances & RCP",
-    "Frais de déplacement / Carburant",
-    "Petit matériel médical",
-    "Frais de comptabilité & Logiciels",
-    "Loyer & Charges locatives",
-    "Frais bancaires",
-    "Divers / Général"
-];
+// Table de correspondance des catégories vers la numérotation PCG
+const MAPPING_PCG = {
+    "soins infirmiers": { code: "706000", nom: "706000 - Prestations de services / Honoraires (Classe 7)" },
+    "cotisations carpimko": { code: "645200", nom: "645200 - Cotisations CARPIMKO (Classe 6)" },
+    "urssaf": { code: "645100", nom: "645100 - Cotisations URSSAF (Classe 6)" },
+    "assurances & rcp": { code: "616000", nom: "616000 - Primes d'assurances (Classe 6)" },
+    "frais de déplacement / carburant": { code: "625100", nom: "625100 - Voyages et déplacements (Classe 6)" },
+    "petit matériel médical": { code: "606300", nom: "606300 - Fournitures d'entretien et petit équipement (Classe 6)" },
+    "frais de comptabilité & logiciels": { code: "622600", nom: "622600 - Honoraires comptables & Logiciels (Classe 6)" },
+    "loyer & charges locatives": { code: "613200", nom: "613200 - Locations immobilières (Classe 6)" },
+    "frais bancaires": { code: "627000", nom: "627000 - Services bancaires (Classe 6)" }
+};
 
 // ------------------------------------------
 // FONCTIONS UTILITAIRES DE LECTURE
@@ -101,7 +100,7 @@ window.validerReglement = async function(idTx) {
 
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur lors de la validation du règlement :", err.message);
+        console.error("Erreur de validation du règlement :", err.message);
     }
 };
 
@@ -116,7 +115,7 @@ window.annulerReglement = async function(idTx) {
 
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur lors de l'annulation du règlement :", err.message);
+        console.error("Erreur d'annulation du règlement :", err.message);
     }
 };
 
@@ -165,7 +164,7 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : JOURNAL DE BANQUE (AMÉLIORÉ)
+// 4. ONGLET : JOURNAL DE BANQUE
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
     const tbody = document.getElementById('body-tableau-banque');
@@ -175,7 +174,6 @@ window.afficherBanque = function(transactions) {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // Si aucune écriture n'est marquée comme encaissée, on affiche tout par défaut
     const aDesEncaissements = transactions.some(tx => tx.encaisse === true);
     const listeAffichée = aDesEncaissements 
         ? transactions.filter(tx => tx.encaisse === true)
@@ -271,77 +269,100 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE (COMPLET AVEC PLAN COMPTABLE)
+// 6. ONGLET : GRAND LIVRE NORME PCG (CLASSES 4, 5, 6, 7)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
     if (!conteneur) return;
 
-    const groupes = {};
+    const comptes = {};
 
-    // 1. Initialiser tous les comptes du Plan Comptable
-    PLAN_COMPTABLE_REFERENCE.forEach(nomCompte => {
-        groupes[nomCompte.toLowerCase()] = { titre: nomCompte, items: [] };
-    });
+    // A. Initialiser le compte 512000 (Banque)
+    comptes["512000"] = { nom: "512000 - Banque (Classe 5)", items: [] };
 
-    // 2. Classer les transactions dans les comptes correspondants
+    // B. Classer chaque écriture dans son compte de Charges/Produits ET dans le compte 512 (Banque)
     transactions.forEach(tx => {
-        let catPropre = ExtraireCategorie(tx);
-        const cle = catPropre.toLowerCase();
+        let catBrute = ExtraireCategorie(tx);
+        let cleNorme = catBrute.toLowerCase();
+        
+        let pcgInfo = MAPPING_PCG[cleNorme] || { 
+            code: "471000", 
+            nom: `471000 - ${catBrute} (Compte d'attente / Tiers)` 
+        };
 
-        if (!groupes[cle]) {
-            groupes[cle] = { titre: catPropre, items: [] };
+        let codeCompte = pcgInfo.code;
+
+        if (!comptes[codeCompte]) {
+            comptes[codeCompte] = { nom: pcgInfo.nom, items: [] };
         }
-        groupes[cle].items.push(tx);
+
+        // Ajout dans le compte de nature (6, 7 ou 4)
+        comptes[codeCompte].items.push(tx);
+
+        // Ajout automatique dans le compte 512000 (Banque)
+        comptes["512000"].items.push(tx);
     });
 
-    let htmlComplet = `<h2 style="margin-bottom:20px;">📖 Grand Livre des comptes</h2>`;
+    let htmlComplet = `<h2 style="margin-bottom:20px;">📖 Grand Livre des Comptes (Norme PCG)</h2>`;
 
-    // 3. Afficher chaque compte
-    Object.keys(groupes).sort().forEach(cle => {
-        const groupe = groupes[cle];
-        let totalRecettes = 0;
-        let totalDepenses = 0;
+    // C. Affichage trié par numéro de compte
+    Object.keys(comptes).sort().forEach(codeCompte => {
+        const compte = comptes[codeCompte];
+        let totalDebit = 0;
+        let totalCredit = 0;
         let lignesHtml = '';
 
-        if (groupe.items.length === 0) {
-            lignesHtml = `<tr><td colspan="3" style="padding:10px; color:#94a3b8; font-style:italic;">Aucune écriture pour ce compte.</td></tr>`;
-        } else {
-            groupe.items.forEach(tx => {
-                const estRecette = ExtraireType(tx) === 'recette';
-                const montantNum = Math.abs(ExtraireMontant(tx));
+        compte.items.forEach(tx => {
+            const estRecette = ExtraireType(tx) === 'recette';
+            const montantNum = Math.abs(ExtraireMontant(tx));
 
-                if (estRecette) totalRecettes += montantNum;
-                else totalDepenses += montantNum;
+            let debit = 0;
+            let credit = 0;
 
-                lignesHtml += `
-                    <tr style="border-bottom:1px solid #f1f5f9;">
-                        <td style="padding:10px;">${tx.date || ''}</td>
-                        <td style="padding:10px;">${ExtraireDescription(tx)}</td>
-                        <td style="padding:10px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
-                            ${estRecette ? '+' : '-'} ${montantNum.toFixed(2)} €
-                        </td>
-                    </tr>
-                `;
-            });
-        }
+            // Règles de comptabilité en partie double
+            if (codeCompte === "512000") {
+                // Pour la Banque : Recette = Débit (+), Dépense = Crédit (-)
+                if (estRecette) debit = montantNum;
+                else credit = montantNum;
+            } else if (codeCompte.startsWith('7')) {
+                // Compte de Produit : Recette = Crédit
+                credit = montantNum;
+            } else {
+                // Compte de Charge / Tiers : Dépense = Débit
+                debit = montantNum;
+            }
 
-        const soldeGlobal = totalRecettes - totalDepenses;
+            totalDebit += debit;
+            totalCredit += credit;
+
+            lignesHtml += `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:8px 10px;">${tx.date || ''}</td>
+                    <td style="padding:8px 10px;">${ExtraireDescription(tx)}</td>
+                    <td style="padding:8px 10px; color:#dc2626; font-weight:bold; text-align:right;">${debit > 0 ? debit.toFixed(2) + ' €' : ''}</td>
+                    <td style="padding:8px 10px; color:#16a34a; font-weight:bold; text-align:right;">${credit > 0 ? credit.toFixed(2) + ' €' : ''}</td>
+                </tr>
+            `;
+        });
+
+        let solde = totalDebit - totalCredit;
+        let libelleSolde = codeCompte.startsWith('7') || (codeCompte === "512000" && solde < 0)
+            ? `Solde Créditeur : ${Math.abs(solde).toFixed(2)} €`
+            : `Solde Débiteurs : ${Math.abs(solde).toFixed(2)} €`;
 
         htmlComplet += `
             <div style="margin-bottom:20px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
                 <div style="background:#f1f5f9; padding:10px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0; font-size:1rem; color:#1e293b;">📂 Compte : ${groupe.titre}</h3>
-                    <span style="font-weight:bold; color:${soldeGlobal >= 0 ? '#16a34a' : '#dc2626'};">
-                        Solde : ${soldeGlobal >= 0 ? '+' : ''}${soldeGlobal.toFixed(2)} €
-                    </span>
+                    <h3 style="margin:0; font-size:1rem; color:#1e293b;">📂 ${compte.nom}</h3>
+                    <span style="font-weight:bold; color:#0f172a;">${libelleSolde}</span>
                 </div>
                 <table style="width:100%; border-collapse:collapse; text-align:left;">
                     <thead>
                         <tr style="background:#f8fafc; font-size:0.85rem; color:#475569;">
                             <th style="padding:8px 10px;">Date</th>
                             <th style="padding:8px 10px;">Description</th>
-                            <th style="padding:8px 10px;">Montant</th>
+                            <th style="padding:8px 10px; text-align:right; color:#dc2626;">Débit</th>
+                            <th style="padding:8px 10px; text-align:right; color:#16a34a;">Crédit</th>
                         </tr>
                     </thead>
                     <tbody>${lignesHtml}</tbody>
