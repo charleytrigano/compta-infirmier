@@ -359,7 +359,14 @@
             </table>
         </section>
 
-        <!-- 3. VUE BILAN & COMPTE D'EXPLOITATION -->
+        <!-- 3. VUE PLAN COMPTABLE -->
+        <section id="vue-plan" class="view-section">
+            <div id="conteneur-plan-comptable">
+                <p style="color: #64748b;">Chargement du plan comptable...</p>
+            </div>
+        </section>
+
+        <!-- 4. VUE BILAN & COMPTE D'EXPLOITATION -->
         <section id="vue-bilan" class="view-section">
             <h2>📋 Présentation Fiscale - Déclaration 2035 & Bilan</h2>
             <p style="color:#64748b; margin-bottom:20px;">
@@ -373,7 +380,7 @@
             <div id="conteneur-bilan"></div>
         </section>
 
-        <!-- 4. VUE DÉCLARATION 2035 FISCALE -->
+        <!-- 5. VUE DÉCLARATION 2035 FISCALE -->
         <section id="vue-2035" class="view-section">
             <div id="conteneur-2035">
                 <p style="color: #64748b;">Chargement de la déclaration 2035...</p>
@@ -381,7 +388,6 @@
         </section>
 
         <!-- AUTRES VUES SECONDAIRES -->
-        <section id="vue-plan" class="view-section"><h2>Plan Comptable</h2><p>Contenu du plan comptable...</p></section>
         <section id="vue-urssaf" class="view-section"><h2>URSSAF</h2><p>Gestion des cotisations URSSAF...</p></section>
         <section id="vue-carpimko" class="view-section"><h2>CARPIMKO</h2><p>Gestion des cotisations CARPIMKO...</p></section>
         <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
@@ -463,7 +469,11 @@
                 btnElement.classList.add('active');
             }
 
-            // Déclencheurs automatiques des calculs lors du changement d'onglet
+            // Déclencheurs automatiques des calculs/affichages lors du changement d'onglet
+            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') {
+                window.afficherPlanComptable();
+            }
+
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
                 window.afficherBilanEtCE();
             }
@@ -488,6 +498,9 @@
 
     <!-- F. Module Déclaration 2035 Fiscale -->
     <script src="declaration2035.js"></script>
+
+    <!-- G. Module Plan Comptable -->
+    <script src="planComptable.js"></script>
 
 </body>
 </html>
