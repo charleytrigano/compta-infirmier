@@ -1,275 +1,161 @@
 // ==========================================
-// MODULE INDÉPENDANT : URSSAF (DÉCLARATION OFFICIELLE PAMC)
+// COMPTABILITÉ LIBÉRALE - MODULE URSSAF
+// Fichier : urssaf.js
 // ==========================================
 
-window.initUrssaf = function() {
-    var container = document.getElementById('urssaf-container');
-    if (!container) return;
+// Barème et taux URSSAF modifiables par année (Exemple pour PAMC / Infirmier)
+window.parametresURSSAF = {
+    annee: 2026,
+    taux: {
+        maladie: 0.10,          // Taux effectif moyen Maladie (après prise en charge CPAM)
+        allocationsFamiliales: 0.00, // 0% à 3.10% selon revenus
+        csgCrds: 0.097,         // CSG (9.2%) + CRDS (0.5%)
+        cfpForfait: 60.00       // Formation professionnelle (forfait annuel)
+    }
+};
 
-    // 1. Extraction des paiements URSSAF dans l'historique bancaire
-    var transactions = window.allTransactions || [];
-    var totalPayeReel = 0;
-    var nbVersements = 0;
+// Fonction principale : Calcul et affichage de la déclaration URSSAF
+window.afficherDeclarationURSSAF = async function() {
+    const conteneur = document.getElementById('vue-urssaf');
+    if (!conteneur) return;
 
-    transactions.forEach(function(tx) {
-        var cat = (tx.category || '').toLowerCase();
-        if (cat.includes('urssaf')) {
-            totalPayeReel += parseFloat(tx.amount) || 0;
-            nbVersements++;
+    // 1. Récupération des transactions
+    let transactions = [];
+    if (window.supabaseClient) {
+        try {
+            const { data } = await window.supabaseClient.from('transactions').select('*');
+            if (data) transactions = data;
+        } catch (e) {
+            console.warn("Erreur lors de la récupération des transactions pour URSSAF", e);
         }
-    });
+    }
 
-    // 2. Structure HTML et styles d'affichage officiel
-    container.innerHTML = `
-        <style>
-            .urs-card {
-                background: #ffffff; padding: 20px; border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;
-                border: 1px solid var(--border, #e2e8f0);
-            }
-            .urs-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
-            .urs-grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-            .urs-form-group { margin-bottom: 15px; }
-            .urs-form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; }
-            .urs-form-group input, .urs-form-group select {
-                width: 100%; padding: 10px; border: 1px solid #ced4da;
-                border-radius: 6px; box-sizing: border-box; font-size: 14px;
-            }
-            .urs-kpi {
-                background: #f8fafc; padding: 15px; border-radius: 6px;
-                border: 1px solid var(--border, #e2e8f0); text-align: center;
-            }
-            .urs-kpi-val { font-size: 1.4em; font-weight: bold; margin-top: 4px; }
-            .urs-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .urs-table th, .urs-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 13px; }
-            .urs-table th { background: #f8fafc; font-weight: 600; }
-            .urs-tag-cpam { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-        </style>
+    // 2. Calcul des bases trimestrielles (Recettes - Dépenses hors cotisations personalisées)
+    const basesTrimestrielles = window.calculerBasesTrimestrielles(transactions);
 
-        <!-- BANDEAU SYNTHÈSE BANCATION ET EXIGIBLE -->
-        <div class="urs-card" style="background: #f0fdf4; border-left: 5px solid #16a34a;">
-            <h3 style="margin-top: 0; color: #15803d; font-size: 16px;">🏛️ Déclaration & Rapprochement URSSAF PAMC</h3>
-            <div class="urs-grid-4" style="margin-top: 10px;">
-                <div class="urs-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Déjà Prélevé (Banque)</small>
-                    <div class="urs-kpi-val" style="color: #ef4444;">${totalPayeReel.toFixed(2)} €</div>
-                    <small style="font-size: 11px; color: #94a3b8;">${nbVersements} versement(s)</small>
+    // 3. Calcul du total annuel et des cotisations estimées
+    const totalBaseAnnuelle = basesTrimestrielles.reduce((a, b) => a + b, 0);
+    const cotisations = window.calculerCotisationsUrssaf(totalBaseAnnuelle);
+
+    // 4. Génération de l'affichage HTML
+    conteneur.innerHTML = `
+        <div style="background:#ffffff; border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <h2 style="margin:0; color:#0f172a;">🏛️ Déclaration & Estimation URSSAF (${window.parametresURSSAF.annee})</h2>
+                    <span style="color:#64748b; font-size:0.875rem;">Praticiens et Auxiliaires Médicaux Conventionnés (PAMC)</span>
                 </div>
-                <div class="urs-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Net Dû Exigible</small>
-                    <div class="urs-kpi-val" id="urs-kpi-net-exigible" style="color: #16a34a;">0.00 €</div>
-                    <small style="font-size: 11px; color: #94a3b8;">Après déduction CPAM</small>
-                </div>
-                <div class="urs-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Prise en Charge CPAM</small>
-                    <div class="urs-kpi-val" id="urs-kpi-cpam" style="color: #2563eb;">0.00 €</div>
-                    <small style="font-size: 11px; color: #94a3b8;">Avantage Social</small>
-                </div>
-                <div class="urs-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Solde Restant</small>
-                    <div class="urs-kpi-val" id="urs-kpi-solde">0.00 €</div>
-                </div>
+                <button class="btn-primary" onclick="window.ouvrirParametresUrssaf()" style="background-color:#475569;">⚙️ Ajuster les taux (${window.parametresURSSAF.annee})</button>
             </div>
-        </div>
 
-        <!-- PARAMÈTRES FINANCIERS -->
-        <div class="urs-card">
-            <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #16a34a; padding-bottom: 8px;">1. Assiette de Calcul (BNC & Secteur)</h3>
-            <div class="urs-grid-2">
-                <div class="urs-form-group">
-                    <label for="urs-bnc-n2">BNC N-2 (Provisionnel N) (€) :</label>
-                    <input type="number" id="urs-bnc-n2" value="40000" step="500" oninput="window.calculerUrssafSimulateur(${totalPayeReel})">
-                </div>
-                <div class="urs-form-group">
-                    <label for="urs-bnc-n1">BNC Réel N-1 (Régularisation) (€) :</label>
-                    <input type="number" id="urs-bnc-n1" value="42000" step="500" oninput="window.calculerUrssafSimulateur(${totalPayeReel})">
-                </div>
-            </div>
-            <div class="urs-grid-2">
-                <div class="urs-form-group">
-                    <label for="urs-prov-n1">Acomptes URSSAF versés en N-1 (€) :</label>
-                    <input type="number" id="urs-prov-n1" value="8500" step="100" oninput="window.calculerUrssafSimulateur(${totalPayeReel})">
-                </div>
-                <div class="urs-form-group">
-                    <label for="urs-taux-conv">Taux d'actes conventionnés (%) :</label>
-                    <input type="number" id="urs-taux-conv" value="100" min="0" max="100" oninput="window.calculerUrssafSimulateur(${totalPayeReel})">
-                </div>
-            </div>
-        </div>
-
-        <!-- TABLEAU DE VENTILATION OFFICIEL -->
-        <div class="urs-card">
-            <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #16a34a; padding-bottom: 8px;">2. Tableau de Ventilation Complète (Déclaration Officielle)</h3>
-            <table class="urs-table">
+            <!-- TABLEAU DES BASES TRIMESTRIELLES -->
+            <h3 style="color:#334155; margin-top:20px;">1. Recettes / Bases trimestrielles réalisées</h3>
+            <table style="width:100%; border-collapse:collapse; margin-bottom:25px;">
                 <thead>
-                    <tr>
-                        <th>Cotisation / Contribution</th>
-                        <th style="text-align:right;">Brut N (€)</th>
-                        <th style="text-align:right;">Prise en charge CPAM (€)</th>
-                        <th style="text-align:right;">Net N (€)</th>
-                        <th style="text-align:right;">Régul. N-1 (€)</th>
+                    <tr style="background:#f1f5f9;">
+                        <th style="padding:10px; border-bottom:2px solid #cbd5e1;">Période</th>
+                        <th style="padding:10px; border-bottom:2px solid #cbd5e1; text-align:right;">Base retenue (€)</th>
+                        <th style="padding:10px; border-bottom:2px solid #cbd5e1; text-align:right;">Acompte trimestriel estimé (€)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td><strong>Maladie-Maternité (PAMC)</strong></td>
-                        <td style="text-align:right;" id="urs-brut-maladie">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;" id="urs-cpam-maladie">-0.00 €</td>
-                        <td style="text-align:right;" id="urs-net-maladie">0.00 €</td>
-                        <td style="text-align:right;" id="urs-reg-maladie">0.00 €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">1er Trimestre (Jan - Mar)</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right;">${basesTrimestrielles[0].toFixed(2)} €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
                     </tr>
                     <tr>
-                        <td><strong>Allocations Familiales</strong></td>
-                        <td style="text-align:right;" id="urs-brut-af">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;">0.00 €</td>
-                        <td style="text-align:right;" id="urs-net-af">0.00 €</td>
-                        <td style="text-align:right;" id="urs-reg-af">0.00 €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">2ème Trimestre (Avr - Juin)</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right;">${basesTrimestrielles[1].toFixed(2)} €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
                     </tr>
                     <tr>
-                        <td><strong>CSG Déductible (6.8%)</strong></td>
-                        <td style="text-align:right;" id="urs-brut-csgded">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;">0.00 €</td>
-                        <td style="text-align:right;" id="urs-net-csgded">0.00 €</td>
-                        <td style="text-align:right;" id="urs-reg-csgded">0.00 €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">3ème Trimestre (Juil - Sept)</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right;">${basesTrimestrielles[2].toFixed(2)} €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
                     </tr>
                     <tr>
-                        <td><strong>CSG / CRDS non déductible (2.9%)</strong></td>
-                        <td style="text-align:right;" id="urs-brut-csgcrds">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;">0.00 €</td>
-                        <td style="text-align:right;" id="urs-net-csgcrds">0.00 €</td>
-                        <td style="text-align:right;" id="urs-reg-csgcrds">0.00 €</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Formation Professionnelle (CFP)</strong></td>
-                        <td style="text-align:right;" id="urs-brut-cfp">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;">0.00 €</td>
-                        <td style="text-align:right;" id="urs-net-cfp">0.00 €</td>
-                        <td style="text-align:right;" id="urs-reg-cfp">0.00 €</td>
-                    </tr>
-                    <tr>
-                        <td><strong>CURPS (Unions Régionales)</strong></td>
-                        <td style="text-align:right;" id="urs-brut-curps">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;">0.00 €</td>
-                        <td style="text-align:right;" id="urs-net-curps">0.00 €</td>
-                        <td style="text-align:right;" id="urs-reg-curps">0.00 €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">4ème Trimestre (Oct - Déc)</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right;">${basesTrimestrielles[3].toFixed(2)} €</td>
+                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
                     </tr>
                     <tr style="background:#f8fafc; font-weight:bold;">
-                        <td>TOTAL DES COTISATIONS</td>
-                        <td style="text-align:right;" id="urs-total-brut">0.00 €</td>
-                        <td style="text-align:right; color:#2563eb;" id="urs-total-cpam">0.00 €</td>
-                        <td style="text-align:right; color:#16a34a;" id="urs-total-net-n">0.00 €</td>
-                        <td style="text-align:right; color:#d97706;" id="urs-total-reg-n1">0.00 €</td>
-                    </tr>
-                    <tr style="background:#f0fdf4; font-weight:bold; font-size:15px;">
-                        <td colspan="3">NET GLOBAL EXIGIBLE (Provisionnel N + Régularisation N-1)</td>
-                        <td colspan="2" style="text-align:right; color:#16a34a;" id="urs-total-exigible-final">0.00 €</td>
+                        <td style="padding:12px;">TOTAL ANNUEL</td>
+                        <td style="padding:12px; text-align:right; color:#0f172a;">${totalBaseAnnuelle.toFixed(2)} €</td>
+                        <td style="padding:12px; text-align:right; color:#1e40af;">${cotisations.total.toFixed(2)} €</td>
                     </tr>
                 </tbody>
             </table>
+
+            <!-- VENTILATION DES COTISATIONS -->
+            <h3 style="color:#334155;">2. Détail estimatif des cotisations dues</h3>
+            <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
+                    <span>Assurance Maladie-Maternité :</span>
+                    <strong>${cotisations.maladie.toFixed(2)} €</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
+                    <span>Allocations Familiales :</span>
+                    <strong>${cotisations.allocations.toFixed(2)} €</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
+                    <span>CSG / CRDS :</span>
+                    <strong>${cotisations.csg.toFixed(2)} €</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
+                    <span>Contribution Formation Professionnelle (CFP) :</span>
+                    <strong>${cotisations.cfp.toFixed(2)} €</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:12px 0; font-size:1.1rem; color:#1e3a8a;">
+                    <strong>ESTIMATION TOTAL ANNUEL URSSAF :</strong>
+                    <strong>${cotisations.total.toFixed(2)} €</strong>
+                </div>
+            </div>
         </div>
     `;
-
-    // Calcul initial
-    window.calculerUrssafSimulateur(totalPayeReel);
 };
 
-/**
- * Calculateur algorithmique des cotisations URSSAF PAMC
- */
-window.calculerUrssafSimulateur = function(totalPayeReel) {
-    var bncN2 = parseFloat(document.getElementById('urs-bnc-n2')?.value) || 0;
-    var bncN1 = parseFloat(document.getElementById('urs-bnc-n1')?.value) || 0;
-    var provN1Verses = parseFloat(document.getElementById('urs-prov-n1')?.value) || 0;
-    var pctConv = (parseFloat(document.getElementById('urs-taux-conv')?.value) || 100) / 100;
+// Calcul des recettes par trimestre
+window.calculerBasesTrimestrielles = function(transactions) {
+    let q = [0, 0, 0, 0];
+    if (!transactions) return q;
 
-    var PASS = 46368; // Plafond Annuel Sécurité Sociale
+    transactions.forEach(t => {
+        if (!t.date || t.type !== 'Recette') return;
+        const mois = new Date(t.date).getMonth(); // 0 à 11
+        const montant = parseFloat(t.montant) || 0;
 
-    // Fonction interne de calcul de la grille URSSAF PAMC
-    function toutCalculer(bncVal) {
-        // 1. Maladie-Maternité
-        var brutMaladie = bncVal * 0.098; // Taux plein ~9.8%
-        var priseEnChargeCpam = bncVal * 0.097 * pctConv; // CPAM prend en charge 9.7% sur la part conventionnée
-        var netMaladie = Math.max(0, brutMaladie - priseEnChargeCpam);
+        if (mois >= 0 && mois <= 2) q[0] += montant;      // Q1
+        else if (mois >= 3 && mois <= 5) q[1] += montant; // Q2
+        else if (mois >= 6 && mois <= 8) q[2] += montant; // Q3
+        else if (mois >= 9 && mois <= 11) q[4] += montant;// Q4
+    });
 
-        // 2. Allocations Familiales (Taux progressif de 0% à 3.10%)
-        var tauxAF = 0;
-        if (bncVal > PASS * 1.4) {
-            tauxAF = 0.031;
-        } else if (bncVal > PASS * 1.1) {
-            tauxAF = ((bncVal - PASS * 1.1) / (PASS * 0.3)) * 0.031;
-        }
-        var netAF = bncVal * tauxAF;
+    return q;
+};
 
-        // 3. Assiette CSG/CRDS (BNC + Cotisations sociales estimées à ~15%)
-        var assietteCSG = bncVal * 1.15;
-        var csgDed = assietteCSG * 0.068;
-        var csgCrdsNonDed = assietteCSG * 0.029;
+// Formule de calcul selon les taux paramétrés
+window.calculerCotisationsUrssaf = function(base) {
+    const t = window.parametresURSSAF.taux;
+    const maladie = base * t.maladie;
+    const allocations = base * t.allocationsFamiliales;
+    const csg = base * t.csgCrds;
+    const cfp = t.cfpForfait;
 
-        // 4. CFP (Formation professionnelle : ~0.25% du PASS)
-        var cfp = PASS * 0.0025;
+    return {
+        maladie: maladie,
+        allocations: allocations,
+        csg: csg,
+        cfp: cfp,
+        total: maladie + allocations + csg + cfp
+    };
+};
 
-        // 5. CURPS (0.50% du BNC plafonné à 0.50% du PASS)
-        var curps = Math.min(bncVal, PASS) * 0.005;
-
-        var totalBrut = brutMaladie + netAF + csgDed + csgCrdsNonDed + cfp + curps;
-        var totalNet = netMaladie + netAF + csgDed + csgCrdsNonDed + cfp + curps;
-
-        return {
-            brutMaladie: brutMaladie,
-            cpam: priseEnChargeCpam,
-            netMaladie: netMaladie,
-            netAF: netAF,
-            csgDed: csgDed,
-            csgCrdsNonDed: csgCrdsNonDed,
-            cfp: cfp,
-            curps: curps,
-            totalBrut: totalBrut,
-            totalNet: totalNet
-        };
-    }
-
-    var resN = toutCalculer(bncN2);
-    var resN1 = toutCalculer(bncN1);
-
-    var reguN1Total = resN1.totalNet - provN1Verses;
-    var netExigibleFinal = resN.totalNet + reguN1Total;
-    var soldeBancaire = totalPayeReel - netExigibleFinal;
-
-    // Mise à jour du tableau
-    document.getElementById('urs-brut-maladie').textContent = resN.brutMaladie.toFixed(2) + ' €';
-    document.getElementById('urs-cpam-maladie').textContent = '-' + resN.cpam.toFixed(2) + ' €';
-    document.getElementById('urs-net-maladie').textContent = resN.netMaladie.toFixed(2) + ' €';
-    document.getElementById('urs-reg-maladie').textContent = (resN1.netMaladie - (resN.netMaladie)).toFixed(2) + ' €';
-
-    document.getElementById('urs-brut-af').textContent = resN.netAF.toFixed(2) + ' €';
-    document.getElementById('urs-net-af').textContent = resN.netAF.toFixed(2) + ' €';
-
-    document.getElementById('urs-brut-csgded').textContent = resN.csgDed.toFixed(2) + ' €';
-    document.getElementById('urs-net-csgded').textContent = resN.csgDed.toFixed(2) + ' €';
-
-    document.getElementById('urs-brut-csgcrds').textContent = resN.csgCrdsNonDed.toFixed(2) + ' €';
-    document.getElementById('urs-net-csgcrds').textContent = resN.csgCrdsNonDed.toFixed(2) + ' €';
-
-    document.getElementById('urs-brut-cfp').textContent = resN.cfp.toFixed(2) + ' €';
-    document.getElementById('urs-net-cfp').textContent = resN.cfp.toFixed(2) + ' €';
-
-    document.getElementById('urs-brut-curps').textContent = resN.curps.toFixed(2) + ' €';
-    document.getElementById('urs-net-curps').textContent = resN.curps.toFixed(2) + ' €';
-
-    // Totaux tableau
-    document.getElementById('urs-total-brut').textContent = resN.totalBrut.toFixed(2) + ' €';
-    document.getElementById('urs-total-cpam').textContent = '-' + resN.cpam.toFixed(2) + ' €';
-    document.getElementById('urs-total-net-n').textContent = resN.totalNet.toFixed(2) + ' €';
-    document.getElementById('urs-total-reg-n1').textContent = (reguN1Total >= 0 ? '+' : '') + reguN1Total.toFixed(2) + ' €';
-    document.getElementById('urs-total-exigible-final').textContent = netExigibleFinal.toFixed(2) + ' €';
-
-    // KPI Supérieurs
-    document.getElementById('urs-kpi-net-exigible').textContent = netExigibleFinal.toFixed(2) + ' €';
-    document.getElementById('urs-kpi-cpam').textContent = resN.cpam.toFixed(2) + ' €';
-
-    var kpiSolde = document.getElementById('urs-kpi-solde');
-    if (kpiSolde) {
-        kpiSolde.textContent = (soldeBancaire >= 0 ? '+' : '') + soldeBancaire.toFixed(2) + ' €';
-        kpiSolde.style.color = soldeBancaire >= 0 ? '#10b981' : '#ef4444';
+// Dialogue simple pour ajuster les taux d'une année sur l'autre
+window.ouvrirParametresUrssaf = function() {
+    const nouveauTauxCSG = prompt("Taux CSG/CRDS (ex: 0.097 pour 9.7%) :", window.parametresURSSAF.taux.csgCrds);
+    if (nouveauTauxCSG !== null) {
+        window.parametresURSSAF.taux.csgCrds = parseFloat(nouveauTauxCSG) || 0.097;
+        window.afficherDeclarationURSSAF();
     }
 };
