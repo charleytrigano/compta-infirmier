@@ -14,7 +14,7 @@ window.schemaColonnes = {
 };
 
 /**
- * Détecte les nom de colonnes utilisés dans la table Supabase
+ * Détecte les noms de colonnes utilisés dans la table Supabase
  */
 window.detecterSchema = function(premierObjet) {
     if (!premierObjet) return;
@@ -52,7 +52,6 @@ window.chargerTransactions = async function() {
             window.detecterSchema(window.listeTransactions[0]);
         }
 
-        // Mise à jour globale des 3 onglets
         window.rafraichirToutesLesVues();
 
     } catch (err) {
@@ -67,7 +66,7 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. VUE TRANSACTIONS (ACCUEIL)
+// 2. VUE TRANSACTIONS
 // ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
@@ -113,16 +112,14 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 3. VUE JOURNAL (AUTO-CONSTRUCTION)
+// 3. VUE JOURNAL (AVEC ACTIONS)
 // ------------------------------------------
 window.afficherJournal = function(transactions) {
-    // 1. Recherche du conteneur parent du Journal
     let conteneur = document.getElementById('journal') || 
                     document.getElementById('section-journal') || 
                     document.getElementById('tab-journal') ||
                     document.querySelector('[data-tab="journal"]');
 
-    // Recherche alternative : élément contenant le texte d'attente
     if (!conteneur) {
         const tousLesTitres = document.querySelectorAll('h2, h3');
         tousLesTitres.forEach(el => {
@@ -132,7 +129,6 @@ window.afficherJournal = function(transactions) {
 
     if (!conteneur) return;
 
-    // 2. Injection du squelette du tableau si absent
     let tbody = document.getElementById('body-tableau-journal');
     if (!tbody) {
         conteneur.innerHTML = `
@@ -146,6 +142,7 @@ window.afficherJournal = function(transactions) {
                             <th style="padding:10px;">Description</th>
                             <th style="padding:10px; color:#dc2626;">Débit (Dépense)</th>
                             <th style="padding:10px; color:#16a34a;">Crédit (Recette)</th>
+                            <th style="padding:10px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="body-tableau-journal"></tbody>
@@ -158,11 +155,10 @@ window.afficherJournal = function(transactions) {
     tbody.innerHTML = '';
 
     if (transactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:20px;">Le journal est vide.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Le journal est vide.</td></tr>`;
         return;
     }
 
-    // Ordre chronologique
     const transactionsTriees = [...transactions].reverse();
 
     transactionsTriees.forEach(tx => {
@@ -181,13 +177,17 @@ window.afficherJournal = function(transactions) {
             <td style="padding:10px;">${tx[window.schemaColonnes.description] || tx.description || ''}</td>
             <td style="padding:10px; color:#dc2626; font-weight:bold;">${estRecette ? '' : montant + ' €'}</td>
             <td style="padding:10px; color:#16a34a; font-weight:bold;">${estRecette ? montant + ' €' : ''}</td>
+            <td style="padding:10px;">
+                <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️</button>
+                <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
 };
 
 // ------------------------------------------
-// 4. VUE GRAND LIVRE (AUTO-CONSTRUCTION)
+// 4. VUE GRAND LIVRE (AVEC ACTIONS)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('grand-livre') || 
@@ -212,7 +212,6 @@ window.afficherGrandLivre = function(transactions) {
         return;
     }
 
-    // Regroupement par catégorie
     const groupes = {};
     transactions.forEach(tx => {
         const cat = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || 'Non classé';
@@ -244,6 +243,10 @@ window.afficherGrandLivre = function(transactions) {
                     <td style="padding:8px 12px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
                         ${estRecette ? '+' : '-'} ${Math.abs(montantNum).toFixed(2)} €
                     </td>
+                    <td style="padding:8px 12px;">
+                        <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️</button>
+                        <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
+                    </td>
                 </tr>
             `;
         });
@@ -262,6 +265,7 @@ window.afficherGrandLivre = function(transactions) {
                             <th style="padding:8px 12px;">Date</th>
                             <th style="padding:8px 12px;">Description</th>
                             <th style="padding:8px 12px;">Montant</th>
+                            <th style="padding:8px 12px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>${lignesHtml}</tbody>
@@ -274,8 +278,62 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 5. GESTION DES CLICS SUR LES ONGLETS
+// 5. FONCTIONS D'ÉDITION & SUPPRESSION
 // ------------------------------------------
+window.supprimerTransaction = async function(id) {
+    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur de suppression :", err.message);
+        alert("Impossible de supprimer : " + err.message);
+    }
+};
+
+window.ouvrirModalModification = function(id) {
+    const tx = window.listeTransactions.find(t => t.id.toString() === id.toString());
+    if (!tx) return;
+
+    const elId = document.getElementById('edit-id');
+    if (elId) elId.value = tx.id;
+
+    const elDate = document.getElementById('edit-date');
+    if (elDate) elDate.value = tx[window.schemaColonnes.date] || tx.date || '';
+
+    const elType = document.getElementById('edit-type');
+    if (elType) elType.value = tx[window.schemaColonnes.type] || tx.type || 'Recette';
+
+    const elCat = document.getElementById('edit-categorie');
+    if (elCat) elCat.value = tx[window.schemaColonnes.categorie] || tx.categorie || '';
+
+    const elDesc = document.getElementById('edit-description');
+    if (elDesc) elDesc.value = tx[window.schemaColonnes.description] || tx.description || '';
+
+    const elMontant = document.getElementById('edit-montant');
+    if (elMontant) {
+        let m = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
+        if (typeof m === 'string') m = m.replace(',', '.');
+        elMontant.value = Math.abs(parseFloat(m) || 0);
+    }
+
+    const modal = document.getElementById('modal-modifier');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.fermerModal = function() {
+    const modal = document.getElementById('modal-modifier');
+    if (modal) modal.style.display = 'none';
+};
+
+// Écouteur sur les onglets pour rafraîchir la vue active
 document.addEventListener('click', function(e) {
     const cible = e.target.closest('button, a, .nav-link, .tab-btn');
     if (cible) {
@@ -285,7 +343,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Initialisation au chargement de la page
+// Initialisation au chargement
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         if (window.supabaseClient) {
