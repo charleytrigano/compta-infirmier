@@ -1,14 +1,13 @@
 // ==========================================
-// MODULE COMPTABLE : DÉPENSES URSSAF & CARPIMKO (COMPTES UNIQUES & EXERCICE)
+// MODULE COMPTABLE : DÉPENSES PAR CATÉGORIE & CHARGES SOCIALES
 // ==========================================
 
-// 1. Plan des comptes Tiers
+// 1. Répertoire des comptes de tiers
 window.comptesTiersClients = JSON.parse(localStorage.getItem('comptesTiersClients')) || [
     { id: '1', nom: 'Abadie', code: '411ABADIE' },
     { id: '2', nom: 'Saint-André', code: '411STANDRE' }
 ];
 
-// Un seul compte tiers URSSAF et un seul compte tiers CARPIMKO
 window.comptesTiersAutres = JSON.parse(localStorage.getItem('comptesTiersAutres')) || [
     { id: 's1', nom: 'URSSAF', code: '438URSSAF', type: 'social' },
     { id: 's2', nom: 'CARPIMKO', code: '438CARPIMKO', type: 'social' },
@@ -36,58 +35,62 @@ window.initJournal = function() {
     window.afficherModuleJournaux(container);
 };
 
-// Analyse comptable : Détection URSSAF / CARPIMKO + Gestion Année N / N-1
-window.analyserDepense = function(label, dateOp) {
-    var cleanLabel = (label || '').trim();
-    var lower = cleanLabel.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// Fonction d'analyse basée en PRIORITÉ sur la catégorie, puis sur la description
+window.analyserDepense = function(categorie, description, dateOp) {
+    var catClean = (categorie || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    var descClean = (description || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    // La recherche s'effectue d'abord sur la catégorie, sinon sur la description
+    var texteAnalyse = catClean || descClean;
 
-    // Détermination de l'exercice (Année N vs N-1)
+    // Détermination de l'année (Exercice N vs N-1)
     var anneeEnCours = new Date().getFullYear();
     var anneeTx = dateOp ? new Date(dateOp).getFullYear() : anneeEnCours;
     
-    var isAnneeNMinus1 = (anneeTx < anneeEnCours) || lower.includes('n-1') || lower.includes('regul') || lower.includes('regularisation');
-    var suffixeAnnee = isAnneeNMinus1 ? " (Charges année N-1)" : " (Charges année N)";
+    var isAnneeNMinus1 = (anneeTx < anneeEnCours) || texteAnalyse.includes('n-1') || texteAnalyse.includes('regul');
+    var mentionExercice = isAnneeNMinus1 ? " (Charges année N-1)" : " (Charges année N)";
 
-    // 1. CARPIMKO : Compte unique de charge 646200 & Compte tiers 438CARPIMKO
-    if (lower.includes('carpimko') || lower.includes('carp') || lower.includes('retraite') || (lower.includes('acompte') && lower.includes('paye'))) {
+    // 1. CARPIMKO (Compte de charge unique 646200 & Tiers 438CARPIMKO)
+    if (texteAnalyse.includes('carpimko') || texteAnalyse.includes('carp') || texteAnalyse.includes('retraite')) {
         return {
             compteCharge: '646200',
-            libelleCharge: 'Cotisations Retraite CARPIMKO' + suffixeAnnee,
+            libelleCharge: 'Cotisations Retraite CARPIMKO' + mentionExercice,
             codeTiers: '438CARPIMKO',
             nomTiers: 'CARPIMKO',
             type: 'social'
         };
     }
 
-    // 2. URSSAF : Compte unique de charge 646100 & Compte tiers 438URSSAF
-    if (lower.includes('urssaf') || lower.includes('urss') || lower.includes('cotis') || lower.includes('cnsd')) {
+    // 2. URSSAF (Compte de charge unique 646100 & Tiers 438URSSAF)
+    if (texteAnalyse.includes('urssaf') || texteAnalyse.includes('urss') || texteAnalyse.includes('cotis')) {
         return {
             compteCharge: '646100',
-            libelleCharge: 'Cotisations Sociales URSSAF' + suffixeAnnee,
+            libelleCharge: 'Cotisations Sociales URSSAF' + mentionExercice,
             codeTiers: '438URSSAF',
             nomTiers: 'URSSAF',
             type: 'social'
         };
     }
 
-    // 3. IMPÔTS & TAXES
-    if (lower.includes('impot') || lower.includes('taxe') || lower.includes('cfe') || lower.includes('pas')) {
+    // 3. IMPÔTS ET TAXES
+    if (texteAnalyse.includes('impot') || texteAnalyse.includes('taxe') || texteAnalyse.includes('cfe') || texteAnalyse.includes('pas')) {
         return {
             compteCharge: '635000',
-            libelleCharge: 'Impôts et Taxes' + suffixeAnnee,
+            libelleCharge: 'Impôts et Taxes' + mentionExercice,
             codeTiers: '447IMPOTS',
             nomTiers: 'Impôts',
             type: 'fiscal'
         };
     }
 
-    // 4. AUTRES DÉPENSES / FOURNISSEURS
-    var codeClean = cleanLabel.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
+    // 4. AUTRES DÉPENSES
+    var nomAffichage = categorie || description || 'Fournisseur';
+    var codeClean = nomAffichage.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
     return {
         compteCharge: '606000',
-        libelleCharge: 'Achats / Fournitures - ' + cleanLabel,
+        libelleCharge: 'Achats / Fournitures - ' + nomAffichage,
         codeTiers: '401' + (codeClean || 'FOURNISSEUR'),
-        nomTiers: cleanLabel || 'Fournisseur',
+        nomTiers: nomAffichage,
         type: 'fournisseur'
     };
 };
@@ -103,34 +106,40 @@ window.afficherModuleJournaux = function(container) {
     transactions.forEach(function(tx, index) {
         var montant = parseFloat(tx.amount) || 0;
         var type = (tx.type || '').toLowerCase();
-        var label = (tx.label || tx.description || tx.libelle || 'Opération').trim();
+        
+        // Récupération explicite des champs categorie et description
+        var categorie = tx.categorie || tx.category || '';
+        var description = tx.label || tx.description || tx.libelle || 'Opération';
+        
         var dateOp = tx.date || new Date().toISOString().split('T')[0];
         var txId = tx.id || ('tx-' + index);
 
         // RECETTES (VE)
         if (type === 'recette' || (type === '' && montant > 0)) {
             var valMontant = Math.abs(montant);
-            var tiersC = window.comptesTiersClients.find(t => label.toLowerCase().includes(t.nom.toLowerCase()));
-            var codeTiersC = tiersC ? tiersC.code : ('411' + label.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8));
-            var nomTiersC = tiersC ? tiersC.nom : label;
+            var tiersC = window.comptesTiersClients.find(t => description.toLowerCase().includes(t.nom.toLowerCase()));
+            var codeTiersC = tiersC ? tiersC.code : ('411' + description.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8));
+            var nomTiersC = tiersC ? tiersC.nom : description;
 
             ecrituresVE.push({ date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), compte: codeTiersC, libelle: 'Prestation - ' + nomTiersC, debit: valMontant, credit: 0 });
             ecrituresVE.push({ date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), compte: '706000', libelle: 'Honoraires BNC', debit: 0, credit: valMontant });
 
             if (!window.encaissementsValides.find(e => e.txId === txId)) {
-                prestationsEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersC, codeTiers: codeTiersC, label: label, montant: valMontant, piece: 'FAC-' + (1000 + index) });
+                prestationsEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersC, codeTiers: codeTiersC, label: description, montant: valMontant, piece: 'FAC-' + (1000 + index) });
             }
         } 
         // DÉPENSES (HA)
         else if (type === 'depense' || montant < 0 || (type === '' && montant < 0)) {
             var valMontantD = Math.abs(montant);
-            var analyse = window.analyserDepense(label, dateOp);
+            
+            // Passage prioritaire de categorie à la fonction d'analyse
+            var analyse = window.analyserDepense(categorie, description, dateOp);
 
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.compteCharge, libelle: analyse.libelleCharge, debit: valMontantD, credit: 0 });
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.codeTiers, libelle: 'Appel / Facture - ' + analyse.nomTiers, debit: 0, credit: valMontantD });
 
             if (!window.decaissementsValides.find(d => d.txId === txId)) {
-                depensesEnAttente.push({ txId: txId, date: dateOp, nomTiers: analyse.nomTiers, codeTiers: analyse.codeTiers, label: label, montant: valMontantD, piece: 'DEP-' + (2000 + index) });
+                depensesEnAttente.push({ txId: txId, date: dateOp, nomTiers: analyse.nomTiers, codeTiers: analyse.codeTiers, label: description, montant: valMontantD, piece: 'DEP-' + (2000 + index) });
             }
         }
     });
@@ -147,7 +156,7 @@ window.afficherModuleJournaux = function(container) {
         ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: '512000', libelle: 'Prélèvement / Virement - ' + dec.piece, debit: 0, credit: dec.montant });
     });
 
-    // RENDU DE L'INTERFACE
+    // RENDU DU JOURNAL
     container.innerHTML = `
         <style>
             .jrn-box { font-family: system-ui, -apple-system, sans-serif; }
