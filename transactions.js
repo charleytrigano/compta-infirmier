@@ -1,9 +1,23 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Alignement complet Supabase & Grand Livre
+// Gestion du Journal de Banque et Grand Livre Complet
 // ==========================================
 
 window.listeTransactions = [];
+
+// Liste de référence du Plan Comptable (pour afficher tous les comptes dans le Grand Livre)
+const PLAN_COMPTABLE_REFERENCE = [
+    "Soins infirmiers",
+    "Cotisations CARPIMKO",
+    "URSSAF",
+    "Assurances & RCP",
+    "Frais de déplacement / Carburant",
+    "Petit matériel médical",
+    "Frais de comptabilité & Logiciels",
+    "Loyer & Charges locatives",
+    "Frais bancaires",
+    "Divers / Général"
+];
 
 // ------------------------------------------
 // FONCTIONS UTILITAIRES DE LECTURE
@@ -18,8 +32,8 @@ function ExtraireMontant(tx) {
 }
 
 function ExtraireCategorie(tx) {
-    let cat = tx.category || tx.categorie || 'Général';
-    return cat.trim(); // Supprime les espaces invisibles au début et à la fin
+    let cat = tx.category || tx.categorie || 'Divers / Général';
+    return cat.trim();
 }
 
 function ExtraireDescription(tx) {
@@ -32,9 +46,8 @@ function ExtraireType(tx) {
     if (t === 'recette' || t === 'credit') return 'recette';
     if (t === 'depense' || t === 'dépense' || t === 'debit') return 'depense';
     
-    // Déduction automatique si le type n'est pas renseigné dans Supabase
     let cat = ExtraireCategorie(tx).toLowerCase();
-    if (cat.includes('urssaf') || cat.includes('carpimko') || cat.includes('frais') || cat.includes('achat')) {
+    if (cat.includes('urssaf') || cat.includes('carpimko') || cat.includes('frais') || cat.includes('achat') || cat.includes('assurance')) {
         return 'depense';
     }
     
@@ -75,7 +88,7 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. ACTIONS SUR LE STATUT ENCAISSÉ (SUPABASE)
+// 2. ACTIONS SUR LE STATUT ENCAISSÉ
 // ------------------------------------------
 window.validerReglement = async function(idTx) {
     try {
@@ -89,7 +102,6 @@ window.validerReglement = async function(idTx) {
         await window.chargerTransactions();
     } catch (err) {
         console.error("Erreur lors de la validation du règlement :", err.message);
-        alert("Erreur de mise à jour Supabase : " + err.message);
     }
 };
 
@@ -123,20 +135,16 @@ window.afficherTransactions = function(transactions) {
     }
 
     transactions.forEach(tx => {
-        const typeBrut = ExtraireType(tx);
-        const estRecette = typeBrut === 'recette';
+        const estRecette = ExtraireType(tx) === 'recette';
         const montantNum = Math.abs(ExtraireMontant(tx));
         const estEncaisse = tx.encaisse === true;
 
-        let boutonAction = '';
-        if (estEncaisse) {
-            boutonAction = `<span style="color:#16a34a; font-weight:bold; font-size:0.85rem;">✅ ${estRecette ? 'Encaissé' : 'Payé'}</span>
-                            <button style="margin-left:5px; background:none; border:none; cursor:pointer; font-size:0.8rem;" onclick="window.annulerReglement('${tx.id}')" title="Annuler le règlement">↩️</button>`;
-        } else {
-            boutonAction = estRecette 
-                ? `<button style="background:#16a34a; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.validerReglement('${tx.id}')">💰 Encaisser</button>`
-                : `<button style="background:#dc2626; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.validerReglement('${tx.id}')">💳 Payer</button>`;
-        }
+        let boutonAction = estEncaisse
+            ? `<span style="color:#16a34a; font-weight:bold;">✅ ${estRecette ? 'Encaissé' : 'Payé'}</span>
+               <button style="margin-left:5px; background:none; border:none; cursor:pointer;" onclick="window.annulerReglement('${tx.id}')" title="Annuler">↩️</button>`
+            : `<button style="background:${estRecette ? '#16a34a' : '#dc2626'}; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.validerReglement('${tx.id}')">
+                ${estRecette ? '💰 Encaisser' : '💳 Payer'}
+               </button>`;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -157,39 +165,53 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : JOURNAL DE BANQUE (UNIQUEMENT ENCAISSÉS)
+// 4. ONGLET : JOURNAL DE BANQUE (AMÉLIORÉ)
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
     const tbody = document.getElementById('body-tableau-banque');
     const elSolde = document.getElementById('solde-banque');
     let totalBanque = 0;
 
-    if (tbody) tbody.innerHTML = '';
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
-    const transactionsEncaissees = transactions.filter(tx => tx.encaisse === true);
+    // Si aucune écriture n'est marquée comme encaissée, on affiche tout par défaut
+    const aDesEncaissements = transactions.some(tx => tx.encaisse === true);
+    const listeAffichée = aDesEncaissements 
+        ? transactions.filter(tx => tx.encaisse === true)
+        : transactions;
 
-    transactionsEncaissees.forEach(tx => {
+    if (listeAffichée.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:20px;">Aucune opération bancaire.</td></tr>`;
+        return;
+    }
+
+    listeAffichée.forEach(tx => {
         const estRecette = ExtraireType(tx) === 'recette';
         const montantNum = Math.abs(ExtraireMontant(tx));
+        const estEncaisse = tx.encaisse === true;
 
-        if (estRecette) totalBanque += montantNum;
-        else totalBanque -= montantNum;
-
-        if (tbody) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${tx.date || ''}</td>
-                <td><strong>${estRecette ? 'Encaissement' : 'Décaissement'}</strong></td>
-                <td>${ExtraireCategorie(tx)}</td>
-                <td>${ExtraireDescription(tx)}</td>
-                <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantNum.toFixed(2) + ' €'}</td>
-                <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantNum.toFixed(2) + ' €' : ''}</td>
-                <td>
-                    <button style="background:none; border:none; cursor:pointer; color:#64748b;" onclick="window.annulerReglement('${tx.id}')" title="Annuler le règlement">↩️ Annuler</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
+        if (estEncaisse || !aDesEncaissements) {
+            if (estRecette) totalBanque += montantNum;
+            else totalBanque -= montantNum;
         }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${tx.date || ''}</td>
+            <td><strong>${estRecette ? 'Encaissement' : 'Décaissement'}</strong></td>
+            <td>${ExtraireCategorie(tx)}</td>
+            <td>${ExtraireDescription(tx)}</td>
+            <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantNum.toFixed(2) + ' €'}</td>
+            <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantNum.toFixed(2) + ' €' : ''}</td>
+            <td>
+                ${estEncaisse 
+                    ? `<button style="background:none; border:none; cursor:pointer; color:#64748b;" onclick="window.annulerReglement('${tx.id}')">↩️ Annuler</button>`
+                    : `<button style="background:#2563eb; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;" onclick="window.validerReglement('${tx.id}')">Valider</button>`
+                }
+            </td>
+        `;
+        tbody.appendChild(tr);
     });
 
     if (elSolde) {
@@ -217,7 +239,7 @@ window.afficherJournal = function(transactions) {
                         <th style="padding:10px;">Description</th>
                         <th style="padding:10px; color:#dc2626;">Débit (Dépense)</th>
                         <th style="padding:10px; color:#16a34a;">Crédit (Recette)</th>
-                        <th style="padding:10px;">Statut Règlement</th>
+                        <th style="padding:10px;">Statut</th>
                     </tr>
                 </thead>
                 <tbody id="body-tableau-journal"></tbody>
@@ -249,7 +271,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE (TOUS LES COMPTES)
+// 6. ONGLET : GRAND LIVRE (COMPLET AVEC PLAN COMPTABLE)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
@@ -257,7 +279,12 @@ window.afficherGrandLivre = function(transactions) {
 
     const groupes = {};
 
-    // 1. Regroupement par catégorie nettoyée
+    // 1. Initialiser tous les comptes du Plan Comptable
+    PLAN_COMPTABLE_REFERENCE.forEach(nomCompte => {
+        groupes[nomCompte.toLowerCase()] = { titre: nomCompte, items: [] };
+    });
+
+    // 2. Classer les transactions dans les comptes correspondants
     transactions.forEach(tx => {
         let catPropre = ExtraireCategorie(tx);
         const cle = catPropre.toLowerCase();
@@ -268,44 +295,43 @@ window.afficherGrandLivre = function(transactions) {
         groupes[cle].items.push(tx);
     });
 
-    if (Object.keys(groupes).length === 0) {
-        conteneur.innerHTML = `<h2>📖 Grand Livre des comptes</h2><p style="color:#64748b; margin-top:15px;">Aucune donnée enregistrée.</p>`;
-        return;
-    }
-
     let htmlComplet = `<h2 style="margin-bottom:20px;">📖 Grand Livre des comptes</h2>`;
 
-    // 2. Génération de la vue pour chaque compte d'imputation
+    // 3. Afficher chaque compte
     Object.keys(groupes).sort().forEach(cle => {
         const groupe = groupes[cle];
         let totalRecettes = 0;
         let totalDepenses = 0;
         let lignesHtml = '';
 
-        groupe.items.forEach(tx => {
-            const estRecette = ExtraireType(tx) === 'recette';
-            const montantNum = Math.abs(ExtraireMontant(tx));
+        if (groupe.items.length === 0) {
+            lignesHtml = `<tr><td colspan="3" style="padding:10px; color:#94a3b8; font-style:italic;">Aucune écriture pour ce compte.</td></tr>`;
+        } else {
+            groupe.items.forEach(tx => {
+                const estRecette = ExtraireType(tx) === 'recette';
+                const montantNum = Math.abs(ExtraireMontant(tx));
 
-            if (estRecette) totalRecettes += montantNum;
-            else totalDepenses += montantNum;
+                if (estRecette) totalRecettes += montantNum;
+                else totalDepenses += montantNum;
 
-            lignesHtml += `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px;">${tx.date || ''}</td>
-                    <td style="padding:10px;">${ExtraireDescription(tx)}</td>
-                    <td style="padding:10px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
-                        ${estRecette ? '+' : '-'} ${montantNum.toFixed(2)} €
-                    </td>
-                </tr>
-            `;
-        });
+                lignesHtml += `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:10px;">${tx.date || ''}</td>
+                        <td style="padding:10px;">${ExtraireDescription(tx)}</td>
+                        <td style="padding:10px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
+                            ${estRecette ? '+' : '-'} ${montantNum.toFixed(2)} €
+                        </td>
+                    </tr>
+                `;
+            });
+        }
 
         const soldeGlobal = totalRecettes - totalDepenses;
 
         htmlComplet += `
-            <div style="margin-bottom:25px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
-                <div style="background:#f1f5f9; padding:12px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#1e293b;">📂 Compte : ${groupe.titre}</h3>
+            <div style="margin-bottom:20px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
+                <div style="background:#f1f5f9; padding:10px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0; font-size:1rem; color:#1e293b;">📂 Compte : ${groupe.titre}</h3>
                     <span style="font-weight:bold; color:${soldeGlobal >= 0 ? '#16a34a' : '#dc2626'};">
                         Solde : ${soldeGlobal >= 0 ? '+' : ''}${soldeGlobal.toFixed(2)} €
                     </span>
@@ -313,9 +339,9 @@ window.afficherGrandLivre = function(transactions) {
                 <table style="width:100%; border-collapse:collapse; text-align:left;">
                     <thead>
                         <tr style="background:#f8fafc; font-size:0.85rem; color:#475569;">
-                            <th style="padding:10px;">Date</th>
-                            <th style="padding:10px;">Description</th>
-                            <th style="padding:10px;">Montant</th>
+                            <th style="padding:8px 10px;">Date</th>
+                            <th style="padding:8px 10px;">Description</th>
+                            <th style="padding:8px 10px;">Montant</th>
                         </tr>
                     </thead>
                     <tbody>${lignesHtml}</tbody>
