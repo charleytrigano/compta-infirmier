@@ -4,13 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
+
+    <!-- Suppression de l'erreur 404 du favicon dans la console -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
     <style>
         /* ==========================================
            1. STYLES DE BASE ET LAYOUT
            ========================================== */
         * {
             box-sizing: border-box;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         body {
@@ -207,7 +211,7 @@
 <body>
 
     <div class="container">
-        <!-- En-tête -->
+        <!-- En-tête principal -->
         <header>
             <h1>🩺 Comptabilité Libérale</h1>
             <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
@@ -229,7 +233,7 @@
         <!-- 1. VUE TRANSACTIONS (Affichée par défaut) -->
         <section id="vue-transactions" class="view-section active">
             <h2>Ajouter une opération</h2>
-            <form id="form-ajouter-transaction" class="form-grid" onsubmit="event.preventDefault(); ajouterTransaction();">
+            <form id="form-ajouter-transaction" class="form-grid" onsubmit="event.preventDefault(); window.ajouterTransaction();">
                 <div class="form-group">
                     <label for="tx-date">Date *</label>
                     <input type="date" id="tx-date" class="form-control" required>
@@ -280,7 +284,7 @@
                     </tr>
                 </thead>
                 <tbody id="body-tableau-transactions">
-                    <!-- Les lignes seront générées dynamiquement par JavaScript -->
+                    <!-- Les lignes dynamiques seront injectées ici par transactions.js -->
                 </tbody>
             </table>
         </section>
@@ -296,53 +300,60 @@
         <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
     </div>
 
-    <!-- MODALE DE MODIFICATION -->
+    <!-- FENÊTRE MODALE DE MODIFICATION -->
     <div id="modal-modifier" class="modal-overlay">
         <div class="modal-content">
             <h3>✏️ Modifier l'opération</h3>
             <input type="hidden" id="edit-id">
+            
             <div class="form-group" style="margin-bottom: 10px;">
-                <label>Date</label>
+                <label for="edit-date">Date</label>
                 <input type="date" id="edit-date" class="form-control">
             </div>
+
             <div class="form-group" style="margin-bottom: 10px;">
-                <label>Type</label>
+                <label for="edit-type">Type</label>
                 <select id="edit-type" class="form-control">
                     <option value="Recette">Recette</option>
                     <option value="Dépense">Dépense</option>
                 </select>
             </div>
+
             <div class="form-group" style="margin-bottom: 10px;">
-                <label>Catégorie</label>
+                <label for="edit-categorie">Catégorie</label>
                 <input type="text" id="edit-categorie" class="form-control">
             </div>
+
             <div class="form-group" style="margin-bottom: 10px;">
-                <label>Description</label>
+                <label for="edit-description">Description</label>
                 <input type="text" id="edit-description" class="form-control">
             </div>
+
             <div class="form-group" style="margin-bottom: 15px;">
-                <label>Montant (€)</label>
+                <label for="edit-montant">Montant (€)</label>
                 <input type="number" step="0.01" id="edit-montant" class="form-control">
             </div>
+
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" class="btn-primary" style="background:#64748b;" onclick="fermerModal()">Annuler</button>
-                <button type="button" class="btn-primary" onclick="sauvegarderModification()">Enregistrer</button>
+                <button type="button" class="btn-primary" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
+                <button type="button" class="btn-primary" onclick="window.sauvegarderModification()">Enregistrer</button>
             </div>
         </div>
     </div>
 
     <!-- ==========================================
-         2. CHARGEMENT SÉCURISÉ DES SCRIPTS
+         2. CHARGEMENT ORDONNÉ DES SCRIPTS
          ========================================== -->
-    <!-- Librairie Supabase CDN -->
+
+    <!-- A. Librairie Supabase JS via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- Fichier de Configuration -->
+    <!-- B. Fichier de Configuration Globale (supaBaseClient) -->
     <script src="config.js"></script>
 
-    <!-- Script de Navigation et Logique Principale -->
+    <!-- C. Logique de Navigation par Onglets & Fonctions Utilitaires -->
     <script>
-        // Fonction globale de changement d'onglet
+        // Changement dynamique d'onglet
         window.switchTab = function(tabId, btnElement) {
             var sections = document.querySelectorAll('.view-section');
             sections.forEach(function(sec) {
@@ -364,15 +375,15 @@
             }
         };
 
-        // Modale d'édition
+        // Fermeture de la modale d'édition
         window.fermerModal = function() {
-            document.getElementById('modal-modifier').style.display = 'none';
+            var modal = document.getElementById('modal-modifier');
+            if (modal) modal.style.display = 'none';
         };
     </script>
 
-    <!-- Charger tes scripts additionnels s'ils existent sur GitHub -->
-    <!-- Si un fichier n'existe pas encore, garde-le commenté pour éviter l'erreur 404 -->
-    <!-- <script src="transactions.js"></script> -->
-    <!-- <script src="journal.js"></script> -->
+    <!-- D. Logique Métier des Transactions Supabase -->
+    <script src="transactions.js"></script>
+
 </body>
 </html>
