@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale - Professionnels de Santé</title>
-    <!-- Chargement du SDK Supabase CDN -->
+    <!-- Chargement du SDK Supabase via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* CSS global de l'application */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f1f5f9;
@@ -79,6 +80,7 @@
             display: block;
         }
 
+        /* Formulaires */
         .form-group {
             display: flex;
             flex-direction: column;
@@ -104,6 +106,7 @@
             border-radius: 6px;
             font-size: 0.95rem;
             outline: none;
+            transition: border-color 0.2s;
         }
 
         input:focus, select:focus {
@@ -118,12 +121,14 @@
             border-radius: 6px;
             font-weight: 600;
             cursor: pointer;
+            transition: background-color 0.2s;
         }
 
         .btn-primary:hover {
             background-color: #1d4ed8;
         }
 
+        /* Tableaux */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -141,6 +146,10 @@
             color: #475569;
             font-weight: 600;
             font-size: 0.9rem;
+        }
+
+        tr:hover {
+            background-color: #f8fafc;
         }
 
         .badge-recette {
@@ -165,12 +174,13 @@
 <body>
 
     <div class="container">
+        <!-- Entête -->
         <header>
             <h1>🩺 Comptabilité Libérale</h1>
             <p class="subtitle">Gestion des dépenses, recettes et Plan Comptable Général (PCG)</p>
         </header>
 
-        <!-- Barre de Navigation par Onglets -->
+        <!-- Barre de Navigation -->
         <nav class="navigation-tabs">
             <button class="tab-button active" onclick="ouvrirOnglet(event, 'vue-transactions')">💳 Transactions</button>
             <button class="tab-button" onclick="ouvrirOnglet(event, 'vue-grand-livre')">📖 Grand Livre</button>
@@ -203,6 +213,7 @@
                 <div class="form-group">
                     <label for="categorie">Catégorie Comptable *</label>
                     <select id="categorie" required>
+                        <!-- Rempli dynamiquement par plan_comptable.js -->
                         <option value="">Chargement des catégories...</option>
                     </select>
                 </div>
@@ -225,7 +236,7 @@
                         </tr>
                     </thead>
                     <tbody id="body-tableau-transactions">
-                        <!-- Rempli dynamiquement -->
+                        <!-- Rempli dynamiquement par JS -->
                     </tbody>
                 </table>
             </div>
@@ -234,9 +245,9 @@
         <!-- ONGLET 2 : GRAND LIVRE -->
         <div id="vue-grand-livre" class="tab-content">
             <h2>📖 Grand Livre des Comptes</h2>
-            <p style="color:#64748b; margin-bottom:20px;">Synthèse des mouvements crédit/débit regroupés par compte comptable.</p>
+            <p style="color:#64748b;">Consultez les mouvements débit/crédit classés par numéro de compte comptable.</p>
             <div id="conteneur-grand-livre">
-                <!-- Rempli dynamiquement par grand_livre.js -->
+                <!-- Généré dynamiquement -->
             </div>
         </div>
 
@@ -244,6 +255,7 @@
         <div id="vue-plan-comptable" class="tab-content">
             <h2>📋 Plan Comptable Général</h2>
 
+            <!-- Formulaire de création de compte -->
             <div style="background:#ffffff; border:1px solid #cbd5e1; padding:20px; border-radius:8px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                 <h3 style="margin-top:0; margin-bottom:15px; font-size:1.1rem; color:#1e293b;">➕ Ajouter un nouveau compte comptable</h3>
                 <form onsubmit="window.ajouterCompteComptable(event)" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
@@ -273,6 +285,7 @@
                 </form>
             </div>
 
+            <!-- Liste des comptes existants -->
             <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
                 <table>
                     <thead>
@@ -284,14 +297,14 @@
                         </tr>
                     </thead>
                     <tbody id="body-tableau-plan-comptable">
-                        <!-- Rempli dynamiquement par plan_comptable.js -->
+                        <!-- Chargé dynamiquement depuis Supabase par plan_comptable.js -->
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Script de gestion du changement d'onglet -->
+    <!-- Script de gestion de la navigation entre onglets -->
     <script>
         function ouvrirOnglet(evt, nomOnglet) {
             const tabContents = document.querySelectorAll('.tab-content');
@@ -302,17 +315,12 @@
 
             document.getElementById(nomOnglet).classList.add('active');
             evt.currentTarget.classList.add('active');
-
-            if (nomOnglet === 'vue-grand-livre' && window.afficherGrandLivre) {
-                window.afficherGrandLivre();
-            }
         }
     </script>
 
-    <!-- Chargement de votre fichier config.js existant puis des scripts métier -->
-    <script src="config.js"></script>
+    <!-- Fichiers JavaScript de l'application -->
+    <script src="supabase-config.js"></script>
     <script src="plan_comptable.js"></script>
     <script src="transactions.js"></script>
-    <script src="grand_livre.js"></script>
 </body>
 </html>
