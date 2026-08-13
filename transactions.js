@@ -1,6 +1,6 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Gestion complète des transactions, banques et Grand Livre PCG
+// Conservation des montants signés & Soustractions exactes
 // ==========================================
 
 window.listeTransactions = [];
@@ -45,17 +45,19 @@ function ExtraireType(tx) {
     if (t === 'recette' || t === 'credit') return 'recette';
     if (t === 'depense' || t === 'dépense' || t === 'debit') return 'depense';
     
+    let m = ExtraireMontant(tx);
+    if (m < 0) return 'depense';
+
     let cat = ExtraireCategorie(tx).toLowerCase();
     if (cat.includes('urssaf') || cat.includes('carpimko') || cat.includes('frais') || cat.includes('achat') || cat.includes('assurance')) {
         return 'depense';
     }
     
-    let m = ExtraireMontant(tx);
-    return m < 0 ? 'depense' : 'recette';
+    return 'recette';
 }
 
 // ------------------------------------------
-// 1. CHARGEMENT DEPUIS SUPABASE
+// 1. CHARGEMENT ET ENREGISTREMENT (SUPABASE)
 // ------------------------------------------
 window.chargerTransactions = async function() {
     if (!window.supabaseClient) {
@@ -76,6 +78,66 @@ window.chargerTransactions = async function() {
 
     } catch (err) {
         console.error("Erreur lors du chargement des transactions :", err.message);
+    }
+};
+
+// ENREGISTREMENT SANS TRANSFORMATION FORCEE EN POSITIF
+window.ajouterTransaction = async function(event) {
+    if (event) event.preventDefault();
+
+    if (!window.supabaseClient) {
+        alert("❌ Connexion à Supabase introuvable.");
+        return;
+    }
+
+    const inputDate = document.getElementById('date') || document.querySelector('[name="date"]');
+    const selectType = document.getElementById('type') || document.querySelector('[name="type"]');
+    const selectCat = document.getElementById('categorie') || document.getElementById('category') || document.querySelector('[name="categorie"]');
+    const inputDesc = document.getElementById('description') || document.querySelector('[name="description"]');
+    const inputMontant = document.getElementById('montant') || document.getElementById('amount') || document.querySelector('[name="montant"]');
+
+    if (!inputDate || !selectType || !inputMontant) {
+        alert("❌ Erreur : Impossible de lire les champs du formulaire.");
+        return;
+    }
+
+    const dateVal = inputDate.value;
+    const typeVal = selectType.value;
+    const catVal = selectCat ? selectCat.value : 'Divers';
+    const descVal = inputDesc ? inputDesc.value : '';
+    
+    // On conserve exactement la valeur saisie par l'utilisateur (positive ou négative)
+    let montantVal = parseFloat(inputMontant.value.replace(',', '.')) || 0;
+
+    if (!dateVal || isNaN(montantVal) || montantVal === 0) {
+        alert("⚠️ Veuillez remplir une date et un montant valide.");
+        return;
+    }
+
+    const nouvelleEcriture = {
+        date: dateVal,
+        type: typeVal,
+        category: catVal,
+        description: descVal,
+        amount: montantVal, // Conservation du chiffre brut (ex: -717.00)
+        encaisse: false
+    };
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .insert([nouvelleEcriture]);
+
+        if (error) throw error;
+
+        if (inputDesc) inputDesc.value = '';
+        if (inputMontant) inputMontant.value = '';
+
+        await window.chargerTransactions();
+
+    } catch (err) {
+        console.error("Erreur lors de l'enregistrement :", err.message);
+        alert("Erreur lors de l'enregistrement : " + err.message);
     }
 };
 
@@ -119,7 +181,6 @@ window.annulerReglement = async function(idTx) {
     }
 };
 
-// FONCTION DE SUPPRESSION
 window.supprimerTransaction = async function(idTx) {
     const confirmation = confirm("Voulez-vous vraiment supprimer cette transaction ?");
     if (!confirmation) return;
@@ -184,7 +245,7 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : JOURNAL DE BANQUE
+// 4. ONGLET : JOURNAL DE BANQUE (CALCUL EXACT DES SOUSTRACTIONS)
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
     const tbody = document.getElementById('body-tableau-banque');
@@ -206,12 +267,16 @@ window.afficherBanque = function(transactions) {
 
     listeAffichée.forEach(tx => {
         const estRecette = ExtraireType(tx) === 'recette';
-        const montantNum = Math.abs(ExtraireMontant(tx));
+        const montantAbsolu = Math.abs(ExtraireMontant(tx));
         const estEncaisse = tx.encaisse === true;
 
         if (estEncaisse || !aDesEncaissements) {
-            if (estRecette) totalBanque += montantNum;
-            else totalBanque -= montantNum;
+            // Soustraction explicite pour les dépenses, addition pour les recettes
+            if (estRecette) {
+                totalBanque += montantAbsolu;
+            } else {
+                totalBanque -= montantAbsolu; // Garantit la soustraction comptable exacte
+            }
         }
 
         const tr = document.createElement('tr');
@@ -220,8 +285,8 @@ window.afficherBanque = function(transactions) {
             <td><strong>${estRecette ? 'Encaissement' : 'Décaissement'}</strong></td>
             <td>${ExtraireCategorie(tx)}</td>
             <td>${ExtraireDescription(tx)}</td>
-            <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantNum.toFixed(2) + ' €'}</td>
-            <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantNum.toFixed(2) + ' €' : ''}</td>
+            <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantAbsolu.toFixed(2) + ' €'}</td>
+            <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantAbsolu.toFixed(2) + ' €' : ''}</td>
             <td>
                 ${estEncaisse 
                     ? `<button style="background:none; border:none; cursor:pointer; color:#64748b;" onclick="window.annulerReglement('${tx.id}')">↩️ Annuler</button>`
@@ -289,7 +354,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE NORME PCG
+// 6. ONGLET : GRAND LIVRE (COMPTABILITÉ EN PARTIE DOUBLE)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
@@ -297,7 +362,6 @@ window.afficherGrandLivre = function(transactions) {
 
     const comptes = {};
 
-    // Initialiser le compte 512000 (Banque)
     comptes["512000"] = { nom: "512000 - Banque (Classe 5)", items: [] };
 
     transactions.forEach(tx => {
@@ -329,18 +393,18 @@ window.afficherGrandLivre = function(transactions) {
 
         compte.items.forEach(tx => {
             const estRecette = ExtraireType(tx) === 'recette';
-            const montantNum = Math.abs(ExtraireMontant(tx));
+            const montantAbsolu = Math.abs(ExtraireMontant(tx));
 
             let debit = 0;
             let credit = 0;
 
             if (codeCompte === "512000") {
-                if (estRecette) debit = montantNum;
-                else credit = montantNum;
+                if (estRecette) debit = montantAbsolu;
+                else credit = montantAbsolu;
             } else if (codeCompte.startsWith('7')) {
-                credit = montantNum;
+                credit = montantAbsolu;
             } else {
-                debit = montantNum;
+                debit = montantAbsolu;
             }
 
             totalDebit += debit;
@@ -359,7 +423,7 @@ window.afficherGrandLivre = function(transactions) {
         let solde = totalDebit - totalCredit;
         let libelleSolde = codeCompte.startsWith('7') || (codeCompte === "512000" && solde < 0)
             ? `Solde Créditeur : ${Math.abs(solde).toFixed(2)} €`
-            : `Solde Débiteurs : ${Math.abs(solde).toFixed(2)} €`;
+            : `Solde Débiteur : ${Math.abs(solde).toFixed(2)} €`;
 
         htmlComplet += `
             <div style="margin-bottom:20px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
@@ -386,9 +450,14 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 7. INITIALISATION DU SCRIPT
+// 7. INITIALISATION ET BINDING DU FORMULAIRE
 // ------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', window.ajouterTransaction);
+    }
+
     setTimeout(function() {
         if (window.supabaseClient) {
             window.chargerTransactions();
