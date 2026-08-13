@@ -1,11 +1,11 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Support complet des Comptes de Tiers (Classe 4) dans le Grand Livre
+// Correction dynamique de la lecture du formulaire HTML
 // ==========================================
 
 window.listeTransactions = [];
 
-// MAPPING ENRICHI : Classe 6/7 (Charge/Produit) + Classe 4 (Tiers)
+// MAPPING PCG ENRICHI (Classes 4, 5, 6, 7)
 const MAPPING_PCG = {
     "soins infirmiers": {
         activite: { code: "706000", nom: "706000 - Prestations de services / Honoraires (Classe 7)" },
@@ -108,6 +108,7 @@ window.chargerTransactions = async function() {
     }
 };
 
+// RECUPERATION ROBUSTE DU FORMULAIRE
 window.ajouterTransaction = async function(event) {
     if (event) event.preventDefault();
 
@@ -116,28 +117,45 @@ window.ajouterTransaction = async function(event) {
         return;
     }
 
-    const inputDate = document.getElementById('date') || document.querySelector('[name="date"]');
-    const selectType = document.getElementById('type') || document.querySelector('[name="type"]');
-    const selectCat = document.getElementById('categorie') || document.getElementById('category') || document.querySelector('[name="categorie"]');
-    const inputDesc = document.getElementById('description') || document.querySelector('[name="description"]');
-    const inputMontant = document.getElementById('montant') || document.getElementById('amount') || document.querySelector('[name="montant"]');
+    // Recherche très flexible des éléments du formulaire
+    const inputDate = document.getElementById('date') || 
+                      document.querySelector('input[type="date"]') || 
+                      document.querySelector('[name="date"]');
 
-    if (!inputDate || !selectType || !inputMontant) {
-        alert("❌ Erreur : Impossible de lire les champs du formulaire.");
-        return;
-    }
+    const selectType = document.getElementById('type') || 
+                       document.getElementById('type-operation') || 
+                       document.querySelector('select[name="type"]') || 
+                       document.querySelector('select');
 
-    const dateVal = inputDate.value;
-    const typeVal = selectType.value;
+    const selectCat = document.getElementById('categorie') || 
+                      document.getElementById('category') || 
+                      document.querySelector('[name="categorie"]') || 
+                      document.querySelectorAll('select')[1];
+
+    const inputDesc = document.getElementById('description') || 
+                      document.querySelector('input[placeholder*="Acompte"]') || 
+                      document.querySelector('[name="description"]');
+
+    const inputMontant = document.getElementById('montant') || 
+                        document.getElementById('amount') || 
+                        document.querySelector('input[type="number"]') || 
+                        document.querySelector('[name="montant"]');
+
+    // Récupération des valeurs avec sécurité
+    const dateVal = inputDate ? inputDate.value : '';
+    const typeVal = selectType ? selectType.value : 'Dépense';
     const catVal = selectCat ? selectCat.value : 'Divers';
     const descVal = inputDesc ? inputDesc.value : '';
-    let montantVal = parseFloat(inputMontant.value.replace(',', '.')) || 0;
+    
+    let montant Brut = inputMontant ? inputMontant.value : '0';
+    let montantVal = parseFloat(montantBrut.replace(',', '.')) || 0;
 
     if (!dateVal || isNaN(montantVal) || montantVal === 0) {
-        alert("⚠️ Veuillez remplir une date et un montant valide.");
+        alert("⚠️ Veuillez remplir au moins une date et un montant valide (non nul).");
         return;
     }
 
+    // Préparation de l'enregistrement (On garde le nombre négatif ou positif saisi)
     const nouvelleEcriture = {
         date: dateVal,
         type: typeVal,
@@ -154,9 +172,11 @@ window.ajouterTransaction = async function(event) {
 
         if (error) throw error;
 
+        // Vider les champs texte après succès
         if (inputDesc) inputDesc.value = '';
         if (inputMontant) inputMontant.value = '';
 
+        // Recharger les données
         await window.chargerTransactions();
 
     } catch (err) {
@@ -377,7 +397,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE (GENERATION COMPTES 4, 5, 6, 7)
+// 6. ONGLET : GRAND LIVRE (COMPTES 4, 5, 6, 7)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
@@ -385,14 +405,12 @@ window.afficherGrandLivre = function(transactions) {
 
     const comptes = {};
 
-    // Initialisation du Compte 512000 (Banque - Classe 5)
     comptes["512000"] = { nom: "512000 - Banque (Classe 5 - Trésorerie)", items: [] };
 
     transactions.forEach(tx => {
         let catBrute = ExtraireCategorie(tx);
         let cleNorme = catBrute.toLowerCase();
         
-        // Recherche des correspondances PCG
         let mapping = MAPPING_PCG[cleNorme] || {
             activite: { code: "471000", nom: `471000 - ${catBrute} (Compte d'attente)` },
             tiers: { code: "401000", nom: `401000 - Fournisseurs Divers (Classe 4 - Tiers)` }
@@ -401,19 +419,16 @@ window.afficherGrandLivre = function(transactions) {
         let cActivite = mapping.activite;
         let cTiers = mapping.tiers;
 
-        // 1. Ajouter l'écriture au compte d'Activité (Classe 6 ou 7)
         if (!comptes[cActivite.code]) {
             comptes[cActivite.code] = { nom: cActivite.nom, items: [] };
         }
         comptes[cActivite.code].items.push(tx);
 
-        // 2. Ajouter l'écriture au compte de Tiers (Classe 4 : URSSAF, CARPIMKO, Patients...)
         if (!comptes[cTiers.code]) {
             comptes[cTiers.code] = { nom: cTiers.nom, items: [] };
         }
         comptes[cTiers.code].items.push(tx);
 
-        // 3. Ajouter l'écriture au compte de Banque (Classe 5)
         comptes["512000"].items.push(tx);
     });
 
@@ -433,18 +448,14 @@ window.afficherGrandLivre = function(transactions) {
             let credit = 0;
 
             if (codeCompte === "512000") {
-                // Compte Banque
                 if (estRecette) debit = montantAbsolu;
                 else credit = montantAbsolu;
             } else if (codeCompte.startsWith('4')) {
-                // Compte de Tiers (Classe 4)
                 if (estRecette) debit = montantAbsolu;
                 else credit = montantAbsolu;
             } else if (codeCompte.startsWith('7')) {
-                // Prestations / Produits (Classe 7)
                 credit = montantAbsolu;
             } else {
-                // Charges / Dépenses (Classe 6)
                 debit = montantAbsolu;
             }
 
