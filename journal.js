@@ -1,8 +1,8 @@
 // ==========================================
-// MODULE COMPTABLE : JOURNAUX & CHARGES SOCIALES (CARPIMKO / URSSAF)
+// MODULE COMPTABLE : JOURNAUX & CHARGES SOCIALES (DÉTECTION AVANCÉE)
 // ==========================================
 
-// 1. Répertoire fixe des comptes de tiers
+// 1. Répertoire des tiers
 window.comptesTiersClients = JSON.parse(localStorage.getItem('comptesTiersClients')) || [
     { id: '1', nom: 'Abadie', code: '411ABADIE' },
     { id: '2', nom: 'Saint-André', code: '411STANDRE' }
@@ -35,13 +35,14 @@ window.initJournal = function() {
     window.afficherModuleJournaux(container);
 };
 
-// Fonction d'analyse comptable des dépenses
+// Analyse intelligente des dépenses avec tolérance aux fautes/accents
 window.analyserDepense = function(label) {
-    var cleanLabel = label.trim();
-    var lower = cleanLabel.toLowerCase();
+    var cleanLabel = (label || '').trim();
+    // Normalisation : minuscules et suppression des accents
+    var lower = cleanLabel.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // 1. Détection CARPIMKO
-    if (lower.includes('carpimko') || (lower.includes('acompte') && lower.includes('paye')) || lower.includes('retraite')) {
+    // 1. DÉTECTION CARPIMKO
+    if (lower.includes('carpimko') || lower.includes('carp') || lower.includes('retraite') || (lower.includes('acompte') && lower.includes('paye'))) {
         return {
             compteCharge: '646000',
             libelleCharge: 'Cotisations Retraite - CARPIMKO',
@@ -51,8 +52,8 @@ window.analyserDepense = function(label) {
         };
     }
 
-    // 2. Détection URSSAF
-    if (lower.includes('urssaf') || lower.includes('cotis') || lower.includes('cnsd')) {
+    // 2. DÉTECTION URSSAF
+    if (lower.includes('urssaf') || lower.includes('urss') || lower.includes('cotis') || lower.includes('cnsd')) {
         return {
             compteCharge: '646000',
             libelleCharge: 'Cotisations Sociales - URSSAF',
@@ -62,30 +63,33 @@ window.analyserDepense = function(label) {
         };
     }
 
-    // 3. Détection Fiscalité
+    // 3. DÉTECTION FISCALITÉ
     if (lower.includes('impot') || lower.includes('taxe') || lower.includes('cfe') || lower.includes('pas')) {
         return {
             compteCharge: '635000',
-            libelleCharge: 'Impôts et Taxes (CFE)',
+            libelleCharge: 'Impôts et Taxes',
             codeTiers: '447IMPOTS',
             nomTiers: 'Impôts',
             type: 'fiscal'
         };
     }
 
-    // 4. Par défaut : Fournisseur / Achat
+    // 4. AUTRES FOURNISSEURS / CHARGES
     var codeClean = cleanLabel.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
     return {
         compteCharge: '606000',
-        libelleCharge: 'Achats / Fournitures - ' + cleanLabel,
+        libelleCharge: 'Achat / Charge - ' + cleanLabel,
         codeTiers: '401' + (codeClean || 'FOURNISSEUR'),
-        nomTiers: cleanLabel,
+        nomTiers: cleanLabel || 'Fournisseur Inconnu',
         type: 'fournisseur'
     };
 };
 
 window.afficherModuleJournaux = function(container) {
     var transactions = window.allTransactions || [];
+
+    // Affichage console pour vérification et débogage
+    console.log("Données reçues par journal.js :", transactions);
 
     var ecrituresVE = [];
     var ecrituresHA = [];
@@ -95,12 +99,12 @@ window.afficherModuleJournaux = function(container) {
     transactions.forEach(function(tx, index) {
         var montant = parseFloat(tx.amount) || 0;
         var type = (tx.type || '').toLowerCase();
-        var label = (tx.label || tx.description || 'Opération').trim();
+        var label = (tx.label || tx.description || tx.libelle || 'Opération').trim();
         var dateOp = tx.date || new Date().toISOString().split('T')[0];
         var txId = tx.id || ('tx-' + index);
 
-        // RECETTES (VE)
-        if (type === 'recette' || montant > 0) {
+        // --- RECETTES (VE) ---
+        if (type === 'recette' || (type === '' && montant > 0)) {
             var valMontant = Math.abs(montant);
             var tiersC = window.comptesTiersClients.find(t => label.toLowerCase().includes(t.nom.toLowerCase()));
             var codeTiersC = tiersC ? tiersC.code : ('411' + label.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8));
@@ -113,12 +117,11 @@ window.afficherModuleJournaux = function(container) {
                 prestationsEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersC, codeTiers: codeTiersC, label: label, montant: valMontant, piece: 'FAC-' + (1000 + index) });
             }
         } 
-        // DÉPENSES & CHARGES (HA)
-        else if (type === 'depense' || montant < 0) {
+        // --- DÉPENSES (HA) ---
+        else if (type === 'depense' || montant < 0 || (type === '' && montant < 0)) {
             var valMontantD = Math.abs(montant);
             var analyse = window.analyserDepense(label);
 
-            // Inscription au Journal HA
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.compteCharge, libelle: analyse.libelleCharge, debit: valMontantD, credit: 0 });
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.codeTiers, libelle: 'Appel / Facture - ' + analyse.nomTiers, debit: 0, credit: valMontantD });
 
@@ -128,7 +131,7 @@ window.afficherModuleJournaux = function(container) {
         }
     });
 
-    // JOURNAL DE BANQUE (BQ)
+    // --- JOURNAL DE BANQUE (BQ) ---
     var ecrituresBQ = [];
     window.encaissementsValides.forEach(function(enc, index) {
         ecrituresBQ.push({ date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), compte: '512000', libelle: 'Encaissement - ' + enc.nomTiers, debit: enc.montant, credit: 0 });
@@ -140,7 +143,7 @@ window.afficherModuleJournaux = function(container) {
         ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: '512000', libelle: 'Prélèvement / Virement - ' + dec.piece, debit: 0, credit: dec.montant });
     });
 
-    // RENDU HTML
+    // COMPOSANT VISUEL
     container.innerHTML = `
         <style>
             .jrn-box { font-family: system-ui, -apple-system, sans-serif; }
