@@ -1,11 +1,11 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Transactions, Journal de Banque, Journal & Grand Livre
+// Synchronisation Supabase & Automatismes de Saisie
 // ==========================================
 
 window.listeTransactions = [];
 
-// Schéma de correspondance dynamique des colonnes Supabase
+// Correspondance automatique des champs
 window.schemaColonnes = {
     date: 'date',
     type: 'type',
@@ -14,21 +14,37 @@ window.schemaColonnes = {
     montant: 'montant'
 };
 
-window.detecterSchema = function(premierObjet) {
-    if (!premierObjet) return;
+// ------------------------------------------
+// 1. REGLES AUTOMATIQUES DE SAISIE
+// ------------------------------------------
+const REGLES_AUTOMATIQUES = [
+    { motCle: 'cpam', categorie: 'Soins infirmiers', type: 'Recette' },
+    { motCle: 'virement', categorie: 'Soins infirmiers', type: 'Recette' },
+    { motCle: 'urssaf', categorie: 'URSSAF', type: 'Dépense' },
+    { motCle: 'carpimko', categorie: 'Cotisations CARPIMKO', type: 'Dépense' },
+    { motCle: 'essence', categorie: 'Frais de déplacement', type: 'Dépense' },
+    { motCle: 'banque', categorie: 'Frais bancaires', type: 'Dépense' }
+];
 
-    if ('montant' in premierObjet) window.schemaColonnes.montant = 'montant';
-    else if ('amount' in premierObjet) window.schemaColonnes.montant = 'amount';
+window.appliquerAutomatisation = function(inputId, typeId, catId) {
+    const inputDesc = document.getElementById(inputId);
+    if (!inputDesc) return;
 
-    if ('categorie' in premierObjet) window.schemaColonnes.categorie = 'categorie';
-    else if ('category' in premierObjet) window.schemaColonnes.categorie = 'category';
+    inputDesc.addEventListener('input', function() {
+        const texte = this.value.toLowerCase();
+        const regleTrouvee = REGLES_AUTOMATIQUES.find(r => texte.includes(r.motCle));
 
-    if ('description' in premierObjet) window.schemaColonnes.description = 'description';
-    else if ('libelle' in premierObjet) window.schemaColonnes.description = 'libelle';
+        if (regleTrouvee) {
+            const elType = document.getElementById(typeId);
+            const elCat = document.getElementById(catId);
+            if (elType) elType.value = regleTrouvee.type;
+            if (elCat) elCat.value = regleTrouvee.categorie;
+        }
+    });
 };
 
 // ------------------------------------------
-// 1. CHARGEMENT DEPUIS SUPABASE
+// 2. CHARGEMENT DEPUIS SUPABASE
 // ------------------------------------------
 window.chargerTransactions = async function() {
     if (!window.supabaseClient) {
@@ -45,11 +61,6 @@ window.chargerTransactions = async function() {
         if (error) throw error;
 
         window.listeTransactions = data || [];
-
-        if (window.listeTransactions.length > 0) {
-            window.detecterSchema(window.listeTransactions[0]);
-        }
-
         window.rafraichirToutesLesVues();
 
     } catch (err) {
@@ -65,7 +76,7 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. ONGLET : TRANSACTIONS
+// 3. ONGLET : TRANSACTIONS
 // ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
@@ -79,27 +90,18 @@ window.afficherTransactions = function(transactions) {
     }
 
     transactions.forEach(tx => {
-        const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
+        const typeBrut = (tx.type || '').toString().toLowerCase();
         const estRecette = typeBrut === 'recette';
-
-        let valeurMontant = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
-        if (typeof valeurMontant === 'string') valeurMontant = valeurMontant.replace(',', '.');
-        
-        const montantNumerique = parseFloat(valeurMontant) || 0;
-        const montantFormate = Math.abs(montantNumerique).toFixed(2);
-        const couleurMontant = estRecette ? '#16a34a' : '#dc2626';
-
-        const categorieAffichee = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || '-';
-        const descriptionAffichee = tx[window.schemaColonnes.description] || tx.description || tx.libelle || '';
+        const montantNum = Math.abs(parseFloat(tx.montant || tx.amount || 0));
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${tx[window.schemaColonnes.date] || tx.date || ''}</td>
+            <td>${tx.date || ''}</td>
             <td><strong>${estRecette ? 'Recette' : 'Dépense'}</strong></td>
-            <td>${categorieAffichee}</td>
-            <td>${descriptionAffichee}</td>
-            <td style="font-weight: bold; color: ${couleurMontant};">
-                ${estRecette ? '+' : '-'} ${montantFormate} €
+            <td>${tx.categorie || '-'}</td>
+            <td>${tx.description || ''}</td>
+            <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">
+                ${estRecette ? '+' : '-'} ${montantNum.toFixed(2)} €
             </td>
             <td>
                 <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️ Modifier</button>
@@ -111,23 +113,19 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 3. ONGLET : JOURNAL DE BANQUE
+// 4. ONGLET : JOURNAL DE BANQUE
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
     const tbody = document.getElementById('body-tableau-banque');
     const elSolde = document.getElementById('solde-banque');
-
     let totalBanque = 0;
 
     if (tbody) tbody.innerHTML = '';
 
     transactions.forEach(tx => {
-        const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
+        const typeBrut = (tx.type || '').toString().toLowerCase();
         const estRecette = typeBrut === 'recette';
-
-        let valeurMontant = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
-        if (typeof valeurMontant === 'string') valeurMontant = valeurMontant.replace(',', '.');
-        const montantNum = Math.abs(parseFloat(valeurMontant) || 0);
+        const montantNum = Math.abs(parseFloat(tx.montant || tx.amount || 0));
 
         if (estRecette) totalBanque += montantNum;
         else totalBanque -= montantNum;
@@ -135,10 +133,10 @@ window.afficherBanque = function(transactions) {
         if (tbody) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${tx[window.schemaColonnes.date] || tx.date || ''}</td>
+                <td>${tx.date || ''}</td>
                 <td><strong>${estRecette ? 'Encaissement' : 'Décaissement'}</strong></td>
-                <td>${tx[window.schemaColonnes.categorie] || tx.categorie || '-'}</td>
-                <td>${tx[window.schemaColonnes.description] || tx.description || ''}</td>
+                <td>${tx.categorie || '-'}</td>
+                <td>${tx.description || ''}</td>
                 <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantNum.toFixed(2) + ' €'}</td>
                 <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantNum.toFixed(2) + ' €' : ''}</td>
                 <td>
@@ -156,6 +154,7 @@ window.afficherBanque = function(transactions) {
     }
 };
 
+// Enregistrement manuel ou automatique d'un paiement
 window.ajouterPaiement = async function() {
     const date = document.getElementById('pay-date').value;
     const type = document.getElementById('pay-type').value;
@@ -170,17 +169,10 @@ window.ajouterPaiement = async function() {
 
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
-    const objetPayload = {};
-    objetPayload[window.schemaColonnes.date] = date;
-    objetPayload[window.schemaColonnes.type] = type;
-    objetPayload[window.schemaColonnes.categorie] = categorie;
-    objetPayload[window.schemaColonnes.description] = description;
-    objetPayload[window.schemaColonnes.montant] = montantFinal;
-
     try {
         const { error } = await window.supabaseClient
             .from('transactions')
-            .insert([objetPayload]);
+            .insert([{ date, type, categorie, description, montant: montantFinal }]);
 
         if (error) throw error;
 
@@ -189,13 +181,13 @@ window.ajouterPaiement = async function() {
 
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur d'enregistrement du paiement :", err.message);
-        alert("Erreur lors du paiement : " + err.message);
+        console.error("Erreur d'enregistrement :", err.message);
+        alert("Erreur : " + err.message);
     }
 };
 
 // ------------------------------------------
-// 4. ONGLET : JOURNAL COMPTABLE
+// 5. ONGLET : JOURNAL COMPTABLE
 // ------------------------------------------
 window.afficherJournal = function(transactions) {
     let conteneur = document.getElementById('vue-journal') || document.getElementById('journal');
@@ -224,24 +216,15 @@ window.afficherJournal = function(transactions) {
 
     tbody.innerHTML = '';
 
-    if (transactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Le journal est vide.</td></tr>`;
-        return;
-    }
-
     transactions.forEach(tx => {
-        const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
-        const estRecette = typeBrut === 'recette';
-
-        let valeurMontant = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
-        if (typeof valeurMontant === 'string') valeurMontant = valeurMontant.replace(',', '.');
-        const montant = Math.abs(parseFloat(valeurMontant) || 0).toFixed(2);
+        const estRecette = (tx.type || '').toLowerCase() === 'recette';
+        const montant = Math.abs(parseFloat(tx.montant || 0)).toFixed(2);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${tx[window.schemaColonnes.date] || tx.date || ''}</td>
-            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${tx[window.schemaColonnes.categorie] || tx.categorie || '-'}</td>
-            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${tx[window.schemaColonnes.description] || tx.description || ''}</td>
+            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${tx.date || ''}</td>
+            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${tx.categorie || '-'}</td>
+            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${tx.description || ''}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0; color:#dc2626; font-weight:bold;">${estRecette ? '' : montant + ' €'}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0; color:#16a34a; font-weight:bold;">${estRecette ? montant + ' €' : ''}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0;">
@@ -254,25 +237,12 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 5. ONGLET : GRAND LIVRE (Avec comptes de tiers 437/438)
+// 6. ONGLET : GRAND LIVRE (Comptes de tiers)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
-    // Détection robuste de la zone du Grand Livre
-    let conteneur = document.getElementById('vue-grandlivre') || 
-                    document.getElementById('grand-livre') || 
-                    document.getElementById('section-grand-livre');
-
+    let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
     if (!conteneur) return;
 
-    if (transactions.length === 0) {
-        conteneur.innerHTML = `
-            <h2>📖 Grand Livre des comptes</h2>
-            <p style="text-align:center; color:#94a3b8; padding:20px;">Le Grand Livre est vide.</p>
-        `;
-        return;
-    }
-
-    // Plan comptable associant les catégories aux comptes officiels de Tiers (Classe 4) et charges/produits
     const tablePlanComptable = {
         'urssaf': '438100 - URSSAF (Compte de Tiers)',
         'carpimko': '437100 - CARPIMKO (Compte de Tiers)',
@@ -283,42 +253,38 @@ window.afficherGrandLivre = function(transactions) {
     };
 
     const groupes = {};
-    const nomsCatOriginal = {};
 
     transactions.forEach(tx => {
-        let catBrute = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || 'Non classé';
-        const cleNormale = catBrute.toString().toLowerCase().replace(/\s+/g, ' ').trim();
+        let catBrute = tx.categorie || 'Non classé';
+        const cleNormale = catBrute.toString().toLowerCase().trim();
 
         if (!groupes[cleNormale]) {
-            groupes[cleNormale] = [];
-            const compteOfficiel = tablePlanComptable[cleNormale] || catBrute.toString().replace(/\s+/g, ' ').trim();
-            nomsCatOriginal[cleNormale] = compteOfficiel;
+            groupes[cleNormale] = {
+                titre: tablePlanComptable[cleNormale] || catBrute,
+                items: []
+            };
         }
-        groupes[cleNormale].push(tx);
+        groupes[cleNormale].items.push(tx);
     });
 
     let htmlComplet = `<h2 style="margin-bottom:20px;">📖 Grand Livre des comptes</h2>`;
 
     Object.keys(groupes).sort().forEach(cle => {
-        const nomAffiche = nomsCatOriginal[cle] || cle;
-        let totalCategorie = 0;
+        const groupe = groupes[cle];
+        let total = 0;
         let lignesHtml = '';
 
-        groupes[cle].forEach(tx => {
-            const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
-            const estRecette = typeBrut === 'recette';
+        groupe.items.forEach(tx => {
+            const estRecette = (tx.type || '').toLowerCase() === 'recette';
+            const montantNum = parseFloat(tx.montant || 0);
 
-            let valeurMontant = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
-            if (typeof valeurMontant === 'string') valeurMontant = valeurMontant.replace(',', '.');
-            const montantNum = parseFloat(valeurMontant) || 0;
-
-            if (estRecette) totalCategorie += Math.abs(montantNum);
-            else totalCategorie -= Math.abs(montantNum);
+            if (estRecette) total += Math.abs(montantNum);
+            else total -= Math.abs(montantNum);
 
             lignesHtml += `
                 <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px;">${tx[window.schemaColonnes.date] || tx.date || ''}</td>
-                    <td style="padding:10px;">${tx[window.schemaColonnes.description] || tx.description || ''}</td>
+                    <td style="padding:10px;">${tx.date || ''}</td>
+                    <td style="padding:10px;">${tx.description || ''}</td>
                     <td style="padding:10px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
                         ${estRecette ? '+' : '-'} ${Math.abs(montantNum).toFixed(2)} €
                     </td>
@@ -330,17 +296,15 @@ window.afficherGrandLivre = function(transactions) {
             `;
         });
 
-        const couleurTotal = totalCategorie >= 0 ? '#16a34a' : '#dc2626';
-
         htmlComplet += `
-            <div style="margin-bottom:25px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="background:#f1f5f9; padding:12px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#0f172a;">📂 Compte ${nomAffiche}</h3>
-                    <span style="font-weight:bold; font-size:1.1rem; color:${couleurTotal};">Solde : ${totalCategorie.toFixed(2)} €</span>
+            <div style="margin-bottom:25px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
+                <div style="background:#f1f5f9; padding:12px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between;">
+                    <h3 style="margin:0; font-size:1.05rem;">📂 Compte ${groupe.titre}</h3>
+                    <span style="font-weight:bold; color:${total >= 0 ? '#16a34a' : '#dc2626'};">Solde : ${total.toFixed(2)} €</span>
                 </div>
                 <table style="width:100%; border-collapse:collapse; text-align:left;">
                     <thead>
-                        <tr style="background:#f8fafc; font-size:0.85rem; color:#475569; border-bottom:1px solid #e2e8f0;">
+                        <tr style="background:#f8fafc; font-size:0.85rem; color:#475569;">
                             <th style="padding:10px;">Date</th>
                             <th style="padding:10px;">Description</th>
                             <th style="padding:10px;">Montant</th>
@@ -357,7 +321,7 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. FONCTIONS DE MODALE & ÉDITION
+// 7. FONCTIONS DE MODALE & ACTIONS
 // ------------------------------------------
 window.ajouterTransaction = async function() {
     const date = document.getElementById('tx-date').value;
@@ -373,17 +337,10 @@ window.ajouterTransaction = async function() {
 
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
-    const objetPayload = {};
-    objetPayload[window.schemaColonnes.date] = date;
-    objetPayload[window.schemaColonnes.type] = type;
-    objetPayload[window.schemaColonnes.categorie] = categorie;
-    objetPayload[window.schemaColonnes.description] = description;
-    objetPayload[window.schemaColonnes.montant] = montantFinal;
-
     try {
         const { error } = await window.supabaseClient
             .from('transactions')
-            .insert([objetPayload]);
+            .insert([{ date, type, categorie, description, montant: montantFinal }]);
 
         if (error) throw error;
 
@@ -392,86 +349,9 @@ window.ajouterTransaction = async function() {
 
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur d'ajout dans Supabase :", err.message);
+        console.error("Erreur d'ajout :", err.message);
         alert("Erreur lors de l'enregistrement : " + err.message);
     }
-};
-
-window.sauvegarderModification = async function() {
-    const elId = document.getElementById('edit-id');
-    const elDate = document.getElementById('edit-date');
-    const elType = document.getElementById('edit-type');
-    const elCat = document.getElementById('edit-categorie');
-    const elDesc = document.getElementById('edit-description');
-    const elMontant = document.getElementById('edit-montant');
-
-    if (!elId || !elId.value) return;
-
-    const id = elId.value;
-    const date = elDate ? elDate.value : '';
-    const type = elType ? elType.value : 'Recette';
-    const categorie = elCat ? elCat.value : '';
-    const description = elDesc ? elDesc.value : '';
-    const montantInput = elMontant ? parseFloat(elMontant.value) : 0;
-
-    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
-
-    const objetModification = {};
-    objetModification[window.schemaColonnes.date] = date;
-    objetModification[window.schemaColonnes.type] = type;
-    objetModification[window.schemaColonnes.categorie] = categorie;
-    objetModification[window.schemaColonnes.description] = description;
-    objetModification[window.schemaColonnes.montant] = montantFinal;
-
-    try {
-        const { error } = await window.supabaseClient
-            .from('transactions')
-            .update(objetModification)
-            .eq('id', id);
-
-        if (error) throw error;
-
-        window.fermerModal();
-        await window.chargerTransactions();
-    } catch (err) {
-        console.error("Erreur de mise à jour :", err.message);
-        alert("Erreur lors de la modification : " + err.message);
-    }
-};
-
-window.ouvrirModalModification = function(id) {
-    const tx = window.listeTransactions.find(t => t.id.toString() === id.toString());
-    if (!tx) return;
-
-    const elId = document.getElementById('edit-id');
-    if (elId) elId.value = tx.id;
-
-    const elDate = document.getElementById('edit-date');
-    if (elDate) elDate.value = tx[window.schemaColonnes.date] || tx.date || '';
-
-    const elType = document.getElementById('edit-type');
-    if (elType) elType.value = tx[window.schemaColonnes.type] || tx.type || 'Recette';
-
-    const elCat = document.getElementById('edit-categorie');
-    if (elCat) elCat.value = tx[window.schemaColonnes.categorie] || tx.categorie || '';
-
-    const elDesc = document.getElementById('edit-description');
-    if (elDesc) elDesc.value = tx[window.schemaColonnes.description] || tx.description || '';
-
-    const elMontant = document.getElementById('edit-montant');
-    if (elMontant) {
-        let m = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
-        if (typeof m === 'string') m = m.replace(',', '.');
-        elMontant.value = Math.abs(parseFloat(m) || 0);
-    }
-
-    const modal = document.getElementById('modal-modifier');
-    if (modal) modal.style.display = 'flex';
-};
-
-window.fermerModal = function() {
-    const modal = document.getElementById('modal-modifier');
-    if (modal) modal.style.display = 'none';
 };
 
 window.supprimerTransaction = async function(id) {
@@ -493,21 +373,15 @@ window.supprimerTransaction = async function(id) {
 };
 
 // ------------------------------------------
-// 7. ÉCOUTEURS & INITIALISATION
+// 8. INITIALISATION
 // ------------------------------------------
-document.addEventListener('click', function(e) {
-    const cible = e.target.closest('button, a, .nav-btn, .tab-btn');
-    if (cible) {
-        setTimeout(function() {
-            window.rafraichirToutesLesVues();
-        }, 50);
-    }
-});
-
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         if (window.supabaseClient) {
             window.chargerTransactions();
         }
+        // Activation du remplissage automatique intelligent
+        window.appliquerAutomatisation('tx-description', 'tx-type', 'tx-categorie');
+        window.appliquerAutomatisation('pay-description', 'pay-type', 'pay-categorie');
     }, 300);
 });
