@@ -3,14 +3,14 @@
 // Fichier : urssaf.js
 // ==========================================
 
-// Barème et taux URSSAF modifiables par année (Exemple pour PAMC / Infirmier)
+// Barème et taux URSSAF modifiables par année
 window.parametresURSSAF = {
     annee: 2026,
     taux: {
         maladie: 0.001,          // Cotisation Maladie PAMC après prise en charge CPAM
-        allocationsFamiliales: 0.00, // Taux progressif (0% pour revenus modérés)
+        allocationsFamiliales: 0.00, // Taux progressif
         csgCrds: 0.097,         // CSG (9.2%) + CRDS (0.5%)
-        cfpForfait: 60.00       // Formation professionnelle (forfait annuel)
+        cfpForfait: 60.00       // Formation professionnelle
     }
 };
 
@@ -19,25 +19,30 @@ window.afficherDeclarationURSSAF = async function() {
     const conteneur = document.getElementById('vue-urssaf');
     if (!conteneur) return;
 
-    // 1. Récupération des transactions depuis Supabase
     let transactions = [];
+
+    // 1. Récupération des transactions dans Supabase
     if (window.supabaseClient) {
         try {
             const { data, error } = await window.supabaseClient.from('transactions').select('*');
             if (error) {
-                console.error("Erreur Supabase URSSAF :", error);
+                console.error("❌ Erreur de lecture Supabase dans URSSAF :", error);
             } else if (data) {
                 transactions = data;
+                console.log("🔍 URSSAF - Transactions récupérées de Supabase :", transactions);
             }
         } catch (e) {
-            console.warn("Exception lors de la récupération des transactions pour URSSAF", e);
+            console.warn("⚠️ Exception lors de la récupération des transactions URSSAF :", e);
         }
+    } else {
+        console.warn("⚠️ Client Supabase non détecté sur window.supabaseClient");
     }
 
-    // 2. Calcul des bases trimestrielles de recettes
+    // 2. Calcul des bases trimestrielles
     const basesTrimestrielles = window.calculerBasesTrimestrielles(transactions);
+    console.log("📊 URSSAF - Bases trimestrielles calculées :", basesTrimestrielles);
 
-    // 3. Calcul du total annuel et des cotisations estimées
+    // 3. Calcul des cotisations estimées
     const totalBaseAnnuelle = basesTrimestrielles.reduce((a, b) => a + b, 0);
     const cotisations = window.calculerCotisationsUrssaf(totalBaseAnnuelle);
 
@@ -119,28 +124,38 @@ window.afficherDeclarationURSSAF = async function() {
     `;
 };
 
-// Fonction de calcul des recettes trimestrielles
+// Analyse et ventilation par trimestre
 window.calculerBasesTrimestrielles = function(transactions) {
     let q = [0, 0, 0, 0];
-    if (!transactions || !Array.isArray(transactions)) return q;
+    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+        return q;
+    }
 
     transactions.forEach(t => {
-        if (!t.date) return;
+        const dateStr = t.date || t.created_at || t.date_operation;
+        if (!dateStr) return;
 
-        // Détection souple si la transaction est une recette
-        const typeRecette = (t.type && t.type.toLowerCase() === 'recette') || 
-                            (t.type_operation && t.type_operation.toLowerCase() === 'recette') ||
-                            (t.categorie && t.categorie.toLowerCase().includes('soins'));
+        // Détection de la valeur du montant
+        const valMontant = parseFloat(t.montant) || parseFloat(t.credit) || parseFloat(t.recette) || 0;
+        if (valMontant <= 0) return;
 
-        if (typeRecette) {
-            const dateObj = new Date(t.date);
-            const mois = dateObj.getMonth(); // 0 (Janvier) à 11 (Décembre)
-            const montant = parseFloat(t.montant) || 0;
+        // Vérification si l'opération est une recette
+        const typeStr = (t.type || t.type_operation || t.categorie || '').toString().toLowerCase();
+        const estRecette = typeStr.includes('recette') || 
+                           typeStr.includes('soins') || 
+                           typeStr.includes('honoraires') || 
+                           (parseFloat(t.credit) > 0);
 
-            if (mois >= 0 && mois <= 2) q[0] += montant;       // Q1 (Jan-Mar)
-            else if (mois >= 3 && mois <= 5) q[1] += montant;  // Q2 (Avr-Juin)
-            else if (mois >= 6 && mois <= 8) q[2] += montant;  // Q3 (Juil-Sept)
-            else if (mois >= 9 && mois <= 11) q[3] += montant; // Q4 (Oct-Déc)
+        if (estRecette) {
+            const dateObj = new Date(dateStr);
+            if (isNaN(dateObj.getTime())) return;
+
+            const mois = dateObj.getMonth(); // 0 à 11
+
+            if (mois >= 0 && mois <= 2) q[0] += valMontant;       // Q1
+            else if (mois >= 3 && mois <= 5) q[1] += valMontant;  // Q2
+            else if (mois >= 6 && mois <= 8) q[2] += valMontant;  // Q3
+            else if (mois >= 9 && mois <= 11) q[3] += valMontant; // Q4
         }
     });
 
@@ -164,7 +179,7 @@ window.calculerCotisationsUrssaf = function(base) {
     };
 };
 
-// Dialogue de paramétrage des taux
+// Fenêtre d'ajustement des taux
 window.ouvrirParametresUrssaf = function() {
     const nouveauTauxCSG = prompt("Taux CSG/CRDS (ex: 0.097 pour 9.7%) :", window.parametresURSSAF.taux.csgCrds);
     if (nouveauTauxCSG !== null) {
