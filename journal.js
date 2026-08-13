@@ -1,13 +1,14 @@
 // ==========================================
-// MODULE COMPTABLE : JOURNAUX & CHARGES SOCIALES (DÉTECTION AVANCÉE)
+// MODULE COMPTABLE : DÉPENSES URSSAF & CARPIMKO (COMPTES UNIQUES & EXERCICE)
 // ==========================================
 
-// 1. Répertoire des tiers
+// 1. Plan des comptes Tiers
 window.comptesTiersClients = JSON.parse(localStorage.getItem('comptesTiersClients')) || [
     { id: '1', nom: 'Abadie', code: '411ABADIE' },
     { id: '2', nom: 'Saint-André', code: '411STANDRE' }
 ];
 
+// Un seul compte tiers URSSAF et un seul compte tiers CARPIMKO
 window.comptesTiersAutres = JSON.parse(localStorage.getItem('comptesTiersAutres')) || [
     { id: 's1', nom: 'URSSAF', code: '438URSSAF', type: 'social' },
     { id: 's2', nom: 'CARPIMKO', code: '438CARPIMKO', type: 'social' },
@@ -35,61 +36,64 @@ window.initJournal = function() {
     window.afficherModuleJournaux(container);
 };
 
-// Analyse intelligente des dépenses avec tolérance aux fautes/accents
-window.analyserDepense = function(label) {
+// Analyse comptable : Détection URSSAF / CARPIMKO + Gestion Année N / N-1
+window.analyserDepense = function(label, dateOp) {
     var cleanLabel = (label || '').trim();
-    // Normalisation : minuscules et suppression des accents
     var lower = cleanLabel.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // 1. DÉTECTION CARPIMKO
+    // Détermination de l'exercice (Année N vs N-1)
+    var anneeEnCours = new Date().getFullYear();
+    var anneeTx = dateOp ? new Date(dateOp).getFullYear() : anneeEnCours;
+    
+    var isAnneeNMinus1 = (anneeTx < anneeEnCours) || lower.includes('n-1') || lower.includes('regul') || lower.includes('regularisation');
+    var suffixeAnnee = isAnneeNMinus1 ? " (Charges année N-1)" : " (Charges année N)";
+
+    // 1. CARPIMKO : Compte unique de charge 646200 & Compte tiers 438CARPIMKO
     if (lower.includes('carpimko') || lower.includes('carp') || lower.includes('retraite') || (lower.includes('acompte') && lower.includes('paye'))) {
         return {
-            compteCharge: '646000',
-            libelleCharge: 'Cotisations Retraite - CARPIMKO',
+            compteCharge: '646200',
+            libelleCharge: 'Cotisations Retraite CARPIMKO' + suffixeAnnee,
             codeTiers: '438CARPIMKO',
             nomTiers: 'CARPIMKO',
             type: 'social'
         };
     }
 
-    // 2. DÉTECTION URSSAF
+    // 2. URSSAF : Compte unique de charge 646100 & Compte tiers 438URSSAF
     if (lower.includes('urssaf') || lower.includes('urss') || lower.includes('cotis') || lower.includes('cnsd')) {
         return {
-            compteCharge: '646000',
-            libelleCharge: 'Cotisations Sociales - URSSAF',
+            compteCharge: '646100',
+            libelleCharge: 'Cotisations Sociales URSSAF' + suffixeAnnee,
             codeTiers: '438URSSAF',
             nomTiers: 'URSSAF',
             type: 'social'
         };
     }
 
-    // 3. DÉTECTION FISCALITÉ
+    // 3. IMPÔTS & TAXES
     if (lower.includes('impot') || lower.includes('taxe') || lower.includes('cfe') || lower.includes('pas')) {
         return {
             compteCharge: '635000',
-            libelleCharge: 'Impôts et Taxes',
+            libelleCharge: 'Impôts et Taxes' + suffixeAnnee,
             codeTiers: '447IMPOTS',
             nomTiers: 'Impôts',
             type: 'fiscal'
         };
     }
 
-    // 4. AUTRES FOURNISSEURS / CHARGES
+    // 4. AUTRES DÉPENSES / FOURNISSEURS
     var codeClean = cleanLabel.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
     return {
         compteCharge: '606000',
-        libelleCharge: 'Achat / Charge - ' + cleanLabel,
+        libelleCharge: 'Achats / Fournitures - ' + cleanLabel,
         codeTiers: '401' + (codeClean || 'FOURNISSEUR'),
-        nomTiers: cleanLabel || 'Fournisseur Inconnu',
+        nomTiers: cleanLabel || 'Fournisseur',
         type: 'fournisseur'
     };
 };
 
 window.afficherModuleJournaux = function(container) {
     var transactions = window.allTransactions || [];
-
-    // Affichage console pour vérification et débogage
-    console.log("Données reçues par journal.js :", transactions);
 
     var ecrituresVE = [];
     var ecrituresHA = [];
@@ -103,7 +107,7 @@ window.afficherModuleJournaux = function(container) {
         var dateOp = tx.date || new Date().toISOString().split('T')[0];
         var txId = tx.id || ('tx-' + index);
 
-        // --- RECETTES (VE) ---
+        // RECETTES (VE)
         if (type === 'recette' || (type === '' && montant > 0)) {
             var valMontant = Math.abs(montant);
             var tiersC = window.comptesTiersClients.find(t => label.toLowerCase().includes(t.nom.toLowerCase()));
@@ -117,10 +121,10 @@ window.afficherModuleJournaux = function(container) {
                 prestationsEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersC, codeTiers: codeTiersC, label: label, montant: valMontant, piece: 'FAC-' + (1000 + index) });
             }
         } 
-        // --- DÉPENSES (HA) ---
+        // DÉPENSES (HA)
         else if (type === 'depense' || montant < 0 || (type === '' && montant < 0)) {
             var valMontantD = Math.abs(montant);
-            var analyse = window.analyserDepense(label);
+            var analyse = window.analyserDepense(label, dateOp);
 
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.compteCharge, libelle: analyse.libelleCharge, debit: valMontantD, credit: 0 });
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.codeTiers, libelle: 'Appel / Facture - ' + analyse.nomTiers, debit: 0, credit: valMontantD });
@@ -131,7 +135,7 @@ window.afficherModuleJournaux = function(container) {
         }
     });
 
-    // --- JOURNAL DE BANQUE (BQ) ---
+    // JOURNAL DE BANQUE (BQ)
     var ecrituresBQ = [];
     window.encaissementsValides.forEach(function(enc, index) {
         ecrituresBQ.push({ date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), compte: '512000', libelle: 'Encaissement - ' + enc.nomTiers, debit: enc.montant, credit: 0 });
@@ -143,7 +147,7 @@ window.afficherModuleJournaux = function(container) {
         ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: '512000', libelle: 'Prélèvement / Virement - ' + dec.piece, debit: 0, credit: dec.montant });
     });
 
-    // COMPOSANT VISUEL
+    // RENDU DE L'INTERFACE
     container.innerHTML = `
         <style>
             .jrn-box { font-family: system-ui, -apple-system, sans-serif; }
