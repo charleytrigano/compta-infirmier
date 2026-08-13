@@ -1,238 +1,194 @@
 // ==========================================
-// MODULE : GESTION DES TRANSACTIONS
+// GESTION DES TRANSACTIONS (SUPABASE)
 // ==========================================
 
-// 1. Chargement des transactions existantes ou initialisation d'un tableau vide
-window.allTransactions = JSON.parse(localStorage.getItem('allTransactions')) || [
-    { id: 'tx-1', date: '2026-08-01', categorie: 'Honoraires', label: 'Patient Abadie', amount: 50.00, type: 'recette' },
-    { id: 'tx-2', date: '2026-08-05', categorie: 'URSSAF', label: 'Cotisations Sociales URSSAF', amount: -350.00, type: 'depense' }
-];
+// Variable globale pour conserver la liste en mémoire locale
+window.listeTransactions = [];
 
-// Initialisation au chargement de la vue
-window.initTransactions = function() {
-    // Recherche du conteneur dans la page HTML
-    var container = document.getElementById('transactions-container') || 
-                    document.getElementById('view-transactions') || 
-                    document.querySelector('.transactions-view');
-
-    if (!container) {
-        var elements = document.querySelectorAll('div, section');
-        elements.forEach(function(el) {
-            if (el.textContent.includes('Transactions') && !el.textContent.includes('Grand Livre')) {
-                container = el;
-            }
-        });
+// ------------------------------------------
+// 1. CHARGER LES TRANSACTIONS DEPUIS SUPABASE
+// ------------------------------------------
+window.chargerTransactions = async function() {
+    if (!window.supabaseClient) {
+        console.error("❌ Supabase n'est pas prêt.");
+        return;
     }
 
-    if (!container) return;
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('transactions')
+            .select('*')
+            .order('date', { ascending: false });
 
-    window.afficherModuleTransactions(container);
+        if (error) throw error;
+
+        window.listeTransactions = data || [];
+        window.afficherTransactions(window.listeTransactions);
+    } catch (err) {
+        console.error("Erreur lors de la récupération des transactions :", err.message);
+    }
 };
 
-// Affichage principal de la liste des transactions
-window.afficherModuleTransactions = function(container) {
-    var transactions = window.allTransactions || [];
+// ------------------------------------------
+// 2. AFFICHER LES TRANSACTIONS DANS LE TABLEAU
+// ------------------------------------------
+window.afficherTransactions = function(transactions) {
+    const tbody = document.getElementById('body-tableau-transactions');
+    if (!tbody) return;
 
-    var rowsHtml = transactions.map(function(tx, index) {
-        var txId = tx.id || ('tx-' + index);
-        var montant = parseFloat(tx.amount) || 0;
-        var estRecette = tx.type === 'recette' || montant > 0;
-        var montantAbs = Math.abs(montant).toFixed(2);
-        var categorie = tx.categorie || tx.category || 'Non classé';
-        var description = tx.label || tx.description || tx.libelle || 'Sans description';
-        var dateOp = tx.date || '-';
+    tbody.innerHTML = '';
 
-        return `
-            <tr>
-                <td>${dateOp}</td>
-                <td><span class="tx-badge-cat">${categorie}</span></td>
-                <td><strong>${description}</strong></td>
-                <td><span class="${estRecette ? 'tx-type-recette' : 'tx-type-depense'}">${estRecette ? 'Recette' : 'Dépense'}</span></td>
-                <td style="text-align:right; font-weight:bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">
-                    ${estRecette ? '+' : '-'}${montantAbs} €
-                </td>
-                <td style="text-align:center;">
-                    <button class="btn-tx-edit" onclick="window.ouvrirModalEditTx('${txId}')">✏️ Modifier</button>
-                    <button class="btn-tx-del" onclick="window.supprimerTx('${txId}')">🗑️</button>
-                </td>
-            </tr>
+    if (transactions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Aucune transaction enregistrée pour le moment.</td></tr>`;
+        return;
+    }
+
+    transactions.forEach(tx => {
+        const estRecette = (tx.type || '').toLowerCase() === 'recette';
+        const montantFormate = Math.abs(parseFloat(tx.montant) || 0).toFixed(2);
+        const couleurMontant = estRecette ? '#16a34a' : '#dc2626';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${tx.date || ''}</td>
+            <td><strong>${tx.type || ''}</strong></td>
+            <td>${tx.categorie || ''}</td>
+            <td>${tx.description || ''}</td>
+            <td style="font-weight: bold; color: ${couleurMontant};">
+                ${estRecette ? '+' : '-'} ${montantFormate} €
+            </td>
+            <td>
+                <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️ Modifier</button>
+                <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️ Supprimer</button>
+            </td>
         `;
-    }).join('');
-
-    container.innerHTML = `
-        <style>
-            .tx-box { font-family: system-ui, -apple-system, sans-serif; }
-            .tx-card { background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-            .tx-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-            .tx-table th, .tx-table td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }
-            .tx-table th { background: #f8fafc; color: #475569; font-weight: 600; }
-            
-            .tx-badge-cat { background: #f1f5f9; color: #334155; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; }
-            .tx-type-recette { background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-            .tx-type-depense { background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-            
-            .btn-tx-edit { background: #eab308; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 12px; }
-            .btn-tx-del { background: #ef4444; color: white; border: none; padding: 5px 8px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 12px; margin-left: 4px; }
-            
-            /* Fenêtre modale de modification */
-            .tx-modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index:9999; }
-            .tx-modal-content { background:#fff; padding:25px; border-radius:8px; width:420px; max-width:90%; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
-            .tx-modal-group { margin-bottom: 15px; }
-            .tx-modal-group label { display:block; font-weight:bold; margin-bottom:5px; font-size:13px; color:#334155; }
-            .tx-modal-group input, .tx-modal-group select { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; box-sizing:border-box; }
-        </style>
-
-        <div class="tx-box">
-            <div class="tx-card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2 style="margin:0;">📋 Journal des Transactions</h2>
-                    <span style="color:#64748b; font-size:14px;">Total : <strong>${transactions.length}</strong> opération(s)</span>
-                </div>
-
-                <table class="tx-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Catégorie</th>
-                            <th>Description</th>
-                            <th>Type</th>
-                            <th style="text-align:right;">Montant</th>
-                            <th style="text-align:center;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rowsHtml || '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Aucune transaction enregistrée.</td></tr>'}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- FENÊTRE MODALE D'ÉDITION -->
-        <div id="tx-modal-edit" class="tx-modal-overlay">
-            <div class="tx-modal-content">
-                <h3 style="margin-top:0; color:#1e293b;">✏️ Modifier la Transaction</h3>
-                <input type="hidden" id="tx-edit-id">
-
-                <div class="tx-modal-group">
-                    <label for="tx-edit-type">Type d'opération :</label>
-                    <select id="tx-edit-type">
-                        <option value="depense">🔴 Dépense</option>
-                        <option value="recette">🟢 Recette</option>
-                    </select>
-                </div>
-
-                <div class="tx-modal-group">
-                    <label for="tx-edit-date">Date :</label>
-                    <input type="date" id="tx-edit-date">
-                </div>
-
-                <div class="tx-modal-group">
-                    <label for="tx-edit-cat">Catégorie :</label>
-                    <input type="text" id="tx-edit-cat" placeholder="ex: URSSAF, CARPIMKO, Honoraires...">
-                </div>
-
-                <div class="tx-modal-group">
-                    <label for="tx-edit-label">Description / Libellé :</label>
-                    <input type="text" id="tx-edit-label" placeholder="ex: Prestation soin">
-                </div>
-
-                <div class="tx-modal-group">
-                    <label for="tx-edit-amount">Montant (€) :</label>
-                    <input type="number" step="0.01" id="tx-edit-amount">
-                </div>
-
-                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-                    <button style="background:#f1f5f9; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;" onclick="window.fermerModalEditTx()">Annuler</button>
-                    <button style="background:#16a34a; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;" onclick="window.sauvegarderTx()">💾 Enregistrer</button>
-                </div>
-            </div>
-        </div>
-    `;
+        tbody.appendChild(tr);
+    });
 };
 
-// Ouvrir la fenêtre de modification avec les données actuelles
-window.ouvrirModalEditTx = function(txId) {
-    var transactions = window.allTransactions || [];
-    var tx = transactions.find(function(t, idx) {
-        return (t.id || ('tx-' + idx)) === txId;
-    });
+// ------------------------------------------
+// 3. AJOUTER UNE NOUVELLE TRANSACTION
+// ------------------------------------------
+window.ajouterTransaction = async function() {
+    const date = document.getElementById('tx-date').value;
+    const type = document.getElementById('tx-type').value;
+    const categorie = document.getElementById('tx-categorie').value;
+    const description = document.getElementById('tx-description').value;
+    const montantInput = parseFloat(document.getElementById('tx-montant').value) || 0;
 
+    if (!date || !description || isNaN(montantInput)) {
+        alert("Veuillez remplir tous les champs obligatoires (*).");
+        return;
+    }
+
+    // Calcul du signe selon recette ou dépense
+    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .insert([{
+                date: date,
+                type: type,
+                categorie: categorie,
+                description: description,
+                montant: montantFinal
+            }]);
+
+        if (error) throw error;
+
+        // Reinitialiser le formulaire
+        document.getElementById('form-ajouter-transaction').reset();
+
+        // Recharger le tableau
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur d'ajout dans Supabase :", err.message);
+        alert("Erreur lors de l'enregistrement : " + err.message);
+    }
+};
+
+// ------------------------------------------
+// 4. SUPPRIMER UNE TRANSACTION
+// ------------------------------------------
+window.supprimerTransaction = async function(id) {
+    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur de suppression :", err.message);
+        alert("Impossible de supprimer : " + err.message);
+    }
+};
+
+// ------------------------------------------
+// 5. OUVRIR LA MODALE DE MODIFICATION
+// ------------------------------------------
+window.ouvrirModalModification = function(id) {
+    const tx = window.listeTransactions.find(t => t.id.toString() === id.toString());
     if (!tx) return;
 
-    var montant = parseFloat(tx.amount) || 0;
-    var estRecette = tx.type === 'recette' || montant > 0;
+    document.getElementById('edit-id').value = tx.id;
+    document.getElementById('edit-date').value = tx.date || '';
+    document.getElementById('edit-type').value = tx.type || 'Recette';
+    document.getElementById('edit-categorie').value = tx.categorie || '';
+    document.getElementById('edit-description').value = tx.description || '';
+    document.getElementById('edit-montant').value = Math.abs(parseFloat(tx.montant) || 0);
 
-    document.getElementById('tx-edit-id').value = txId;
-    document.getElementById('tx-edit-type').value = estRecette ? 'recette' : 'depense';
-    document.getElementById('tx-edit-date').value = tx.date || '';
-    document.getElementById('tx-edit-cat').value = tx.categorie || tx.category || '';
-    document.getElementById('tx-edit-label').value = tx.label || tx.description || tx.libelle || '';
-    document.getElementById('tx-edit-amount').value = Math.abs(montant);
-
-    document.getElementById('tx-modal-edit').style.display = 'flex';
+    document.getElementById('modal-modifier').style.display = 'flex';
 };
 
-// Fermer la fenêtre modale
-window.fermerModalEditTx = function() {
-    var modal = document.getElementById('tx-modal-edit');
-    if (modal) modal.style.display = 'none';
-};
+// ------------------------------------------
+// 6. ENREGISTRER LA MODIFICATION
+// ------------------------------------------
+window.sauvegarderModification = async function() {
+    const id = document.getElementById('edit-id').value;
+    const date = document.getElementById('edit-date').value;
+    const type = document.getElementById('edit-type').value;
+    const categorie = document.getElementById('edit-categorie').value;
+    const description = document.getElementById('edit-description').value;
+    const montantInput = parseFloat(document.getElementById('edit-montant').value) || 0;
 
-// Sauvegarder la modification
-window.sauvegarderTx = function() {
-    var txId = document.getElementById('tx-edit-id').value;
-    var typeOp = document.getElementById('tx-edit-type').value;
-    var nouvelleDate = document.getElementById('tx-edit-date').value;
-    var nouvelleCat = document.getElementById('tx-edit-cat').value;
-    var nouveauLabel = document.getElementById('tx-edit-label').value;
-    var nouveauMontant = parseFloat(document.getElementById('tx-edit-amount').value) || 0;
+    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
-    var transactions = window.allTransactions || [];
-    var tx = transactions.find(function(t, idx) {
-        return (t.id || ('tx-' + idx)) === txId;
-    });
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .update({
+                date: date,
+                type: type,
+                categorie: categorie,
+                description: description,
+                montant: montantFinal
+            })
+            .eq('id', id);
 
-    if (tx) {
-        tx.type = typeOp;
-        tx.date = nouvelleDate;
-        tx.categorie = nouvelleCat;
-        tx.category = nouvelleCat;
-        tx.label = nouveauLabel;
-        tx.description = nouveauLabel;
-        tx.amount = (typeOp === 'depense') ? -Math.abs(nouveauMontant) : Math.abs(nouveauMontant);
+        if (error) throw error;
 
-        // Sauvegarde dans le localStorage
-        localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
-
-        window.fermerModalEditTx();
-
-        // Rafraîchissement global
-        window.refreshToutesLesVues();
+        window.fermerModal();
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur de mise à jour :", err.message);
+        alert("Erreur lors de la modification : " + err.message);
     }
 };
 
-// Supprimer une transaction
-window.supprimerTx = function(txId) {
-    if (!confirm("Es-tu sûr(e) de vouloir supprimer cette transaction ?")) return;
-
-    window.allTransactions = (window.allTransactions || []).filter(function(t, idx) {
-        return (t.id || ('tx-' + idx)) !== txId;
-    });
-
-    localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
-    window.refreshToutesLesVues();
-};
-
-// Fonction universelle de synchronisation
-window.refreshToutesLesVues = function() {
-    if (typeof window.initTransactions === 'function') window.initTransactions();
-    if (typeof window.initJournal === 'function') window.initJournal();
-    if (typeof window.initGrandLivre === 'function') window.initGrandLivre();
-};
-
-// Lancement automatique
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(window.initTransactions, 100);
-} else {
-    document.addEventListener('DOMContentLoaded', window.initTransactions);
-}
+// ------------------------------------------
+// Lancement automatique au chargement
+// ------------------------------------------
+document.addEventListener('DOMContentLoaded', function() {
+    // Attendre un court instant que config.js ait initialise Supabase
+    setTimeout(function() {
+        if (window.supabaseClient) {
+            window.chargerTransactions();
+        }
+    }, 300);
+});
