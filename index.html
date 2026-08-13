@@ -470,8 +470,8 @@
             }
 
             // Déclencheurs automatiques des calculs/affichages lors du changement d'onglet
-            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') {
-                window.afficherPlanComptable();
+            if (tabId === 'vue-plan' && typeof window.afficherplan_comptabe === 'function') {
+                window.afficherplan_comptabe();
             }
 
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
@@ -500,7 +500,7 @@
     <script src="declaration2035.js"></script>
 
     <!-- G. Module Plan Comptable -->
-    <script src="planComptable.js"></script>
+    <script src="plan_comptabe.js"></script>
 
 </body>
 </html>
