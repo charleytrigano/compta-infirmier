@@ -3,24 +3,89 @@
 // Fichier : declaration2035.js
 // ==========================================
 
-// Configuration des lignes officielles du Cerfa 2035 BNC
-const STRUCTURE_2035 = {
+// Definition des lignes 2035 avec mots-clés de catégorie et codes comptables
+const CONFIG_2035 = {
     recettes: [
-        { ligne: '1', code: 'AA', libelle: 'Honoraires encaissés (y compris dépassements)', comptes: ['706000'] },
-        { ligne: '3', code: 'AC', libelle: 'Remboursements de frais et débours', comptes: ['708000'] },
-        { ligne: '5', code: 'AF', libelle: 'Gain sur cessions d’éléments d’actif', comptes: ['770000'] }
+        { 
+            ligne: '1', 
+            code: 'AA', 
+            libelle: 'Honoraires encaissés (y compris dépassements)', 
+            motsCles: ['soins infirmiers', 'honoraires', 'recette', 'patient', '706000'] 
+        },
+        { 
+            ligne: '3', 
+            code: 'AC', 
+            libelle: 'Remboursements de frais et débours', 
+            motsCles: ['remboursement', 'débours', '708000'] 
+        },
+        { 
+            ligne: '5', 
+            code: 'AF', 
+            libelle: 'Gain sur cessions d’éléments d’actif', 
+            motsCles: ['cession', 'actif', '770000'] 
+        }
     ],
     depenses: [
-        { ligne: '8', code: 'BA', libelle: 'Achats et petit matériel médical', comptes: ['606300'] },
-        { ligne: '9', code: 'BB', libelle: 'Fournitures de bureau, documentation, PT', comptes: ['606400'] },
-        { ligne: '11', code: 'BT', libelle: 'Loyer professionnel et charges locatives', comptes: ['613200'] },
-        { ligne: '14', code: 'BV', libelle: 'Assurances (RCP, locaux, véhicules)', comptes: ['616000'] },
-        { ligne: '15', code: 'BW', libelle: 'Cotisations sociales obligatoires : CARPIMKO', comptes: ['645200'] },
-        { ligne: '16', code: 'BX', libelle: 'Cotisations sociales obligatoires : URSSAF', comptes: ['645100'] },
-        { ligne: '19', code: 'CA', libelle: 'Frais de déplacement, carburant et transports', comptes: ['625100'] },
-        { ligne: '22', code: 'CC', libelle: 'Honoraires ne constituant pas des rétrocessions (Comptable, Logiciel)', comptes: ['622600'] },
-        { ligne: '25', code: 'CF', libelle: 'Frais financiers et frais bancaires', comptes: ['627000'] },
-        { ligne: '26', code: 'CG', libelle: 'Diverses dépenses à déduire', comptes: ['658000'] }
+        { 
+            ligne: '8', 
+            code: 'BA', 
+            libelle: 'Achats et petit matériel médical', 
+            motsCles: ['achats matériel', 'matériel', 'fournitures médicales', '606300'] 
+        },
+        { 
+            ligne: '9', 
+            code: 'BB', 
+            libelle: 'Fournitures de bureau, documentation, PT', 
+            motsCles: ['bureau', 'documentation', 'pt', '606400'] 
+        },
+        { 
+            ligne: '11', 
+            code: 'BT', 
+            libelle: 'Loyer professionnel et charges locatives', 
+            motsCles: ['loyer', 'charges locatives', '613200'] 
+        },
+        { 
+            ligne: '14', 
+            code: 'BV', 
+            libelle: 'Assurances (RCP, locaux, véhicules)', 
+            motsCles: ['assurance', 'rcp', '616000'] 
+        },
+        { 
+            ligne: '15', 
+            code: 'BW', 
+            libelle: 'Cotisations sociales obligatoires : CARPIMKO', 
+            motsCles: ['carpimko', 'cotisations carpimko', '645200'] 
+        },
+        { 
+            ligne: '16', 
+            code: 'BX', 
+            libelle: 'Cotisations sociales obligatoires : URSSAF', 
+            motsCles: ['urssaf', '645100'] 
+        },
+        { 
+            ligne: '19', 
+            code: 'CA', 
+            libelle: 'Frais de déplacement, carburant et transports', 
+            motsCles: ['déplacement', 'carburant', 'essence', 'transport', '625100'] 
+        },
+        { 
+            ligne: '22', 
+            code: 'CC', 
+            libelle: 'Honoraires ne constituant pas des rétrocessions (Comptable, Logiciel)', 
+            motsCles: ['comptable', 'logiciel', 'honoraires ne constituant', '622600'] 
+        },
+        { 
+            ligne: '25', 
+            code: 'CF', 
+            libelle: 'Frais financiers et frais bancaires', 
+            motsCles: ['frais bancaires', 'banque', 'agios', '627000'] 
+        },
+        { 
+            ligne: '26', 
+            code: 'CG', 
+            libelle: 'Diverses dépenses à déduire', 
+            motsCles: ['autre', 'divers', '658000'] 
+        }
     ]
 };
 
@@ -29,27 +94,30 @@ window.afficherDeclaration2035 = function() {
     const conteneur = document.getElementById('conteneur-2035');
     if (!conteneur) return;
 
-    const transactions = window.listeTransactions || [];
-    const planComptable = window.listePlanComptable || [];
+    // Récupération globale des transactions (compatibilité avec différents noms de variables)
+    const transactions = window.listeTransactions || window.transactions || [];
 
     let totalRecettes = 0;
     let totalDepenses = 0;
 
-    // Helper pour calculer le montant d'une ligne 2035
-    const calculerMontantLigne = (comptesCibles, esRecette) => {
+    // Helper de calcul dynamique
+    const calculerMontantLigne = (motsCles, estRecetteLigne) => {
         let totalLigne = 0;
 
         transactions.forEach(tx => {
             const typeOp = (tx.type || '').toLowerCase();
-            const estTxRecette = typeOp === 'recette' || typeOp === 'recettes';
+            const estTxRecette = (typeOp === 'recette' || typeOp === 'recettes');
 
-            if (estTxRecette === esRecette) {
-                const categorie = tx.category || tx.categorie || '';
-                const compteTrouve = planComptable.find(c => c.nom === categorie);
-                const codeCompte = compteTrouve ? compteTrouve.code : '';
+            // On vérifie le sens (Recette vs Dépense)
+            if (estTxRecette === estRecetteLigne) {
+                const categorie = (tx.categorie || tx.category || '').toLowerCase();
+                const description = (tx.description || '').toLowerCase();
 
-                if (comptesCibles.includes(codeCompte)) {
-                    totalLigne += Math.abs(parseFloat(tx.amount || tx.montant) || 0);
+                // Test si l'un des mots-clés correspond à la catégorie ou à la description
+                const match = motsCles.some(mc => categorie.includes(mc) || description.includes(mc));
+
+                if (match) {
+                    totalLigne += Math.abs(parseFloat(tx.montant || tx.amount) || 0);
                 }
             }
         });
@@ -57,7 +125,7 @@ window.afficherDeclaration2035 = function() {
         return totalLigne;
     };
 
-    // --- GENERATION DU HTML ---
+    // --- CONSTRUCTEUR HTML ---
     let html = `
         <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:24px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
             
@@ -83,8 +151,8 @@ window.afficherDeclaration2035 = function() {
                 <tbody>
     `;
 
-    STRUCTURE_2035.recettes.forEach(item => {
-        const montantLigne = calculerMontantLigne(item.comptes, true);
+    CONFIG_2035.recettes.forEach(item => {
+        const montantLigne = calculerMontantLigne(item.motsCles, true);
         totalRecettes += montantLigne;
 
         html += `
@@ -121,8 +189,8 @@ window.afficherDeclaration2035 = function() {
                 <tbody>
     `;
 
-    STRUCTURE_2035.depenses.forEach(item => {
-        const montantLigne = calculerMontantLigne(item.comptes, false);
+    CONFIG_2035.depenses.forEach(item => {
+        const montantLigne = calculerMontantLigne(item.motsCles, false);
         totalDepenses += montantLigne;
 
         html += `
@@ -147,12 +215,13 @@ window.afficherDeclaration2035 = function() {
                 </tfoot>
             </table>
 
-            <!-- RÉSULTAT FISCAL FINAL -->
+            <!-- RÉSULTAT FISCAL -->
             <div style="background:${resultatFiscal >= 0 ? '#f0fdf4' : '#fef2f2'}; border:2px solid ${resultatFiscal >= 0 ? '#16a34a' : '#dc2626'}; padding:18px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <strong style="font-size:1.1rem; color:${resultatFiscal >= 0 ? '#15803d' : '#b91c1c'}; font-block:block;">
+                    <strong style="font-size:1.1rem; color:${resultatFiscal >= 0 ? '#15803d' : '#b91c1c'};">
                         ${resultatFiscal >= 0 ? 'BÉNÉFICE FISCAL (Ligne 37 / Code CP)' : 'DÉFICIT FISCAL (Ligne 38 / Code CR)'}
                     </strong>
+                    <br>
                     <span style="font-size:0.85rem; color:#64748b;">Montant à reporter sur votre déclaration de revenus complémentaires (2042-C-PRO)</span>
                 </div>
                 <span style="font-size:1.5rem; font-weight:bold; color:${resultatFiscal >= 0 ? '#15803d' : '#b91c1c'};">
@@ -165,8 +234,3 @@ window.afficherDeclaration2035 = function() {
 
     conteneur.innerHTML = html;
 };
-
-// Chargement automatique
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(window.afficherDeclaration2035, 500);
-});
