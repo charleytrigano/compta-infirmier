@@ -1,17 +1,16 @@
 // ==========================================
-// COMPTABILITÉ LIBÉRALE - CORRECTION DONNÉES
-// Analyse dynamique des colonnes & Montants
+// COMPTABILITÉ LIBÉRALE - RÈGLEMENTS MANUELS
+// Validation explicite des encaissements / décaissements
 // ==========================================
 
 window.listeTransactions = [];
 
 // ------------------------------------------
-// FONCTIONS UTILITAIRES DE LECTURE ROBUSTE
+// FONCTIONS UTILITAIRES DE LECTURE
 // ------------------------------------------
 function ObtenirValeurChamp(obj, motsCles, valeurParDefaut = '') {
     if (!obj) return valeurParDefaut;
     const clesObj = Object.keys(obj);
-    
     for (let mot of motsCles) {
         const cleTrouvee = clesObj.find(k => k.toLowerCase() === mot.toLowerCase());
         if (cleTrouvee && obj[cleTrouvee] !== null && obj[cleTrouvee] !== undefined && obj[cleTrouvee] !== '') {
@@ -22,43 +21,31 @@ function ObtenirValeurChamp(obj, motsCles, valeurParDefaut = '') {
 }
 
 function ExtraireMontantNumerique(tx) {
-    // Recherche prioritaire des champs de montants courants
-    let val = ObtenirValeurChamp(tx, ['montant', 'amount', 'valeur', 'price', 'credit', 'debit', 'total'], null);
-    
-    if (val === null) {
-        // Recherche de secours sur toutes les clés numériques
-        for (let key in tx) {
-            if (typeof tx[key] === 'number' && key !== 'id') {
-                val = tx[key];
-                break;
-            }
-        }
-    }
-
+    let val = ObtenirValeurChamp(tx, ['montant', 'amount', 'valeur', 'price', 'credit', 'debit', 'total'], 0);
     if (typeof val === 'string') {
         val = val.replace(',', '.').replace(/[^0-9.-]/g, '');
     }
-    
     return parseFloat(val) || 0;
 }
 
 function ExtraireCategorie(tx) {
-    return ObtenirValeurChamp(tx, ['categorie', 'category', 'cat', 'type_compte', 'label'], 'Général');
+    return ObtenirValeurChamp(tx, ['categorie', 'category', 'cat', 'label'], 'Général');
 }
 
 function ExtraireDescription(tx) {
-    return ObtenirValeurChamp(tx, ['description', 'libelle', 'nom', 'tiers', 'detail'], '-');
+    return ObtenirValeurChamp(tx, ['description', 'libelle', 'nom', 'tiers'], '-');
 }
 
 function ExtraireType(tx) {
     let t = ObtenirValeurChamp(tx, ['type', 'sens', 'nature'], '').toString().toLowerCase();
     let m = ExtraireMontantNumerique(tx);
-    
     if (t.includes('recette') || t.includes('credit') || t.includes('encaissement')) return 'recette';
     if (t.includes('depense') || t.includes('dépense') || t.includes('debit') || t.includes('decaissement')) return 'depense';
-    
-    // Si pas de type explicite, on se fie au signe du montant
     return m >= 0 ? 'recette' : 'depense';
+}
+
+function ExtraireStatut(tx) {
+    return ObtenirValeurChamp(tx, ['statut', 'status', 'etat'], 'en_attente').toLowerCase();
 }
 
 // ------------------------------------------
@@ -79,12 +66,6 @@ window.chargerTransactions = async function() {
         if (error) throw error;
 
         window.listeTransactions = data || [];
-        
-        // Affichage console pour vérification des champs
-        if (window.listeTransactions.length > 0) {
-            console.log("🔍 Structure de votre premier enregistrement Supabase :", window.listeTransactions[0]);
-        }
-
         window.rafraichirToutesLesVues();
 
     } catch (err) {
@@ -100,7 +81,43 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. ONGLET : TRANSACTIONS
+// 2. ACTION : VALIDER UN ENCAISSEMENT OU PAIEMENT
+// ------------------------------------------
+window.validerReglement = async function(idTx, typeTx) {
+    const nouveauStatut = typeTx === 'recette' ? 'encaisse' : 'paye';
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .update({ statut: nouveauStatut })
+            .eq('id', idTx);
+
+        if (error) throw error;
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur de mise à jour du règlement :", err.message);
+        alert("Impossible de valider le règlement. Vérifiez votre base Supabase.");
+    }
+};
+
+window.annulerReglement = async function(idTx) {
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .update({ statut: 'en_attente' })
+            .eq('id', idTx);
+
+        if (error) throw error;
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur d'annulation :", err.message);
+    }
+};
+
+// ------------------------------------------
+// 3. ONGLET : TRANSACTIONS (AVEC BOUTONS)
 // ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
@@ -109,7 +126,7 @@ window.afficherTransactions = function(transactions) {
     tbody.innerHTML = '';
 
     if (transactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Aucune transaction enregistrée.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:20px;">Aucune transaction enregistrée.</td></tr>`;
         return;
     }
 
@@ -117,6 +134,18 @@ window.afficherTransactions = function(transactions) {
         const typeBrut = ExtraireType(tx);
         const estRecette = typeBrut === 'recette';
         const montantNum = Math.abs(ExtraireMontantNumerique(tx));
+        const statut = ExtraireStatut(tx);
+        const estRegle = statut === 'encaisse' || statut === 'paye';
+
+        let boutonAction = '';
+        if (estRegle) {
+            boutonAction = `<span style="color:#16a34a; font-weight:bold; font-size:0.85rem;">✅ ${estRecette ? 'Encaissé' : 'Payé'}</span>
+                            <button style="margin-left:5px; background:none; border:none; cursor:pointer; font-size:0.8rem;" onclick="window.annulerReglement('${tx.id}')" title="Annuler le règlement">↩️</button>`;
+        } else {
+            boutonAction = estRecette 
+                ? `<button style="background:#16a34a; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.validerReglement('${tx.id}', 'recette')">💰 Encaisser</button>`
+                : `<button style="background:#dc2626; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.validerReglement('${tx.id}', 'depense')">💳 Payer</button>`;
+        }
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -127,9 +156,9 @@ window.afficherTransactions = function(transactions) {
             <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">
                 ${estRecette ? '+' : '-'} ${montantNum.toFixed(2)} €
             </td>
+            <td>${boutonAction}</td>
             <td>
-                <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️ Modifier</button>
-                <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️ Supprimer</button>
+                <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -137,7 +166,7 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 3. ONGLET : JOURNAL DE BANQUE
+// 4. ONGLET : JOURNAL DE BANQUE (UNIQUEMENT RÉGLÉS)
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
     const tbody = document.getElementById('body-tableau-banque');
@@ -146,7 +175,13 @@ window.afficherBanque = function(transactions) {
 
     if (tbody) tbody.innerHTML = '';
 
-    transactions.forEach(tx => {
+    // Filtrage : On ne garde QUE les transactions encaissées ou payées par l'utilisateur
+    const transactionsValidees = transactions.filter(tx => {
+        const st = ExtraireStatut(tx);
+        return st === 'encaisse' || st === 'paye';
+    });
+
+    transactionsValidees.forEach(tx => {
         const estRecette = ExtraireType(tx) === 'recette';
         const montantNum = Math.abs(ExtraireMontantNumerique(tx));
 
@@ -163,8 +198,7 @@ window.afficherBanque = function(transactions) {
                 <td style="color:#dc2626; font-weight:bold;">${estRecette ? '' : '- ' + montantNum.toFixed(2) + ' €'}</td>
                 <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantNum.toFixed(2) + ' €' : ''}</td>
                 <td>
-                    <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️</button>
-                    <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
+                    <button style="background:none; border:none; cursor:pointer;" onclick="window.annulerReglement('${tx.id}')" title="Annuler le règlement">↩️ Annuler</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -178,7 +212,7 @@ window.afficherBanque = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : JOURNAL COMPTABLE
+// 5. ONGLET : JOURNAL COMPTABLE
 // ------------------------------------------
 window.afficherJournal = function(transactions) {
     let conteneur = document.getElementById('vue-journal') || document.getElementById('journal');
@@ -196,7 +230,7 @@ window.afficherJournal = function(transactions) {
                         <th style="padding:10px;">Description</th>
                         <th style="padding:10px; color:#dc2626;">Débit (Dépense)</th>
                         <th style="padding:10px; color:#16a34a;">Crédit (Recette)</th>
-                        <th style="padding:10px;">Action</th>
+                        <th style="padding:10px;">Statut</th>
                     </tr>
                 </thead>
                 <tbody id="body-tableau-journal"></tbody>
@@ -210,6 +244,7 @@ window.afficherJournal = function(transactions) {
     transactions.forEach(tx => {
         const estRecette = ExtraireType(tx) === 'recette';
         const montant = Math.abs(ExtraireMontantNumerique(tx)).toFixed(2);
+        const statut = ExtraireStatut(tx);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -219,8 +254,7 @@ window.afficherJournal = function(transactions) {
             <td style="padding:10px; border-bottom:1px solid #e2e8f0; color:#dc2626; font-weight:bold;">${estRecette ? '' : montant + ' €'}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0; color:#16a34a; font-weight:bold;">${estRecette ? montant + ' €' : ''}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0;">
-                <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️</button>
-                <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
+                ${statut === 'encaisse' || statut === 'paye' ? '✅ Réglé' : '⏳ En attente'}
             </td>
         `;
         tbody.appendChild(tr);
@@ -228,20 +262,11 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 5. ONGLET : GRAND LIVRE
+// 6. ONGLET : GRAND LIVRE
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
     if (!conteneur) return;
-
-    const tablePlanComptable = {
-        'urssaf': '438100 - URSSAF',
-        'carpimko': '437100 - CARPIMKO',
-        'cotisations carpimko': '437100 - CARPIMKO',
-        'soins infirmiers': '706000 - Prestations de soins',
-        'achats matériel': '606400 - Achats de petit matériel',
-        'frais bancaires': '627000 - Services bancaires'
-    };
 
     const groupes = {};
 
@@ -250,10 +275,7 @@ window.afficherGrandLivre = function(transactions) {
         const cleNormale = catBrute.toString().toLowerCase().trim();
 
         if (!groupes[cleNormale]) {
-            groupes[cleNormale] = {
-                titre: tablePlanComptable[cleNormale] || catBrute,
-                items: []
-            };
+            groupes[cleNormale] = { titre: catBrute, items: [] };
         }
         groupes[cleNormale].items.push(tx);
     });
@@ -279,10 +301,6 @@ window.afficherGrandLivre = function(transactions) {
                     <td style="padding:10px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
                         ${estRecette ? '+' : '-'} ${montantNum.toFixed(2)} €
                     </td>
-                    <td style="padding:10px;">
-                        <button class="btn-edit" onclick="window.ouvrirModalModification('${tx.id}')">✏️</button>
-                        <button class="btn-delete" onclick="window.supprimerTransaction('${tx.id}')">🗑️</button>
-                    </td>
                 </tr>
             `;
         });
@@ -299,7 +317,6 @@ window.afficherGrandLivre = function(transactions) {
                             <th style="padding:10px;">Date</th>
                             <th style="padding:10px;">Description</th>
                             <th style="padding:10px;">Montant</th>
-                            <th style="padding:10px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>${lignesHtml}</tbody>
@@ -312,7 +329,7 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. INITIALISATION
+// 7. INITIALISATION
 // ------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
