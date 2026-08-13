@@ -366,18 +366,24 @@
                 Ventilation automatique de vos dépenses et recettes selon la nomenclature fiscale BNC.
             </p>
 
-            <!-- Zone d'injection dynamique du Compte d'Exploitation (2035) -->
+            <!-- Zone d'injection dynamique du Compte d'Exploitation -->
             <div id="conteneur-compte-exploitation"></div>
 
             <!-- Zone d'injection dynamique du Bilan Simplifié -->
             <div id="conteneur-bilan"></div>
         </section>
 
+        <!-- 4. VUE DÉCLARATION 2035 FISCALE -->
+        <section id="vue-2035" class="view-section">
+            <div id="conteneur-2035">
+                <p style="color: #64748b;">Chargement de la déclaration 2035...</p>
+            </div>
+        </section>
+
         <!-- AUTRES VUES SECONDAIRES -->
         <section id="vue-plan" class="view-section"><h2>Plan Comptable</h2><p>Contenu du plan comptable...</p></section>
         <section id="vue-urssaf" class="view-section"><h2>URSSAF</h2><p>Gestion des cotisations URSSAF...</p></section>
         <section id="vue-carpimko" class="view-section"><h2>CARPIMKO</h2><p>Gestion des cotisations CARPIMKO...</p></section>
-        <section id="vue-2035" class="view-section"><h2>Déclaration 2035</h2><p>Préparation de la déclaration fiscale...</p></section>
         <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
         <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
         <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
@@ -457,9 +463,13 @@
                 btnElement.classList.add('active');
             }
 
-            // Déclencheur automatique de la mise à jour du Bilan / CE lors du clic
+            // Déclencheurs automatiques des calculs lors du changement d'onglet
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
                 window.afficherBilanEtCE();
+            }
+
+            if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') {
+                window.afficherDeclaration2035();
             }
         };
 
@@ -473,8 +483,11 @@
     <!-- D. Logique Métier des Transactions Supabase -->
     <script src="transactions.js"></script>
 
-    <!-- E. Module Bilan et Compte d'Exploitation (2035) -->
+    <!-- E. Module Bilan et Compte d'Exploitation -->
     <script src="bilan.js"></script>
+
+    <!-- F. Module Déclaration 2035 Fiscale -->
+    <script src="declaration2035.js"></script>
 
 </body>
 </html>
