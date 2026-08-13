@@ -354,8 +354,12 @@
             </div>
         </section>
 
+        <!-- VUE 6 : URSSAF -->
+        <section id="vue-urssaf" class="view-section">
+            <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
+        </section>
+
         <!-- AUTRES VUES SECONDAIRES -->
-        <section id="vue-urssaf" class="view-section"><h2>URSSAF</h2><p>Gestion des cotisations URSSAF...</p></section>
         <section id="vue-carpimko" class="view-section"><h2>CARPIMKO</h2><p>Gestion des cotisations CARPIMKO...</p></section>
         <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
         <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
@@ -425,6 +429,9 @@
             if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') {
                 window.afficherPlanComptable();
             }
+            if (tabId === 'vue-urssaf' && typeof window.afficherDeclarationURSSAF === 'function') {
+                window.afficherDeclarationURSSAF();
+            }
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
                 window.afficherBilanEtCE();
             }
@@ -442,8 +449,8 @@
     <script src="transactions.js"></script>
     <script src="bilan.js"></script>
     <script src="declaration2035.js"></script>
-    <!-- Appel corrigé avec le tiret bas exact -->
     <script src="plan_comptable.js"></script>
+    <script src="urssaf.js"></script>
 
 </body>
 </html>
