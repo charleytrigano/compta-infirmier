@@ -3,7 +3,37 @@
 // ==========================================
 
 window.listeTransactions = [];
-window.nomColonneCategorie = 'categorie'; // Valeur par défaut
+
+// Schéma de correspondance par défaut
+window.schemaColonnes = {
+    date: 'date',
+    type: 'type',
+    categorie: 'categorie',
+    description: 'description',
+    montant: 'montant'
+};
+
+/**
+ * Détecte automatiquement les noms de colonnes réels utilisés dans Supabase
+ */
+window.detecterSchema = function(premierObjet) {
+    if (!premierObjet) return;
+
+    // Détection de la colonne Montant
+    if ('montant' in premierObjet) window.schemaColonnes.montant = 'montant';
+    else if ('amount' in premierObjet) window.schemaColonnes.montant = 'amount';
+    else if ('valeur' in premierObjet) window.schemaColonnes.montant = 'valeur';
+
+    // Détection de la colonne Catégorie
+    if ('categorie' in premierObjet) window.schemaColonnes.categorie = 'categorie';
+    else if ('category' in premierObjet) window.schemaColonnes.categorie = 'category';
+    else if ('catégorie' in premierObjet) window.schemaColonnes.categorie = 'catégorie';
+
+    // Détection de la colonne Description
+    if ('description' in premierObjet) window.schemaColonnes.description = 'description';
+    else if ('libelle' in premierObjet) window.schemaColonnes.description = 'libelle';
+    else if ('libellé' in premierObjet) window.schemaColonnes.description = 'libellé';
+};
 
 // ------------------------------------------
 // 1. CHARGER LES TRANSACTIONS DEPUIS SUPABASE
@@ -24,16 +54,9 @@ window.chargerTransactions = async function() {
 
         window.listeTransactions = data || [];
 
-        // Détection automatique du nom exact de la colonne 'Catégorie' dans Supabase
+        // Détection automatique des noms de colonnes
         if (window.listeTransactions.length > 0) {
-            const premierObjet = window.listeTransactions[0];
-            if ('category' in premierObjet) {
-                window.nomColonneCategorie = 'category';
-            } else if ('catégorie' in premierObjet) {
-                window.nomColonneCategorie = 'catégorie';
-            } else {
-                window.nomColonneCategorie = 'categorie';
-            }
+            window.detecterSchema(window.listeTransactions[0]);
         }
 
         window.afficherTransactions(window.listeTransactions);
@@ -57,12 +80,12 @@ window.afficherTransactions = function(transactions) {
     }
 
     transactions.forEach(tx => {
-        // 1. Type (Recette / Dépense)
-        const typeBrut = (tx.type || '').toString().toLowerCase();
+        // Type
+        const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
         const estRecette = typeBrut === 'recette';
 
-        // 2. Montant (nettoyage et formatage)
-        let valeurMontant = tx.montant !== undefined ? tx.montant : (tx.amount || 0);
+        // Montant
+        let valeurMontant = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
         if (typeof valeurMontant === 'string') {
             valeurMontant = valeurMontant.replace(',', '.');
         }
@@ -70,15 +93,13 @@ window.afficherTransactions = function(transactions) {
         const montantFormate = Math.abs(montantNumerique).toFixed(2);
         const couleurMontant = estRecette ? '#16a34a' : '#dc2626';
 
-        // 3. Catégorie (détection dynamique)
-        const categorieAffichee = tx[window.nomColonneCategorie] || tx.categorie || tx.category || tx['catégorie'] || '-';
-
-        // 4. Description
-        const descriptionAffichee = tx.description || tx.libelle || '';
+        // Catégorie & Description
+        const categorieAffichee = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || '-';
+        const descriptionAffichee = tx[window.schemaColonnes.description] || tx.description || tx.libelle || '';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${tx.date || ''}</td>
+            <td>${tx[window.schemaColonnes.date] || tx.date || ''}</td>
             <td><strong>${estRecette ? 'Recette' : 'Dépense'}</strong></td>
             <td>${categorieAffichee}</td>
             <td>${descriptionAffichee}</td>
@@ -111,19 +132,18 @@ window.ajouterTransaction = async function() {
 
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
-    // Construction de l'objet avec le nom de colonne correct
-    const nouvelObjet = {
-        date: date,
-        type: type,
-        description: description,
-        montant: montantFinal
-    };
-    nouvelObjet[window.nomColonneCategorie] = categorie;
+    // Construction dynamique du payload selon le schéma détecté
+    const objetPaylod = {};
+    objetPaylod[window.schemaColonnes.date] = date;
+    objetPaylod[window.schemaColonnes.type] = type;
+    objetPaylod[window.schemaColonnes.categorie] = categorie;
+    objetPaylod[window.schemaColonnes.description] = description;
+    objetPaylod[window.schemaColonnes.montant] = montantFinal;
 
     try {
         const { error } = await window.supabaseClient
             .from('transactions')
-            .insert([nouvelObjet]);
+            .insert([objetPaylod]);
 
         if (error) throw error;
 
@@ -164,15 +184,12 @@ window.ouvrirModalModification = function(id) {
     if (!tx) return;
 
     document.getElementById('edit-id').value = tx.id;
-    document.getElementById('edit-date').value = tx.date || '';
-    document.getElementById('edit-type').value = tx.type || 'Recette';
-    
-    const categorieValue = tx[window.nomColonneCategorie] || tx.categorie || tx.category || tx['catégorie'] || '';
-    document.getElementById('edit-categorie').value = categorieValue;
-    
-    document.getElementById('edit-description').value = tx.description || tx.libelle || '';
+    document.getElementById('edit-date').value = tx[window.schemaColonnes.date] || tx.date || '';
+    document.getElementById('edit-type').value = tx[window.schemaColonnes.type] || tx.type || 'Recette';
+    document.getElementById('edit-categorie').value = tx[window.schemaColonnes.categorie] || tx.categorie || '';
+    document.getElementById('edit-description').value = tx[window.schemaColonnes.description] || tx.description || '';
 
-    let montantBrut = tx.montant !== undefined ? tx.montant : (tx.amount || 0);
+    let montantBrut = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
     if (typeof montantBrut === 'string') montantBrut = montantBrut.replace(',', '.');
     document.getElementById('edit-montant').value = Math.abs(parseFloat(montantBrut) || 0);
 
@@ -192,14 +209,13 @@ window.sauvegarderModification = async function() {
 
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
-    // Construction dynamique de l'objet de modification
-    const objetModification = {
-        date: date,
-        type: type,
-        description: description,
-        montant: montantFinal
-    };
-    objetModification[window.nomColonneCategorie] = categorie;
+    // Objet de mise à jour construit avec les clés réelles du schéma Supabase
+    const objetModification = {};
+    objetModification[window.schemaColonnes.date] = date;
+    objetModification[window.schemaColonnes.type] = type;
+    objetModification[window.schemaColonnes.categorie] = categorie;
+    objetModification[window.schemaColonnes.description] = description;
+    objetModification[window.schemaColonnes.montant] = montantFinal;
 
     try {
         const { error } = await window.supabaseClient
@@ -217,7 +233,7 @@ window.sauvegarderModification = async function() {
     }
 };
 
-// Initialisation automatique au chargement de la page
+// Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         if (window.supabaseClient) {
