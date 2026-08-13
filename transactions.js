@@ -1,6 +1,6 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Support complet pour Transactions & Journal de Banque (window.ajouterPaiement)
+// Support complet & Protection contre les doublons
 // ==========================================
 
 window.listeTransactions = [];
@@ -108,34 +108,34 @@ window.chargerTransactions = async function() {
     }
 };
 
+// Variable anti-double-clic pour empêcher les soumissions simultanées
+let estEnCoursDEnregistrement = false;
+
 // FONCTION UNIFIÉE DE SAISIE (TRANSACTIONS ET REGLEMENTS BANCAIRES)
 window.ajouterTransaction = async function(event) {
-    if (event) event.preventDefault();
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation(); // Évite la double propagation de l'événement
+    }
+
+    // Protection Anti-Doublon
+    if (estEnCoursDEnregistrement) return;
 
     if (!window.supabaseClient) {
         alert("❌ Connexion à Supabase introuvable.");
         return;
     }
 
-    // Sélection flexible des champs sur n'importe quel onglet actif
-    const inputDate = document.querySelector('input[type="date"]:focus') || 
-                      document.getElementById('date') || 
-                      document.querySelector('input[type="date"]');
+    // Récupération de l'élément formulaire soumis ou actif
+    const formActif = event && event.target ? event.target : document;
 
-    const selectType = document.querySelector('select:focus') || 
-                       document.getElementById('type') || 
-                       document.querySelector('select');
-
-    const tousSelects = document.querySelectorAll('select');
-    const selectCat = tousSelects.length > 1 ? tousSelects[1] : tousSelects[0];
-
-    const inputDesc = document.getElementById('description') || 
-                      document.querySelector('input[placeholder*="Acompte"]') || 
-                      document.querySelector('input[type="text"]');
-
-    const inputMontant = document.getElementById('montant') || 
-                        document.querySelector('input[type="number"]') || 
-                        document.querySelector('input[placeholder*="717"]');
+    const inputDate = formActif.querySelector('input[type="date"]');
+    const selects = formActif.querySelectorAll('select');
+    const selectType = selects.length > 0 ? selects[0] : null;
+    const selectCat = selects.length > 1 ? selects[1] : selects[0];
+    const inputDesc = formActif.querySelector('input[placeholder*="Patient"], input[placeholder*="Acompte"], input[type="text"]');
+    const inputMontant = formActif.querySelector('input[type="number"], input[placeholder*="0.00"], input[placeholder*="717"]');
+    const boutonSubmit = formActif.querySelector('button[type="submit"]');
 
     const dateVal = inputDate ? inputDate.value : '';
     const typeVal = selectType ? selectType.value : 'Dépense';
@@ -150,13 +150,17 @@ window.ajouterTransaction = async function(event) {
         return;
     }
 
+    // Verrouillage anti-doublon
+    estEnCoursDEnregistrement = true;
+    if (boutonSubmit) boutonSubmit.disabled = true;
+
     const nouvelleEcriture = {
         date: dateVal,
         type: typeVal,
         category: catVal,
         description: descVal,
         amount: montantVal,
-        encaisse: true // Si saisi dans le journal de banque, marqué directement payé/encaissé
+        encaisse: true
     };
 
     try {
@@ -174,10 +178,14 @@ window.ajouterTransaction = async function(event) {
     } catch (err) {
         console.error("Erreur lors de l'enregistrement :", err.message);
         alert("Erreur lors de l'enregistrement : " + err.message);
+    } finally {
+        // Déverrouillage
+        estEnCoursDEnregistrement = false;
+        if (boutonSubmit) boutonSubmit.disabled = false;
     }
 };
 
-// ALIAS : Permet de répondre à l'appel de window.ajouterPaiement()
+// ALIAS : Pour que window.ajouterPaiement pointe vers la même fonction
 window.ajouterPaiement = window.ajouterTransaction;
 
 window.rafraichirToutesLesVues = function() {
@@ -492,11 +500,6 @@ window.afficherGrandLivre = function(transactions) {
 // 7. INITIALISATION DU SCRIPT
 // ------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
-    const formulaires = document.querySelectorAll('form');
-    formulaires.forEach(form => {
-        form.addEventListener('submit', window.ajouterTransaction);
-    });
-
     setTimeout(function() {
         if (window.supabaseClient) {
             window.chargerTransactions();
