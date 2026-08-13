@@ -1,21 +1,19 @@
 // ==========================================
-// GESTION DES TRANSACTIONS SUPABASE
+// GESTION DES TRANSACTIONS (SUPABASE)
 // ==========================================
 
-// Variable locale pour conserver la liste des transactions chargées
 window.listeTransactions = [];
 
-/**
- * 1. Charger les transactions depuis Supabase
- */
+// ------------------------------------------
+// 1. CHARGER LES TRANSACTIONS
+// ------------------------------------------
 window.chargerTransactions = async function() {
     if (!window.supabaseClient) {
-        console.error("❌ Supabase n'est pas initialisé.");
+        console.error("❌ Supabase n'est pas prêt.");
         return;
     }
 
     try {
-        // Requête Supabase : Récupérer toutes les lignes triées par date décroissante
         const { data, error } = await window.supabaseClient
             .from('transactions')
             .select('*')
@@ -26,13 +24,13 @@ window.chargerTransactions = async function() {
         window.listeTransactions = data || [];
         window.afficherTransactions(window.listeTransactions);
     } catch (err) {
-        console.error("Erreur de chargement Supabase :", err.message);
+        console.error("Erreur lors de la récupération des transactions :", err.message);
     }
 };
 
-/**
- * 2. Afficher les transactions dans le tableau HTML
- */
+// ------------------------------------------
+// 2. AFFICHER LES TRANSACTIONS DANS LE TABLEAU
+// ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
     if (!tbody) return;
@@ -40,26 +38,34 @@ window.afficherTransactions = function(transactions) {
     tbody.innerHTML = '';
 
     if (transactions.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">
-                    Aucune transaction enregistrée dans la base de données.
-                </td>
-            </tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Aucune transaction enregistrée.</td></tr>`;
         return;
     }
 
     transactions.forEach(tx => {
-        const estRecette = (tx.type || '').toLowerCase() === 'recette';
-        const montantFormate = Math.abs(parseFloat(tx.montant) || 0).toFixed(2);
+        // 1. Gestion du Type (Recette / Dépense)
+        const typeBrut = (tx.type || '').toString().toLowerCase();
+        const estRecette = typeBrut === 'recette';
+        const typeAffiche = estRecette ? 'Recette' : 'Dépense';
+
+        // 2. Gestion et nettoyage du Montant (conversion des virgules éventuelles)
+        let valeurMontant = tx.montant !== undefined ? tx.montant : (tx.amount || 0);
+        if (typeof valeurMontant === 'string') {
+            valeurMontant = valeurMontant.replace(',', '.');
+        }
+        const montantNumerique = parseFloat(valeurMontant) || 0;
+        const montantFormate = Math.abs(montantNumerique).toFixed(2);
         const couleurMontant = estRecette ? '#16a34a' : '#dc2626';
+
+        // 3. Gestion de la Catégorie
+        const categorieAffichee = tx.categorie || tx.category || '-';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${tx.date || ''}</td>
-            <td><strong>${tx.type || ''}</strong></td>
-            <td>${tx.categorie || ''}</td>
-            <td>${tx.description || ''}</td>
+            <td><strong>${typeAffiche}</strong></td>
+            <td>${categorieAffichee}</td>
+            <td>${tx.description || tx.libelle || ''}</td>
             <td style="font-weight: bold; color: ${couleurMontant};">
                 ${estRecette ? '+' : '-'} ${montantFormate} €
             </td>
@@ -72,9 +78,9 @@ window.afficherTransactions = function(transactions) {
     });
 };
 
-/**
- * 3. Ajouter une transaction
- */
+// ------------------------------------------
+// 3. AJOUTER UNE TRANSACTION
+// ------------------------------------------
 window.ajouterTransaction = async function() {
     const date = document.getElementById('tx-date').value;
     const type = document.getElementById('tx-type').value;
@@ -87,7 +93,6 @@ window.ajouterTransaction = async function() {
         return;
     }
 
-    // Une dépense est stockée sous forme de montant négatif
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
     try {
@@ -103,22 +108,19 @@ window.ajouterTransaction = async function() {
 
         if (error) throw error;
 
-        // Vider le formulaire
         document.getElementById('form-ajouter-transaction').reset();
-
-        // Rafraîchir l'affichage
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur lors de l'ajout :", err.message);
-        alert("Impossible d'ajouter l'opération : " + err.message);
+        console.error("Erreur d'ajout dans Supabase :", err.message);
+        alert("Erreur lors de l'enregistrement : " + err.message);
     }
 };
 
-/**
- * 4. Supprimer une transaction
- */
+// ------------------------------------------
+// 4. SUPPRIMER UNE TRANSACTION
+// ------------------------------------------
 window.supprimerTransaction = async function(id) {
-    if (!confirm("Voulez-vous vraiment supprimer cette ligne ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
 
     try {
         const { error } = await window.supabaseClient
@@ -135,9 +137,9 @@ window.supprimerTransaction = async function(id) {
     }
 };
 
-/**
- * 5. Ouvrir la modale d'édition pré-remplie
- */
+// ------------------------------------------
+// 5. OUVRIR LA MODALE DE MODIFICATION
+// ------------------------------------------
 window.ouvrirModalModification = function(id) {
     const tx = window.listeTransactions.find(t => t.id.toString() === id.toString());
     if (!tx) return;
@@ -145,16 +147,19 @@ window.ouvrirModalModification = function(id) {
     document.getElementById('edit-id').value = tx.id;
     document.getElementById('edit-date').value = tx.date || '';
     document.getElementById('edit-type').value = tx.type || 'Recette';
-    document.getElementById('edit-categorie').value = tx.categorie || '';
-    document.getElementById('edit-description').value = tx.description || '';
-    document.getElementById('edit-montant').value = Math.abs(parseFloat(tx.montant) || 0);
+    document.getElementById('edit-categorie').value = tx.categorie || tx.category || '';
+    document.getElementById('edit-description').value = tx.description || tx.libelle || '';
+    
+    let montantBrut = tx.montant !== undefined ? tx.montant : (tx.amount || 0);
+    if (typeof montantBrut === 'string') montantBrut = montantBrut.replace(',', '.');
+    document.getElementById('edit-montant').value = Math.abs(parseFloat(montantBrut) || 0);
 
     document.getElementById('modal-modifier').style.display = 'flex';
 };
 
-/**
- * 6. Enregistrer les modifications
- */
+// ------------------------------------------
+// 6. SAUVEGARDER LA MODIFICATION
+// ------------------------------------------
 window.sauvegarderModification = async function() {
     const id = document.getElementById('edit-id').value;
     const date = document.getElementById('edit-date').value;
@@ -183,11 +188,11 @@ window.sauvegarderModification = async function() {
         await window.chargerTransactions();
     } catch (err) {
         console.error("Erreur de mise à jour :", err.message);
-        alert("Erreur lors de la mise à jour : " + err.message);
+        alert("Erreur lors de la modification : " + err.message);
     }
 };
 
-// Initialisation automatique au chargement du DOM
+// Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         if (window.supabaseClient) {
