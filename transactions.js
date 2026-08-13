@@ -1,9 +1,7 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Gestion des Transactions, Journal & Grand Livre
 // ==========================================
 
-// Variable globale pour stocker la liste des transactions
 window.listeTransactions = [];
 
 // Schéma de correspondance dynamique des colonnes Supabase
@@ -54,7 +52,6 @@ window.chargerTransactions = async function() {
             window.detecterSchema(window.listeTransactions[0]);
         }
 
-        // Rafraîchissement simultané de toutes les vues
         window.rafraichirToutesLesVues();
 
     } catch (err) {
@@ -69,7 +66,7 @@ window.rafraichirToutesLesVues = function() {
 };
 
 // ------------------------------------------
-// 2. ONGLET : TABLEAU DES TRANSACTIONS
+// 2. ONGLET : TRANSACTIONS
 // ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
@@ -162,7 +159,6 @@ window.afficherJournal = function(transactions) {
         return;
     }
 
-    // Ordre chronologique
     const transactionsTriees = [...transactions].reverse();
 
     transactionsTriees.forEach(tx => {
@@ -191,7 +187,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : GRAND LIVRE (PAR COMPTE)
+// 4. ONGLET : GRAND LIVRE (FUSION DES COMPTES)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('grand-livre') || 
@@ -216,23 +212,31 @@ window.afficherGrandLivre = function(transactions) {
         return;
     }
 
-    // Regroupement par catégorie nettoyée (.trim())
+    // Regroupement par clé normalisée (minuscules + nettoyage des espaces)
     const groupes = {};
+    const nomsCatOriginal = {};
+
     transactions.forEach(tx => {
         let catBrute = tx[window.schemaColonnes.categorie] || tx.categorie || tx.category || 'Non classé';
-        const cat = catBrute.toString().trim(); // Fusionne les libellés identiques avec des espaces superflus
+        
+        // Clé unique insensible aux espaces et majuscules
+        const cleNormale = catBrute.toString().toLowerCase().replace(/\s+/g, ' ').trim();
 
-        if (!groupes[cat]) groupes[cat] = [];
-        groupes[cat].push(tx);
+        if (!groupes[cleNormale]) {
+            groupes[cleNormale] = [];
+            nomsCatOriginal[cleNormale] = catBrute.toString().replace(/\s+/g, ' ').trim();
+        }
+        groupes[cleNormale].push(tx);
     });
 
     let htmlComplet = `<h2 style="color:#1e293b; margin-bottom:15px;">Grand Livre des comptes</h2>`;
 
-    Object.keys(groupes).sort().forEach(cat => {
+    Object.keys(groupes).sort().forEach(cle => {
+        const nomAffiche = nomsCatOriginal[cle] || cle;
         let totalCategorie = 0;
         let lignesHtml = '';
 
-        groupes[cat].forEach(tx => {
+        groupes[cle].forEach(tx => {
             const typeBrut = (tx[window.schemaColonnes.type] || tx.type || '').toString().toLowerCase();
             const estRecette = typeBrut === 'recette';
 
@@ -263,7 +267,7 @@ window.afficherGrandLivre = function(transactions) {
         htmlComplet += `
             <div style="margin-bottom:20px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
                 <div style="background:#f8fafc; padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#1e293b;">📂 ${cat}</h3>
+                    <h3 style="margin:0; font-size:1.05rem; color:#1e293b;">📂 ${nomAffiche}</h3>
                     <span style="font-weight:bold; color:${couleurTotal};">Solde : ${totalCategorie.toFixed(2)} €</span>
                 </div>
                 <table style="width:100%; border-collapse:collapse; text-align:left;">
@@ -285,61 +289,50 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 5. FONCTIONS CRUD (AJOUT, MODIFICATION, SUPPRESSION)
+// 5. FONCTIONS DE MODALE & ÉDITION
 // ------------------------------------------
-window.ajouterTransaction = async function() {
-    const date = document.getElementById('tx-date').value;
-    const type = document.getElementById('tx-type').value;
-    const categorie = document.getElementById('tx-categorie').value;
-    const description = document.getElementById('tx-description').value;
-    const montantInput = parseFloat(document.getElementById('tx-montant').value) || 0;
+window.sauvegarderModification = async function() {
+    const elId = document.getElementById('edit-id');
+    const elDate = document.getElementById('edit-date');
+    const elType = document.getElementById('edit-type');
+    const elCat = document.getElementById('edit-categorie');
+    const elDesc = document.getElementById('edit-description');
+    const elMontant = document.getElementById('edit-montant');
 
-    if (!date || !description || isNaN(montantInput)) {
-        alert("Veuillez remplir tous les champs obligatoires (*).");
+    if (!elId || !elId.value) {
+        alert("Identifiant de transaction introuvable.");
         return;
     }
 
+    const id = elId.value;
+    const date = elDate ? elDate.value : '';
+    const type = elType ? elType.value : 'Recette';
+    const categorie = elCat ? elCat.value : '';
+    const description = elDesc ? elDesc.value : '';
+    const montantInput = elMontant ? parseFloat(elMontant.value) : 0;
+
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
-    const objetPayload = {};
-    objetPayload[window.schemaColonnes.date] = date;
-    objetPayload[window.schemaColonnes.type] = type;
-    objetPayload[window.schemaColonnes.categorie] = categorie;
-    objetPayload[window.schemaColonnes.description] = description;
-    objetPayload[window.schemaColonnes.montant] = montantFinal;
+    const objetModification = {};
+    objetModification[window.schemaColonnes.date] = date;
+    objetModification[window.schemaColonnes.type] = type;
+    objetModification[window.schemaColonnes.categorie] = categorie;
+    objetModification[window.schemaColonnes.description] = description;
+    objetModification[window.schemaColonnes.montant] = montantFinal;
 
     try {
         const { error } = await window.supabaseClient
             .from('transactions')
-            .insert([objetPayload]);
-
-        if (error) throw error;
-
-        const form = document.getElementById('form-ajouter-transaction');
-        if (form) form.reset();
-
-        await window.chargerTransactions();
-    } catch (err) {
-        console.error("Erreur d'ajout dans Supabase :", err.message);
-        alert("Erreur lors de l'enregistrement : " + err.message);
-    }
-};
-
-window.supprimerTransaction = async function(id) {
-    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
-
-    try {
-        const { error } = await window.supabaseClient
-            .from('transactions')
-            .delete()
+            .update(objetModification)
             .eq('id', id);
 
         if (error) throw error;
 
+        window.fermerModal();
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur de suppression :", err.message);
-        alert("Impossible de supprimer : " + err.message);
+        console.error("Erreur de mise à jour :", err.message);
+        alert("Erreur lors de la modification : " + err.message);
     }
 };
 
@@ -373,46 +366,31 @@ window.ouvrirModalModification = function(id) {
     if (modal) modal.style.display = 'flex';
 };
 
-window.sauvegarderModification = async function() {
-    const id = document.getElementById('edit-id').value;
-    const date = document.getElementById('edit-date').value;
-    const type = document.getElementById('edit-type').value;
-    const categorie = document.getElementById('edit-categorie').value;
-    const description = document.getElementById('edit-description').value;
-    const montantInput = parseFloat(document.getElementById('edit-montant').value) || 0;
-
-    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
-
-    const objetModification = {};
-    objetModification[window.schemaColonnes.date] = date;
-    objetModification[window.schemaColonnes.type] = type;
-    objetModification[window.schemaColonnes.categorie] = categorie;
-    objetModification[window.schemaColonnes.description] = description;
-    objetModification[window.schemaColonnes.montant] = montantFinal;
-
-    try {
-        const { error } = await window.supabaseClient
-            .from('transactions')
-            .update(objetModification)
-            .eq('id', id);
-
-        if (error) throw error;
-
-        window.fermerModal();
-        await window.chargerTransactions();
-    } catch (err) {
-        console.error("Erreur de mise à jour :", err.message);
-        alert("Erreur lors de la modification : " + err.message);
-    }
-};
-
 window.fermerModal = function() {
     const modal = document.getElementById('modal-modifier');
     if (modal) modal.style.display = 'none';
 };
 
+window.supprimerTransaction = async function(id) {
+    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('transactions')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        await window.chargerTransactions();
+    } catch (err) {
+        console.error("Erreur de suppression :", err.message);
+        alert("Impossible de supprimer : " + err.message);
+    }
+};
+
 // ------------------------------------------
-// 6. ÉCOUTEURS D'ÉVÉNEMENTS & INITIALISATION
+// 6. ÉCOUTEURS & INITIALISATION
 // ------------------------------------------
 document.addEventListener('click', function(e) {
     const cible = e.target.closest('button, a, .nav-link, .tab-btn');
