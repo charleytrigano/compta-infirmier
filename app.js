@@ -1,4 +1,35 @@
 // ==========================================
+// MODULE DE NAVIGATION (ONGLETS)
+// ==========================================
+
+window.switchTab = function(idOnglet, elementBouton) {
+    // 1. Cacher toutes les sections de la page
+    // (Assure-toi que toutes tes vues ont une classe commune, par exemple 'view-section')
+    var toutesLesVues = document.querySelectorAll('.view-section, [id^="vue-"]');
+    toutesLesVues.forEach(function(vue) {
+        vue.style.display = 'none';
+    });
+
+    // 2. Afficher la section demandée
+    var vueAActiver = document.getElementById(idOnglet);
+    if (vueAActiver) {
+        vueAActiver.style.display = 'block';
+    } else {
+        console.warn("La section avec l'ID '" + idOnglet + "' est introuvable.");
+    }
+
+    // 3. (Optionnel) Mettre en surbrillance le bouton actif
+    if (elementBouton) {
+        var tousLesBoutons = document.querySelectorAll('.nav-btn, button'); // Ajuste la classe selon ton CSS
+        tousLesBoutons.forEach(function(btn) {
+            btn.classList.remove('active'); // Enlève la couleur du bouton précédent
+        });
+        elementBouton.classList.add('active'); // Met en couleur le bouton cliqué
+    }
+};
+
+
+// ==========================================
 // MODULE DE MODIFICATION DES TRANSACTIONS
 // ==========================================
 
