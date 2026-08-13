@@ -3,324 +3,457 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comptabilité Libérale - Professionnels de Santé</title>
-    <!-- Chargement du SDK Supabase via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Comptabilité Libérale</title>
+
+    <!-- Suppression de l'erreur 404 du favicon dans la console -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
     <style>
-        /* CSS global de l'application */
+        /* ==========================================
+           1. STYLES DE BASE ET LAYOUT
+           ========================================== */
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f1f5f9;
+            background-color: #f8fafc;
+            color: #1e293b;
             margin: 0;
             padding: 20px;
-            color: #334155;
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            padding: 25px;
         }
 
+        /* En-tête */
         header {
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
         }
 
         h1 {
-            color: #0f172a;
-            margin: 0 0 5px 0;
-            font-size: 1.8rem;
-        }
-
-        p.subtitle {
             margin: 0;
-            color: #64748b;
-            font-size: 0.95rem;
-        }
-
-        /* Navigation par Onglets */
-        .navigation-tabs {
+            font-size: 24px;
+            color: #0f172a;
             display: flex;
+            align-items: center;
             gap: 10px;
-            border-bottom: 1px solid #cbd5e1;
-            margin-bottom: 25px;
         }
 
-        .tab-button {
-            padding: 10px 20px;
-            background: none;
-            border: none;
-            border-bottom: 3px solid transparent;
-            font-size: 1rem;
+        .badge-status {
+            background-color: #dcfce7;
+            color: #15803d;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
             font-weight: 600;
-            color: #64748b;
+        }
+
+        /* Barre de Navigation (Onglets) */
+        nav {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .nav-btn {
+            background-color: #ffffff;
+            border: 1px solid #cbd5e1;
+            padding: 8px 16px;
+            border-radius: 6px;
             cursor: pointer;
+            font-weight: 500;
+            color: #475569;
             transition: all 0.2s ease;
         }
 
-        .tab-button:hover {
-            color: #2563eb;
+        .nav-btn:hover {
+            background-color: #f1f5f9;
         }
 
-        .tab-button.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
+        .nav-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
         }
 
-        .tab-content {
-            display: none;
+        /* Sections des Vues */
+        .view-section {
+            display: none; /* Masqué par défaut */
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
-        .tab-content.active {
-            display: block;
+        .view-section.active {
+            display: block; /* Affiché quand actif */
         }
 
-        /* Formulaires */
+        /* Formulaire */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
+            align-items: end;
+            margin-bottom: 30px;
+        }
+
         .form-group {
             display: flex;
             flex-direction: column;
             gap: 5px;
         }
 
-        label {
-            font-size: 0.85rem;
+        .form-group label {
+            font-size: 13px;
             font-weight: 600;
             color: #475569;
         }
 
-        input, select, button {
-            font-family: inherit;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        input[type="date"],
-        select {
+        .form-control {
             padding: 8px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
-            font-size: 0.95rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus, select:focus {
-            border-color: #2563eb;
+            font-size: 14px;
+            width: 100%;
         }
 
         .btn-primary {
             background-color: #2563eb;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 9px 16px;
             border-radius: 6px;
             font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.2s;
         }
 
         .btn-primary:hover {
             background-color: #1d4ed8;
         }
 
-        /* Tableaux */
+        /* Tableau d'Historique */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
-            padding: 12px;
+            margin-top: 15px;
             text-align: left;
-            border-bottom: 1px solid #e2e8f0;
         }
 
         th {
-            background-color: #f8fafc;
+            background-color: #f1f5f9;
             color: #475569;
+            padding: 12px;
+            font-size: 13px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        .btn-edit {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
             font-weight: 600;
-            font-size: 0.9rem;
+            margin-right: 5px;
         }
 
-        tr:hover {
-            background-color: #f8fafc;
-        }
-
-        .badge-recette {
-            background-color: #dcfce7;
-            color: #166534;
-            padding: 4px 8px;
+        .btn-delete {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
             border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: bold;
+            cursor: pointer;
+            font-weight: 600;
         }
 
-        .badge-depense {
-            background-color: #fee2e2;
-            color: #991b1b;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: bold;
+        /* Fenêtre Modale de Modification */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 480px;
+            max-width: 90%;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <!-- Entête -->
+        <!-- En-tête principal -->
         <header>
             <h1>🩺 Comptabilité Libérale</h1>
-            <p class="subtitle">Gestion des dépenses, recettes et Plan Comptable Général (PCG)</p>
+            <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
         </header>
 
-        <!-- Barre de Navigation -->
-        <nav class="navigation-tabs">
-            <button class="tab-button active" onclick="ouvrirOnglet(event, 'vue-transactions')">💳 Transactions</button>
-            <button class="tab-button" onclick="ouvrirOnglet(event, 'vue-grand-livre')">📖 Grand Livre</button>
-            <button class="tab-button" onclick="ouvrirOnglet(event, 'vue-plan-comptable')">📋 Plan Comptable</button>
+        <!-- Menu de Navigation (Onglets) -->
+        <nav>
+            <button class="nav-btn active" onclick="switchTab('vue-transactions', this)">📄 Transactions</button>
+            <button class="nav-btn" onclick="switchTab('vue-banque', this)">🏦 Journal de Banque</button>
+            <button class="nav-btn" onclick="switchTab('vue-plan', this)">📊 Plan Comptable</button>
+            <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
+            <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
+            <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
+            <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035</button>
+            <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
+            <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
+            <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
         </nav>
 
-        <!-- ONGLET 1 : TRANSACTIONS -->
-        <div id="vue-transactions" class="tab-content active">
-            <h2>Saisie d'une opération</h2>
-            <form id="form-transaction" onsubmit="window.ajouterTransaction(event)" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; background:#f8fafc; padding:20px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:20px;">
+        <!-- 1. VUE TRANSACTIONS (Affichée par défaut) -->
+        <section id="vue-transactions" class="view-section active">
+            <h2>Ajouter une opération</h2>
+            <form id="form-ajouter-transaction" class="form-grid" onsubmit="event.preventDefault(); window.ajouterTransaction();">
                 <div class="form-group">
-                    <label for="date_transaction">Date *</label>
-                    <input type="date" id="date_transaction" required>
+                    <label for="tx-date">Date *</label>
+                    <input type="date" id="tx-date" class="form-control" required>
                 </div>
+
                 <div class="form-group">
-                    <label for="description">Libellé / Description *</label>
-                    <input type="text" id="description" placeholder="ex: Honoraires CPM" required>
-                </div>
-                <div class="form-group">
-                    <label for="montant">Montant (€) *</label>
-                    <input type="number" step="0.01" id="montant" placeholder="0.00" required>
-                </div>
-                <div class="form-group">
-                    <label for="type_transaction">Type *</label>
-                    <select id="type_transaction">
-                        <option value="recette">Recette (+)</option>
-                        <option value="depense">Dépense (-)</option>
+                    <label for="tx-type">Type *</label>
+                    <select id="tx-type" class="form-control" required>
+                        <option value="Recette">Recette</option>
+                        <option value="Dépense">Dépense</option>
                     </select>
                 </div>
+
                 <div class="form-group">
-                    <label for="categorie">Catégorie Comptable *</label>
-                    <select id="categorie" required>
-                        <!-- Rempli dynamiquement par plan_comptable.js -->
-                        <option value="">Chargement des catégories...</option>
+                    <label for="tx-categorie">Catégorie *</label>
+                    <select id="tx-categorie" class="form-control" required>
+                        <option value="Soins infirmiers">Soins infirmiers</option>
+                        <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
+                        <option value="URSSAF">URSSAF</option>
+                        <option value="Achats matériel">Achats matériel</option>
+                        <option value="Autre">Autre</option>
                     </select>
                 </div>
-                <div class="form-group" style="grid-column: 1 / -1; display:flex; justify-content:flex-end;">
-                    <button type="submit" class="btn-primary">+ Ajouter l'opération</button>
+
+                <div class="form-group">
+                    <label for="tx-description">Description *</label>
+                    <input type="text" id="tx-description" class="form-control" placeholder="Ex: Patient X, Matériel..." required>
                 </div>
+
+                <div class="form-group">
+                    <label for="tx-montant">Montant (€) *</label>
+                    <input type="number" step="0.01" id="tx-montant" class="form-control" placeholder="0.00" required>
+                </div>
+
+                <button type="submit" class="btn-primary">+ Enregistrer l'écriture</button>
             </form>
 
             <h2>Historique des transactions</h2>
-            <div style="overflow-x:auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Description</th>
-                            <th>Catégorie</th>
-                            <th>Type</th>
-                            <th>Montant</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="body-tableau-transactions">
-                        <!-- Rempli dynamiquement par JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Catégorie</th>
+                        <th>Description</th>
+                        <th>Montant</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="body-tableau-transactions">
+                    <!-- Les lignes dynamiques seront injectées ici par transactions.js -->
+                </tbody>
+            </table>
+        </section>
 
-        <!-- ONGLET 2 : GRAND LIVRE -->
-        <div id="vue-grand-livre" class="tab-content">
-            <h2>📖 Grand Livre des Comptes</h2>
-            <p style="color:#64748b;">Consultez les mouvements débit/crédit classés par numéro de compte comptable.</p>
-            <div id="conteneur-grand-livre">
-                <!-- Généré dynamiquement -->
-            </div>
-        </div>
-
-        <!-- ONGLET 3 : PLAN COMPTABLE -->
-        <div id="vue-plan-comptable" class="tab-content">
-            <h2>📋 Plan Comptable Général</h2>
-
-            <!-- Formulaire de création de compte -->
-            <div style="background:#ffffff; border:1px solid #cbd5e1; padding:20px; border-radius:8px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <h3 style="margin-top:0; margin-bottom:15px; font-size:1.1rem; color:#1e293b;">➕ Ajouter un nouveau compte comptable</h3>
-                <form onsubmit="window.ajouterCompteComptable(event)" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-                    <div class="form-group">
-                        <label for="pcg-code">Numéro de compte *</label>
-                        <input type="text" id="pcg-code" placeholder="ex: 606400" required style="width:140px;">
-                    </div>
-                    
-                    <div class="form-group" style="flex:1; min-width:220px;">
-                        <label for="pcg-nom">Intitulé du compte *</label>
-                        <input type="text" id="pcg-nom" placeholder="ex: Fournitures de bureau" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="pcg-type">Type de compte *</label>
-                        <select id="pcg-type" style="background-color:#fff;">
-                            <option value="depense">Dépense (Classe 6)</option>
-                            <option value="recette">Recette (Classe 7)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <button type="submit" class="btn-primary">
-                            + Enregistrer le compte
-                        </button>
-                    </div>
-                </form>
+        <!-- 2. VUE JOURNAL DE BANQUE & PAIEMENTS -->
+        <section id="vue-banque" class="view-section">
+            <h2>🏦 Journal de Banque & Règlements</h2>
+            
+            <div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 15px; border-radius: 6px; margin-bottom: 25px;">
+                <h3 style="margin:0; color:#1e40af; font-size:1.1rem;">
+                    Solde du compte bancaire : <span id="solde-banque" style="font-weight: bold; font-size:1.3rem;">0.00 €</span>
+                </h3>
             </div>
 
-            <!-- Liste des comptes existants -->
-            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Code</th>
-                            <th>Intitulé</th>
-                            <th>Type</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="body-tableau-plan-comptable">
-                        <!-- Chargé dynamiquement depuis Supabase par plan_comptable.js -->
-                    </tbody>
-                </table>
+            <h3>Saisir un règlement / paiement bancaire</h3>
+            <form id="form-ajouter-paiement" class="form-grid" onsubmit="event.preventDefault(); window.ajouterPaiement();">
+                <div class="form-group">
+                    <label for="pay-date">Date de valeur *</label>
+                    <input type="date" id="pay-date" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="pay-type">Sens du flux *</label>
+                    <select id="pay-type" class="form-control" required>
+                        <option value="Recette">Encaissement (Recette)</option>
+                        <option value="Dépense">Décaissement (Dépense)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="pay-categorie">Catégorie *</label>
+                    <select id="pay-categorie" class="form-control" required>
+                        <option value="Soins infirmiers">Soins infirmiers</option>
+                        <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
+                        <option value="URSSAF">URSSAF</option>
+                        <option value="Achats matériel">Achats matériel</option>
+                        <option value="Frais bancaires">Frais bancaires</option>
+                        <option value="Autre">Autre</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="pay-description">Libellé / Tiers *</label>
+                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: Virement CPAM, Prélèvement URSSAF..." required>
+                </div>
+
+                <div class="form-group">
+                    <label for="pay-montant">Montant (€) *</label>
+                    <input type="number" step="0.01" id="pay-montant" class="form-control" placeholder="0.00" required>
+                </div>
+
+                <button type="submit" class="btn-primary" style="background-color: #059669;">💳 Valider le paiement</button>
+            </form>
+
+            <h3>Mouvements bancaires enregistrés</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Sens</th>
+                        <th>Catégorie</th>
+                        <th>Description</th>
+                        <th style="color:#dc2626;">Débit (-)</th>
+                        <th style="color:#16a34a;">Crédit (+)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="body-tableau-banque">
+                    <!-- Les lignes dynamiques seront injectées par transactions.js -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- VUES SECONDAIRES -->
+        <section id="vue-plan" class="view-section"><h2>Plan Comptable</h2><p>Contenu du plan comptable...</p></section>
+        <section id="vue-urssaf" class="view-section"><h2>URSSAF</h2><p>Gestion des cotisations URSSAF...</p></section>
+        <section id="vue-carpimko" class="view-section"><h2>CARPIMKO</h2><p>Gestion des cotisations CARPIMKO...</p></section>
+        <section id="vue-bilan" class="view-section"><h2>Bilan / Compte d'Exploitation</h2><p>Synthèse financière...</p></section>
+        <section id="vue-2035" class="view-section"><h2>Déclaration 2035</h2><p>Préparation de la déclaration fiscale...</p></section>
+        <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
+        <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
+        <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
+    </div>
+
+    <!-- FENÊTRE MODALE DE MODIFICATION -->
+    <div id="modal-modifier" class="modal-overlay">
+        <div class="modal-content">
+            <h3>✏️ Modifier l'opération</h3>
+            <input type="hidden" id="edit-id">
+            
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="edit-date">Date</label>
+                <input type="date" id="edit-date" class="form-control">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="edit-type">Type</label>
+                <select id="edit-type" class="form-control">
+                    <option value="Recette">Recette</option>
+                    <option value="Dépense">Dépense</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="edit-categorie">Catégorie</label>
+                <input type="text" id="edit-categorie" class="form-control">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="edit-description">Description</label>
+                <input type="text" id="edit-description" class="form-control">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="edit-montant">Montant (€)</label>
+                <input type="number" step="0.01" id="edit-montant" class="form-control">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn-primary" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
+                <button type="button" class="btn-primary" onclick="window.sauvegarderModification()">Enregistrer</button>
             </div>
         </div>
     </div>
 
-    <!-- Script de gestion de la navigation entre onglets -->
+    <!-- ==========================================
+         2. CHARGEMENT ORDONNÉ DES SCRIPTS
+         ========================================== -->
+
+    <!-- A. Librairie Supabase JS via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- B. Fichier de Configuration Globale (supaBaseClient) -->
+    <script src="config.js"></script>
+
+    <!-- C. Logique de Navigation par Onglets & Fonctions Utilitaires -->
     <script>
-        function ouvrirOnglet(evt, nomOnglet) {
-            const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(content => content.classList.remove('active'));
+        // Changement dynamique d'onglet
+        window.switchTab = function(tabId, btnElement) {
+            var sections = document.querySelectorAll('.view-section');
+            sections.forEach(function(sec) {
+                sec.classList.remove('active');
+            });
 
-            const tabButtons = document.querySelectorAll('.tab-button');
-            tabButtons.forEach(button => button.classList.remove('active'));
+            var target = document.getElementById(tabId);
+            if (target) {
+                target.classList.add('active');
+            }
 
-            document.getElementById(nomOnglet).classList.add('active');
-            evt.currentTarget.classList.add('active');
-        }
+            var buttons = document.querySelectorAll('.nav-btn');
+            buttons.forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+
+            if (btnElement) {
+                btnElement.classList.add('active');
+            }
+        };
+
+        // Fermeture de la modale d'édition
+        window.fermerModal = function() {
+            var modal = document.getElementById('modal-modifier');
+            if (modal) modal.style.display = 'none';
+        };
     </script>
 
-    <!-- Fichiers JavaScript de l'application -->
-    <script src="supabase-config.js"></script>
-    <script src="plan_comptable.js"></script>
+    <!-- D. Logique Métier des Transactions Supabase -->
     <script src="transactions.js"></script>
+
 </body>
 </html>
