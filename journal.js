@@ -1,12 +1,15 @@
 // ==========================================
-// MODULE COMPTABLE : JOURNAUX & COMPTES TIERS
+// MODULE COMPTABLE : JOURNAUX, TIERS & ENCAISSEMENT MANUEL
 // ==========================================
 
-// Liste par défaut des comptes de tiers (stockée en mémoire ou localStorage)
+// 1. Répertoire des comptes de tiers
 window.comptesTiers = JSON.parse(localStorage.getItem('comptesTiers')) || [
     { id: '1', nom: 'Abadie', code: '411ABADIE' },
     { id: '2', nom: 'Saint-André', code: '411STANDRE' }
 ];
+
+// 2. Registre des encaissements enregistrés manuellement par l'utilisateur
+window.encaissementsValides = JSON.parse(localStorage.getItem('encaissementsValides')) || [];
 
 window.initJournal = function() {
     var container = document.getElementById('journal-container') || document.querySelector('.card, .container');
@@ -28,21 +31,21 @@ window.initJournal = function() {
 window.afficherModuleJournaux = function(container) {
     var transactions = window.allTransactions || [];
 
-    // 1. Génération automatique des écritures de Ventes (VE) et Banque (BQ) avec Imputation
     var ecrituresVE = [];
-    var ecrituresBQ = [];
+    var prestationsEnAttente = [];
 
+    // 1. Génération des Ventes (VE) et préparation des attentes d'encaissement
     transactions.forEach(function(tx, index) {
         var montant = parseFloat(tx.amount) || 0;
         var type = (tx.type || '').toLowerCase();
-        var label = (tx.label || tx.description || '').trim();
-        var dateOp = tx.date || new Date().toISOString().split('T')[0];
+        var label = (tx.label || tx.description || 'Prestation').trim();
+        var datePrestation = tx.date || new Date().toISOString().split('T')[0];
+        var txId = tx.id || ('tx-' + index);
 
-        // Traitement des recettes (Virements / Encaissements)
         if (type === 'recette' || montant > 0) {
             var valMontant = Math.abs(montant);
 
-            // Recherche automatique du compte de tiers dans le libellé du virement
+            // Recherche du tiers dans le libellé
             var tiersTrouve = window.comptesTiers.find(function(t) {
                 return label.toLowerCase().includes(t.nom.toLowerCase());
             });
@@ -50,109 +53,208 @@ window.afficherModuleJournaux = function(container) {
             var codeTiers = tiersTrouve ? tiersTrouve.code : '411DIVERS';
             var nomTiers = tiersTrouve ? tiersTrouve.nom : 'Tiers Divers';
 
-            // Ecriture 1 : Journal des Ventes (Constatation de la recette)
+            // Inscription au Journal des Ventes (VE)
             ecrituresVE.push({
-                date: dateOp,
+                id: txId,
+                date: datePrestation,
                 journal: 'VE',
                 piece: 'FAC-' + (1000 + index),
                 compte: codeTiers,
-                libelle: 'Facturation - ' + nomTiers,
+                libelle: 'Prestation / Facture - ' + nomTiers,
                 debit: valMontant,
                 credit: 0
             });
             ecrituresVE.push({
-                date: dateOp,
+                id: txId,
+                date: datePrestation,
                 journal: 'VE',
                 piece: 'FAC-' + (1000 + index),
                 compte: '706000',
-                libelle: 'Honoraires / Prestations BNC',
+                libelle: 'Honoraires BNC',
                 debit: 0,
                 credit: valMontant
             });
 
-            // Ecriture 2 : Journal de Banque (Encaissement & Imputation automatique)
-            ecrituresBQ.push({
-                date: dateOp,
-                journal: 'BQ',
-                piece: 'VIR-' + (5000 + index),
-                compte: '512000',
-                libelle: 'Virement reçu - ' + label,
-                debit: valMontant,
-                credit: 0
+            // Vérification si cette prestation a déjà été encaissée manuellement
+            var encaissementExistant = window.encaissementsValides.find(function(e) {
+                return e.txId === txId;
             });
-            ecrituresBQ.push({
-                date: dateOp,
-                journal: 'BQ',
-                piece: 'VIR-' + (5000 + index),
-                compte: codeTiers,
-                libelle: 'Imputation encaissement - ' + nomTiers,
-                debit: 0,
-                credit: valMontant
-            });
+
+            if (!encaissementExistant) {
+                prestationsEnAttente.push({
+                    txId: txId,
+                    datePrestation: datePrestation,
+                    nomTiers: nomTiers,
+                    codeTiers: codeTiers,
+                    label: label,
+                    montant: valMontant,
+                    piece: 'FAC-' + (1000 + index)
+                });
+            }
         }
     });
 
-    // 2. Construction de l'interface graphique
+    // 2. Construction du Journal de Banque (BQ) uniquement à partir des validations manuelles
+    var ecrituresBQ = [];
+    window.encaissementsValides.forEach(function(enc, index) {
+        ecrituresBQ.push({
+            date: enc.dateEncaissement,
+            journal: 'BQ',
+            piece: 'ENC-' + (5000 + index),
+            compte: '512000',
+            libelle: 'Encaissement Banque - ' + enc.nomTiers,
+            debit: enc.montant,
+            credit: 0
+        });
+        ecrituresBQ.push({
+            date: enc.dateEncaissement,
+            journal: 'BQ',
+            piece: 'ENC-' + (5000 + index),
+            compte: enc.codeTiers,
+            libelle: 'Règlement facture ' + enc.piece,
+            debit: 0,
+            credit: enc.montant
+        });
+    });
+
+    // 3. Rendu HTML
     container.innerHTML = `
         <style>
             .jrn-box { font-family: system-ui, -apple-system, sans-serif; }
-            .jrn-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+            .jrn-card { background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 20px; }
             .jrn-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
             .jrn-tab-btn { background: #f1f5f9; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; color: #475569; }
             .jrn-tab-btn.active { background: #2563eb; color: #ffffff; }
             
-            .jrn-card { background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 20px; }
             .jrn-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-            .jrn-table th, .jrn-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+            .jrn-table th, .jrn-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }
             .jrn-table th { background: #f8fafc; font-weight: 600; color: #475569; }
             
-            .jrn-form-inline { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
-            .jrn-form-inline input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
-            .jrn-btn-add { background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+            .jrn-btn-validate { background: #16a34a; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 12px; }
+            .jrn-btn-validate:hover { background: #15803d; }
+            .jrn-input-date { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; }
+            .jrn-form-inline { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+            .jrn-form-inline input { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
         </style>
 
         <div class="jrn-box">
-            <div class="jrn-header">
-                <div>
-                    <h2 style="margin:0; color:#0f172a; font-size:20px;">📘 Journaux Comptables & Imputation</h2>
-                    <p style="margin:4px 0 0 0; color:#64748b; font-size:14px;">Gestion du Journal des Ventes, de Banque et des Comptes de Tiers.</p>
-                </div>
+            <div style="margin-bottom: 20px;">
+                <h2 style="margin:0; color:#0f172a; font-size:20px;">📘 Journaux Comptables & Suivi des Encaissements</h2>
+                <p style="margin:4px 0 0 0; color:#64748b; font-size:14px;">Enregistrement des ventes et validation manuelle des encaissements en banque.</p>
             </div>
 
             <!-- GESTION DES TIERS -->
-            <div class="jrn-card" style="border-left: 4px solid #16a34a;">
-                <h3 style="margin-top:0; font-size:15px; color:#166534;">👥 Répertoire des Comptes de Tiers (Clients / Mutuelles)</h3>
+            <div class="jrn-card" style="border-left: 4px solid #2563eb;">
+                <h3 style="margin-top:0; font-size:15px; color:#1e40af;">👥 Répertoire des Comptes de Tiers</h3>
                 <div class="jrn-form-inline">
-                    <input type="text" id="jrn-nouveau-tiers" placeholder="Nom du tiers (ex: Abadie, MGEN...)" />
-                    <button class="jrn-btn-add" onclick="window.ajouterTiers()">+ Ajouter le Tiers</button>
+                    <input type="text" id="jrn-nouveau-tiers" placeholder="Nom du tiers (ex: Abadie, Saint-André...)" />
+                    <button class="jrn-btn-validate" style="background:#2563eb;" onclick="window.ajouterTiers()">+ Créer le Tiers</button>
                 </div>
-                <div style="margin-top: 12px; display:flex; gap: 8px; flex-wrap: wrap;" id="jrn-liste-tiers">
+                <div style="margin-top: 12px; display:flex; gap: 8px; flex-wrap: wrap;">
                     ${window.comptesTiers.map(t => `<span style="background:#e0e7ff; color:#3730a3; padding: 4px 10px; border-radius:12px; font-size:12px; font-weight:600;">${t.nom} (${t.code})</span>`).join('')}
                 </div>
             </div>
 
-            <!-- ONGLETS DE NAVIGATION JOURNAUX -->
+            <!-- ONGLETS -->
             <div class="jrn-tabs">
-                <button class="jrn-tab-btn active" id="btn-tab-ve" onclick="window.changerOngletJournal('ve')">Journal des Ventes (VE)</button>
+                <button class="jrn-tab-btn active" id="btn-tab-attente" onclick="window.changerOngletJournal('attente')">⏳ Encaissements à Valider (${prestationsEnAttente.length})</button>
+                <button class="jrn-tab-btn" id="btn-tab-ve" onclick="window.changerOngletJournal('ve')">Journal des Ventes (VE)</button>
                 <button class="jrn-tab-btn" id="btn-tab-bq" onclick="window.changerOngletJournal('bq')">Journal de Banque (BQ)</button>
             </div>
 
-            <!-- TABLEAU DES ÉCRITURES -->
-            <div class="jrn-card">
-                <div id="vue-journal-ve">
-                    <h4 style="margin:0 0 10px 0; color:#1e293b;">Opérations du Journal des Ventes (VE)</h4>
-                    ${window.genererTableauJournal(ecrituresVE)}
-                </div>
-                <div id="vue-journal-bq" style="display:none;">
-                    <h4 style="margin:0 0 10px 0; color:#1e293b;">Encaissements et Imputations - Journal de Banque (BQ)</h4>
-                    ${window.genererTableauJournal(ecrituresBQ)}
-                </div>
+            <!-- VUE 1 : ENCAISSEMENTS À VALIDER PAR L'UTILISATEUR -->
+            <div id="vue-journal-attente" class="jrn-card">
+                <h4 style="margin-top:0; color:#0f172a;">Prestations en attente de règlement</h4>
+                <p style="color:#64748b; font-size:13px;">Sélectionne la date réelle à laquelle le virement a été reçu en banque puis valide.</p>
+                ${window.genererTableauAttente(prestationsEnAttente)}
+            </div>
+
+            <!-- VUE 2 : JOURNAL DES VENTES (VE) -->
+            <div id="vue-journal-ve" class="jrn-card" style="display:none;">
+                <h4 style="margin-top:0; color:#0f172a;">Écritures du Journal des Ventes (VE)</h4>
+                ${window.genererTableauJournal(ecrituresVE)}
+            </div>
+
+            <!-- VUE 3 : JOURNAL DE BANQUE (BQ) -->
+            <div id="vue-journal-bq" class="jrn-card" style="display:none;">
+                <h4 style="margin-top:0; color:#0f172a;">Écritures du Journal de Banque (BQ - Encaissements Validés)</h4>
+                ${window.genererTableauJournal(ecrituresBQ)}
             </div>
         </div>
     `;
 };
 
-// Fonction utilitaire pour générer la table HTML des écritures
+// Tableau des prestations en attente de validation
+window.genererTableauAttente = function(liste) {
+    if (liste.length === 0) {
+        return `<p style="color:#16a34a; font-weight:600;">✅ Toutes les prestations enregistrées ont été encaissées.</p>`;
+    }
+
+    var hoy = new Date().toISOString().split('T')[0];
+
+    var rows = liste.map(function(item) {
+        return `
+            <tr>
+                <td>${item.datePrestation}</td>
+                <td><strong>${item.nomTiers}</strong> <span style="color:#64748b; font-size:11px;">(${item.codeTiers})</span></td>
+                <td>${item.label}</td>
+                <td style="font-weight:bold; color:#1e293b;">${item.montant.toFixed(2)} €</td>
+                <td>
+                    <input type="date" id="date-enc-${item.txId}" class="jrn-input-date" value="${hoy}" />
+                </td>
+                <td>
+                    <button class="jrn-btn-validate" onclick="window.validerEncaissementManuel('${item.txId}', '${item.nomTiers}', '${item.codeTiers}', ${item.montant}, '${item.piece}')">
+                        ✓ Valider l'encaissement
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <table class="jrn-table">
+            <thead>
+                <tr>
+                    <th>Date Prestation</th>
+                    <th>Tiers</th>
+                    <th>Libellé</th>
+                    <th>Montant</th>
+                    <th>Date d'encaissement Banque</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+};
+
+// Action déclenchée PAR L'UTILISATEUR pour valider l'encaissement
+window.validerEncaissementManuel = function(txId, nomTiers, codeTiers, montant, piece) {
+    var inputDate = document.getElementById('date-enc-' + txId);
+    var dateChoisie = inputDate ? inputDate.value : new Date().toISOString().split('T')[0];
+
+    if (!dateChoisie) {
+        alert("Veuillez sélectionner la date d'encaissement.");
+        return;
+    }
+
+    // Enregistrement de l'encaissement manuellement validé
+    window.encaissementsValides.push({
+        txId: txId,
+        nomTiers: nomTiers,
+        codeTiers: codeTiers,
+        montant: montant,
+        piece: piece,
+        dateEncaissement: dateChoisie
+    });
+
+    localStorage.setItem('encaissementsValides', JSON.stringify(window.encaissementsValides));
+
+    // Rechargement de la vue
+    window.initJournal();
+};
+
+// Générateur de tableau d'écritures
 window.genererTableauJournal = function(ecritures) {
     if (ecritures.length === 0) {
         return `<p style="color:#94a3b8; font-style:italic;">Aucune écriture enregistrée dans ce journal.</p>`;
@@ -180,49 +282,41 @@ window.genererTableauJournal = function(ecritures) {
                     <th>Journal</th>
                     <th>N° Pièce</th>
                     <th>Compte</th>
-                    <th>Libellé de l'écriture</th>
+                    <th>Libellé</th>
                     <th style="text-align:right;">Débit</th>
                     <th style="text-align:right;">Crédit</th>
                 </tr>
             </thead>
-            <tbody>
-                ${rows}
-            </tbody>
+            <tbody>${rows}</tbody>
         </table>
     `;
 };
 
-// Bascule entre l'onglet Ventes et Banque
 window.changerOngletJournal = function(onglet) {
+    document.getElementById('vue-journal-attente').style.display = onglet === 'attente' ? 'block' : 'none';
     document.getElementById('vue-journal-ve').style.display = onglet === 've' ? 'block' : 'none';
     document.getElementById('vue-journal-bq').style.display = onglet === 'bq' ? 'block' : 'none';
     
+    document.getElementById('btn-tab-attente').classList.toggle('active', onglet === 'attente');
     document.getElementById('btn-tab-ve').classList.toggle('active', onglet === 've');
     document.getElementById('btn-tab-bq').classList.toggle('active', onglet === 'bq');
 };
 
-// Ajout dynamique d'un nouveau tiers
 window.ajouterTiers = function() {
     var input = document.getElementById('jrn-nouveau-tiers');
     var nom = input ? input.value.trim() : '';
-
     if (!nom) return;
 
-    var codeClean = nom.replace(/[^a-zA-Z0-0]/g, '').toUpperCase();
-    var nouveauTiers = {
+    var codeClean = nom.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    window.comptesTiers.push({
         id: Date.now().toString(),
         nom: nom,
         code: '411' + codeClean
-    };
-
-    window.comptesTiers.push(nouveauTiers);
+    });
     localStorage.setItem('comptesTiers', JSON.stringify(window.comptesTiers));
-
-    // Rechargement du module
     window.initJournal();
 };
 
-// Exécution au chargement
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(window.initJournal, 100);
 } else {
