@@ -1,5 +1,5 @@
 // ==========================================
-// MODULE COMPTABLE : DÉPENSES PAR CATÉGORIE & CHARGES SOCIALES
+// MODULE COMPTABLE : DÉPENSES, JOURNAL & ÉDITION
 // ==========================================
 
 // 1. Répertoire des comptes de tiers
@@ -35,22 +35,19 @@ window.initJournal = function() {
     window.afficherModuleJournaux(container);
 };
 
-// Fonction d'analyse basée en PRIORITÉ sur la catégorie, puis sur la description
+// Fonction d'analyse basée en PRIORITÉ sur la catégorie
 window.analyserDepense = function(categorie, description, dateOp) {
     var catClean = (categorie || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     var descClean = (description || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     
-    // La recherche s'effectue d'abord sur la catégorie, sinon sur la description
     var texteAnalyse = catClean || descClean;
 
-    // Détermination de l'année (Exercice N vs N-1)
     var anneeEnCours = new Date().getFullYear();
     var anneeTx = dateOp ? new Date(dateOp).getFullYear() : anneeEnCours;
-    
     var isAnneeNMinus1 = (anneeTx < anneeEnCours) || texteAnalyse.includes('n-1') || texteAnalyse.includes('regul');
     var mentionExercice = isAnneeNMinus1 ? " (Charges année N-1)" : " (Charges année N)";
 
-    // 1. CARPIMKO (Compte de charge unique 646200 & Tiers 438CARPIMKO)
+    // 1. CARPIMKO
     if (texteAnalyse.includes('carpimko') || texteAnalyse.includes('carp') || texteAnalyse.includes('retraite')) {
         return {
             compteCharge: '646200',
@@ -61,7 +58,7 @@ window.analyserDepense = function(categorie, description, dateOp) {
         };
     }
 
-    // 2. URSSAF (Compte de charge unique 646100 & Tiers 438URSSAF)
+    // 2. URSSAF
     if (texteAnalyse.includes('urssaf') || texteAnalyse.includes('urss') || texteAnalyse.includes('cotis')) {
         return {
             compteCharge: '646100',
@@ -107,10 +104,8 @@ window.afficherModuleJournaux = function(container) {
         var montant = parseFloat(tx.amount) || 0;
         var type = (tx.type || '').toLowerCase();
         
-        // Récupération explicite des champs categorie et description
         var categorie = tx.categorie || tx.category || '';
         var description = tx.label || tx.description || tx.libelle || 'Opération';
-        
         var dateOp = tx.date || new Date().toISOString().split('T')[0];
         var txId = tx.id || ('tx-' + index);
 
@@ -125,21 +120,19 @@ window.afficherModuleJournaux = function(container) {
             ecrituresVE.push({ date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), compte: '706000', libelle: 'Honoraires BNC', debit: 0, credit: valMontant });
 
             if (!window.encaissementsValides.find(e => e.txId === txId)) {
-                prestationsEnAttente.push({ txId: txId, date: dateOp, nomTiers: nomTiersC, codeTiers: codeTiersC, label: description, montant: valMontant, piece: 'FAC-' + (1000 + index) });
+                prestationsEnAttente.push({ txId: txId, date: dateOp, categorie: categorie, nomTiers: nomTiersC, codeTiers: codeTiersC, label: description, montant: valMontant, piece: 'FAC-' + (1000 + index) });
             }
         } 
         // DÉPENSES (HA)
         else if (type === 'depense' || montant < 0 || (type === '' && montant < 0)) {
             var valMontantD = Math.abs(montant);
-            
-            // Passage prioritaire de categorie à la fonction d'analyse
             var analyse = window.analyserDepense(categorie, description, dateOp);
 
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.compteCharge, libelle: analyse.libelleCharge, debit: valMontantD, credit: 0 });
             ecrituresHA.push({ date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), compte: analyse.codeTiers, libelle: 'Appel / Facture - ' + analyse.nomTiers, debit: 0, credit: valMontantD });
 
             if (!window.decaissementsValides.find(d => d.txId === txId)) {
-                depensesEnAttente.push({ txId: txId, date: dateOp, nomTiers: analyse.nomTiers, codeTiers: analyse.codeTiers, label: description, montant: valMontantD, piece: 'DEP-' + (2000 + index) });
+                depensesEnAttente.push({ txId: txId, date: dateOp, categorie: categorie, nomTiers: analyse.nomTiers, codeTiers: analyse.codeTiers, label: description, montant: valMontantD, piece: 'DEP-' + (2000 + index) });
             }
         }
     });
@@ -156,7 +149,7 @@ window.afficherModuleJournaux = function(container) {
         ecrituresBQ.push({ date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), compte: '512000', libelle: 'Prélèvement / Virement - ' + dec.piece, debit: 0, credit: dec.montant });
     });
 
-    // RENDU DU JOURNAL
+    // RENDU DU JOURNAL EN HTML
     container.innerHTML = `
         <style>
             .jrn-box { font-family: system-ui, -apple-system, sans-serif; }
@@ -171,11 +164,19 @@ window.afficherModuleJournaux = function(container) {
             
             .btn-green { background: #16a34a; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; }
             .btn-red { background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; }
+            .btn-edit { background: #eab308; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-weight: 600; cursor: pointer; margin-right: 5px; }
             .input-date { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
 
             .badge-social { background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
             .badge-fiscal { background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
             .badge-fournisseur { background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+
+            /* Style de la boîte modale d'édition */
+            .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index:9999; }
+            .modal-content { background:#fff; padding:25px; border-radius:8px; width:400px; max-width:90%; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+            .modal-group { margin-bottom: 15px; }
+            .modal-group label { display:block; font-weight:bold; margin-bottom:5px; font-size:13px; color:#334155; }
+            .modal-group input { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; box-sizing:border-box; }
         </style>
 
         <div class="jrn-box">
@@ -224,6 +225,39 @@ window.afficherModuleJournaux = function(container) {
                 ${window.genererTableauJournal(ecrituresBQ)}
             </div>
         </div>
+
+        <!-- FENÊTRE MODALE D'ÉDITION -->
+        <div id="modal-edit-tx" class="modal-overlay">
+            <div class="modal-content">
+                <h3 style="margin-top:0; color:#1e293b;">✏️ Modifier la Transaction</h3>
+                <input type="hidden" id="edit-tx-id">
+                
+                <div class="modal-group">
+                    <label for="edit-tx-date">Date de l'opération :</label>
+                    <input type="date" id="edit-tx-date">
+                </div>
+
+                <div class="modal-group">
+                    <label for="edit-tx-cat">Catégorie :</label>
+                    <input type="text" id="edit-tx-cat" placeholder="ex: URSSAF, CARPIMKO, Matériel...">
+                </div>
+
+                <div class="modal-group">
+                    <label for="edit-tx-label">Libellé / Description :</label>
+                    <input type="text" id="edit-tx-label" placeholder="ex: Cotisation trimestrielle">
+                </div>
+
+                <div class="modal-group">
+                    <label for="edit-tx-amount">Montant (€) :</label>
+                    <input type="number" step="0.01" id="edit-tx-amount">
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                    <button class="jrn-tab-btn" onclick="window.fermerModalEdit()">Annuler</button>
+                    <button class="btn-green" onclick="window.sauvegarderModificationTx()">💾 Enregistrer</button>
+                </div>
+            </div>
+        </div>
     `;
 };
 
@@ -237,14 +271,16 @@ window.genererTableauAttente = function(liste, type) {
         return `
             <tr>
                 <td>${item.date}</td>
+                <td><span class="badge-fournisseur">${item.categorie || 'Non classé'}</span></td>
                 <td><strong>${item.nomTiers}</strong> <br/><small style="color:#2563eb;">${item.codeTiers}</small></td>
                 <td>${item.label}</td>
                 <td style="font-weight:bold; color:${isRecette ? '#16a34a' : '#dc2626'};">${item.montant.toFixed(2)} €</td>
                 <td><input type="date" id="date-flux-${item.txId}" class="input-date" value="${hoy}" /></td>
                 <td>
+                    <button class="btn-edit" onclick="window.ouvrirModalEdit('${item.txId}')">✏️ Edit</button>
                     ${isRecette ? 
-                        `<button class="btn-green" onclick="window.validerFlux('${item.txId}', '${item.nomTiers}', '${item.codeTiers}', ${item.montant}, '${item.piece}', 'recette')">✓ Valider l'encaissement</button>` :
-                        `<button class="btn-red" onclick="window.validerFlux('${item.txId}', '${item.nomTiers}', '${item.codeTiers}', ${item.montant}, '${item.piece}', 'depense')">✓ Valider le règlement</button>`
+                        `<button class="btn-green" onclick="window.validerFlux('${item.txId}', '${item.nomTiers}', '${item.codeTiers}', ${item.montant}, '${item.piece}', 'recette')">✓ Valider</button>` :
+                        `<button class="btn-red" onclick="window.validerFlux('${item.txId}', '${item.nomTiers}', '${item.codeTiers}', ${item.montant}, '${item.piece}', 'depense')">✓ Valider</button>`
                     }
                 </td>
             </tr>
@@ -255,17 +291,79 @@ window.genererTableauAttente = function(liste, type) {
         <table class="jrn-table">
             <thead>
                 <tr>
-                    <th>Date Engagement</th>
-                    <th>Compte Tiers Individuel</th>
-                    <th>Libellé Transaction</th>
+                    <th>Date</th>
+                    <th>Catégorie</th>
+                    <th>Compte Tiers</th>
+                    <th>Libellé</th>
                     <th>Montant</th>
-                    <th>Date Relevé Banque</th>
-                    <th>Action</th>
+                    <th>Date Banque</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
         </table>
     `;
+};
+
+// ==========================================
+// FONCTIONS DE LA MODALE D'ÉDITION
+// ==========================================
+
+window.ouvrirModalEdit = function(txId) {
+    var transactions = window.allTransactions || [];
+    var tx = transactions.find(function(t, idx) {
+        return (t.id || ('tx-' + idx)) === txId;
+    });
+
+    if (!tx) return;
+
+    document.getElementById('edit-tx-id').value = txId;
+    document.getElementById('edit-tx-date').value = tx.date || '';
+    document.getElementById('edit-tx-cat').value = tx.categorie || tx.category || '';
+    document.getElementById('edit-tx-label').value = tx.label || tx.description || tx.libelle || '';
+    document.getElementById('edit-tx-amount').value = Math.abs(parseFloat(tx.amount) || 0);
+
+    document.getElementById('modal-edit-tx').style.display = 'flex';
+};
+
+window.fermerModalEdit = function() {
+    document.getElementById('modal-edit-tx').style.display = 'none';
+};
+
+window.sauvegarderModificationTx = function() {
+    var txId = document.getElementById('edit-tx-id').value;
+    var nouvelleDate = document.getElementById('edit-tx-date').value;
+    var nouvelleCat = document.getElementById('edit-tx-cat').value;
+    var nouveauLabel = document.getElementById('edit-tx-label').value;
+    var nouveauMontant = parseFloat(document.getElementById('edit-tx-amount').value) || 0;
+
+    var transactions = window.allTransactions || [];
+    var tx = transactions.find(function(t, idx) {
+        return (t.id || ('tx-' + idx)) === txId;
+    });
+
+    if (tx) {
+        tx.date = nouvelleDate;
+        tx.categorie = nouvelleCat;
+        tx.category = nouvelleCat;
+        tx.label = nouveauLabel;
+        tx.description = nouveauLabel;
+        
+        // Respecter le signe d'origine (négatif pour les dépenses)
+        var ancienMontant = parseFloat(tx.amount) || 0;
+        tx.amount = (ancienMontant < 0 || tx.type === 'depense') ? -Math.abs(nouveauMontant) : Math.abs(nouveauMontant);
+
+        // Sauvegarde dans le localStorage si présent
+        localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
+
+        window.fermerModalEdit();
+        
+        // Rafraîchir le Journal et le Grand Livre
+        window.initJournal();
+        if (typeof window.initGrandLivre === 'function') {
+            window.initGrandLivre();
+        }
+    }
 };
 
 window.validerFlux = function(txId, nomTiers, codeTiers, montant, piece, type) {
@@ -283,6 +381,9 @@ window.validerFlux = function(txId, nomTiers, codeTiers, montant, piece, type) {
     }
 
     window.initJournal();
+    if (typeof window.initGrandLivre === 'function') {
+        window.initGrandLivre();
+    }
 };
 
 window.genererTableauJournal = function(ecritures) {
