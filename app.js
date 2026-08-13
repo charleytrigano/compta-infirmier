@@ -1,235 +1,174 @@
 // ==========================================
-// CORE APPLICATION - TRANSACTIONS & PLAN COMPTABLE
+// MODULE DE MODIFICATION DES TRANSACTIONS
 // ==========================================
-var SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
-var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
 
-// Variable globale partagée avec tous les autres fichiers JS
-window.supabaseClient = null;
-window.allTransactions = [];
-
-var defaultPlanComptable = [
-    { code: "706000", label: "Honoraires / Recettes Soins", type: "Recette (Classe 7)" },
-    { code: "622600", label: "Rétrocessions / Soins Infirmiers", type: "Charge (Classe 6)" },
-    { code: "645100", label: "Cotisations URSSAF", type: "Charge (Classe 6)" },
-    { code: "645200", label: "Cotisations CARPIMKO", type: "Charge (Classe 6)" },
-    { code: "606000", label: "Achats / Fournitures médicales", type: "Charge (Classe 6)" }
-];
-
-// Initialisation au chargement de la page
-document.addEventListener('DOMContentLoaded', function() {
-    initApp();
-});
-
-function initApp() {
-    var statusElement = document.getElementById('connection-status');
-
-    if (window.supabase && typeof window.supabase.createClient === 'function') {
-        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } else {
-        if (statusElement) {
-            statusElement.textContent = "Erreur : CDN Supabase non chargé";
-            statusElement.style.background = "#fecaca";
-            statusElement.style.color = "#991b1b";
-        }
-        return;
-    }
-
-    var dateInput = document.getElementById('tx-date');
-    if (dateInput) dateInput.valueAsDate = new Date();
-
-    var txForm = document.getElementById('transaction-form');
-    if (txForm) txForm.addEventListener('submit', handleAddTransaction);
-
-    var pcForm = document.getElementById('pc-form');
-    if (pcForm) pcForm.addEventListener('submit', handleAddPlanComptable);
-
-    loadTransactions();
-    loadPlanComptable();
-}
-
-// ------------------------------------------
-// MODULE 1 : TRANSACTIONS (VERROUILLÉ)
-// ------------------------------------------
-async function loadTransactions() {
-    if (!window.supabaseClient) return;
-
-    var statusElement = document.getElementById('connection-status');
-
-    try {
-        var response = await window.supabaseClient
-            .from('transactions')
-            .select('*')
-            .order('date', { ascending: false });
-
-        if (response.error) throw response.error;
-
-        if (statusElement) {
-            statusElement.textContent = "Connecté à Supabase";
-            statusElement.style.background = "#dcfce7";
-            statusElement.style.color = "#166534";
-        }
-
-        window.allTransactions = response.data || [];
-        renderTransactionsTable(window.allTransactions);
-
-    } catch (err) {
-        console.error("Erreur Supabase Transactions :", err.message);
-        if (statusElement) {
-            statusElement.textContent = "Erreur Supabase (" + err.message + ")";
-            statusElement.style.background = "#fecaca";
-            statusElement.style.color = "#991b1b";
-        }
-    }
-}
-
-function renderTransactionsTable(transactions) {
-    var tbody = document.getElementById('transactions-list');
+// 1. Fonction d'injection du bouton Modifier dans le tableau de l'historique
+window.afficherHistoriqueTransactions = function(transactions) {
+    var tbody = document.querySelector('#tableau-transactions tbody') || document.querySelector('tbody');
     if (!tbody) return;
 
-    if (transactions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucune transaction enregistrée.</td></tr>';
-        return;
-    }
+    tbody.innerHTML = '';
 
-    var html = '';
-    transactions.forEach(function(tx) {
-        var color = tx.type === 'Recette' ? '#10b981' : '#ef4444';
-        html += '<tr>' +
-            '<td>' + (tx.date || '') + '</td>' +
-            '<td><strong>' + (tx.type || '') + '</strong></td>' +
-            '<td>' + (tx.category || '') + '</td>' +
-            '<td>' + (tx.description || '') + '</td>' +
-            '<td style="color: ' + color + '; font-weight: bold;">' + (parseFloat(tx.amount) || 0).toFixed(2) + ' €</td>' +
-            '<td><button onclick="deleteTransaction(\'' + tx.id + '\')" class="btn btn-danger">Supprimer</button></td>' +
-            '</tr>';
+    transactions.forEach(function(tx, index) {
+        var txId = tx.id || index;
+        var estRecette = (tx.type || '').toLowerCase() === 'recette' || parseFloat(tx.montant || tx.amount) > 0;
+        var montantVal = Math.abs(parseFloat(tx.montant || tx.amount) || 0).toFixed(2);
+
+        var tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${tx.date || ''}</td>
+            <td><strong>${tx.type || (estRecette ? 'recette' : 'depense')}</strong></td>
+            <td>${tx.categorie || tx.category || ''}</td>
+            <td>${tx.description || tx.label || ''}</td>
+            <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">
+                ${montantVal} €
+            </td>
+            <td>
+                <button class="btn-edit-tx" onclick="window.ouvrirModalModification('${txId}')">Modifier</button>
+                <button class="btn-delete-tx" onclick="window.supprimerTransaction('${txId}')">Supprimer</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
     });
-    tbody.innerHTML = html;
-}
+};
 
-async function handleAddTransaction(event) {
-    event.preventDefault();
-    if (!window.supabaseClient) return;
+// 2. Modale de modification générée dynamiquement
+window.creerModalEditionSiInexistante = function() {
+    if (document.getElementById('modal-edit-transaction')) return;
 
-    var newTransaction = {
-        date: document.getElementById('tx-date').value,
-        type: document.getElementById('tx-type').value,
-        category: document.getElementById('tx-category').value,
-        description: document.getElementById('tx-description').value,
-        amount: parseFloat(document.getElementById('tx-amount').value)
-    };
+    var modalHtml = `
+        <div id="modal-edit-transaction" class="modal-tx-overlay">
+            <div class="modal-tx-content">
+                <h3 style="margin-top:0; color:#1e293b;">✏️ Modifier l'opération</h3>
+                <input type="hidden" id="edit-tx-id">
 
-    var res = await window.supabaseClient.from('transactions').insert([newTransaction]);
+                <div class="form-group-tx">
+                    <label>Date *</label>
+                    <input type="date" id="edit-tx-date" class="input-tx">
+                </div>
 
-    if (res.error) {
-        alert("Erreur lors de l'ajout : " + res.error.message);
-    } else {
-        document.getElementById('transaction-form').reset();
-        document.getElementById('tx-date').valueAsDate = new Date();
-        loadTransactions();
-    }
-}
+                <div class="form-group-tx">
+                    <label>Type *</label>
+                    <select id="edit-tx-type" class="input-tx">
+                        <option value="recette">Recette</option>
+                        <option value="depense">Dépense</option>
+                    </select>
+                </div>
 
-async function deleteTransaction(id) {
-    if (!window.supabaseClient) return;
-    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+                <div class="form-group-tx">
+                    <label>Catégorie *</label>
+                    <input type="text" id="edit-tx-cat" class="input-tx" placeholder="ex: Soins infirmiers, CARPIMKO, URSSAF...">
+                </div>
 
-    var res = await window.supabaseClient.from('transactions').delete().eq('id', id);
+                <div class="form-group-tx">
+                    <label>Description *</label>
+                    <input type="text" id="edit-tx-desc" class="input-tx" placeholder="ex: Patient X, Acompte...">
+                </div>
 
-    if (res.error) {
-        alert("Erreur lors de la suppression : " + res.error.message);
-    } else {
-        loadTransactions();
-    }
-}
+                <div class="form-group-tx">
+                    <label>Montant (€) *</label>
+                    <input type="number" step="0.01" id="edit-tx-montant" class="input-tx">
+                </div>
 
-// ------------------------------------------
-// MODULE 2 : PLAN COMPTABLE (VERROUILLÉ)
-// ------------------------------------------
-async function loadPlanComptable() {
-    if (!window.supabaseClient) {
-        renderPlanComptableTable(defaultPlanComptable);
-        return;
-    }
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                    <button type="button" class="btn-cancel-tx" onclick="window.fermerModalModification()">Annuler</button>
+                    <button type="button" class="btn-save-tx" onclick="window.enregistrerModificationTransaction()">💾 Enregistrer</button>
+                </div>
+            </div>
+        </div>
 
-    try {
-        // Nom de la table exacte en base : plan_comptable
-        var res = await window.supabaseClient
-            .from('plan_comptable')
-            .select('*')
-            .order('code', { ascending: true });
+        <style>
+            .btn-edit-tx { background-color: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; margin-right: 5px; }
+            .btn-delete-tx { background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; }
+            
+            .modal-tx-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 10000; }
+            .modal-tx-content { background: white; padding: 25px; border-radius: 8px; width: 450px; max-width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: system-ui, sans-serif; }
+            .form-group-tx { margin-bottom: 12px; }
+            .form-group-tx label { display: block; font-size: 13px; font-weight: bold; color: #475569; margin-bottom: 4px; }
+            .input-tx { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+            .btn-cancel-tx { background: #cbd5e1; color: #334155; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+            .btn-save-tx { background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        </style>
+    `;
 
-        if (res.error || !res.data || res.data.length === 0) {
-            renderPlanComptableTable(defaultPlanComptable);
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+// 3. Ouvrir la modale pré-remplie
+window.ouvrirModalModification = function(txId) {
+    window.creerModalEditionSiInexistante();
+
+    var list = window.allTransactions || [];
+    var tx = list.find(t => (t.id || '').toString() === txId.toString());
+
+    if (!tx) return;
+
+    document.getElementById('edit-tx-id').value = txId;
+    document.getElementById('edit-tx-date').value = tx.date || '';
+    document.getElementById('edit-tx-type').value = (tx.type || '').toLowerCase();
+    document.getElementById('edit-tx-cat').value = tx.categorie || tx.category || '';
+    document.getElementById('edit-tx-desc').value = tx.description || tx.label || '';
+    document.getElementById('edit-tx-montant').value = Math.abs(parseFloat(tx.montant || tx.amount) || 0);
+
+    document.getElementById('modal-edit-transaction').style.display = 'flex';
+};
+
+// 4. Fermer la modale
+window.fermerModalModification = function() {
+    var modal = document.getElementById('modal-edit-transaction');
+    if (modal) modal.style.display = 'none';
+};
+
+// 5. Sauvegarder les modifications dans le tableau et Supabase/LocalStorage
+window.enregistrerModificationTransaction = async function() {
+    var txId = document.getElementById('edit-tx-id').value;
+    var nouvelleDate = document.getElementById('edit-tx-date').value;
+    var nouveauType = document.getElementById('edit-tx-type').value;
+    var nouvelleCat = document.getElementById('edit-tx-cat').value;
+    var nouvelleDesc = document.getElementById('edit-tx-desc').value;
+    var nouveauMontant = parseFloat(document.getElementById('edit-tx-montant').value) || 0;
+
+    var list = window.allTransactions || [];
+    var tx = list.find(t => (t.id || '').toString() === txId.toString());
+
+    if (tx) {
+        tx.date = nouvelleDate;
+        tx.type = nouveauType;
+        tx.categorie = nouvelleCat;
+        tx.category = nouvelleCat;
+        tx.description = nouvelleDesc;
+        tx.label = nouvelleDesc;
+        tx.montant = nouveauMontant;
+        tx.amount = (nouveauType === 'depense') ? -Math.abs(nouveauMontant) : Math.abs(nouveauMontant);
+
+        // Sauvegarde Locale
+        localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
+
+        // Si Supabase est connecté, mettre à jour dans la base
+        if (window.supabaseClient) {
+            try {
+                await window.supabaseClient
+                    .from('transactions')
+                    .update({
+                        date: tx.date,
+                        type: tx.type,
+                        categorie: tx.categorie,
+                        description: tx.description,
+                        montant: tx.montant
+                    })
+                    .eq('id', txId);
+            } catch (e) {
+                console.log("Mise à jour Supabase :", e);
+            }
+        }
+
+        window.fermerModalModification();
+
+        // Rafraîchir les affichages
+        if (typeof window.afficherHistoriqueTransactions === 'function') {
+            window.afficherHistoriqueTransactions(window.allTransactions);
         } else {
-            renderPlanComptableTable(defaultPlanComptable.concat(res.data));
+            location.reload();
         }
-    } catch (err) {
-        renderPlanComptableTable(defaultPlanComptable);
     }
-}
-
-function renderPlanComptableTable(accounts) {
-    var tbody = document.getElementById('pc-list');
-    if (!tbody) return;
-
-    var html = '';
-    accounts.forEach(function(acc) {
-        html += '<tr>' +
-            '<td><strong>' + acc.code + '</strong></td>' +
-            '<td>' + (acc.label || acc.libelle || '') + '</td>' +
-            '<td>' + acc.type + '</td>' +
-            '</tr>';
-    });
-    tbody.innerHTML = html;
-}
-
-async function handleAddPlanComptable(event) {
-    event.preventDefault();
-    if (!window.supabaseClient) return;
-
-    var newAccount = {
-        code: document.getElementById('pc-code').value.trim(),
-        label: document.getElementById('pc-label').value.trim(),
-        type: document.getElementById('pc-type').value
-    };
-
-    var res = await window.supabaseClient.from('plan_comptable').insert([newAccount]);
-
-    if (res.error) {
-        alert("Erreur : " + res.error.message);
-    } else {
-        document.getElementById('pc-form').reset();
-        loadPlanComptable();
-    }
-}
-
-// ------------------------------------------
-// NAVIGATION PAR ONGLETS & DÉCLENCHEMENT DES MODULES
-// ------------------------------------------
-function switchTab(tabId, element) {
-    var tabs = document.querySelectorAll('.tab-content');
-    for (var i = 0; i < tabs.length; i++) {
-        tabs[i].classList.remove('active');
-    }
-
-    var btns = document.querySelectorAll('.tab-btn');
-    for (var j = 0; j < btns.length; j++) {
-        btns[j].classList.remove('active');
-    }
-
-    var selectedTab = document.getElementById('tab-' + tabId);
-    if (selectedTab) selectedTab.classList.add('active');
-    if (element) element.classList.add('active');
-
-    // Déclenchement des fonctions propres à chaque fichier indépendant
-    if (tabId === 'transactions') loadTransactions();
-    if (tabId === 'plan-comptable') loadPlanComptable();
-    if (tabId === 'urssaf' && typeof window.initUrssaf === 'function') window.initUrssaf();
-    if (tabId === 'carpimko' && typeof window.initCarpimko === 'function') window.initCarpimko();
-    if (tabId === 'bilan' && typeof window.initBilan === 'function') window.initBilan();
-    if (tabId === 'declarations' && typeof window.init2035 === 'function') window.init2035();
-    if (tabId === 'journal' && typeof window.initJournal === 'function') window.initJournal();
-    if (tabId === 'grand-livre' && typeof window.initGrandLivre === 'function') window.initGrandLivre();
-    if (tabId === 'profil' && typeof window.initProfil === 'function') window.initProfil();
-}
+};
