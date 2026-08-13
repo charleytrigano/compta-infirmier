@@ -4,268 +4,270 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
-    <link rel="icon" href="data:,">
-    
-    <!-- CDN officiel Supabase -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <!-- Script principal (Core, Transactions & Plan Comptable) -->
-    <script src="app.js" defer></script>
-
-    <!-- Fichiers indépendants par onglet -->
-    <script src="urssaf.js" defer></script>
-    <script src="carpimko.js" defer></script>
-    <script src="bilan.js" defer></script>
-    <script src="declaration2035.js" defer></script>
-    <script src="journal.js" defer></script>
-    <script src="grand-livre.js" defer></script>
-    <script src="profil.js" defer></script>
-    <script src="transactions.js"></script>
-
     <style>
-        :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg-main: #f8fafc;
-            --bg-card: #ffffff;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
-            --success: #10b981;
-            --danger: #ef4444;
-        }
-
+        /* ==========================================
+           1. STYLES DE BASE ET LAYOUT
+           ========================================== */
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
 
         body {
-            background-color: var(--bg-main);
-            color: var(--text-main);
+            background-color: #f8fafc;
+            color: #1e293b;
+            margin: 0;
             padding: 20px;
         }
 
-        .header {
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* En-tête */
+        header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
 
-        .logo {
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #0f172a;
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 24px;
-            font-weight: bold;
-            color: #0f172a;
         }
 
-        .status-badge {
-            padding: 6px 12px;
+        .badge-status {
+            background-color: #dcfce7;
+            color: #15803d;
+            padding: 6px 16px;
             border-radius: 20px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
-            background: #fef08a;
-            color: #854d0e;
         }
 
-        .tabs-nav {
+        /* Barre de Navigation (Onglets) */
+        nav {
             display: flex;
             gap: 8px;
-            border-bottom: 2px solid var(--border);
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e2e8f0;
             padding-bottom: 10px;
-            margin-bottom: 20px;
-            overflow-x: auto;
         }
 
-        .tab-btn {
+        .nav-btn {
+            background-color: #ffffff;
+            border: 1px solid #cbd5e1;
             padding: 8px 16px;
-            border: 1px solid var(--border);
-            background: white;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 500;
-            color: var(--text-muted);
-            transition: all 0.2s;
-            white-space: nowrap;
+            color: #475569;
+            transition: all 0.2s ease;
         }
 
-        .tab-btn.active, .tab-btn:hover {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
+        .nav-btn:hover {
+            background-color: #f1f5f9;
         }
 
-        .tab-content {
-            display: none;
+        .nav-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
         }
 
-        .tab-content.active {
-            display: block;
-        }
-
-        .card {
-            background: var(--bg-card);
+        /* Sections des Vues */
+        .view-section {
+            display: none; /* Masqué par défaut */
+            background: #ffffff;
             border-radius: 8px;
-            border: 1px solid var(--border);
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
-        .card h3 {
-            margin-bottom: 15px;
-            font-size: 18px;
+        .view-section.active {
+            display: block; /* Affiché quand actif */
         }
 
+        /* Formulaire */
         .form-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 15px;
             align-items: end;
+            margin-bottom: 30px;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 5px;
         }
 
-        label {
+        .form-group label {
             font-size: 13px;
             font-weight: 600;
-            color: var(--text-muted);
+            color: #475569;
         }
 
-        input, select {
-            padding: 10px;
-            border: 1px solid var(--border);
+        .form-control {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
             border-radius: 6px;
             font-size: 14px;
-            outline: none;
             width: 100%;
-        }
-
-        input:focus, select:focus {
-            border-color: var(--primary);
-        }
-
-        .btn {
-            padding: 10px 18px;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
         }
 
         .btn-primary {
-            background: var(--primary);
+            background-color: #2563eb;
             color: white;
+            border: none;
+            padding: 9px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
         }
 
         .btn-primary:hover {
-            background: var(--primary-hover);
+            background-color: #1d4ed8;
         }
 
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-
+        /* Tableau d'Historique */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
+            margin-top: 15px;
             text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid var(--border);
-            font-size: 14px;
         }
 
         th {
             background-color: #f1f5f9;
-            color: var(--text-muted);
+            color: #475569;
+            padding: 12px;
+            font-size: 13px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        .btn-edit {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+
+        .btn-delete {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
             font-weight: 600;
         }
 
-        .text-center {
-            text-align: center;
+        /* Fenêtre Modale de Modification */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 480px;
+            max-width: 90%;
         }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="logo">
-            🩺 <span>Comptabilité Libérale</span>
-        </div>
-        <div id="connection-status" class="status-badge">Connexion à Supabase...</div>
-    </div>
+    <div class="container">
+        <!-- En-tête -->
+        <header>
+            <h1>🩺 Comptabilité Libérale</h1>
+            <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
+        </header>
 
-    <div class="tabs-nav">
-        <button class="tab-btn active" onclick="switchTab('transactions', this)">📄 Transactions</button>
-        <button class="tab-btn" onclick="switchTab('plan-comptable', this)">📊 Plan Comptable</button>
-        <button class="tab-btn" onclick="switchTab('urssaf', this)">🏛️ URSSAF</button>
-        <button class="tab-btn" onclick="switchTab('carpimko', this)">🏛️ CARPIMKO</button>
-        <button class="tab-btn" onclick="switchTab('bilan', this)">📊 Bilan / CE</button>
-        <button class="tab-btn" onclick="switchTab('declarations', this)">🧮 2035</button>
-        <button class="tab-btn" onclick="switchTab('journal', this)">📖 Journal</button>
-        <button class="tab-btn" onclick="switchTab('grand-livre', this)">📖 Grand Livre</button>
-        <button class="tab-btn" onclick="switchTab('profil', this)">👤 Profil</button>
-    </div>
+        <!-- Menu de Navigation (Onglets) -->
+        <nav>
+            <button class="nav-btn active" onclick="switchTab('vue-transactions', this)">📄 Transactions</button>
+            <button class="nav-btn" onclick="switchTab('vue-plan', this)">📊 Plan Comptable</button>
+            <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
+            <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
+            <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
+            <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035</button>
+            <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
+            <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
+            <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
+        </nav>
 
-    <!-- ONGLET 1: TRANSACTIONS (VERROUILLÉ) -->
-    <div id="tab-transactions" class="tab-content active">
-        <form id="transaction-form" class="card">
-            <h3>Ajouter une opération</h3>
-            <div class="form-grid">
+        <!-- 1. VUE TRANSACTIONS (Affichée par défaut) -->
+        <section id="vue-transactions" class="view-section active">
+            <h2>Ajouter une opération</h2>
+            <form id="form-ajouter-transaction" class="form-grid" onsubmit="event.preventDefault(); ajouterTransaction();">
                 <div class="form-group">
-                    <label>Date *</label>
-                    <input type="date" id="tx-date" required>
+                    <label for="tx-date">Date *</label>
+                    <input type="date" id="tx-date" class="form-control" required>
                 </div>
+
                 <div class="form-group">
-                    <label>Type *</label>
-                    <select id="tx-type" required>
+                    <label for="tx-type">Type *</label>
+                    <select id="tx-type" class="form-control" required>
                         <option value="Recette">Recette</option>
                         <option value="Dépense">Dépense</option>
                     </select>
                 </div>
+
                 <div class="form-group">
-                    <label>Catégorie *</label>
-                    <select id="tx-category" required>
+                    <label for="tx-categorie">Catégorie *</label>
+                    <select id="tx-categorie" class="form-control" required>
                         <option value="Soins infirmiers / Honoraires">Soins infirmiers / Honoraires</option>
-                        <option value="Achats / Fournitures médicales">Achats / Fournitures médicales</option>
-                        <option value="Cotisations URSSAF">Cotisations URSSAF</option>
-                        <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
-                        <option value="Autre dépense">Autre dépense</option>
+                        <option value="URSSAF">URSSAF</option>
+                        <option value="CARPIMKO">CARPIMKO</option>
+                        <option value="Achats matériel">Achats matériel</option>
+                        <option value="Autre">Autre</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Description *</label>
-                    <input type="text" id="tx-description" placeholder="Ex: Patient X, Matériel..." required>
-                </div>
-                <div class="form-group">
-                    <label>Montant (€) *</label>
-                    <input type="number" step="0.01" id="tx-amount" placeholder="0.00" required>
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary">+ Enregistrer l'écriture</button>
-                </div>
-            </div>
-        </form>
 
-        <div class="card">
-            <h3>Historique des transactions</h3>
+                <div class="form-group">
+                    <label for="tx-description">Description *</label>
+                    <input type="text" id="tx-description" class="form-control" placeholder="Ex: Patient X, Matériel..." required>
+                </div>
+
+                <div class="form-group">
+                    <label for="tx-montant">Montant (€) *</label>
+                    <input type="number" step="0.01" id="tx-montant" class="form-control" placeholder="0.00" required>
+                </div>
+
+                <button type="submit" class="btn-primary">+ Enregistrer l'écriture</button>
+            </form>
+
+            <h2>Historique des transactions</h2>
             <table>
                 <thead>
                     <tr>
@@ -277,135 +279,100 @@
                         <th>Action</th>
                     </tr>
                 </thead>
-                <script src="transactions.js"></script>
-<script src="journal.js"></script>
-<script src="grandlivre.js"></script>
-                <tbody id="transactions-list">
-                    <tr><td colspan="6" class="text-center">Chargement des transactions depuis Supabase...</td></tr>
+                <tbody id="body-tableau-transactions">
+                    <!-- Les lignes seront générées dynamiquement par JavaScript -->
                 </tbody>
             </table>
-        </div>
+        </section>
+
+        <!-- VUES SECONDAIRES -->
+        <section id="vue-plan" class="view-section"><h2>Plan Comptable</h2><p>Contenu du plan comptable...</p></section>
+        <section id="vue-urssaf" class="view-section"><h2>URSSAF</h2><p>Gestion des cotisations URSSAF...</p></section>
+        <section id="vue-carpimko" class="view-section"><h2>CARPIMKO</h2><p>Gestion des cotisations CARPIMKO...</p></section>
+        <section id="vue-bilan" class="view-section"><h2>Bilan / Compte d'Exploitation</h2><p>Synthèse financière...</p></section>
+        <section id="vue-2035" class="view-section"><h2>Déclaration 2035</h2><p>Préparation de la déclaration fiscale...</p></section>
+        <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
+        <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
+        <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
     </div>
 
-    <!-- ONGLET 2: PLAN COMPTABLE (VERROUILLÉ) -->
-    <div id="tab-plan-comptable" class="tab-content">
-        <form id="pc-form" class="card">
-            <h3>Ajouter un compte au Plan Comptable</h3>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Numéro de compte *</label>
-                    <input type="text" id="pc-code" placeholder="Ex: 606100" required>
-                </div>
-                <div class="form-group">
-                    <label>Libellé du compte *</label>
-                    <input type="text" id="pc-label" placeholder="Ex: Électricité" required>
-                </div>
-                <div class="form-group">
-                    <label>Type</label>
-                    <select id="pc-type">
-                        <option value="Recette (Classe 7)">Recette (Classe 7)</option>
-                        <option value="Charge (Classe 6)">Charge (Classe 6)</option>
-                    </select>
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary">+ Ajouter Compte</button>
-                </div>
+    <!-- MODALE DE MODIFICATION -->
+    <div id="modal-modifier" class="modal-overlay">
+        <div class="modal-content">
+            <h3>✏️ Modifier l'opération</h3>
+            <input type="hidden" id="edit-id">
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label>Date</label>
+                <input type="date" id="edit-date" class="form-control">
             </div>
-        </form>
-
-        <div class="card">
-            <h3>Plan Comptable Général BNC</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Code Compte</th>
-                        <th>Libellé</th>
-                        <th>Type</th>
-                    </tr>
-                </thead>
-                <tbody id="pc-list">
-                    <tr><td colspan="3" class="text-center">Chargement du plan comptable...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- ONGLET 3: URSSAF -->
-    <div id="tab-urssaf" class="tab-content">
-        <div class="card">
-            <h3>🏛️ Module URSSAF</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Suivi et estimation de vos cotisations sociales URSSAF.</p>
-            <div id="urssaf-container">
-                <p>Chargement des données URSSAF...</p>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label>Type</label>
+                <select id="edit-type" class="form-control">
+                    <option value="Recette">Recette</option>
+                    <option value="Dépense">Dépense</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label>Catégorie</label>
+                <input type="text" id="edit-categorie" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label>Description</label>
+                <input type="text" id="edit-description" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label>Montant (€)</label>
+                <input type="number" step="0.01" id="edit-montant" class="form-control">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn-primary" style="background:#64748b;" onclick="fermerModal()">Annuler</button>
+                <button type="button" class="btn-primary" onclick="sauvegarderModification()">Enregistrer</button>
             </div>
         </div>
     </div>
 
-    <!-- ONGLET 4: CARPIMKO -->
-    <div id="tab-carpimko" class="tab-content">
-        <div class="card">
-            <h3>🏛️ Module CARPIMKO</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Gestion et calcul de la retraite infirmière CARPIMKO.</p>
-            <div id="carpimko-container">
-                <p>Chargement des données CARPIMKO...</p>
-            </div>
-        </div>
-    </div>
+    <!-- ==========================================
+         2. CHARGEMENT SÉCURISÉ DES SCRIPTS
+         ========================================== -->
+    <!-- Librairie Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- ONGLET 5: BILAN / CE -->
-    <div id="tab-bilan" class="tab-content">
-        <div class="card">
-            <h3>📊 Bilan & Compte de Résultat</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Synthèse financière de votre activité libérale.</p>
-            <div id="bilan-container">
-                <p>Chargement du bilan...</p>
-            </div>
-        </div>
-    </div>
+    <!-- Fichier de Configuration -->
+    <script src="config.js"></script>
 
-    <!-- ONGLET 6: 2035 -->
-    <div id="tab-declarations" class="tab-content">
-        <div class="card">
-            <h3>🧮 Déclaration Fiscale 2035</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Préparation automatique des lignes de la 2035 BNC.</p>
-            <div id="declaration-container">
-                <p>Chargement de la 2035...</p>
-            </div>
-        </div>
-    </div>
+    <!-- Script de Navigation et Logique Principale -->
+    <script>
+        // Fonction globale de changement d'onglet
+        window.switchTab = function(tabId, btnElement) {
+            var sections = document.querySelectorAll('.view-section');
+            sections.forEach(function(sec) {
+                sec.classList.remove('active');
+            });
 
-    <!-- ONGLET 7: JOURNAL -->
-    <div id="tab-journal" class="tab-content">
-        <div class="card">
-            <h3>📖 Journal Général</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Chronologie complète de toutes les écritures comptables.</p>
-            <div id="journal-container">
-                <p>Chargement du journal...</p>
-            </div>
-        </div>
-    </div>
+            var target = document.getElementById(tabId);
+            if (target) {
+                target.classList.add('active');
+            }
 
-    <!-- ONGLET 8: GRAND LIVRE -->
-    <div id="tab-grand-livre" class="tab-content">
-        <div class="card">
-            <h3>📖 Grand Livre des Comptes</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Détail des mouvements compte par compte.</p>
-            <div id="grand-livre-container">
-                <p>Chargement du grand livre...</p>
-            </div>
-        </div>
-    </div>
+            var buttons = document.querySelectorAll('.nav-btn');
+            buttons.forEach(function(btn) {
+                btn.classList.remove('active');
+            });
 
-    <!-- ONGLET 9: PROFIL -->
-    <div id="tab-profil" class="tab-content">
-        <div class="card">
-            <h3>👤 Profil Professionnel</h3>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">Paramètres de l'infirmier(ère) et options comptables.</p>
-            <div id="profil-container">
-                <p>Chargement du profil...</p>
-            </div>
-        </div>
-    </div>
+            if (btnElement) {
+                btnElement.classList.add('active');
+            }
+        };
 
+        // Modale d'édition
+        window.fermerModal = function() {
+            document.getElementById('modal-modifier').style.display = 'none';
+        };
+    </script>
+
+    <!-- Charger tes scripts additionnels s'ils existent sur GitHub -->
+    <!-- Si un fichier n'existe pas encore, garde-le commenté pour éviter l'erreur 404 -->
+    <!-- <script src="transactions.js"></script> -->
+    <!-- <script src="journal.js"></script> -->
 </body>
 </html>
