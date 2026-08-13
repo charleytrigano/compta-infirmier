@@ -1,6 +1,6 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Correction de la variable montantBrut & Gestion des comptes de tiers
+// Support complet pour Transactions & Journal de Banque (window.ajouterPaiement)
 // ==========================================
 
 window.listeTransactions = [];
@@ -69,8 +69,8 @@ function ExtraireDescription(tx) {
 
 function ExtraireType(tx) {
     let t = (tx.type || '').toString().toLowerCase().trim();
-    if (t === 'recette' || t === 'credit') return 'recette';
-    if (t === 'depense' || t === 'dépense' || t === 'debit') return 'depense';
+    if (t === 'recette' || t === 'credit' || t.includes('encaissement')) return 'recette';
+    if (t === 'depense' || t === 'dépense' || t === 'debit' || t.includes('décaissement')) return 'depense';
     
     let m = ExtraireMontant(tx);
     if (m < 0) return 'depense';
@@ -108,7 +108,7 @@ window.chargerTransactions = async function() {
     }
 };
 
-// LECTURE DU FORMULAIRE ET CORRECTION DE VARIABLE
+// FONCTION UNIFIÉE DE SAISIE (TRANSACTIONS ET REGLEMENTS BANCAIRES)
 window.ajouterTransaction = async function(event) {
     if (event) event.preventDefault();
 
@@ -117,37 +117,31 @@ window.ajouterTransaction = async function(event) {
         return;
     }
 
-    // Recherche souple des éléments HTML
-    const inputDate = document.getElementById('date') || 
-                      document.querySelector('input[type="date"]') || 
-                      document.querySelector('[name="date"]');
+    // Sélection flexible des champs sur n'importe quel onglet actif
+    const inputDate = document.querySelector('input[type="date"]:focus') || 
+                      document.getElementById('date') || 
+                      document.querySelector('input[type="date"]');
 
-    const selectType = document.getElementById('type') || 
-                       document.getElementById('type-operation') || 
-                       document.querySelector('select[name="type"]') || 
+    const selectType = document.querySelector('select:focus') || 
+                       document.getElementById('type') || 
                        document.querySelector('select');
 
-    const selectCat = document.getElementById('categorie') || 
-                      document.getElementById('category') || 
-                      document.querySelector('[name="categorie"]') || 
-                      document.querySelectorAll('select')[1];
+    const tousSelects = document.querySelectorAll('select');
+    const selectCat = tousSelects.length > 1 ? tousSelects[1] : tousSelects[0];
 
     const inputDesc = document.getElementById('description') || 
                       document.querySelector('input[placeholder*="Acompte"]') || 
-                      document.querySelector('[name="description"]');
+                      document.querySelector('input[type="text"]');
 
     const inputMontant = document.getElementById('montant') || 
-                        document.getElementById('amount') || 
                         document.querySelector('input[type="number"]') || 
-                        document.querySelector('[name="montant"]');
+                        document.querySelector('input[placeholder*="717"]');
 
-    // Récupération sécurisée des valeurs
     const dateVal = inputDate ? inputDate.value : '';
     const typeVal = selectType ? selectType.value : 'Dépense';
     const catVal = selectCat ? selectCat.value : 'Divers';
     const descVal = inputDesc ? inputDesc.value : '';
     
-    // Correction ici : nom de variable en un seul mot
     let montantBrut = inputMontant ? inputMontant.value : '0';
     let montantVal = parseFloat(montantBrut.replace(',', '.')) || 0;
 
@@ -162,7 +156,7 @@ window.ajouterTransaction = async function(event) {
         category: catVal,
         description: descVal,
         amount: montantVal,
-        encaisse: false
+        encaisse: true // Si saisi dans le journal de banque, marqué directement payé/encaissé
     };
 
     try {
@@ -182,6 +176,9 @@ window.ajouterTransaction = async function(event) {
         alert("Erreur lors de l'enregistrement : " + err.message);
     }
 };
+
+// ALIAS : Permet de répondre à l'appel de window.ajouterPaiement()
+window.ajouterPaiement = window.ajouterTransaction;
 
 window.rafraichirToutesLesVues = function() {
     window.afficherTransactions(window.listeTransactions);
@@ -290,34 +287,26 @@ window.afficherTransactions = function(transactions) {
 // 4. ONGLET : JOURNAL DE BANQUE
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
-    const tbody = document.getElementById('body-tableau-banque');
+    const tbody = document.getElementById('body-tableau-banque') || document.querySelector('#Journal\\ de\\ Banque tbody');
     const elSolde = document.getElementById('solde-banque');
     let totalBanque = 0;
 
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    const aDesEncaissements = transactions.some(tx => tx.encaisse === true);
-    const listeAffichée = aDesEncaissements 
-        ? transactions.filter(tx => tx.encaisse === true)
-        : transactions;
-
-    if (listeAffichée.length === 0) {
+    if (transactions.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:20px;">Aucune opération bancaire.</td></tr>`;
         return;
     }
 
-    listeAffichée.forEach(tx => {
+    transactions.forEach(tx => {
         const estRecette = ExtraireType(tx) === 'recette';
         const montantAbsolu = Math.abs(ExtraireMontant(tx));
         const estEncaisse = tx.encaisse === true;
 
-        if (estEncaisse || !aDesEncaissements) {
-            if (estRecette) {
-                totalBanque += montantAbsolu;
-            } else {
-                totalBanque -= montantAbsolu;
-            }
+        if (estEncaisse) {
+            if (estRecette) totalBanque += montantAbsolu;
+            else totalBanque -= montantAbsolu;
         }
 
         const tr = document.createElement('tr');
@@ -330,7 +319,7 @@ window.afficherBanque = function(transactions) {
             <td style="color:#16a34a; font-weight:bold;">${estRecette ? '+ ' + montantAbsolu.toFixed(2) + ' €' : ''}</td>
             <td>
                 ${estEncaisse 
-                    ? `<button style="background:none; border:none; cursor:pointer; color:#64748b;" onclick="window.annulerReglement('${tx.id}')">↩️ Annuler</button>`
+                    ? `<span style="color:#16a34a; font-weight:bold;">✅ Validé</span>`
                     : `<button style="background:#2563eb; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;" onclick="window.validerReglement('${tx.id}')">Valider</button>`
                 }
             </td>
@@ -500,13 +489,13 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 7. INITIALISATION DU FORMULAIRE
+// 7. INITIALISATION DU SCRIPT
 // ------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form');
-    if (form) {
+    const formulaires = document.querySelectorAll('form');
+    formulaires.forEach(form => {
         form.addEventListener('submit', window.ajouterTransaction);
-    }
+    });
 
     setTimeout(function() {
         if (window.supabaseClient) {
