@@ -3,16 +3,21 @@
 // ==========================================
 
 const SUPABASE_URL = "https://qfwhzuhwldurnmhirgil.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTQ0MTgsImV4cCI6MjEwMTA3MDQxOH0.Lt7eU9UBVY94tIIMUNOzLeJOpWnkGkvszy_gENkUkLg";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmd2h6dWh3bGR1cm5taGlyZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3M00QxO0.Lt7eU9UBVY94tIIMUNOzLeJOpWn"; // Ta clé anon
 
 // Nom du bucket Supabase Storage pour les pièces jointes
-const BUCKET_NAME = 'documents';
+window.BUCKET_NAME = 'documents';
 
-// Initialisation unique du client Supabase
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Initialisation unique et globale du client Supabase
+if (typeof supabase !== 'undefined') {
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log("✅ Client Supabase initialisé avec succès.");
+} else {
+    console.error("❌ Erreur : La librairie Supabase JS n'est pas chargée dans index.html avant config.js !");
+}
 
 // Plan comptable par défaut pour la profession libérale (BNC)
-let defaultPlanComptable = [
+window.defaultPlanComptable = [
     { code: "706000", label: "Honoraires & Prestations de soins", type: "Recette" },
     { code: "606000", label: "Achats de petit matériel & fournitures", type: "Dépense" },
     { code: "613200", label: "Locations immobilières / Loyer pro", type: "Dépense" },
