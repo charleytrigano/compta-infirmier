@@ -1,6 +1,6 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Alignement sur la table Supabase (amount, category, encaisse)
+// Alignement complet Supabase & Grand Livre
 // ==========================================
 
 window.listeTransactions = [];
@@ -18,11 +18,13 @@ function ExtraireMontant(tx) {
 }
 
 function ExtraireCategorie(tx) {
-    return tx.category || tx.categorie || 'Général';
+    let cat = tx.category || tx.categorie || 'Général';
+    return cat.trim(); // Supprime les espaces invisibles au début et à la fin
 }
 
 function ExtraireDescription(tx) {
-    return tx.description || tx.libelle || '-';
+    let desc = tx.description || tx.libelle || '-';
+    return desc.trim();
 }
 
 function ExtraireType(tx) {
@@ -30,9 +32,9 @@ function ExtraireType(tx) {
     if (t === 'recette' || t === 'credit') return 'recette';
     if (t === 'depense' || t === 'dépense' || t === 'debit') return 'depense';
     
-    // Déduction si le type est absent dans Supabase
+    // Déduction automatique si le type n'est pas renseigné dans Supabase
     let cat = ExtraireCategorie(tx).toLowerCase();
-    if (cat.includes('urssaf') || cat.includes('carpimko')) {
+    if (cat.includes('urssaf') || cat.includes('carpimko') || cat.includes('frais') || cat.includes('achat')) {
         return 'depense';
     }
     
@@ -164,7 +166,6 @@ window.afficherBanque = function(transactions) {
 
     if (tbody) tbody.innerHTML = '';
 
-    // Filtre uniquement les opérations validées par l'utilisateur (encaisse === true)
     const transactionsEncaissees = transactions.filter(tx => tx.encaisse === true);
 
     transactionsEncaissees.forEach(tx => {
@@ -248,7 +249,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE
+// 6. ONGLET : GRAND LIVRE (TOUS LES COMPTES)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
@@ -256,29 +257,37 @@ window.afficherGrandLivre = function(transactions) {
 
     const groupes = {};
 
+    // 1. Regroupement par catégorie nettoyée
     transactions.forEach(tx => {
-        let catBrute = ExtraireCategorie(tx);
-        const cleNormale = catBrute.toString().toLowerCase().trim();
+        let catPropre = ExtraireCategorie(tx);
+        const cle = catPropre.toLowerCase();
 
-        if (!groupes[cleNormale]) {
-            groupes[cleNormale] = { titre: catBrute, items: [] };
+        if (!groupes[cle]) {
+            groupes[cle] = { titre: catPropre, items: [] };
         }
-        groupes[cleNormale].items.push(tx);
+        groupes[cle].items.push(tx);
     });
+
+    if (Object.keys(groupes).length === 0) {
+        conteneur.innerHTML = `<h2>📖 Grand Livre des comptes</h2><p style="color:#64748b; margin-top:15px;">Aucune donnée enregistrée.</p>`;
+        return;
+    }
 
     let htmlComplet = `<h2 style="margin-bottom:20px;">📖 Grand Livre des comptes</h2>`;
 
+    // 2. Génération de la vue pour chaque compte d'imputation
     Object.keys(groupes).sort().forEach(cle => {
         const groupe = groupes[cle];
-        let total = 0;
+        let totalRecettes = 0;
+        let totalDepenses = 0;
         let lignesHtml = '';
 
         groupe.items.forEach(tx => {
             const estRecette = ExtraireType(tx) === 'recette';
             const montantNum = Math.abs(ExtraireMontant(tx));
 
-            if (estRecette) total += montantNum;
-            else total -= montantNum;
+            if (estRecette) totalRecettes += montantNum;
+            else totalDepenses += montantNum;
 
             lignesHtml += `
                 <tr style="border-bottom:1px solid #f1f5f9;">
@@ -291,11 +300,15 @@ window.afficherGrandLivre = function(transactions) {
             `;
         });
 
+        const soldeGlobal = totalRecettes - totalDepenses;
+
         htmlComplet += `
             <div style="margin-bottom:25px; background:#fff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
-                <div style="background:#f1f5f9; padding:12px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between;">
-                    <h3 style="margin:0; font-size:1.05rem;">📂 Compte ${groupe.titre}</h3>
-                    <span style="font-weight:bold; color:${total >= 0 ? '#16a34a' : '#dc2626'};">Solde : ${total.toFixed(2)} €</span>
+                <div style="background:#f1f5f9; padding:12px 16px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0; font-size:1.05rem; color:#1e293b;">📂 Compte : ${groupe.titre}</h3>
+                    <span style="font-weight:bold; color:${soldeGlobal >= 0 ? '#16a34a' : '#dc2626'};">
+                        Solde : ${soldeGlobal >= 0 ? '+' : ''}${soldeGlobal.toFixed(2)} €
+                    </span>
                 </div>
                 <table style="width:100%; border-collapse:collapse; text-align:left;">
                     <thead>
