@@ -1,21 +1,48 @@
 // ==========================================
 // COMPTABILITÉ LIBÉRALE - SCRIPT PRINCIPAL
-// Conservation des montants signés & Soustractions exactes
+// Support complet des Comptes de Tiers (Classe 4) dans le Grand Livre
 // ==========================================
 
 window.listeTransactions = [];
 
-// Table de correspondance vers la numérotation du Plan Comptable Général (PCG)
+// MAPPING ENRICHI : Classe 6/7 (Charge/Produit) + Classe 4 (Tiers)
 const MAPPING_PCG = {
-    "soins infirmiers": { code: "706000", nom: "706000 - Prestations de services / Honoraires (Classe 7)" },
-    "cotisations carpimko": { code: "645200", nom: "645200 - Cotisations CARPIMKO (Classe 6)" },
-    "urssaf": { code: "645100", nom: "645100 - Cotisations URSSAF (Classe 6)" },
-    "assurances & rcp": { code: "616000", nom: "616000 - Primes d'assurances (Classe 6)" },
-    "frais de déplacement / carburant": { code: "625100", nom: "625100 - Voyages et déplacements (Classe 6)" },
-    "petit matériel médical": { code: "606300", nom: "606300 - Fournitures d'entretien et petit équipement (Classe 6)" },
-    "frais de comptabilité & logiciels": { code: "622600", nom: "622600 - Honoraires comptables & Logiciels (Classe 6)" },
-    "loyer & charges locatives": { code: "613200", nom: "613200 - Locations immobilières (Classe 6)" },
-    "frais bancaires": { code: "627000", nom: "627000 - Services bancaires (Classe 6)" }
+    "soins infirmiers": {
+        activite: { code: "706000", nom: "706000 - Prestations de services / Honoraires (Classe 7)" },
+        tiers: { code: "411000", nom: "411000 - Patients / Mutuelles (Classe 4 - Tiers)" }
+    },
+    "cotisations carpimko": {
+        activite: { code: "645200", nom: "645200 - Cotisations CARPIMKO (Classe 6)" },
+        tiers: { code: "437000", nom: "437000 - CARPIMKO (Classe 4 - Organismes Sociaux)" }
+    },
+    "urssaf": {
+        activite: { code: "645100", nom: "645100 - Cotisations URSSAF (Classe 6)" },
+        tiers: { code: "431000", nom: "431000 - URSSAF (Classe 4 - Organismes Sociaux)" }
+    },
+    "assurances & rcp": {
+        activite: { code: "616000", nom: "616000 - Primes d'assurances (Classe 6)" },
+        tiers: { code: "401100", nom: "401100 - Assurances & Protection (Classe 4 - Tiers)" }
+    },
+    "frais de déplacement / carburant": {
+        activite: { code: "625100", nom: "625100 - Voyages et déplacements (Classe 6)" },
+        tiers: { code: "401200", nom: "401200 - Fournisseurs Carburant/Transports (Classe 4 - Tiers)" }
+    },
+    "petit matériel médical": {
+        activite: { code: "606300", nom: "606300 - Petit équipement & fournitures (Classe 6)" },
+        tiers: { code: "401300", nom: "401300 - Fournisseurs Matériel Médical (Classe 4 - Tiers)" }
+    },
+    "frais de comptabilité & logiciels": {
+        activite: { code: "622600", nom: "622600 - Honoraires comptables & Logiciels (Classe 6)" },
+        tiers: { code: "401400", nom: "401400 - Prestataires Informatique & Compta (Classe 4 - Tiers)" }
+    },
+    "loyer & charges locatives": {
+        activite: { code: "613200", nom: "613200 - Locations immobilières (Classe 6)" },
+        tiers: { code: "401500", nom: "401500 - Bailleurs & Immobilier (Classe 4 - Tiers)" }
+    },
+    "frais bancaires": {
+        activite: { code: "627000", nom: "627000 - Services bancaires (Classe 6)" },
+        tiers: { code: "401600", nom: "401600 - Etablissements Bancaires (Classe 4 - Tiers)" }
+    }
 };
 
 // ------------------------------------------
@@ -81,7 +108,6 @@ window.chargerTransactions = async function() {
     }
 };
 
-// ENREGISTREMENT SANS TRANSFORMATION FORCEE EN POSITIF
 window.ajouterTransaction = async function(event) {
     if (event) event.preventDefault();
 
@@ -105,8 +131,6 @@ window.ajouterTransaction = async function(event) {
     const typeVal = selectType.value;
     const catVal = selectCat ? selectCat.value : 'Divers';
     const descVal = inputDesc ? inputDesc.value : '';
-    
-    // On conserve exactement la valeur saisie par l'utilisateur (positive ou négative)
     let montantVal = parseFloat(inputMontant.value.replace(',', '.')) || 0;
 
     if (!dateVal || isNaN(montantVal) || montantVal === 0) {
@@ -119,7 +143,7 @@ window.ajouterTransaction = async function(event) {
         type: typeVal,
         category: catVal,
         description: descVal,
-        amount: montantVal, // Conservation du chiffre brut (ex: -717.00)
+        amount: montantVal,
         encaisse: false
     };
 
@@ -245,7 +269,7 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 4. ONGLET : JOURNAL DE BANQUE (CALCUL EXACT DES SOUSTRACTIONS)
+// 4. ONGLET : JOURNAL DE BANQUE
 // ------------------------------------------
 window.afficherBanque = function(transactions) {
     const tbody = document.getElementById('body-tableau-banque');
@@ -271,11 +295,10 @@ window.afficherBanque = function(transactions) {
         const estEncaisse = tx.encaisse === true;
 
         if (estEncaisse || !aDesEncaissements) {
-            // Soustraction explicite pour les dépenses, addition pour les recettes
             if (estRecette) {
                 totalBanque += montantAbsolu;
             } else {
-                totalBanque -= montantAbsolu; // Garantit la soustraction comptable exacte
+                totalBanque -= montantAbsolu;
             }
         }
 
@@ -354,7 +377,7 @@ window.afficherJournal = function(transactions) {
 };
 
 // ------------------------------------------
-// 6. ONGLET : GRAND LIVRE (COMPTABILITÉ EN PARTIE DOUBLE)
+// 6. ONGLET : GRAND LIVRE (GENERATION COMPTES 4, 5, 6, 7)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
     let conteneur = document.getElementById('vue-grandlivre') || document.getElementById('grand-livre');
@@ -362,24 +385,35 @@ window.afficherGrandLivre = function(transactions) {
 
     const comptes = {};
 
-    comptes["512000"] = { nom: "512000 - Banque (Classe 5)", items: [] };
+    // Initialisation du Compte 512000 (Banque - Classe 5)
+    comptes["512000"] = { nom: "512000 - Banque (Classe 5 - Trésorerie)", items: [] };
 
     transactions.forEach(tx => {
         let catBrute = ExtraireCategorie(tx);
         let cleNorme = catBrute.toLowerCase();
         
-        let pcgInfo = MAPPING_PCG[cleNorme] || { 
-            code: "471000", 
-            nom: `471000 - ${catBrute} (Compte d'attente / Tiers)` 
+        // Recherche des correspondances PCG
+        let mapping = MAPPING_PCG[cleNorme] || {
+            activite: { code: "471000", nom: `471000 - ${catBrute} (Compte d'attente)` },
+            tiers: { code: "401000", nom: `401000 - Fournisseurs Divers (Classe 4 - Tiers)` }
         };
 
-        let codeCompte = pcgInfo.code;
+        let cActivite = mapping.activite;
+        let cTiers = mapping.tiers;
 
-        if (!comptes[codeCompte]) {
-            comptes[codeCompte] = { nom: pcgInfo.nom, items: [] };
+        // 1. Ajouter l'écriture au compte d'Activité (Classe 6 ou 7)
+        if (!comptes[cActivite.code]) {
+            comptes[cActivite.code] = { nom: cActivite.nom, items: [] };
         }
+        comptes[cActivite.code].items.push(tx);
 
-        comptes[codeCompte].items.push(tx);
+        // 2. Ajouter l'écriture au compte de Tiers (Classe 4 : URSSAF, CARPIMKO, Patients...)
+        if (!comptes[cTiers.code]) {
+            comptes[cTiers.code] = { nom: cTiers.nom, items: [] };
+        }
+        comptes[cTiers.code].items.push(tx);
+
+        // 3. Ajouter l'écriture au compte de Banque (Classe 5)
         comptes["512000"].items.push(tx);
     });
 
@@ -399,11 +433,18 @@ window.afficherGrandLivre = function(transactions) {
             let credit = 0;
 
             if (codeCompte === "512000") {
+                // Compte Banque
+                if (estRecette) debit = montantAbsolu;
+                else credit = montantAbsolu;
+            } else if (codeCompte.startsWith('4')) {
+                // Compte de Tiers (Classe 4)
                 if (estRecette) debit = montantAbsolu;
                 else credit = montantAbsolu;
             } else if (codeCompte.startsWith('7')) {
+                // Prestations / Produits (Classe 7)
                 credit = montantAbsolu;
             } else {
+                // Charges / Dépenses (Classe 6)
                 debit = montantAbsolu;
             }
 
@@ -421,7 +462,7 @@ window.afficherGrandLivre = function(transactions) {
         });
 
         let solde = totalDebit - totalCredit;
-        let libelleSolde = codeCompte.startsWith('7') || (codeCompte === "512000" && solde < 0)
+        let libelleSolde = codeCompte.startsWith('7') || (codeCompte.startsWith('4') && !codeCompte.startsWith('411') && solde < 0) || (codeCompte === "512000" && solde < 0)
             ? `Solde Créditeur : ${Math.abs(solde).toFixed(2)} €`
             : `Solde Débiteur : ${Math.abs(solde).toFixed(2)} €`;
 
@@ -450,7 +491,7 @@ window.afficherGrandLivre = function(transactions) {
 };
 
 // ------------------------------------------
-// 7. INITIALISATION ET BINDING DU FORMULAIRE
+// 7. INITIALISATION DU FORMULAIRE
 // ------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
