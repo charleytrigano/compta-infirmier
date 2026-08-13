@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
 
-    <!-- Suppression de l'erreur 404 du favicon dans la console -->
+    <!-- Favicon -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
     <style>
@@ -55,7 +55,7 @@
             font-weight: 600;
         }
 
-        /* Barre de Navigation (Onglets) */
+        /* Navigation par Onglets */
         nav {
             display: flex;
             gap: 8px;
@@ -86,9 +86,9 @@
             border-color: #2563eb;
         }
 
-        /* Sections des Vues */
+        /* Vues */
         .view-section {
-            display: none; /* Masqué par défaut */
+            display: none;
             background: #ffffff;
             border-radius: 8px;
             padding: 24px;
@@ -96,7 +96,7 @@
         }
 
         .view-section.active {
-            display: block; /* Affiché quand actif */
+            display: block;
         }
 
         /* Formulaire */
@@ -142,7 +142,7 @@
             background-color: #1d4ed8;
         }
 
-        /* Tableau d'Historique */
+        /* Tableaux */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -164,28 +164,7 @@
             font-size: 14px;
         }
 
-        .btn-edit {
-            background-color: #3b82f6;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            margin-right: 5px;
-        }
-
-        .btn-delete {
-            background-color: #ef4444;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        /* Fenêtre Modale de Modification */
+        /* Modale */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -217,7 +196,7 @@
             <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
         </header>
 
-        <!-- Menu de Navigation (Onglets) -->
+        <!-- Menu Onglets -->
         <nav>
             <button class="nav-btn active" onclick="switchTab('vue-transactions', this)">📄 Transactions</button>
             <button class="nav-btn" onclick="switchTab('vue-banque', this)">🏦 Journal de Banque</button>
@@ -231,7 +210,7 @@
             <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
         </nav>
 
-        <!-- 1. VUE TRANSACTIONS (Affichée par défaut) -->
+        <!-- VUE 1 : TRANSACTIONS -->
         <section id="vue-transactions" class="view-section active">
             <h2>Ajouter une opération</h2>
             <form id="form-ajouter-transaction" class="form-grid" onsubmit="event.preventDefault(); window.ajouterTransaction();">
@@ -284,16 +263,13 @@
                         <th>Action</th>
                     </tr>
                 </thead>
-                <tbody id="body-tableau-transactions">
-                    <!-- Les lignes dynamiques seront injectées ici par transactions.js -->
-                </tbody>
+                <tbody id="body-tableau-transactions"></tbody>
             </table>
         </section>
 
-        <!-- 2. VUE JOURNAL DE BANQUE & PAIEMENTS -->
+        <!-- VUE 2 : JOURNAL DE BANQUE -->
         <section id="vue-banque" class="view-section">
             <h2>🏦 Journal de Banque & Règlements</h2>
-            
             <div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 15px; border-radius: 6px; margin-bottom: 25px;">
                 <h3 style="margin:0; color:#1e40af; font-size:1.1rem;">
                     Solde du compte bancaire : <span id="solde-banque" style="font-weight: bold; font-size:1.3rem;">0.00 €</span>
@@ -329,7 +305,7 @@
 
                 <div class="form-group">
                     <label for="pay-description">Libellé / Tiers *</label>
-                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: Virement CPAM, Prélèvement URSSAF..." required>
+                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: Virement CPAM..." required>
                 </div>
 
                 <div class="form-group">
@@ -353,34 +329,25 @@
                         <th>Action</th>
                     </tr>
                 </thead>
-                <tbody id="body-tableau-banque">
-                    <!-- Les lignes dynamiques seront injectées par transactions.js -->
-                </tbody>
+                <tbody id="body-tableau-banque"></tbody>
             </table>
         </section>
 
-        <!-- 3. VUE PLAN COMPTABLE -->
+        <!-- VUE 3 : PLAN COMPTABLE -->
         <section id="vue-plan" class="view-section">
             <div id="conteneur-plan-comptable">
                 <p style="color: #64748b;">Chargement du plan comptable...</p>
             </div>
         </section>
 
-        <!-- 4. VUE BILAN & COMPTE D'EXPLOITATION -->
+        <!-- VUE 4 : BILAN & COMPTE D'EXPLOITATION -->
         <section id="vue-bilan" class="view-section">
             <h2>📋 Présentation Fiscale - Déclaration 2035 & Bilan</h2>
-            <p style="color:#64748b; margin-bottom:20px;">
-                Ventilation automatique de vos dépenses et recettes selon la nomenclature fiscale BNC.
-            </p>
-
-            <!-- Zone d'injection dynamique du Compte d'Exploitation -->
             <div id="conteneur-compte-exploitation"></div>
-
-            <!-- Zone d'injection dynamique du Bilan Simplifié -->
             <div id="conteneur-bilan"></div>
         </section>
 
-        <!-- 5. VUE DÉCLARATION 2035 FISCALE -->
+        <!-- VUE 5 : DÉCLARATION 2035 -->
         <section id="vue-2035" class="view-section">
             <div id="conteneur-2035">
                 <p style="color: #64748b;">Chargement de la déclaration 2035...</p>
@@ -395,7 +362,7 @@
         <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
     </div>
 
-    <!-- FENÊTRE MODALE DE MODIFICATION -->
+    <!-- MODALE MODIFICATION -->
     <div id="modal-modifier" class="modal-overlay">
         <div class="modal-content">
             <h3>✏️ Modifier l'opération</h3>
@@ -436,70 +403,46 @@
         </div>
     </div>
 
-    <!-- ==========================================
-         2. CHARGEMENT ORDONNÉ DES SCRIPTS
-         ========================================== -->
-
-    <!-- A. Librairie Supabase JS via CDN -->
+    <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- B. Fichier de Configuration Globale -->
     <script src="config.js"></script>
 
-    <!-- C. Logique de Navigation par Onglets & Fonctions Utilitaires -->
     <script>
-        // Changement dynamique d'onglet
+        // Gestionnaire d'onglets
         window.switchTab = function(tabId, btnElement) {
             var sections = document.querySelectorAll('.view-section');
-            sections.forEach(function(sec) {
-                sec.classList.remove('active');
-            });
+            sections.forEach(function(sec) { sec.classList.remove('active'); });
 
             var target = document.getElementById(tabId);
-            if (target) {
-                target.classList.add('active');
-            }
+            if (target) { target.classList.add('active'); }
 
             var buttons = document.querySelectorAll('.nav-btn');
-            buttons.forEach(function(btn) {
-                btn.classList.remove('active');
-            });
+            buttons.forEach(function(btn) { btn.classList.remove('active'); });
 
-            if (btnElement) {
-                btnElement.classList.add('active');
+            if (btnElement) { btnElement.classList.add('active'); }
+
+            // Déclencheurs spécifiques aux onglets
+            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') {
+                window.afficherPlanComptable();
             }
-
-            // Déclencheurs automatiques des calculs/affichages lors du changement d'onglet
-            if (tabId === 'vue-plan' && typeof window.afficherplan_comptabe === 'function') {
-                window.afficherplan_comptabe();
-            }
-
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
                 window.afficherBilanEtCE();
             }
-
             if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') {
                 window.afficherDeclaration2035();
             }
         };
 
-        // Fermeture de la modale d'édition
         window.fermerModal = function() {
             var modal = document.getElementById('modal-modifier');
             if (modal) modal.style.display = 'none';
         };
     </script>
 
-    <!-- D. Logique Métier des Transactions Supabase -->
     <script src="transactions.js"></script>
-
-    <!-- E. Module Bilan et Compte d'Exploitation -->
     <script src="bilan.js"></script>
-
-    <!-- F. Module Déclaration 2035 Fiscale -->
     <script src="declaration2035.js"></script>
-
-    <!-- G. Module Plan Comptable -->
+    <!-- Appel corrigé avec le tiret bas exact -->
     <script src="plan_comptable.js"></script>
 
 </body>
