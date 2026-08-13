@@ -1,20 +1,21 @@
 // ==========================================
-// GESTION DES TRANSACTIONS (SUPABASE)
+// GESTION DES TRANSACTIONS SUPABASE
 // ==========================================
 
-// Variable globale pour conserver la liste en mémoire locale
+// Variable locale pour conserver la liste des transactions chargées
 window.listeTransactions = [];
 
-// ------------------------------------------
-// 1. CHARGER LES TRANSACTIONS DEPUIS SUPABASE
-// ------------------------------------------
+/**
+ * 1. Charger les transactions depuis Supabase
+ */
 window.chargerTransactions = async function() {
     if (!window.supabaseClient) {
-        console.error("❌ Supabase n'est pas prêt.");
+        console.error("❌ Supabase n'est pas initialisé.");
         return;
     }
 
     try {
+        // Requête Supabase : Récupérer toutes les lignes triées par date décroissante
         const { data, error } = await window.supabaseClient
             .from('transactions')
             .select('*')
@@ -25,13 +26,13 @@ window.chargerTransactions = async function() {
         window.listeTransactions = data || [];
         window.afficherTransactions(window.listeTransactions);
     } catch (err) {
-        console.error("Erreur lors de la récupération des transactions :", err.message);
+        console.error("Erreur de chargement Supabase :", err.message);
     }
 };
 
-// ------------------------------------------
-// 2. AFFICHER LES TRANSACTIONS DANS LE TABLEAU
-// ------------------------------------------
+/**
+ * 2. Afficher les transactions dans le tableau HTML
+ */
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
     if (!tbody) return;
@@ -39,7 +40,12 @@ window.afficherTransactions = function(transactions) {
     tbody.innerHTML = '';
 
     if (transactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">Aucune transaction enregistrée pour le moment.</td></tr>`;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">
+                    Aucune transaction enregistrée dans la base de données.
+                </td>
+            </tr>`;
         return;
     }
 
@@ -66,9 +72,9 @@ window.afficherTransactions = function(transactions) {
     });
 };
 
-// ------------------------------------------
-// 3. AJOUTER UNE NOUVELLE TRANSACTION
-// ------------------------------------------
+/**
+ * 3. Ajouter une transaction
+ */
 window.ajouterTransaction = async function() {
     const date = document.getElementById('tx-date').value;
     const type = document.getElementById('tx-type').value;
@@ -81,7 +87,7 @@ window.ajouterTransaction = async function() {
         return;
     }
 
-    // Calcul du signe selon recette ou dépense
+    // Une dépense est stockée sous forme de montant négatif
     const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
 
     try {
@@ -97,22 +103,22 @@ window.ajouterTransaction = async function() {
 
         if (error) throw error;
 
-        // Reinitialiser le formulaire
+        // Vider le formulaire
         document.getElementById('form-ajouter-transaction').reset();
 
-        // Recharger le tableau
+        // Rafraîchir l'affichage
         await window.chargerTransactions();
     } catch (err) {
-        console.error("Erreur d'ajout dans Supabase :", err.message);
-        alert("Erreur lors de l'enregistrement : " + err.message);
+        console.error("Erreur lors de l'ajout :", err.message);
+        alert("Impossible d'ajouter l'opération : " + err.message);
     }
 };
 
-// ------------------------------------------
-// 4. SUPPRIMER UNE TRANSACTION
-// ------------------------------------------
+/**
+ * 4. Supprimer une transaction
+ */
 window.supprimerTransaction = async function(id) {
-    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer cette ligne ?")) return;
 
     try {
         const { error } = await window.supabaseClient
@@ -129,9 +135,9 @@ window.supprimerTransaction = async function(id) {
     }
 };
 
-// ------------------------------------------
-// 5. OUVRIR LA MODALE DE MODIFICATION
-// ------------------------------------------
+/**
+ * 5. Ouvrir la modale d'édition pré-remplie
+ */
 window.ouvrirModalModification = function(id) {
     const tx = window.listeTransactions.find(t => t.id.toString() === id.toString());
     if (!tx) return;
@@ -146,9 +152,9 @@ window.ouvrirModalModification = function(id) {
     document.getElementById('modal-modifier').style.display = 'flex';
 };
 
-// ------------------------------------------
-// 6. ENREGISTRER LA MODIFICATION
-// ------------------------------------------
+/**
+ * 6. Enregistrer les modifications
+ */
 window.sauvegarderModification = async function() {
     const id = document.getElementById('edit-id').value;
     const date = document.getElementById('edit-date').value;
@@ -177,15 +183,12 @@ window.sauvegarderModification = async function() {
         await window.chargerTransactions();
     } catch (err) {
         console.error("Erreur de mise à jour :", err.message);
-        alert("Erreur lors de la modification : " + err.message);
+        alert("Erreur lors de la mise à jour : " + err.message);
     }
 };
 
-// ------------------------------------------
-// Lancement automatique au chargement
-// ------------------------------------------
+// Initialisation automatique au chargement du DOM
 document.addEventListener('DOMContentLoaded', function() {
-    // Attendre un court instant que config.js ait initialise Supabase
     setTimeout(function() {
         if (window.supabaseClient) {
             window.chargerTransactions();
