@@ -1,10 +1,10 @@
 // ==========================================
-// GESTION DES TRANSACTIONS, JOURNAL & GRAND LIVRE
+// GESTION COMPTA : TRANSACTIONS, JOURNAL & GRAND LIVRE
 // ==========================================
 
 window.listeTransactions = [];
 
-// Schéma de correspondance par défaut
+// Schéma de correspondance dynamique
 window.schemaColonnes = {
     date: 'date',
     type: 'type',
@@ -14,26 +14,23 @@ window.schemaColonnes = {
 };
 
 /**
- * Détecte automatiquement les noms de colonnes réels dans Supabase
+ * Détecte les nom de colonnes utilisés dans la table Supabase
  */
 window.detecterSchema = function(premierObjet) {
     if (!premierObjet) return;
 
     if ('montant' in premierObjet) window.schemaColonnes.montant = 'montant';
     else if ('amount' in premierObjet) window.schemaColonnes.montant = 'amount';
-    else if ('valeur' in premierObjet) window.schemaColonnes.montant = 'valeur';
 
     if ('categorie' in premierObjet) window.schemaColonnes.categorie = 'categorie';
     else if ('category' in premierObjet) window.schemaColonnes.categorie = 'category';
-    else if ('catégorie' in premierObjet) window.schemaColonnes.categorie = 'catégorie';
 
     if ('description' in premierObjet) window.schemaColonnes.description = 'description';
     else if ('libelle' in premierObjet) window.schemaColonnes.description = 'libelle';
-    else if ('libellé' in premierObjet) window.schemaColonnes.description = 'libellé';
 };
 
 // ------------------------------------------
-// 1. CHARGER LES TRANSACTIONS DEPUIS SUPABASE
+// 1. CHARGEMENT DES DONNÉES
 // ------------------------------------------
 window.chargerTransactions = async function() {
     if (!window.supabaseClient) {
@@ -55,18 +52,22 @@ window.chargerTransactions = async function() {
             window.detecterSchema(window.listeTransactions[0]);
         }
 
-        // Rafraîchissement simultané des 3 vues
-        window.afficherTransactions(window.listeTransactions);
-        window.afficherJournal(window.listeTransactions);
-        window.afficherGrandLivre(window.listeTransactions);
+        // Mise à jour globale des 3 onglets
+        window.rafraichirToutesLesVues();
 
     } catch (err) {
-        console.error("Erreur lors de la récupération des transactions :", err.message);
+        console.error("Erreur lors du chargement des transactions :", err.message);
     }
 };
 
+window.rafraichirToutesLesVues = function() {
+    window.afficherTransactions(window.listeTransactions);
+    window.afficherJournal(window.listeTransactions);
+    window.afficherGrandLivre(window.listeTransactions);
+};
+
 // ------------------------------------------
-// 2. AFFICHER LE TABLEAU DES TRANSACTIONS
+// 2. VUE TRANSACTIONS (ACCUEIL)
 // ------------------------------------------
 window.afficherTransactions = function(transactions) {
     const tbody = document.getElementById('body-tableau-transactions');
@@ -112,11 +113,47 @@ window.afficherTransactions = function(transactions) {
 };
 
 // ------------------------------------------
-// 3. AFFICHER LE JOURNAL COMPTABLE
+// 3. VUE JOURNAL (AUTO-CONSTRUCTION)
 // ------------------------------------------
 window.afficherJournal = function(transactions) {
-    const tbody = document.getElementById('body-tableau-journal');
-    if (!tbody) return;
+    // 1. Recherche du conteneur parent du Journal
+    let conteneur = document.getElementById('journal') || 
+                    document.getElementById('section-journal') || 
+                    document.getElementById('tab-journal') ||
+                    document.querySelector('[data-tab="journal"]');
+
+    // Recherche alternative : élément contenant le texte d'attente
+    if (!conteneur) {
+        const tousLesTitres = document.querySelectorAll('h2, h3');
+        tousLesTitres.forEach(el => {
+            if (el.textContent.includes('Journal')) conteneur = el.parentElement;
+        });
+    }
+
+    if (!conteneur) return;
+
+    // 2. Injection du squelette du tableau si absent
+    let tbody = document.getElementById('body-tableau-journal');
+    if (!tbody) {
+        conteneur.innerHTML = `
+            <h2 style="color:#1e293b; margin-bottom:15px;">Journal des écritures</h2>
+            <div style="overflow-x:auto; background:#fff; border-radius:8px; border:1px solid #e2e8f0; padding:15px;">
+                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; color:#475569;">
+                            <th style="padding:10px;">Date</th>
+                            <th style="padding:10px;">Catégorie</th>
+                            <th style="padding:10px;">Description</th>
+                            <th style="padding:10px; color:#dc2626;">Débit (Dépense)</th>
+                            <th style="padding:10px; color:#16a34a;">Crédit (Recette)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="body-tableau-journal"></tbody>
+                </table>
+            </div>
+        `;
+        tbody = document.getElementById('body-tableau-journal');
+    }
 
     tbody.innerHTML = '';
 
@@ -125,7 +162,7 @@ window.afficherJournal = function(transactions) {
         return;
     }
 
-    // Le journal s'affiche par ordre chronologique (du plus ancien au plus récent)
+    // Ordre chronologique
     const transactionsTriees = [...transactions].reverse();
 
     transactionsTriees.forEach(tx => {
@@ -136,32 +173,42 @@ window.afficherJournal = function(transactions) {
         if (typeof valeurMontant === 'string') valeurMontant = valeurMontant.replace(',', '.');
         const montant = Math.abs(parseFloat(valeurMontant) || 0).toFixed(2);
 
-        const debit = estRecette ? '' : `${montant} €`;
-        const credit = estRecette ? `${montant} €` : '';
-
         const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #f1f5f9';
         tr.innerHTML = `
-            <td>${tx[window.schemaColonnes.date] || tx.date || ''}</td>
-            <td>${tx[window.schemaColonnes.categorie] || tx.categorie || '-'}</td>
-            <td>${tx[window.schemaColonnes.description] || tx.description || ''}</td>
-            <td style="color:#dc2626; font-weight:bold;">${debit}</td>
-            <td style="color:#16a34a; font-weight:bold;">${credit}</td>
+            <td style="padding:10px;">${tx[window.schemaColonnes.date] || tx.date || ''}</td>
+            <td style="padding:10px;">${tx[window.schemaColonnes.categorie] || tx.categorie || '-'}</td>
+            <td style="padding:10px;">${tx[window.schemaColonnes.description] || tx.description || ''}</td>
+            <td style="padding:10px; color:#dc2626; font-weight:bold;">${estRecette ? '' : montant + ' €'}</td>
+            <td style="padding:10px; color:#16a34a; font-weight:bold;">${estRecette ? montant + ' €' : ''}</td>
         `;
         tbody.appendChild(tr);
     });
 };
 
 // ------------------------------------------
-// 4. AFFICHER LE GRAND LIVRE (PAR CATÉGORIE)
+// 4. VUE GRAND LIVRE (AUTO-CONSTRUCTION)
 // ------------------------------------------
 window.afficherGrandLivre = function(transactions) {
-    const conteneur = document.getElementById('contenu-grand-livre') || document.getElementById('body-tableau-grand-livre');
+    let conteneur = document.getElementById('grand-livre') || 
+                    document.getElementById('section-grand-livre') || 
+                    document.getElementById('tab-grand-livre') ||
+                    document.querySelector('[data-tab="grand-livre"]');
+
+    if (!conteneur) {
+        const tousLesTitres = document.querySelectorAll('h2, h3');
+        tousLesTitres.forEach(el => {
+            if (el.textContent.includes('Grand Livre')) conteneur = el.parentElement;
+        });
+    }
+
     if (!conteneur) return;
 
-    conteneur.innerHTML = '';
-
     if (transactions.length === 0) {
-        conteneur.innerHTML = `<p style="text-align:center; color:#94a3b8; padding:20px;">Le Grand Livre est vide.</p>`;
+        conteneur.innerHTML = `
+            <h2 style="color:#1e293b; margin-bottom:15px;">Grand Livre</h2>
+            <p style="text-align:center; color:#94a3b8; padding:20px;">Le Grand Livre est vide.</p>
+        `;
         return;
     }
 
@@ -173,7 +220,8 @@ window.afficherGrandLivre = function(transactions) {
         groupes[cat].push(tx);
     });
 
-    // Génération des blocs de comptes
+    let htmlComplet = `<h2 style="color:#1e293b; margin-bottom:15px;">Grand Livre des comptes</h2>`;
+
     Object.keys(groupes).sort().forEach(cat => {
         let totalCategorie = 0;
         let lignesHtml = '';
@@ -190,154 +238,52 @@ window.afficherGrandLivre = function(transactions) {
             else totalCategorie -= Math.abs(montantNum);
 
             lignesHtml += `
-                <tr>
-                    <td>${tx[window.schemaColonnes.date] || tx.date || ''}</td>
-                    <td>${tx[window.schemaColonnes.description] || tx.description || ''}</td>
-                    <td style="color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:8px 12px;">${tx[window.schemaColonnes.date] || tx.date || ''}</td>
+                    <td style="padding:8px 12px;">${tx[window.schemaColonnes.description] || tx.description || ''}</td>
+                    <td style="padding:8px 12px; color:${estRecette ? '#16a34a' : '#dc2626'}; font-weight:bold;">
                         ${estRecette ? '+' : '-'} ${Math.abs(montantNum).toFixed(2)} €
                     </td>
                 </tr>
             `;
         });
 
-        const blocCompte = document.createElement('div');
-        blocCompte.className = 'bloc-grand-livre';
-        blocCompte.style.marginBottom = '25px';
-        blocCompte.style.border = '1px solid #e2e8f0';
-        blocCompte.style.borderRadius = '8px';
-        blocCompte.style.overflow = 'hidden';
-
         const couleurTotal = totalCategorie >= 0 ? '#16a34a' : '#dc2626';
 
-        blocCompte.innerHTML = `
-            <div style="background:#f8fafc; padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-between; align-items:center;">
-                <h3 style="margin:0; font-size:1.1rem; color:#1e293b;">📂 ${cat}</h3>
-                <span style="font-weight:bold; color:${couleurTotal}; font-size:1.05rem;">Solde : ${totalCategorie.toFixed(2)} €</span>
+        htmlComplet += `
+            <div style="margin-bottom:20px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+                <div style="background:#f8fafc; padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0; font-size:1.05rem; color:#1e293b;">📂 ${cat}</h3>
+                    <span style="font-weight:bold; color:${couleurTotal};">Solde : ${totalCategorie.toFixed(2)} €</span>
+                </div>
+                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                    <thead>
+                        <tr style="background:#f1f5f9; font-size:0.85rem; color:#64748b;">
+                            <th style="padding:8px 12px;">Date</th>
+                            <th style="padding:8px 12px;">Description</th>
+                            <th style="padding:8px 12px;">Montant</th>
+                        </tr>
+                    </thead>
+                    <tbody>${lignesHtml}</tbody>
+                </table>
             </div>
-            <table style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr style="background:#f1f5f9; text-align:left; font-size:0.85rem; color:#64748b;">
-                        <th style="padding:8px 12px;">Date</th>
-                        <th style="padding:8px 12px;">Description</th>
-                        <th style="padding:8px 12px;">Montant</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${lignesHtml}
-                </tbody>
-            </table>
         `;
-
-        conteneur.appendChild(blocCompte);
     });
+
+    conteneur.innerHTML = htmlComplet;
 };
 
 // ------------------------------------------
-// 5. FONCTIONS D'EDITION & SUPPRESSION
+// 5. GESTION DES CLICS SUR LES ONGLETS
 // ------------------------------------------
-window.ajouterTransaction = async function() {
-    const date = document.getElementById('tx-date').value;
-    const type = document.getElementById('tx-type').value;
-    const categorie = document.getElementById('tx-categorie').value;
-    const description = document.getElementById('tx-description').value;
-    const montantInput = parseFloat(document.getElementById('tx-montant').value) || 0;
-
-    if (!date || !description || isNaN(montantInput)) {
-        alert("Veuillez remplir tous les champs obligatoires (*).");
-        return;
+document.addEventListener('click', function(e) {
+    const cible = e.target.closest('button, a, .nav-link, .tab-btn');
+    if (cible) {
+        setTimeout(function() {
+            window.rafraichirToutesLesVues();
+        }, 100);
     }
-
-    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
-
-    const objetPaylod = {};
-    objetPaylod[window.schemaColonnes.date] = date;
-    objetPaylod[window.schemaColonnes.type] = type;
-    objetPaylod[window.schemaColonnes.categorie] = categorie;
-    objetPaylod[window.schemaColonnes.description] = description;
-    objetPaylod[window.schemaColonnes.montant] = montantFinal;
-
-    try {
-        const { error } = await window.supabaseClient
-            .from('transactions')
-            .insert([objetPaylod]);
-
-        if (error) throw error;
-
-        document.getElementById('form-ajouter-transaction').reset();
-        await window.chargerTransactions();
-    } catch (err) {
-        console.error("Erreur d'ajout dans Supabase :", err.message);
-        alert("Erreur lors de l'enregistrement : " + err.message);
-    }
-};
-
-window.supprimerTransaction = async function(id) {
-    if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
-
-    try {
-        const { error } = await window.supabaseClient
-            .from('transactions')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
-
-        await window.chargerTransactions();
-    } catch (err) {
-        console.error("Erreur de suppression :", err.message);
-        alert("Impossible de supprimer : " + err.message);
-    }
-};
-
-window.ouvrirModalModification = function(id) {
-    const tx = window.listeTransactions.find(t => t.id.toString() === id.toString());
-    if (!tx) return;
-
-    document.getElementById('edit-id').value = tx.id;
-    document.getElementById('edit-date').value = tx[window.schemaColonnes.date] || tx.date || '';
-    document.getElementById('edit-type').value = tx[window.schemaColonnes.type] || tx.type || 'Recette';
-    document.getElementById('edit-categorie').value = tx[window.schemaColonnes.categorie] || tx.categorie || '';
-    document.getElementById('edit-description').value = tx[window.schemaColonnes.description] || tx.description || '';
-
-    let montantBrut = tx[window.schemaColonnes.montant] !== undefined ? tx[window.schemaColonnes.montant] : (tx.montant || tx.amount || 0);
-    if (typeof montantBrut === 'string') montantBrut = montantBrut.replace(',', '.');
-    document.getElementById('edit-montant').value = Math.abs(parseFloat(montantBrut) || 0);
-
-    document.getElementById('modal-modifier').style.display = 'flex';
-};
-
-window.sauvegarderModification = async function() {
-    const id = document.getElementById('edit-id').value;
-    const date = document.getElementById('edit-date').value;
-    const type = document.getElementById('edit-type').value;
-    const categorie = document.getElementById('edit-categorie').value;
-    const description = document.getElementById('edit-description').value;
-    const montantInput = parseFloat(document.getElementById('edit-montant').value) || 0;
-
-    const montantFinal = type.toLowerCase() === 'dépense' ? -Math.abs(montantInput) : Math.abs(montantInput);
-
-    const objetModification = {};
-    objetModification[window.schemaColonnes.date] = date;
-    objetModification[window.schemaColonnes.type] = type;
-    objetModification[window.schemaColonnes.categorie] = categorie;
-    objetModification[window.schemaColonnes.description] = description;
-    objetModification[window.schemaColonnes.montant] = montantFinal;
-
-    try {
-        const { error } = await window.supabaseClient
-            .from('transactions')
-            .update(objetModification)
-            .eq('id', id);
-
-        if (error) throw error;
-
-        window.fermerModal();
-        await window.chargerTransactions();
-    } catch (err) {
-        console.error("Erreur de mise à jour :", err.message);
-        alert("Erreur lors de la modification : " + err.message);
-    }
-};
+});
 
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
