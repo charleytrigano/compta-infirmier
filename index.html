@@ -8,6 +8,9 @@
     <!-- Favicon -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
+    <!-- Framework Tailwind CSS pour les modules dynamiques -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
         /* ==========================================
            1. STYLES DE BASE ET LAYOUT
@@ -359,8 +362,14 @@
             <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
         </section>
 
+        <!-- VUE 7 : CARPIMKO -->
+        <section id="vue-carpimko" class="view-section">
+            <div id="carpimko-container">
+                <p style="color: #64748b;">Chargement du module CARPIMKO...</p>
+            </div>
+        </section>
+
         <!-- AUTRES VUES SECONDAIRES -->
-        <section id="vue-carpimko" class="view-section"><h2>CARPIMKO</h2><p>Gestion des cotisations CARPIMKO...</p></section>
         <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
         <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
         <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
@@ -407,7 +416,7 @@
         </div>
     </div>
 
-    <!-- SCRIPTS -->
+    <!-- SCRIPTS EN TÊTE DE BASE -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
 
@@ -432,6 +441,9 @@
             if (tabId === 'vue-urssaf' && typeof window.afficherDeclarationURSSAF === 'function') {
                 window.afficherDeclarationURSSAF();
             }
+            if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') {
+                window.initCarpimkoModule();
+            }
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
                 window.afficherBilanEtCE();
             }
@@ -446,11 +458,13 @@
         };
     </script>
 
+    <!-- SCRIPTS APPLICATIFS -->
     <script src="transactions.js"></script>
     <script src="bilan.js"></script>
     <script src="declaration2035.js"></script>
     <script src="plan_comptable.js"></script>
     <script src="urssaf.js"></script>
+    <script src="carpimko.js"></script>
 
 </body>
 </html>
