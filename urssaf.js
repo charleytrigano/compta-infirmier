@@ -1,209 +1,212 @@
-// ==========================================
-// COMPTABILITÉ LIBÉRALE - MODULE URSSAF
-// Fichier : urssaf.js
-// ==========================================
+/**
+ * urssaf.js
+ * Module complet de gestion, calcul et inspection des cotisations URSSAF
+ */
 
-// Barème et taux URSSAF modifiables
-window.parametresURSSAF = {
-    annee: 2026,
-    taux: {
-        maladie: 0.001,          // Cotisation Maladie PAMC après prise en charge CPAM
-        allocationsFamiliales: 0.00, // Taux progressif
-        csgCrds: 0.097,         // CSG (9.2%) + CRDS (0.5%)
-        cfpForfait: 60.00       // Formation professionnelle (forfait annuel)
-    }
-};
+// 1. Helper pour extraire de façon sécurisée le montant numérique d'une transaction
+function getMontantTransaction(tx) {
+  // Prise en charge prioritaire du champ 'amount' (Supabase), puis 'montant' / 'credit'
+  const val = tx.amount ?? tx.montant ?? tx.credit ?? 0;
+  
+  if (typeof val === 'string') {
+    const cleaned = val.replace(',', '.').replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  
+  return typeof val === 'number' && !isNaN(val) ? val : 0;
+}
 
-// Fonction principale : Affichage et calcul de la déclaration URSSAF
-window.afficherDeclarationURSSAF = async function() {
-    const conteneur = document.getElementById('vue-urssaf');
-    if (!conteneur) return;
+// 2. Helper pour vérifier si une transaction est une recette
+function isTransactionRecette(tx) {
+  const typeStr = (tx.type || '').toLowerCase();
+  const catStr = (tx.category || '').toLowerCase();
+  
+  return typeStr === 'recette' || 
+         typeStr === 'credit' || 
+         catStr.includes('soins') || 
+         catStr.includes('honoraires');
+}
 
-    let transactions = [];
+/**
+ * Algorithme principal de calcul des cotisations URSSAF et des bases trimestrielles
+ * @param {Array} transactions - Liste des transactions (Supabase / local)
+ * @param {Object} profile - Profil de l'utilisateur
+ */
+function calculerUrssaf(transactions = [], profile = {}) {
+  // Bases cumulées par trimestre [T1, T2, T3, T4]
+  const basesTrimestrielles = [0, 0, 0, 0];
+  let totalRecettesAnnuelles = 0;
 
-    // 1. Récupération des transactions depuis Supabase
-    if (window.supabaseClient) {
-        try {
-            const { data, error } = await window.supabaseClient.from('transactions').select('*');
-            if (error) {
-                console.error("Erreur Supabase URSSAF :", error);
-            } else if (data) {
-                transactions = data;
-            }
-        } catch (e) {
-            console.warn("Erreur lors de la lecture des transactions pour URSSAF :", e);
+  // Calcul et répartition par trimestre
+  transactions.forEach(tx => {
+    if (isTransactionRecette(tx)) {
+      const montant = getMontantTransaction(tx);
+      const dateTx = new Date(tx.date);
+      
+      if (!isNaN(dateTx.getTime())) {
+        const mois = dateTx.getMonth(); // 0 (Janvier) à 11 (Décembre)
+        const trimestreIndex = Math.floor(mois / 3);
+
+        if (trimestreIndex >= 0 && trimestreIndex < 4) {
+          basesTrimestrielles[trimestreIndex] += montant;
+          totalRecettesAnnuelles += montant;
         }
+      }
+    }
+  });
+
+  // Calcul estimatif des acomptes trimestriels (15% ou forfait minimum)
+  const acomptesTrimestriels = basesTrimestrielles.map(base => {
+    return base > 0 ? +(base * 0.15).toFixed(2) : 15.00;
+  });
+
+  // Cotisations estimées (PAMC / Indépendant)
+  const maladie = +(totalRecettesAnnuelles * 0.001).toFixed(2);
+  const allocFamiliales = 0.00;
+  const csgCrds = 0.00;
+  const cfp = 60.00; // Contribution Formation Professionnelle (forfait)
+
+  const totalCotisations = maladie + allocFamiliales + csgCrds + cfp;
+
+  return {
+    basesTrimestrielles,
+    totalRecettesAnnuelles,
+    acomptesTrimestriels,
+    cotisations: {
+      maladie,
+      allocFamiliales,
+      csgCrds,
+      cfp,
+      total: totalCotisations
+    }
+  };
+}
+
+/**
+ * Mise à jour globale de l'interface utilisateur (UI)
+ */
+function renderUrssafUI(transactions = [], profile = {}) {
+  const resultats = calculerUrssaf(transactions, profile);
+
+  // 1. Mise à jour du tableau des bases trimestrielles
+  resultats.basesTrimestrielles.forEach((base, idx) => {
+    const elBase = document.getElementById(`urssaf-base-t${idx + 1}`);
+    if (elBase) {
+      elBase.textContent = base.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
     }
 
-    // 2. Calcul des bases trimestrielles
-    const basesTrimestrielles = window.calculerBasesTrimestrielles(transactions);
-    const totalBaseAnnuelle = basesTrimestrielles.reduce((a, b) => a + b, 0);
-    const cotisations = window.calculerCotisationsUrssaf(totalBaseAnnuelle);
+    const elAcompte = document.getElementById(`urssaf-acompte-t${idx + 1}`);
+    if (elAcompte) {
+      elAcompte.textContent = resultats.acomptesTrimestriels[idx].toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+    }
+  });
 
-    // 3. Génération du HTML
-    conteneur.innerHTML = `
-        <div style="background:#ffffff; border-radius:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                <div>
-                    <h2 style="margin:0; color:#0f172a;">🏛️ Déclaration & Estimation URSSAF (${window.parametresURSSAF.annee})</h2>
-                    <span style="color:#64748b; font-size:0.875rem;">Praticiens et Auxiliaires Médicaux Conventionnés (PAMC)</span>
-                </div>
-                <button class="btn-primary" onclick="window.ouvrirParametresUrssaf()" style="background-color:#475569;">⚙️ Ajuster les taux (${window.parametresURSSAF.annee})</button>
-            </div>
+  // 2. Totaux annuels
+  const elTotalBase = document.getElementById('urssaf-total-base');
+  if (elTotalBase) {
+    elTotalBase.textContent = resultats.totalRecettesAnnuelles.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  }
 
-            <!-- TABLEAU DES BASES TRIMESTRIELLES -->
-            <h3 style="color:#334155; margin-top:20px;">1. Recettes / Bases trimestrielles réalisées</h3>
-            <table style="width:100%; border-collapse:collapse; margin-bottom:25px;">
-                <thead>
-                    <tr style="background:#f1f5f9;">
-                        <th style="padding:10px; border-bottom:2px solid #cbd5e1;">Période</th>
-                        <th style="padding:10px; border-bottom:2px solid #cbd5e1; text-align:right;">Base retenue (€)</th>
-                        <th style="padding:10px; border-bottom:2px solid #cbd5e1; text-align:right;">Acompte trimestriel estimé (€)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">1er Trimestre (Jan - Mar)</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#0f172a;">${basesTrimestrielles[0].toFixed(2)} €</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">2ème Trimestre (Avr - Juin)</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#0f172a;">${basesTrimestrielles[1].toFixed(2)} €</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">3ème Trimestre (Juil - Sept)</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#0f172a;">${basesTrimestrielles[2].toFixed(2)} €</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:600;">4ème Trimestre (Oct - Déc)</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#0f172a;">${basesTrimestrielles[3].toFixed(2)} €</td>
-                        <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#2563eb;">${(cotisations.total / 4).toFixed(2)} €</td>
-                    </tr>
-                    <tr style="background:#f8fafc; font-weight:bold;">
-                        <td style="padding:12px;">TOTAL ANNUEL</td>
-                        <td style="padding:12px; text-align:right; color:#0f172a; font-size:1.1rem;">${totalBaseAnnuelle.toFixed(2)} €</td>
-                        <td style="padding:12px; text-align:right; color:#1e40af; font-size:1.1rem;">${cotisations.total.toFixed(2)} €</td>
-                    </tr>
-                </tbody>
-            </table>
+  const elTotalAcompte = document.getElementById('urssaf-total-acompte');
+  if (elTotalAcompte) {
+    const sumAcomptes = resultats.acomptesTrimestriels.reduce((a, b) => a + b, 0);
+    elTotalAcompte.textContent = sumAcomptes.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  }
 
-            <!-- VENTILATION DES COTISATIONS -->
-            <h3 style="color:#334155;">2. Détail estimatif des cotisations dues</h3>
-            <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:30px;">
-                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
-                    <span>Assurance Maladie-Maternité :</span>
-                    <strong>${cotisations.maladie.toFixed(2)} €</strong>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
-                    <span>Allocations Familiales :</span>
-                    <strong>${cotisations.allocations.toFixed(2)} €</strong>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
-                    <span>CSG / CRDS :</span>
-                    <strong>${cotisations.csg.toFixed(2)} €</strong>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #cbd5e1;">
-                    <span>Contribution Formation Professionnelle (CFP) :</span>
-                    <strong>${cotisations.cfp.toFixed(2)} €</strong>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:12px 0; font-size:1.1rem; color:#1e3a8a;">
-                    <strong>ESTIMATION TOTAL ANNUEL URSSAF :</strong>
-                    <strong>${cotisations.total.toFixed(2)} €</strong>
-                </div>
-            </div>
+  // 3. Détail estimatif des cotisations
+  const elMaladie = document.getElementById('urssaf-cot-maladie');
+  if (elMaladie) elMaladie.textContent = resultats.cotisations.maladie.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
 
-            <!-- OUTIL DE DIAGNOSTIC DES TRANSACTIONS REÇUES -->
-            <details style="background:#f1f5f9; padding:12px; border-radius:6px; border:1px solid #cbd5e1;">
-                <summary style="font-weight:600; cursor:pointer; color:#334155;">🔍 Inspecter les données Supabase détectées (${transactions.length} opération(s))</summary>
-                <div style="margin-top:10px; overflow-x:auto;">
-                    <table style="width:100%; background:#ffffff; border:1px solid #e2e8f0; font-size:0.85rem;">
-                        <thead>
-                            <tr style="background:#e2e8f0;">
-                                <th style="padding:6px;">Date</th>
-                                <th style="padding:6px;">Type / Catégorie</th>
-                                <th style="padding:6px;">Description</th>
-                                <th style="padding:6px; text-align:right;">Montant</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${transactions.length === 0 
-                                ? '<tr><td colspan="4" style="padding:10px; text-align:center; color:#ef4444;">Aucune transaction trouvée dans la table Supabase "transactions".</td></tr>' 
-                                : transactions.map(t => `
-                                    <tr>
-                                        <td style="padding:6px; border-bottom:1px solid #f1f5f9;">${t.date || t.created_at || '-'}</td>
-                                        <td style="padding:6px; border-bottom:1px solid #f1f5f9;">${t.type || t.type_operation || t.categorie || '-'}</td>
-                                        <td style="padding:6px; border-bottom:1px solid #f1f5f9;">${t.description || t.libelle || '-'}</td>
-                                        <td style="padding:6px; border-bottom:1px solid #f1f5f9; text-align:right; font-weight:bold;">${parseFloat(t.montant || t.credit || 0).toFixed(2)} €</td>
-                                    </tr>
-                                `).join('')
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </details>
-        </div>
+  const elAlloc = document.getElementById('urssaf-cot-alloc');
+  if (elAlloc) elAlloc.textContent = resultats.cotisations.allocFamiliales.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+
+  const elCsg = document.getElementById('urssaf-cot-csg');
+  if (elCsg) elCsg.textContent = resultats.cotisations.csgCrds.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+
+  const elCfp = document.getElementById('urssaf-cot-cfp');
+  if (elCfp) elCfp.textContent = resultats.cotisations.cfp.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+
+  const elTotalCotisations = document.getElementById('urssaf-total-estimatif');
+  if (elTotalCotisations) elTotalCotisations.textContent = resultats.cotisations.total.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+
+  // 4. Rendu de la table d'inspection Supabase
+  renderInspectionTable(transactions);
+}
+
+/**
+ * Génère le tableau d'inspection des données Supabase détectées
+ */
+function renderInspectionTable(transactions) {
+  const container = document.getElementById('urssaf-supabase-inspect-list');
+  const countBadge = document.getElementById('urssaf-tx-count');
+
+  if (countBadge) {
+    countBadge.textContent = `${transactions.length} opération(s)`;
+  }
+
+  if (!container) return;
+
+  if (!transactions || transactions.length === 0) {
+    container.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-gray-500">Aucune transaction détectée</td></tr>`;
+    return;
+  }
+
+  container.innerHTML = transactions.map(tx => {
+    const montant = getMontantTransaction(tx);
+    const dateFormatted = tx.date ? new Date(tx.date).toLocaleDateString('fr-FR') : '-';
+    const isRec = isTransactionRecette(tx);
+
+    return `
+      <tr class="${isRec ? 'bg-blue-50/40' : ''}">
+        <td class="px-4 py-2 text-sm text-gray-700">${dateFormatted}</td>
+        <td class="px-4 py-2 text-sm text-gray-700">${tx.type || '-'} / ${tx.category || '-'}</td>
+        <td class="px-4 py-2 text-sm text-gray-700">${tx.description || '-'}</td>
+        <td class="px-4 py-2 text-sm font-semibold text-right ${isRec ? 'text-green-600' : 'text-gray-900'}">
+          ${montant.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+        </td>
+      </tr>
     `;
-};
+  }).join('');
+}
 
-// Fonction de calcul des bases par trimestre
-window.calculerBasesTrimestrielles = function(transactions) {
-    let q = [0, 0, 0, 0];
-    if (!transactions || !Array.isArray(transactions)) return q;
+/**
+ * Fonction d'initialisation appelée lors de l'accès à l'onglet URSSAF
+ */
+async function initUrssafModule() {
+  try {
+    let transactions = [];
+    
+    // 1. Chargement depuis Supabase si initialisé
+    if (typeof supabase !== 'undefined' && window.supabaseClient) {
+      const { data, error } = await window.supabaseClient
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: true });
 
-    transactions.forEach(t => {
-        // Extraction du montant
-        const valMontant = parseFloat(t.montant) || parseFloat(t.credit) || parseFloat(t.recette) || 0;
-        if (valMontant <= 0) return;
-
-        // Verification du type (Recette / Soins / Honoraires)
-        const typeStr = (t.type || t.type_operation || t.categorie || '').toString().toLowerCase();
-        const estDépense = typeStr.includes('dépense') || typeStr.includes('depense');
-
-        // Si ce n'est pas explicitement une dépense, on la comptabilise en recette
-        if (!estDépense) {
-            const dateRaw = t.date || t.created_at || t.date_operation;
-            if (!dateRaw) return;
-
-            const dateObj = new Date(dateRaw);
-            if (isNaN(dateObj.getTime())) return;
-
-            const mois = dateObj.getMonth(); // 0 à 11
-            const trimestreIndex = Math.floor(mois / 3); // 0, 1, 2 ou 3
-
-            if (trimestreIndex >= 0 && trimestreIndex <= 3) {
-                q[trimestreIndex] += valMontant;
-            }
-        }
-    });
-
-    return q;
-};
-
-// Calcul des cotisations URSSAF
-window.calculerCotisationsUrssaf = function(base) {
-    const t = window.parametresURSSAF.taux;
-    const maladie = base * t.maladie;
-    const allocations = base * t.allocationsFamiliales;
-    const csg = base * t.csgCrds;
-    const cfp = t.cfpForfait;
-
-    return {
-        maladie: maladie,
-        allocations: allocations,
-        csg: csg,
-        cfp: cfp,
-        total: maladie + allocations + csg + cfp
-    };
-};
-
-// Paramétrage manuel des taux
-window.ouvrirParametresUrssaf = function() {
-    const nouveauTauxCSG = prompt("Taux CSG/CRDS (ex: 0.097 pour 9.7%) :", window.parametresURSSAF.taux.csgCrds);
-    if (nouveauTauxCSG !== null) {
-        window.parametresURSSAF.taux.csgCrds = parseFloat(nouveauTauxCSG) || 0.097;
-        window.afficherDeclarationURSSAF();
+      if (!error && data) {
+        transactions = data;
+      }
     }
-};
+
+    // 2. Fallback sur le state local ou localStorage
+    if (transactions.length === 0 && window.state && window.state.transactions) {
+      transactions = window.state.transactions;
+    } else if (transactions.length === 0) {
+      const localData = localStorage.getItem('transactions');
+      if (localData) {
+        transactions = JSON.parse(localData);
+      }
+    }
+
+    // 3. Exécution du rendu
+    renderUrssafUI(transactions, window.state?.profile || {});
+  } catch (err) {
+    console.error("Erreur lors de l'initialisation du module URSSAF:", err);
+  }
+}
+
+// Rendre les fonctions accessibles globalement
+window.initUrssafModule = initUrssafModule;
+window.renderUrssafUI = renderUrssafUI;
+window.calculerUrssaf = calculerUrssaf;
