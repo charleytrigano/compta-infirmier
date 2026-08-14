@@ -16,7 +16,7 @@ function getMontantTransaction(tx) {
 // 2. Helper pour vérifier si une transaction est une recette
 function isTransactionRecette(tx) {
   const typeStr = (tx.type || '').toLowerCase();
-  const catStr = (tx.category || '').toLowerCase();
+  const catStr = (tx.category || tx.categorie || '').toLowerCase();
   return typeStr === 'recette' || 
          typeStr === 'credit' || 
          catStr.includes('soins') || 
@@ -87,8 +87,9 @@ function calculerUrssaf(transactions = []) {
  * Génère et injecte le composant HTML complet dans la page
  */
 function renderUrssafUI(transactions = []) {
-  // Recherche du conteneur de l'onglet URSSAF
-  const container = document.getElementById('urssaf-content') || 
+  // Recherche du conteneur de l'onglet URSSAF (Ajout de 'vue-urssaf')
+  const container = document.getElementById('vue-urssaf') || 
+                    document.getElementById('urssaf-content') || 
                     document.getElementById('tab-urssaf') || 
                     document.getElementById('urssaf') || 
                     document.querySelector('[data-tab="urssaf"]');
@@ -175,7 +176,7 @@ function renderUrssafUI(transactions = []) {
 
       <!-- Section 3 : Inspecteur de données Supabase -->
       <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-        <details class="group" open>
+        <details class="group">
           <summary class="flex items-center justify-between cursor-pointer font-semibold text-slate-700 text-sm select-none">
             <span class="flex items-center gap-2">
               🔍 Inspecter les données Supabase détectées (${transactions.length} opération(s))
@@ -202,8 +203,8 @@ function renderUrssafUI(transactions = []) {
                   return `
                     <tr class="${isRec ? 'bg-blue-50/30' : ''}">
                       <td class="py-2 px-3 text-slate-600">${d}</td>
-                      <td class="py-2 px-3 text-slate-600">${tx.type || '-'} / ${tx.category || '-'}</td>
-                      <td class="py-2 px-3 text-slate-600">${tx.description || '-'}</td>
+                      <td class="py-2 px-3 text-slate-600">${tx.type || '-'} / ${tx.category || tx.categorie || '-'}</td>
+                      <td class="py-2 px-3 text-slate-600">${tx.description || tx.libelle || '-'}</td>
                       <td class="py-2 px-3 text-right font-semibold ${isRec ? 'text-blue-700' : 'text-slate-900'}">
                         ${formatEuro(m)}
                       </td>
@@ -227,7 +228,7 @@ async function initUrssafModule() {
     let transactions = [];
     
     // 1. Charger depuis Supabase si disponible
-    if (typeof supabase !== 'undefined' && window.supabaseClient) {
+    if (window.supabaseClient) {
       const { data, error } = await window.supabaseClient
         .from('transactions')
         .select('*')
@@ -238,8 +239,10 @@ async function initUrssafModule() {
       }
     }
 
-    // 2. Fallback sur le state global ou localStorage
-    if (transactions.length === 0 && window.state && window.state.transactions) {
+    // 2. Fallback sur les variables globales ou le localStorage
+    if (transactions.length === 0 && window.listeTransactions) {
+      transactions = window.listeTransactions;
+    } else if (transactions.length === 0 && window.state && window.state.transactions) {
       transactions = window.state.transactions;
     } else if (transactions.length === 0) {
       const localData = localStorage.getItem('transactions');
@@ -255,7 +258,15 @@ async function initUrssafModule() {
   }
 }
 
-// Rendus globaux
+// 4. Aliases de compatibilité et exposition globale
 window.initUrssafModule = initUrssafModule;
+window.afficherDeclarationURSSAF = initUrssafModule;
 window.renderUrssafUI = renderUrssafUI;
 window.calculerUrssaf = calculerUrssaf;
+
+// Exécution automatique au chargement
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUrssafModule);
+} else {
+  initUrssafModule();
+}
