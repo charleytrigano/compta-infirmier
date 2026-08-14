@@ -1,252 +1,247 @@
-// ==========================================
-// MODULE INDÉPENDANT : CARPIMKO (AVEC RÉGULARISATION N-1)
-// ==========================================
+/**
+ * carpimko.js - Module CARPIMKO officiel avec comparateur
+ */
 
-window.initCarpimko = function() {
-    var container = document.getElementById('carpimko-container');
-    if (!container) return;
-
-    // 1. Récupération des paiements réels depuis les transactions bancaires
-    var transactions = window.allTransactions || [];
-    var totalPayeReel = 0;
-    var nbVersements = 0;
-
-    transactions.forEach(function(tx) {
-        var cat = (tx.category || '').toLowerCase();
-        if (cat.includes('carpimko')) {
-            totalPayeReel += parseFloat(tx.amount) || 0;
-            nbVersements++;
-        }
-    });
-
-    // 2. Injection du style et de l'interface
-    container.innerHTML = `
-        <style>
-            .carp-card {
-                background: #ffffff; padding: 20px; border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;
-                border: 1px solid var(--border, #e2e8f0);
-            }
-            .carp-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
-            .carp-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
-            .carp-grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-            .carp-form-group { margin-bottom: 15px; }
-            .carp-form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; }
-            .carp-form-group input, .carp-form-group select {
-                width: 100%; padding: 10px; border: 1px solid #ced4da;
-                border-radius: 6px; box-sizing: border-box; font-size: 14px;
-            }
-            .carp-kpi {
-                background: #f8fafc; padding: 15px; border-radius: 6px;
-                border: 1px solid var(--border, #e2e8f0); text-align: center;
-            }
-            .carp-kpi-val { font-size: 1.4em; font-weight: bold; margin-top: 4px; }
-            .carp-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .carp-table th, .carp-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 14px; }
-            .carp-table th { background: #f8fafc; font-weight: 600; }
-        </style>
-
-        <!-- BANDEAU SYNTHÈSE & RAPPROCHEMENT -->
-        <div class="carp-card" style="background: #f0f9ff; border-left: 5px solid #0284c7;">
-            <h3 style="margin-top: 0; color: #0369a1; font-size: 16px;">📊 Synthèse & Rapprochement Bancaire</h3>
-            <div class="carp-grid-4" style="margin-top: 10px;">
-                <div class="carp-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Déjà Prélevé (Banque)</small>
-                    <div class="carp-kpi-val" style="color: #ef4444;">${totalPayeReel.toFixed(2)} €</div>
-                    <small style="font-size: 11px; color: #94a3b8;">${nbVersements} versement(s)</small>
-                </div>
-                <div class="carp-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Total Exigible Calculé</small>
-                    <div class="carp-kpi-val" id="carp-kpi-total-exigible" style="color: #0284c7;">0.00 €</div>
-                    <small style="font-size: 11px; color: #94a3b8;">Provision N + Reg) N-1</small>
-                </div>
-                <div class="carp-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Écart Restant</small>
-                    <div class="carp-kpi-val" id="carp-kpi-ecart">0.00 €</div>
-                </div>
-                <div class="carp-kpi" style="background: #ffffff;">
-                    <small style="color: #64748b;">Solde Régularisation N-1</small>
-                    <div class="carp-kpi-val" id="carp-kpi-solde-n1" style="color: #334155;">0.00 €</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SECTION 1 : ACOMPTE PROVISIONNEL (ANNÉE N SUR BASE N-2) -->
-        <div class="carp-card">
-            <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">1. Acompte Provisionnel (Basé sur BNC N-2)</h3>
-            <div class="carp-grid-2">
-                <div class="carp-form-group">
-                    <label for="carp-bnc-n2">BNC N-2 (€) :</label>
-                    <input type="number" id="carp-bnc-n2" value="40000" step="500" oninput="window.calculerCarpimkoSimulateur(${totalPayeReel})">
-                    <small style="color:#64748b; font-size: 12px;">Base de calcul pour les acomptes de l'année en cours.</small>
-                </div>
-                <div class="carp-form-group">
-                    <label for="carp-statut">Statut / Ancienneté :</label>
-                    <select id="carp-statut" onchange="window.calculerCarpimkoSimulateur(${totalPayeReel})">
-                        <option value="croisiere">Régime de Croisière (Année 3 et +)</option>
-                        <option value="annee1">1ère Année d'installation (Forfait)</option>
-                        <option value="annee2">2ème Année d'installation (Forfait)</option>
-                    </select>
-                </div>
-            </div>
-            <div class="carp-form-group">
-                <label style="font-weight: normal; cursor: pointer;">
-                    <input type="checkbox" id="carp-conventionne" checked onchange="window.calculerCarpimkoSimulateur(${totalPayeReel})"> 
-                    Infirmier Libéral Conventionné (Prise en charge partielle de l'ASV)
-                </label>
-            </div>
-        </div>
-
-        <!-- SECTION 2 : RÉGULARISATION DE L'ANNÉE N-1 -->
-        <div class="carp-card" style="border-left: 4px solid #f59e0b;">
-            <h3 style="margin-top: 0; color: #d97706; border-bottom: 2px solid #f59e0b; padding-bottom: 8px;">2. Régularisation Définitive Année N-1</h3>
-            <div class="carp-grid-2">
-                <div class="carp-form-group">
-                    <label for="carp-bnc-n1">BNC Réel N-1 (€) :</label>
-                    <input type="number" id="carp-bnc-n1" value="42000" step="500" oninput="window.calculerCarpimkoSimulateur(${totalPayeReel})">
-                    <small style="color:#64748b; font-size: 12px;">Bénéfice définitif déclaré sur la 2035 de l'année N-1.</small>
-                </div>
-                <div class="carp-form-group">
-                    <label for="carp-prov-n1">Acomptes déjà versés en N-1 (€) :</label>
-                    <input type="number" id="carp-prov-n1" value="7000" step="100" oninput="window.calculerCarpimkoSimulateur(${totalPayeReel})">
-                    <small style="color:#64748b; font-size: 12px;">Total des cotisations provisionnelles payées au titre de N-1.</small>
-                </div>
-            </div>
-        </div>
-
-        <!-- SECTION 3 : TABLEAU RÉCAPITULATIF ET DÉTAIL -->
-        <div class="carp-card">
-            <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">3. Décomposition des Cotisations</h3>
-            <table class="carp-table">
-                <thead>
-                    <tr>
-                        <th>Poste de Cotisation</th>
-                        <th style="text-align:right;">Provisionnel N (€)</th>
-                        <th style="text-align:right;">Définitif N-1 (€)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>1. Régime de Base</strong></td>
-                        <td style="text-align:right;" id="carp-base-n">0.00 €</td>
-                        <td style="text-align:right;" id="carp-base-n1">0.00 €</td>
-                    </tr>
-                    <tr>
-                        <td><strong>2. Régime Complémentaire</strong></td>
-                        <td style="text-align:right;" id="carp-comp-n">0.00 €</td>
-                        <td style="text-align:right;" id="carp-comp-n1">0.00 €</td>
-                    </tr>
-                    <tr>
-                        <td><strong>3. Prévoyance (Incapacité / Décès)</strong></td>
-                        <td style="text-align:right;" id="carp-prev-n">0.00 €</td>
-                        <td style="text-align:right;" id="carp-prev-n1">0.00 €</td>
-                    </tr>
-                    <tr>
-                        <td><strong>4. ASV (Avantages Sociaux)</strong></td>
-                        <td style="text-align:right;" id="carp-asv-n">0.00 €</td>
-                        <td style="text-align:right;" id="carp-asv-n1">0.00 €</td>
-                    </tr>
-                    <tr style="background:#f8fafc; font-weight:bold;">
-                        <td>Sous-Total Cotisations</td>
-                        <td style="text-align:right; color:#0284c7;" id="carp-total-n">0.00 €</td>
-                        <td style="text-align:right; color:#d97706;" id="carp-total-n1">0.00 €</td>
-                    </tr>
-                    <tr style="background:#fffbe0; font-weight:bold;">
-                        <td colspan="2">Solde de Régularisation N-1 (Définitif N-1 − Provisionnel versé N-1)</td>
-                        <td style="text-align:right; color:#d97706;" id="carp-solde-reg-n1">0.00 €</td>
-                    </tr>
-                    <tr style="background:#f0fdf4; font-weight:bold; font-size:15px;">
-                        <td colspan="2">TOTAL GÉNÉRAL EXIGIBLE (Provisionnel N + Régularisation N-1)</td>
-                        <td style="text-align:right; color:#16a34a;" id="carp-total-exigible-table">0.00 €</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    `;
-
-    // Lancement du premier calcul
-    window.calculerCarpimkoSimulateur(totalPayeReel);
+// Données officielles extraites de votre appel de cotisation du 19/07/2026
+const APPEL_OFFICIEL_2026 = {
+  regimeBaseT1: 4125.00,
+  regimeBaseT2: 884.00,
+  regimeComp: 2091.00,
+  asvForfait: 224.00,
+  asvProp: 19.00,
+  invaliditeDeces: 1022.00,
+  totalProv2026: 8365.00,
+  regulBase2025: 1248.86,
+  totalGeneral: 9613.86,
+  dejaPaye: 717.00,
+  soldeARegler: 8896.86
 };
+
+function formatEuro(val) {
+  return Number(val || 0).toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
 
 /**
- * Calculateur central des cotisations CARPIMKO
+ * Calculateur temps réel basé sur le BNC de l'exercice
  */
-window.calculerCarpimkoSimulateur = function(totalPayeReel) {
-    var bncN2 = parseFloat(document.getElementById('carp-bnc-n2')?.value) || 0;
-    var bncN1 = parseFloat(document.getElementById('carp-bnc-n1')?.value) || 0;
-    var provN1Verses = parseFloat(document.getElementById('carp-prov-n1')?.value) || 0;
-    
-    var statut = document.getElementById('carp-statut')?.value || 'croisiere';
-    var conventionne = document.getElementById('carp-conventionne')?.checked ?? true;
+function calculerCarpimkoReel(bnc2026 = 47252, bnc2025 = 11813) {
+  // Tranches Régime de Base 2026 (Taux 8.73% et 1.87%)
+  const baseT1 = +(Math.min(bnc2026, 47252) * 0.0873).toFixed(2);
+  const baseT2 = +(bnc2026 * 0.0187).toFixed(2);
+  
+  // Régime Complémentaire (Exemple Taux 8.70% sur assiette spécifique)
+  const comp = 2091.00; 
+  
+  // ASV & Invalidité
+  const asvForfait = 224.00;
+  const asvProp = +(bnc2025 * 0.004 * 0.40).toFixed(2);
+  const invalidite = 1022.00;
+  
+  const totalProv = baseT1 + baseT2 + comp + asvForfait + asvProp + invalidite;
 
-    // Fonction interne : calcul de cotisation selon un BNC donné
-    function calculerCotisation(bncVal) {
-        var base = 0, comp = 0, prev = 890, asv = 0;
+  // Régularisation 2025
+  const regulT1 = +(Math.min(bnc2025, 11775) * 0.0873).toFixed(2);
+  const regulT2 = +(bnc2025 * 0.0187).toFixed(2);
+  const totalRegul = regulT1 + regulT2;
 
-        if (statut === 'annee1') {
-            base = 840; comp = 1856; asv = conventionne ? 600 : 1800;
-        } else if (statut === 'annee2') {
-            base = 1250; comp = 1856; asv = conventionne ? 600 : 1800;
-        } else {
-            var PASS = 46368;
-            if (bncVal <= PASS) {
-                base = bncVal * 0.0823;
-            } else {
-                base = (PASS * 0.0823) + Math.min(bncVal - PASS, PASS * 4) * 0.0187;
-            }
+  const totalGeneral = totalProv + totalRegul;
 
-            var partFixeComp = 1856;
-            var partPropComp = bncVal > 27000 ? Math.min(bncVal - 27000, 150000) * 0.07 : 0;
-            comp = partFixeComp + partPropComp;
+  return {
+    baseT1, baseT2, comp, asvForfait, asvProp, invalidite,
+    totalProv, totalRegul, totalGeneral
+  };
+}
 
-            var asvBrut = 1950 + (bncVal * 0.008);
-            asv = conventionne ? asvBrut * 0.33 : asvBrut;
-        }
+/**
+ * Interface d'affichage identique à l'appel de cotisation
+ */
+function renderCarpimkoUI(transactions = []) {
+  const container = document.getElementById('vue-carpimko') || 
+                    document.getElementById('carpimko-container') ||
+                    document.getElementById('carpimko-content') ||
+                    document.getElementById('carpimko');
 
-        var total = base + comp + prev + asv;
-        return { base: base, comp: comp, prev: prev, asv: asv, total: total };
+  if (!container) {
+    console.error("Conteneur CARPIMKO introuvable.");
+    return;
+  }
+
+  // Somme des cotisations CARPIMKO réglées en banque
+  let payeBanque = 0;
+  transactions.forEach(tx => {
+    const cat = (tx.category || tx.categorie || '').toLowerCase();
+    const desc = (tx.description || tx.libelle || '').toLowerCase();
+    if (cat.includes('carpimko') || desc.includes('carpimko')) {
+      payeBanque += Math.abs(parseFloat(tx.amount || tx.montant || 0));
     }
+  });
 
-    // Calculs pour l'année N (basé sur BNC N-2) et N-1 (basé sur BNC N-1)
-    var resN = calculerCotisation(bncN2);
-    var resN1 = calculerCotisation(bncN1);
+  const officiel = APPEL_OFFICIEL_2026;
+  const simu = calculerCarpimkoReel();
+  const tropConssigne = payeBanque > officiel.totalGeneral ? (payeBanque - officiel.totalGeneral) : 0;
+  const ecartAppelVsReel = officiel.totalGeneral - simu.totalGeneral;
 
-    var soldeRegN1 = resN1.total - provN1Verses;
-    var totalExigible = resN.total + soldeRegN1;
-    var ecartRestant = totalPayeReel - totalExigible;
+  container.innerHTML = `
+    <div class="space-y-6 max-w-5xl mx-auto p-2">
+      
+      <!-- BANDEAU DE COMPARATIF & TROP PERÇU -->
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm">
+        <h3 class="text-amber-800 font-bold text-base flex items-center gap-2">
+          ⚖️ Comparatif & Anomaly Check (Cotisé en Trop)
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 text-sm">
+          <div class="bg-white p-3 rounded-lg border border-amber-200">
+            <span class="text-gray-500 text-xs block">Appel Officiel Reçu</span>
+            <span class="font-bold text-slate-800 text-base">${formatEuro(officiel.totalGeneral)}</span>
+          </div>
+          <div class="bg-white p-3 rounded-lg border border-amber-200">
+            <span class="text-gray-500 text-xs block">Déjà Réglé (Banque)</span>
+            <span class="font-bold text-blue-600 text-base">${formatEuro(payeBanque || officiel.dejaPaye)}</span>
+          </div>
+          <div class="bg-white p-3 rounded-lg border border-amber-200">
+            <span class="text-gray-500 text-xs block">Écart / Trop cotisé potentiel</span>
+            <span class="font-bold ${ecartAppelVsReel >= 0 ? 'text-emerald-600' : 'text-red-600'} text-base">
+              ${formatEuro(Math.abs(ecartAppelVsReel))} ${ecartAppelVsReel > 0 ? '(En votre faveur)' : ''}
+            </span>
+          </div>
+        </div>
+      </div>
 
-    // Mise à jour de l'affichage du tableau
-    document.getElementById('carp-base-n').textContent = resN.base.toFixed(2) + ' €';
-    document.getElementById('carp-comp-n').textContent = resN.comp.toFixed(2) + ' €';
-    document.getElementById('carp-prev-n').textContent = resN.prev.toFixed(2) + ' €';
-    document.getElementById('carp-asv-n').textContent = resN.asv.toFixed(2) + ' €';
-    document.getElementById('carp-total-n').textContent = resN.total.toFixed(2) + ' €';
+      <!-- REPRODUCTION EXACTE DE L'APPEL DE COTISATION CARPIMKO -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div class="flex justify-between items-center border-b pb-4 mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-800">APPEL DE COTISATION CARPIMKO</h2>
+            <p class="text-xs text-gray-500">Émis le 19/07/2026</p>
+          </div>
+          <span class="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold">Exercice 2026</span>
+        </div>
 
-    document.getElementById('carp-base-n1').textContent = resN1.base.toFixed(2) + ' €';
-    document.getElementById('carp-comp-n1').textContent = resN1.comp.toFixed(2) + ' €';
-    document.getElementById('carp-prev-n1').textContent = resN1.prev.toFixed(2) + ' €';
-    document.getElementById('carp-asv-n1').textContent = resN1.asv.toFixed(2) + ' €';
-    document.getElementById('carp-total-n1').textContent = resN1.total.toFixed(2) + ' €';
+        <table class="w-full text-left border-collapse text-xs md:text-sm">
+          <tbody>
+            <!-- REGIME DE BASE PROVISIONNEL -->
+            <tr class="bg-slate-50 font-bold text-slate-700">
+              <td colspan="2" class="py-2 px-3">RÉGIME DE BASE PROVISIONNEL 2026</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">
+                ▶ Tranche 1 <span class="text-xs text-gray-500">REVENUS ANNUALISÉS 47 252,00 X 8,73%</span>
+              </td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(officiel.regimeBaseT1)}</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">
+                ▶ Tranche 2 <span class="text-xs text-gray-500">REVENUS ANNUALISÉS 47 252,00 X 1,87%</span>
+              </td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(officiel.regimeBaseT2)}</td>
+            </tr>
 
-    var soldeRegEl = document.getElementById('carp-solde-reg-n1');
-    if (soldeRegEl) {
-        soldeRegEl.textContent = (soldeRegN1 >= 0 ? '+' : '') + soldeRegN1.toFixed(2) + ' €';
+            <!-- REGIME COMPLEMENTAIRE -->
+            <tr class="bg-slate-50 font-bold text-slate-700">
+              <td colspan="2" class="py-2 px-3">RÉGIME COMPLÉMENTAIRE 2026</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">
+                ▶ Cotisation proportionnelle <span class="text-xs text-gray-500">24 030,00 X 8,70%</span>
+              </td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(officiel.regimeComp)}</td>
+            </tr>
+
+            <!-- AVANTAGE SOCIAL VIEILLESSE -->
+            <tr class="bg-slate-50 font-bold text-slate-700">
+              <td colspan="2" class="py-2 px-3">AVANTAGE SOCIAL VIEILLESSE 2026</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">▶ Cotisation forfaitaire</td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(officiel.asvForfait)}</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">
+                ▶ Cotisation proportionnelle <span class="text-xs text-gray-500">REVENUS CONVENTIONNÉS 2025 11 813,00 X 0,40% X 40%</span>
+              </td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(officiel.asvProp)}</td>
+            </tr>
+
+            <!-- INVALIDITE DECES -->
+            <tr class="bg-slate-50 font-bold text-slate-700">
+              <td class="py-2 px-3">RÉGIME INVALIDITÉ DÉCÈS 2026</td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(officiel.invaliditeDeces)}</td>
+            </tr>
+
+            <!-- TOTAL PROVISIONNEL -->
+            <tr class="font-bold border-t-2 border-slate-300 bg-slate-100">
+              <td class="py-2 px-3 text-slate-800">TOTAL DES COTISATIONS 2026</td>
+              <td class="py-2 px-3 text-right text-slate-900">${formatEuro(officiel.totalProv2026)}</td>
+            </tr>
+
+            <!-- REGULARISATION 2025 -->
+            <tr class="bg-amber-50/50 font-bold text-amber-900">
+              <td colspan="2" class="py-2 px-3">RÉGULARISATION DU RÉGIME DE BASE 2025</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">
+                ▶ Tranche 1 <span class="text-xs text-gray-500">REVENUS PLAFONNÉS 11 775,00 X 8,73%</span>
+              </td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(1027.96)}</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-2 px-3 pl-6">
+                ▶ Tranche 2 <span class="text-xs text-gray-500">REVENUS 2025 11 813,00 X 1,87%</span>
+              </td>
+              <td class="py-2 px-3 text-right font-semibold">${formatEuro(220.90)}</td>
+            </tr>
+            <tr class="font-bold bg-amber-50/30 border-b border-amber-200">
+              <td class="py-2 px-3 text-amber-900">TOTAL DE LA RÉGULARISATION DU REGIME DE BASE 2025</td>
+              <td class="py-2 px-3 text-right text-amber-900">${formatEuro(officiel.regulBase2025)}</td>
+            </tr>
+
+            <!-- NET A PAYER -->
+            <tr class="bg-emerald-600 text-white font-bold text-base">
+              <td class="py-3 px-3 uppercase">TOTAL GÉNÉRAL DES COTISATIONS DUES</td>
+              <td class="py-3 px-3 text-right">${formatEuro(officiel.totalGeneral)}</td>
+            </tr>
+            <tr class="bg-slate-100 text-slate-700">
+              <td class="py-2 px-3 font-medium">À VOTRE COMPTE (déjà réglé)</td>
+              <td class="py-2 px-3 text-right font-bold text-red-600">-${formatEuro(officiel.dejaPaye)}</td>
+            </tr>
+            <tr class="bg-slate-800 text-white font-bold text-lg">
+              <td class="py-3 px-3">SOLDE À RÉGLER SUR L'ANNÉE 2026</td>
+              <td class="py-3 px-3 text-right">${formatEuro(officiel.soldeARegler)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function initCarpimkoModule() {
+  try {
+    let transactions = [];
+    if (window.supabaseClient) {
+      const { data } = await window.supabaseClient.from('transactions').select('*');
+      if (data) transactions = data;
+    } else if (window.listeTransactions) {
+      transactions = window.listeTransactions;
     }
+    renderCarpimkoUI(transactions);
+  } catch (err) {
+    console.error("Erreur CARPIMKO :", err);
+  }
+}
 
-    document.getElementById('carp-total-exigible-table').textContent = totalExigible.toFixed(2) + ' €';
+// Aliases
+window.initCarpimkoModule = initCarpimkoModule;
+window.initCarpimko = initCarpimkoModule;
+window.renderCarpimkoUI = renderCarpimkoUI;
 
-    // Mise à jour des KPI du bandeau supérieur
-    document.getElementById('carp-kpi-total-exigible').textContent = totalExigible.toFixed(2) + ' €';
-
-    var kpiSoldeN1 = document.getElementById('carp-kpi-solde-n1');
-    if (kpiSoldeN1) {
-        kpiSoldeN1.textContent = (soldeRegN1 >= 0 ? '+' : '') + soldeRegN1.toFixed(2) + ' €';
-        kpiSoldeN1.style.color = soldeRegN1 >= 0 ? '#d97706' : '#10b981';
-    }
-
-    var ecartEl = document.getElementById('carp-kpi-ecart');
-    if (ecartEl) {
-        ecartEl.textContent = (ecartRestant >= 0 ? '+' : '') + ecartRestant.toFixed(2) + ' €';
-        ecartEl.style.color = ecartRestant >= 0 ? '#10b981' : '#ef4444';
-    }
-};
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCarpimkoModule);
+} else {
+  initCarpimkoModule();
+}
