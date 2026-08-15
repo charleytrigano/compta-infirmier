@@ -8,7 +8,7 @@
     <!-- Favicon -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
-    <!-- Framework Tailwind CSS pour les modules dynamiques -->
+    <!-- Framework Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
@@ -361,7 +361,9 @@
 
         <!-- VUE 6 : URSSAF -->
         <section id="vue-urssaf" class="view-section">
-            <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
+            <div id="conteneur-urssaf">
+                <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
+            </div>
         </section>
 
         <!-- VUE 7 : CARPIMKO -->
@@ -385,11 +387,23 @@
             </div>
         </section>
 
-        <!-- AUTRES VUES SECONDAIRES -->
-        <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
-        <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
+        <!-- VUE 10 : JOURNAL -->
+        <section id="vue-journal" class="view-section">
+            <h2>Journal des écritures</h2>
+            <div id="conteneur-journal">
+                <p style="color: #64748b;">Chargement du journal...</p>
+            </div>
+        </section>
+
+        <!-- VUE 11 : GRAND LIVRE -->
+        <section id="vue-grandlivre" class="view-section">
+            <h2>Grand Livre</h2>
+            <div id="conteneur-grandlivre">
+                <p style="color: #64748b;">Chargement du grand livre...</p>
+            </div>
+        </section>
         
-        <!-- VUE PROFIL -->
+        <!-- VUE 12 : PROFIL -->
         <section id="vue-profil" class="view-section">
             <div id="profil-container">
                 <p style="color: #64748b;">Chargement du profil...</p>
@@ -438,12 +452,12 @@
         </div>
     </div>
 
-    <!-- SCRIPTS EN TÊTE DE BASE -->
+    <!-- SCRIPTS DE BASE -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
 
     <script>
-        // Gestionnaire d'onglets
+        // Gestionnaire d'onglets dynamique
         window.switchTab = function(tabId, btnElement) {
             var sections = document.querySelectorAll('.view-section');
             sections.forEach(function(sec) { sec.classList.remove('active'); });
@@ -456,40 +470,31 @@
 
             if (btnElement) { btnElement.classList.add('active'); }
 
-            // Déclencheurs spécifiques aux onglets
-            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') {
-                window.afficherPlanComptable();
-            }
-            if (tabId === 'vue-urssaf' && typeof window.afficherDeclarationURSSAF === 'function') {
-                window.afficherDeclarationURSSAF();
-            }
-            if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') {
-                window.initCarpimkoModule();
-            }
-            if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') {
-                window.initIRModule();
-            }
-            if (tabId === 'vue-export' && typeof window.initExportModule === 'function') {
-                window.initExportModule();
-            }
-            if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
-                window.afficherBilanEtCE();
-            }
-            if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') {
-                window.afficherDeclaration2035();
-            }
-            if (tabId === 'vue-profil' && typeof window.initProfil === 'function') {
-                window.initProfil();
-            }
+            // Déclencheurs spécifiques aux modules
+            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') window.afficherPlanComptable();
+            if (tabId === 'vue-urssaf' && typeof window.afficherDeclarationURSSAF === 'function') window.afficherDeclarationURSSAF();
+            if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
+            if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
+            if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
+            if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') window.afficherBilanEtCE();
+            if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') window.afficherDeclaration2035();
+            if (tabId === 'vue-journal' && typeof window.afficherJournal === 'function') window.afficherJournal();
+            if (tabId === 'vue-grandlivre' && typeof window.afficherGrandLivre === 'function') window.afficherGrandLivre();
+            if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
         };
 
         window.fermerModal = function() {
             var modal = document.getElementById('modal-modifier');
             if (modal) modal.style.display = 'none';
         };
+
+        // Chargement initial
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
+        });
     </script>
 
-    <!-- SCRIPTS APPLICATIFS -->
+    <!-- SCRIPTS APPLICATIFS MODULES -->
     <script src="transactions.js"></script>
     <script src="bilan.js"></script>
     <script src="declaration2035.js"></script>
@@ -498,6 +503,8 @@
     <script src="carpimko.js"></script>
     <script src="ir.js"></script>
     <script src="export_comptable.js"></script>
+    <script src="journal.js"></script>
+    <script src="grandlivre.js"></script>
     <script src="profil.js"></script>
 
 </body>
