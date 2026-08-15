@@ -207,6 +207,7 @@
             <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
             <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
             <button class="nav-btn" onclick="switchTab('vue-ir', this)">🧮 Calcul IR</button>
+            <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
             <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
             <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035</button>
             <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
@@ -377,6 +378,13 @@
             </div>
         </section>
 
+        <!-- VUE 9 : EXPORT & SAUVEGARDE -->
+        <section id="vue-export" class="view-section">
+            <div id="export-container">
+                <p style="color: #64748b;">Chargement du module d'exportation...</p>
+            </div>
+        </section>
+
         <!-- AUTRES VUES SECONDAIRES -->
         <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
         <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
@@ -455,6 +463,9 @@
             if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') {
                 window.initIRModule();
             }
+            if (tabId === 'vue-export' && typeof window.initExportModule === 'function') {
+                window.initExportModule();
+            }
             if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') {
                 window.afficherBilanEtCE();
             }
@@ -477,6 +488,7 @@
     <script src="urssaf.js"></script>
     <script src="carpimko.js"></script>
     <script src="ir.js"></script>
+    <script src="export_comptable.js"></script>
 
 </body>
 </html>
