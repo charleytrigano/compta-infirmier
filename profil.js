@@ -1,5 +1,5 @@
 /**
- * profil.js - Module Profil avec Sauvegarde Globale (Code + Supabase JSON)
+ * profil.js - Module Profil avec Sauvegarde Globale (Supabase + Local)
  */
 
 let profileRecordId = null;
@@ -23,7 +23,7 @@ async function chargerProfilSupabase() {
 }
 
 /**
- * Fonction de déclenchement de la sauvegarde complète (Données Supabase + Fichiers)
+ * Fonction de déclenchement de la sauvegarde complète (Données Supabase + Local)
  */
 async function exporterSauvegardeGlobale() {
   const btn = document.getElementById('btn-export-global');
@@ -67,7 +67,7 @@ async function exporterSauvegardeGlobale() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '📦 Télécharger la Sauvegarde Globale (Supabase + Local)';
+      btn.innerHTML = '📦 Télécharger la Sauvegarde Globale (Supabase)';
     }
   }
 }
@@ -239,7 +239,7 @@ async function renderProfilUI() {
             🔒 Sécurité & Exportation des Données
           </h3>
           <p class="text-xs text-slate-600">
-            Téléchargez une sauvegarde instantanée de l'ensemble de vos données Supabase (`profile` et `transactions`) sur votre appareil.
+            Téléchargez une sauvegarde instantanée de l'ensemble de vos données Supabase ('profile' et 'transactions') sur votre appareil.
           </p>
           <div>
             <button type="button" id="btn-export-global" onclick="exporterSauvegardeGlobale()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
