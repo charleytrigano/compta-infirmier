@@ -388,7 +388,13 @@
         <!-- AUTRES VUES SECONDAIRES -->
         <section id="vue-journal" class="view-section"><h2>Journal des écritures</h2><p>Consultation du journal...</p></section>
         <section id="vue-grandlivre" class="view-section"><h2>Grand Livre</h2><p>Consultation des comptes...</p></section>
-        <section id="vue-profil" class="view-section"><h2>Profil utilisateur</h2><p>Paramètres du compte...</p></section>
+        
+        <!-- VUE PROFIL -->
+        <section id="vue-profil" class="view-section">
+            <div id="profil-container">
+                <p style="color: #64748b;">Chargement du profil...</p>
+            </div>
+        </section>
     </div>
 
     <!-- MODALE MODIFICATION -->
@@ -472,6 +478,9 @@
             if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') {
                 window.afficherDeclaration2035();
             }
+            if (tabId === 'vue-profil' && typeof window.initProfil === 'function') {
+                window.initProfil();
+            }
         };
 
         window.fermerModal = function() {
@@ -489,6 +498,7 @@
     <script src="carpimko.js"></script>
     <script src="ir.js"></script>
     <script src="export_comptable.js"></script>
+    <script src="profil.js"></script>
 
 </body>
 </html>
