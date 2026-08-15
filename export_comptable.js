@@ -78,103 +78,9 @@ async function genererCSVJournal() {
   link.remove();
 }
 
-// Fonction d'impression optimisée pour les documents comptables
-async function imprimerRapportComptable() {
-  const transactions = await obtenirTransactions();
-  
-  let totalRecettes = 0;
-  let totalDepenses = 0;
-  let lignesTableau = '';
-
-  transactions.forEach(t => {
-    const val = parseFloat(t.montant) || 0;
-    if (t.type === 'Recette') totalRecettes += val;
-    else if (t.type === 'Dépense') totalDepenses += val;
-
-    lignesTableau += `
-      <tr style="border-bottom: 1px solid #e2e8f0;">
-        <td style="padding: 6px 8px;">${t.date || '-'}</td>
-        <td style="padding: 6px 8px;">${t.type || '-'}</td>
-        <td style="padding: 6px 8px;">${t.categorie || '-'}</td>
-        <td style="padding: 6px 8px;">${t.description || '-'}</td>
-        <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${t.type === 'Recette' ? '#047857' : '#b91c1c'};">
-          ${val.toFixed(2)} €
-        </td>
-      </tr>
-    `;
-  });
-
-  const benefice = totalRecettes - totalDepenses;
-
-  const contenuImpression = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Impression Document Comptable BNC</title>
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; padding: 20px; }
-        h1 { font-size: 18px; border-bottom: 2px solid #0284c7; padding-bottom: 5px; margin-bottom: 15px; }
-        .summary-box { display: flex; gap: 15px; margin-bottom: 20px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
-        .summary-item { flex: 1; text-align: center; }
-        .summary-item div { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
-        .summary-item span { font-size: 14px; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #f1f5f9; padding: 8px; text-align: left; font-size: 11px; border-bottom: 2px solid #cbd5e1; }
-        @media print {
-          body { padding: 0; }
-          button { display: none; }
-        }
-      </style>
-    </head>
-    <body>
-      <h1>JOURNAL COMPTABLE & SYNTHÈSE D'EXERCICE</h1>
-      <p style="font-size: 10px; color: #64748b;">Édité le ${new Date().toLocaleDateString('fr-FR')} - Comptabilité Libérale BNC</p>
-
-      <div class="summary-box">
-        <div class="summary-item">
-          <div>Transactions</div>
-          <span>${transactions.length}</span>
-        </div>
-        <div class="summary-item">
-          <div>Total Recettes</div>
-          <span style="color: #047857;">${totalRecettes.toFixed(2)} €</span>
-        </div>
-        <div class="summary-item">
-          <div>Total Dépenses</div>
-          <span style="color: #b91c1c;">${totalDepenses.toFixed(2)} €</span>
-        </div>
-        <div class="summary-item">
-          <div>Résultat Net (BNC)</div>
-          <span style="color: #0284c7;">${benefice.toFixed(2)} €</span>
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Catégorie</th>
-            <th>Description</th>
-            <th style="text-align: right;">Montant</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${lignesTableau || '<tr><td colspan="5" style="text-align:center; padding: 10px;">Aucune donnée enregistrée</td></tr>'}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
-
-  const fenetre = window.open('', '_blank');
-  fenetre.document.write(contenuImpression);
-  fenetre.document.close();
-  fenetre.focus();
-
-  setTimeout(() => {
-    fenetre.print();
-  }, 500);
+// Fonction globale d'impression directe de la vue courante
+function imprimerPageCourante() {
+  window.print();
 }
 
 async function genererDonneesMail() {
@@ -216,7 +122,41 @@ async function copierSynthese() {
   });
 }
 
+// Injection des styles d'impression dans la page globale
+function injecterStylesImpression() {
+  if (document.getElementById('style-impression-global')) return;
+  const style = document.createElement('style');
+  style.id = 'style-impression-global';
+  style.innerHTML = `
+    @media print {
+      /* Masquer la navigation, les boutons et la console à l'impression */
+      nav, header, button, input[type="file"], .no-print, #export-container > div > div:first-child button {
+        display: none !important;
+      }
+      body {
+        background: white !important;
+        color: black !important;
+        font-size: 10pt;
+      }
+      .bg-white, .shadow-sm, .border {
+        box-shadow: none !important;
+        border: none !important;
+      }
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+      th, td {
+        border: 1px solid #ddd !important;
+        padding: 6px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function renderExportUI() {
+  injecterStylesImpression();
   const container = document.getElementById('export-container');
   if (!container) return;
 
@@ -231,8 +171,8 @@ function renderExportUI() {
           </h2>
           <p class="text-xs text-slate-500 mt-1">Générez vos fichiers comptables, imprimez vos états ou transmettez-les à votre cabinet</p>
         </div>
-        <button type="button" onclick="imprimerRapportComptable()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
-          🖨️ Imprimer les Documents Comptables
+        <button type="button" onclick="imprimerPageCourante()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+          🖨️ Imprimer la Vue Active
         </button>
       </div>
 
