@@ -1,5 +1,5 @@
 /**
- * export_comptable.js - Module de sauvegarde et export compatible Supabase & LocalStorage
+ * export_comptable.js - Module d'exportation, impression et sauvegarde
  */
 
 // Récupération asynchrone des transactions (Supabase avec fallback LocalStorage)
@@ -60,7 +60,7 @@ async function importerFichierJSON(event) {
 async function genererCSVJournal() {
   const transactions = await obtenirTransactions();
   if (!transactions || transactions.length === 0) {
-    alert("Aucune transaction à exporter dans la base de données.");
+    alert("Aucune transaction à exporter.");
     return;
   }
 
@@ -76,6 +76,105 @@ async function genererCSVJournal() {
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+// Fonction d'impression optimisée pour les documents comptables
+async function imprimerRapportComptable() {
+  const transactions = await obtenirTransactions();
+  
+  let totalRecettes = 0;
+  let totalDepenses = 0;
+  let lignesTableau = '';
+
+  transactions.forEach(t => {
+    const val = parseFloat(t.montant) || 0;
+    if (t.type === 'Recette') totalRecettes += val;
+    else if (t.type === 'Dépense') totalDepenses += val;
+
+    lignesTableau += `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 6px 8px;">${t.date || '-'}</td>
+        <td style="padding: 6px 8px;">${t.type || '-'}</td>
+        <td style="padding: 6px 8px;">${t.categorie || '-'}</td>
+        <td style="padding: 6px 8px;">${t.description || '-'}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${t.type === 'Recette' ? '#047857' : '#b91c1c'};">
+          ${val.toFixed(2)} €
+        </td>
+      </tr>
+    `;
+  });
+
+  const benefice = totalRecettes - totalDepenses;
+
+  const contenuImpression = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Impression Document Comptable BNC</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; padding: 20px; }
+        h1 { font-size: 18px; border-bottom: 2px solid #0284c7; padding-bottom: 5px; margin-bottom: 15px; }
+        .summary-box { display: flex; gap: 15px; margin-bottom: 20px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .summary-item { flex: 1; text-align: center; }
+        .summary-item div { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+        .summary-item span { font-size: 14px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #f1f5f9; padding: 8px; text-align: left; font-size: 11px; border-bottom: 2px solid #cbd5e1; }
+        @media print {
+          body { padding: 0; }
+          button { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <h1>JOURNAL COMPTABLE & SYNTHÈSE D'EXERCICE</h1>
+      <p style="font-size: 10px; color: #64748b;">Édité le ${new Date().toLocaleDateString('fr-FR')} - Comptabilité Libérale BNC</p>
+
+      <div class="summary-box">
+        <div class="summary-item">
+          <div>Transactions</div>
+          <span>${transactions.length}</span>
+        </div>
+        <div class="summary-item">
+          <div>Total Recettes</div>
+          <span style="color: #047857;">${totalRecettes.toFixed(2)} €</span>
+        </div>
+        <div class="summary-item">
+          <div>Total Dépenses</div>
+          <span style="color: #b91c1c;">${totalDepenses.toFixed(2)} €</span>
+        </div>
+        <div class="summary-item">
+          <div>Résultat Net (BNC)</div>
+          <span style="color: #0284c7;">${benefice.toFixed(2)} €</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Catégorie</th>
+            <th>Description</th>
+            <th style="text-align: right;">Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lignesTableau || '<tr><td colspan="5" style="text-align:center; padding: 10px;">Aucune donnée enregistrée</td></tr>'}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const fenetre = window.open('', '_blank');
+  fenetre.document.write(contenuImpression);
+  fenetre.document.close();
+  fenetre.focus();
+
+  setTimeout(() => {
+    fenetre.print();
+  }, 500);
 }
 
 async function genererDonneesMail() {
@@ -100,34 +199,20 @@ async function genererDonneesMail() {
 
 async function ouvrirAppMail() {
   const { email, sujet, corpsBrut } = await genererDonneesMail();
-
-  if (!email) {
-    alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
-    return;
-  }
-
-  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-  window.location.href = mailtoUrl;
+  if (!email) return alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
+  window.location.href = `mailto:${email}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
 }
 
 async function ouvrirGmailWeb() {
   const { email, sujet, corpsBrut } = await genererDonneesMail();
-
-  if (!email) {
-    alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
-    return;
-  }
-
-  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-  window.open(gmailUrl, '_blank');
+  if (!email) return alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
+  window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`, '_blank');
 }
 
 async function copierSynthese() {
   const { corpsBrut } = await genererDonneesMail();
   navigator.clipboard.writeText(corpsBrut).then(() => {
-    alert("📋 Synthèse copiée dans le presse-papier ! Vous pouvez la coller directement dans votre messagerie.");
-  }).catch(() => {
-    alert("Impossible de copier automatiquement. Veuillez copier le texte manuellement.");
+    alert("📋 Synthèse copiée dans le presse-papier !");
   });
 }
 
@@ -138,14 +223,17 @@ function renderExportUI() {
   container.innerHTML = `
     <div class="space-y-6 max-w-5xl mx-auto p-4 font-sans text-slate-800">
 
-      <!-- ENTÊTE -->
+      <!-- ENTÊTE AVEC BOUTON IMPRESSION GLOBALE -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-            💾 Sauvegarde & Envoi Expert-Comptable
+            💾 Sauvegarde, Export & Impression
           </h2>
-          <p class="text-xs text-slate-500 mt-1">Exportez vos données au format standard ou transmettez la synthèse à votre cabinet</p>
+          <p class="text-xs text-slate-500 mt-1">Générez vos fichiers comptables, imprimez vos états ou transmettez-les à votre cabinet</p>
         </div>
+        <button type="button" onclick="imprimerRapportComptable()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+          🖨️ Imprimer les Documents Comptables
+        </button>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -153,10 +241,10 @@ function renderExportUI() {
         <!-- SAUVEGARDE & RESTAURATION LOCALE -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 flex items-center gap-2">
-            📂 Sauvegarde et Données
+            📂 Sauvegarde et Exports Fichiers
           </h3>
           <p class="text-xs text-slate-600">
-            Téléchargez une sauvegarde de la base de données ou réimportez un fichier de restauration.
+            Téléchargez une sauvegarde globale ou le journal complet sous forme de fichier.
           </p>
 
           <div class="flex flex-col gap-3 pt-2">
@@ -181,7 +269,7 @@ function renderExportUI() {
             ✉️ Transmission Cabinet Comptable
           </h3>
           <p class="text-xs text-slate-600">
-            Préparez l'e-mail de transmission incluant les totaux d'exercice calculés automatiquement.
+            Préparez l'e-mail de transmission incluant les totaux d'exercice.
           </p>
 
           <div class="space-y-3 pt-1">
@@ -197,7 +285,7 @@ function renderExportUI() {
 
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Message personnel (facultatif) :</label>
-              <textarea id="expert-message" rows="3" placeholder="Notes particulières sur l'exercice..." class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50"></textarea>
+              <textarea id="expert-message" rows="3" placeholder="Notes particulières..." class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50"></textarea>
             </div>
 
             <div class="flex flex-col gap-2 pt-1">
