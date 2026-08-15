@@ -1,10 +1,26 @@
 /**
- * export_comptable.js - Module complet de sauvegarde et d'exportation
+ * export_comptable.js - Module de sauvegarde et export compatible Supabase & LocalStorage
  */
 
-function genererFichierJSON() {
+// Fonction utilitaire pour récupérer les transactions (Supabase ou LocalStorage)
+async function obtenirTransactions() {
+  if (window.supabaseClient) {
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('transactions')
+        .select('*');
+      if (!error && data && data.length > 0) return data;
+    } catch (e) {
+      console.warn("Supabase indisponible, bascule sur LocalStorage", e);
+    }
+  }
+  return JSON.parse(localStorage.getItem('transactions') || '[]');
+}
+
+async function genererFichierJSON() {
+  const transactions = await obtenirTransactions();
   const donnees = {
-    transactions: JSON.parse(localStorage.getItem('transactions') || '[]'),
+    transactions: transactions,
     paiements: JSON.parse(localStorage.getItem('paiements') || '[]'),
     dateExport: new Date().toISOString()
   };
@@ -18,16 +34,20 @@ function genererFichierJSON() {
   downloadAnchor.remove();
 }
 
-function importerFichierJSON(event) {
+async function importerFichierJSON(event) {
   const file = event.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       const donnees = JSON.parse(e.target.result);
-      if (donnees.transactions) localStorage.setItem('transactions', JSON.stringify(donnees.transactions));
-      if (donnees.paiements) localStorage.setItem('paiements', JSON.stringify(donnees.paiements));
+      if (donnees.transactions) {
+        localStorage.setItem('transactions', JSON.stringify(donnees.transactions));
+        if (window.supabaseClient) {
+          await window.supabaseClient.from('transactions').upsert(donnees.transactions);
+        }
+      }
       alert("✅ Sauvegarde restaurée avec succès !");
       location.reload();
     } catch (err) {
@@ -37,10 +57,10 @@ function importerFichierJSON(event) {
   reader.readAsText(file);
 }
 
-function genererCSVJournal() {
-  const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-  if (transactions.length === 0) {
-    alert("Aucune transaction à exporter.");
+async function genererCSVJournal() {
+  const transactions = await obtenirTransactions();
+  if (!transactions || transactions.length === 0) {
+    alert("Aucune transaction à exporter dans la base de données.");
     return;
   }
 
@@ -58,11 +78,11 @@ function genererCSVJournal() {
   link.remove();
 }
 
-function genererTexteMail() {
+async function genererTexteMail() {
   const email = document.getElementById('expert-email')?.value || '';
   const nomComptable = document.getElementById('expert-nom')?.value || 'Cabinet Comptable';
   const messagePerso = document.getElementById('expert-message')?.value || '';
-  const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+  const transactions = await obtenirTransactions();
 
   let totalRecettes = 0;
   let totalDepenses = 0;
@@ -78,8 +98,8 @@ function genererTexteMail() {
   return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
 }
 
-function preparerEnvoiEmail() {
-  const { email, sujet, corpsBrut } = genererTexteMail();
+async function preparerEnvoiEmail() {
+  const { email, sujet, corpsBrut } = await genererTexteMail();
 
   if (!email) {
     alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
@@ -90,8 +110,8 @@ function preparerEnvoiEmail() {
   window.location.href = mailtoUrl;
 }
 
-function copierSynthese() {
-  const { corpsBrut } = genererTexteMail();
+async function copierSynthese() {
+  const { corpsBrut } = await genererTexteMail();
   navigator.clipboard.writeText(corpsBrut).then(() => {
     alert("📋 Synthèse copiée dans le presse-papier ! Vous pouvez la coller directement dans votre messagerie.");
   }).catch(() => {
@@ -124,7 +144,7 @@ function renderExportUI() {
             📂 Sauvegarde et Données
           </h3>
           <p class="text-xs text-slate-600">
-            Téléchargez une sauvegarde de la base de données locale ou réimportez un fichier de restauration.
+            Téléchargez une sauvegarde de la base de données ou réimportez un fichier de restauration.
           </p>
 
           <div class="flex flex-col gap-3 pt-2">
