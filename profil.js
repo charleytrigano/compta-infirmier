@@ -1,41 +1,36 @@
 /**
- * profil.js - Gestion du Profil Utilisateur avec Remplacement Automatique
+ * profil.js - Remplacement forcé et dynamique du bloc Profil
  */
 
 async function obtenirInfosProfil() {
-  let utilisateur = null;
-
+  let user = null;
   if (window.supabaseClient) {
     try {
-      const { data: { user } } = await window.supabaseClient.auth.getUser();
-      utilisateur = user;
+      const { data } = await window.supabaseClient.auth.getUser();
+      user = data?.user;
     } catch (e) {
-      console.warn("Erreur Supabase", e);
+      console.warn("Supabase auth check:", e);
     }
   }
-
-  return utilisateur;
+  return user;
 }
 
-async function renderProfilUI() {
-  // 1. Recherche du conteneur par ID ou ciblage du div contenant le texte statique
-  let container = document.getElementById('profil-container') || 
-                    document.getElementById('profil-section') || 
-                    document.getElementById('profil');
+async function injecterProfil() {
+  // Ciblage prioritaire du bloc #profil de index.html
+  let target = document.getElementById('profil') || document.getElementById('profil-container');
 
-  if (!container) {
-    const tousLesDivs = Array.from(document.querySelectorAll('div, section, main'));
-    container = tousLesDivs.find(el => el.textContent.includes('Paramètres du compte...') && el.children.length <= 4);
+  if (!target) {
+    const divs = Array.from(document.querySelectorAll('div'));
+    target = divs.find(d => d.textContent.includes('Paramètres du compte...') && d.children.length < 5);
   }
 
-  if (!container) return;
+  if (!target) return;
 
   const user = await obtenirInfosProfil();
 
-  // Injection du nouveau contenu
-  container.innerHTML = `
+  target.innerHTML = `
     <div class="space-y-6 max-w-4xl mx-auto p-4 font-sans text-slate-800">
-
+      
       <!-- ENTÊTE PROFIL -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div class="flex items-center gap-4">
@@ -47,20 +42,18 @@ async function renderProfilUI() {
               ${user?.email || 'Utilisateur Non Connecté'}
             </h2>
             <p class="text-xs text-slate-500">
-              ${user ? `Identifiant Supabase : ${user.id}` : 'Mode Local / Hors-ligne actif'}
+              ${user ? `ID Supabase : ${user.id}` : 'Mode Local / Hors-ligne actif'}
             </p>
           </div>
         </div>
         
-        <div class="flex items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${user ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-            <span class="w-2 h-2 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
-            ${user ? 'Session Active' : 'Mode Local'}
-          </span>
-        </div>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${user ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+          <span class="w-2 h-2 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+          ${user ? 'Session Active' : 'Mode Local'}
+        </span>
       </div>
 
-      <!-- INFORMATIONS DU CABINET / PRATICIEN -->
+      <!-- FORMULAIRE PRATICIEN & SÉCURITÉ -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
@@ -89,14 +82,13 @@ async function renderProfilUI() {
           </form>
         </div>
 
-        <!-- SÉCURITÉ ET SESSION -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between">
           <div>
             <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 flex items-center gap-2 mb-2">
               🔒 Sécurité & Base de Données
             </h3>
             <p class="text-xs text-slate-600 mb-4">
-              Vos transactions sont sauvegardées en temps réel sur la base de données sécurisée Supabase.
+              Vos transactions sont sauvegardées en temps réel sur Supabase.
             </p>
             <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-xs">
               <div class="flex justify-between text-slate-600">
@@ -130,59 +122,45 @@ function sauvegarderProfilLocal(e) {
   const nom = document.getElementById('prof-nom')?.value || '';
   const metier = document.getElementById('prof-metier')?.value || '';
   const rpps = document.getElementById('prof-rpps')?.value || '';
-
-  const profil = { nom, metier, rpps };
-  localStorage.setItem('profil_praticien', JSON.stringify(profil));
-  alert("✅ Informations du praticien mises à jour !");
+  localStorage.setItem('profil_praticien', JSON.stringify({ nom, metier, rpps }));
+  alert("✅ Informations du praticien enregistrées !");
 }
 
 function chargerProfilLocal() {
   const profilData = localStorage.getItem('profil_praticien');
   if (!profilData) return;
-
   try {
     const profil = JSON.parse(profilData);
     if (document.getElementById('prof-nom')) document.getElementById('prof-nom').value = profil.nom || '';
     if (document.getElementById('prof-metier')) document.getElementById('prof-metier').value = profil.metier || '';
     if (document.getElementById('prof-rpps')) document.getElementById('prof-rpps').value = profil.rpps || '';
-  } catch (e) {
-    console.error("Erreur de lecture du profil", e);
-  }
+  } catch (e) {}
 }
 
 async function deconnecterSession() {
-  if (window.supabaseClient) {
-    await window.supabaseClient.auth.signOut();
-  }
+  if (window.supabaseClient) await window.supabaseClient.auth.signOut();
   localStorage.clear();
   location.reload();
 }
 
-// Fonction globale appelée lors des changements d'onglets
 window.initProfil = function() {
-  renderProfilUI();
+  injecterProfil();
 };
 
-// 2. Écouteur de clics sur les boutons de navigation
 document.addEventListener('click', (e) => {
-  const target = e.target;
-  if (target && (target.textContent.includes('Profil') || target.closest('button')?.textContent.includes('Profil'))) {
-    setTimeout(renderProfilUI, 50);
+  if (e.target && e.target.textContent.includes('Profil')) {
+    setTimeout(injecterProfil, 20);
   }
 });
 
-// 3. Détecteur automatique en tâche de fond (remplace "Paramètres du compte..." dès son apparition)
-const observer = new MutationObserver(() => {
+setInterval(() => {
   if (document.body.textContent.includes('Paramètres du compte...')) {
-    renderProfilUI();
+    injecterProfil();
   }
-});
+}, 250);
 
-observer.observe(document.body, { childList: true, subtree: true });
-
-// Exécution initiale
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', renderProfilUI);
+  document.addEventListener('DOMContentLoaded', injecterProfil);
 } else {
-  renderProfilUI();
+  injecterProfil();
 }
