@@ -18,8 +18,16 @@ async function obtenirInfosProfil() {
 }
 
 async function renderProfilUI() {
-  const container = document.getElementById('profil-container');
-  if (!container) return;
+  // Détection automatique du conteneur disponible (profil-container ou main-content/app-container)
+  const container = document.getElementById('profil-container') || 
+                    document.getElementById('main-content') || 
+                    document.getElementById('app-container') ||
+                    document.querySelector('main');
+
+  if (!container) {
+    console.error("Aucun conteneur d'affichage trouvé pour le profil.");
+    return;
+  }
 
   const user = await obtenirInfosProfil();
 
@@ -37,7 +45,7 @@ async function renderProfilUI() {
               ${user?.email || 'Utilisateur Non Connecté'}
             </h2>
             <p class="text-xs text-slate-500">
-              ${user ? `Identifiant Supabase : ${user.id}` : 'Mode Local / Hors-ligne active'}
+              ${user ? `Identifiant Supabase : ${user.id}` : 'Mode Local / Hors-ligne actif'}
             </p>
           </div>
         </div>
