@@ -98,7 +98,7 @@ async function genererDonneesMail() {
   return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
 }
 
-async function ouvrirMessagerie() {
+async function ouvrirAppMail() {
   const { email, sujet, corpsBrut } = await genererDonneesMail();
 
   if (!email) {
@@ -106,22 +106,20 @@ async function ouvrirMessagerie() {
     return;
   }
 
-  // 1. Tente de déclencher un lien mailto réel
   const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-  
-  const tempLink = document.createElement('a');
-  tempLink.href = mailtoUrl;
-  document.body.appendChild(tempLink);
-  tempLink.click();
-  tempLink.remove();
+  window.location.href = mailtoUrl;
+}
 
-  // 2. Si aucune application locale n'est configurée, propose d'ouvrir Gmail Web
-  setTimeout(() => {
-    if (confirm("Votre application de messagerie ne s'est pas ouverte ?\n\nVoulez-vous ouvrir ce message directement dans Gmail Web ?")) {
-      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-      window.open(gmailUrl, '_blank');
-    }
-  }, 1000);
+async function ouvrirGmailWeb() {
+  const { email, sujet, corpsBrut } = await genererDonneesMail();
+
+  if (!email) {
+    alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
+    return;
+  }
+
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
+  window.open(gmailUrl, '_blank');
 }
 
 async function copierSynthese() {
@@ -202,12 +200,17 @@ function renderExportUI() {
               <textarea id="expert-message" rows="3" placeholder="Notes particulières sur l'exercice..." class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50"></textarea>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <button type="button" onclick="ouvrirMessagerie()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
-                📧 Ouvrir la Messagerie
-              </button>
-              <button type="button" onclick="copierSynthese()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
-                📋 Copier le texte
+            <div class="flex flex-col gap-2 pt-1">
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="ouvrirAppMail()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 shadow-sm">
+                  💻 App Mail
+                </button>
+                <button type="button" onclick="ouvrirGmailWeb()" class="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs py-2.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 shadow-sm">
+                  ✉️ Gmail Web
+                </button>
+              </div>
+              <button type="button" onclick="copierSynthese()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold text-xs py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+                📋 Copier le texte du message
               </button>
             </div>
           </div>
