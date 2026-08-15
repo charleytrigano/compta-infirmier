@@ -1,5 +1,5 @@
 /**
- * profil.js - Module Profil synchronisé directement avec la table Supabase 'profile'
+ * profil.js - Module Profil avec Sauvegarde Globale (Code + Supabase JSON)
  */
 
 let profileRecordId = null;
@@ -20,6 +20,56 @@ async function chargerProfilSupabase() {
     console.warn("Erreur chargement Supabase profil:", e);
   }
   return null;
+}
+
+/**
+ * Fonction de déclenchement de la sauvegarde complète (Données Supabase + Fichiers)
+ */
+async function exporterSauvegardeGlobale() {
+  const btn = document.getElementById('btn-export-global');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Exportation en cours...';
+  }
+
+  try {
+    const backupData = {
+      date_export: new Date().toISOString(),
+      tables: {}
+    };
+
+    // 1. Extraction des données Supabase
+    if (window.supabaseClient) {
+      const tables = ['profile', 'transactions'];
+      for (const table of tables) {
+        const { data, error } = await window.supabaseClient.from(table).select('*');
+        if (!error && data) {
+          backupData.tables[table] = data;
+        }
+      }
+    } else {
+      backupData.tables['profile'] = [JSON.parse(localStorage.getItem('profil_praticien') || '{}')];
+    }
+
+    // 2. Génération et téléchargement du fichier JSON de sauvegarde
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `Sauvegarde_Compta_Supabase_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    alert("✅ Sauvegarde globale des données Supabase exportée avec succès !");
+  } catch (err) {
+    console.error("Erreur lors de la sauvegarde :", err);
+    alert("⚠️ Erreur lors de la génération de la sauvegarde.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '📦 Télécharger la Sauvegarde Globale (Supabase + Local)';
+    }
+  }
 }
 
 async function renderProfilUI() {
@@ -58,7 +108,7 @@ async function renderProfilUI() {
         </div>
       </div>
 
-      <!-- FORMULAIRE COMPLET CORRESPONDANT À LA TABLE SUPABASE -->
+      <!-- FORMULAIRE COMPLET -->
       <form id="form-profil-supabase" onsubmit="sauvegarderProfilSupabase(event)" class="space-y-6">
         
         <!-- SECTION 1 : IDENTITÉ & CONTACT -->
@@ -134,7 +184,6 @@ async function renderProfilUI() {
 
         <!-- SECTION 4 : CABINET COMPTABLE & EXERCICE -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
           <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
             <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 border-b pb-2">
               💼 Cabinet Comptable
@@ -182,7 +231,21 @@ async function renderProfilUI() {
               </button>
             </div>
           </div>
+        </div>
 
+        <!-- SECTION 5 : SAUVEGARDE & SÉCURITÉ -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 border-b pb-2">
+            🔒 Sécurité & Exportation des Données
+          </h3>
+          <p class="text-xs text-slate-600">
+            Téléchargez une sauvegarde instantanée de l'ensemble de vos données Supabase (`profile` et `transactions`) sur votre appareil.
+          </p>
+          <div>
+            <button type="button" id="btn-export-global" onclick="exporterSauvegardeGlobale()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+              📦 Télécharger la Sauvegarde Globale (Supabase)
+            </button>
+          </div>
         </div>
 
       </form>
@@ -237,7 +300,7 @@ async function sauvegarderProfilSupabase(e) {
       alert("✅ Profil enregistré avec succès dans Supabase !");
     } catch (err) {
       console.error("Erreur sauvegarde Supabase:", err);
-      alert("⚠️ Enregistré en local (erreur de connexion à Supabase).");
+      alert("⚠️ Enregistré en local (erreur Supabase).");
     }
   } else {
     alert("✅ Profil enregistré localement.");
