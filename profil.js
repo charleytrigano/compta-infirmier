@@ -1,5 +1,5 @@
 /**
- * profil.js - Module Profil Utilisateur avec Remplacement Dynamique du DOM
+ * profil.js - Gestion du Profil Utilisateur avec Remplacement Automatique
  */
 
 async function obtenirInfosProfil() {
@@ -10,7 +10,7 @@ async function obtenirInfosProfil() {
       const { data: { user } } = await window.supabaseClient.auth.getUser();
       utilisateur = user;
     } catch (e) {
-      console.warn("Erreur de récupération du profil Supabase", e);
+      console.warn("Erreur Supabase", e);
     }
   }
 
@@ -18,27 +18,21 @@ async function obtenirInfosProfil() {
 }
 
 async function renderProfilUI() {
-  // 1. Recherche du conteneur spécifique ou ciblage de la carte blanche active
-  let container = document.getElementById('profil-container');
-  
-  if (!container) {
-    // Si profil-container n'existe pas, on cherche la carte qui contient "Profil utilisateur"
-    const cartes = document.querySelectorAll('.bg-white, div');
-    cartes.forEach(el => {
-      if (el.innerText && el.innerText.includes('Profil utilisateur')) {
-        container = el;
-      }
-    });
-  }
+  // 1. Recherche du conteneur par ID ou ciblage du div contenant le texte statique
+  let container = document.getElementById('profil-container') || 
+                    document.getElementById('profil-section') || 
+                    document.getElementById('profil');
 
   if (!container) {
-    container = document.getElementById('main-content') || document.querySelector('main');
+    const tousLesDivs = Array.from(document.querySelectorAll('div, section, main'));
+    container = tousLesDivs.find(el => el.textContent.includes('Paramètres du compte...') && el.children.length <= 4);
   }
 
   if (!container) return;
 
   const user = await obtenirInfosProfil();
 
+  // Injection du nouveau contenu
   container.innerHTML = `
     <div class="space-y-6 max-w-4xl mx-auto p-4 font-sans text-slate-800">
 
@@ -164,14 +158,31 @@ async function deconnecterSession() {
   location.reload();
 }
 
-// Interception globale du clic sur l'onglet Profil
+// Fonction globale appelée lors des changements d'onglets
 window.initProfil = function() {
-  setTimeout(renderProfilUI, 50);
+  renderProfilUI();
 };
 
-// Exécution au chargement du script
-document.addEventListener('DOMContentLoaded', () => {
-  if (document.getElementById('profil-container')) {
+// 2. Écouteur de clics sur les boutons de navigation
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (target && (target.textContent.includes('Profil') || target.closest('button')?.textContent.includes('Profil'))) {
+    setTimeout(renderProfilUI, 50);
+  }
+});
+
+// 3. Détecteur automatique en tâche de fond (remplace "Paramètres du compte..." dès son apparition)
+const observer = new MutationObserver(() => {
+  if (document.body.textContent.includes('Paramètres du compte...')) {
     renderProfilUI();
   }
 });
+
+observer.observe(document.body, { childList: true, subtree: true });
+
+// Exécution initiale
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', renderProfilUI);
+} else {
+  renderProfilUI();
+}
