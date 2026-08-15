@@ -1,36 +1,31 @@
 /**
- * profil.js - Remplacement forcé et dynamique du bloc Profil
+ * profil.js - Gestion du Profil Utilisateur et de la Session
  */
 
 async function obtenirInfosProfil() {
-  let user = null;
+  let utilisateur = null;
+
   if (window.supabaseClient) {
     try {
       const { data } = await window.supabaseClient.auth.getUser();
-      user = data?.user;
+      utilisateur = data?.user || null;
     } catch (e) {
-      console.warn("Supabase auth check:", e);
+      console.warn("Erreur de récupération du profil Supabase", e);
     }
   }
-  return user;
+
+  return utilisateur;
 }
 
-async function injecterProfil() {
-  // Ciblage prioritaire du bloc #profil de index.html
-  let target = document.getElementById('profil') || document.getElementById('profil-container');
-
-  if (!target) {
-    const divs = Array.from(document.querySelectorAll('div'));
-    target = divs.find(d => d.textContent.includes('Paramètres du compte...') && d.children.length < 5);
-  }
-
-  if (!target) return;
+async function renderProfilUI() {
+  const container = document.getElementById('profil-container');
+  if (!container) return;
 
   const user = await obtenirInfosProfil();
 
-  target.innerHTML = `
+  container.innerHTML = `
     <div class="space-y-6 max-w-4xl mx-auto p-4 font-sans text-slate-800">
-      
+
       <!-- ENTÊTE PROFIL -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div class="flex items-center gap-4">
@@ -42,18 +37,20 @@ async function injecterProfil() {
               ${user?.email || 'Utilisateur Non Connecté'}
             </h2>
             <p class="text-xs text-slate-500">
-              ${user ? `ID Supabase : ${user.id}` : 'Mode Local / Hors-ligne actif'}
+              ${user ? `Identifiant Supabase : ${user.id}` : 'Mode Local / Hors-ligne actif'}
             </p>
           </div>
         </div>
         
-        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${user ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-          <span class="w-2 h-2 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
-          ${user ? 'Session Active' : 'Mode Local'}
-        </span>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${user ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+            <span class="w-2 h-2 rounded-full ${user ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+            ${user ? 'Session Active' : 'Mode Local'}
+          </span>
+        </div>
       </div>
 
-      <!-- FORMULAIRE PRATICIEN & SÉCURITÉ -->
+      <!-- INFORMATIONS DU CABINET / PRATICIEN -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
@@ -82,13 +79,14 @@ async function injecterProfil() {
           </form>
         </div>
 
+        <!-- SÉCURITÉ ET SESSION -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between">
           <div>
             <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 flex items-center gap-2 mb-2">
               🔒 Sécurité & Base de Données
             </h3>
             <p class="text-xs text-slate-600 mb-4">
-              Vos transactions sont sauvegardées en temps réel sur Supabase.
+              Vos transactions sont sauvegardées en temps réel sur la base de données sécurisée Supabase.
             </p>
             <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-xs">
               <div class="flex justify-between text-slate-600">
@@ -122,45 +120,36 @@ function sauvegarderProfilLocal(e) {
   const nom = document.getElementById('prof-nom')?.value || '';
   const metier = document.getElementById('prof-metier')?.value || '';
   const rpps = document.getElementById('prof-rpps')?.value || '';
-  localStorage.setItem('profil_praticien', JSON.stringify({ nom, metier, rpps }));
-  alert("✅ Informations du praticien enregistrées !");
+
+  const profil = { nom, metier, rpps };
+  localStorage.setItem('profil_praticien', JSON.stringify(profil));
+  alert("✅ Informations du praticien mises à jour !");
 }
 
 function chargerProfilLocal() {
   const profilData = localStorage.getItem('profil_praticien');
   if (!profilData) return;
+
   try {
     const profil = JSON.parse(profilData);
     if (document.getElementById('prof-nom')) document.getElementById('prof-nom').value = profil.nom || '';
     if (document.getElementById('prof-metier')) document.getElementById('prof-metier').value = profil.metier || '';
     if (document.getElementById('prof-rpps')) document.getElementById('prof-rpps').value = profil.rpps || '';
-  } catch (e) {}
+  } catch (e) {
+    console.error("Erreur de lecture du profil", e);
+  }
 }
 
 async function deconnecterSession() {
-  if (window.supabaseClient) await window.supabaseClient.auth.signOut();
+  if (window.supabaseClient) {
+    await window.supabaseClient.auth.signOut();
+  }
   localStorage.clear();
   location.reload();
 }
 
 window.initProfil = function() {
-  injecterProfil();
+  renderProfilUI();
 };
 
-document.addEventListener('click', (e) => {
-  if (e.target && e.target.textContent.includes('Profil')) {
-    setTimeout(injecterProfil, 20);
-  }
-});
-
-setInterval(() => {
-  if (document.body.textContent.includes('Paramètres du compte...')) {
-    injecterProfil();
-  }
-}, 250);
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', injecterProfil);
-} else {
-  injecterProfil();
-}
+document.addEventListener('DOMContentLoaded', window.initProfil);
