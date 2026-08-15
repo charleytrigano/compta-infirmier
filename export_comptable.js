@@ -1,5 +1,5 @@
 /**
- * export_comptable.js - Module de sauvegarde et transmission expert-comptable
+ * export_comptable.js - Module complet de sauvegarde et d'exportation
  */
 
 function genererFichierJSON() {
@@ -73,24 +73,12 @@ function genererTexteMail() {
   });
   const benefice = totalRecettes - totalDepenses;
 
-  const corpsBrut = `Bonjour ${nomComptable},
-
-Veuillez trouver la synthèse comptable de l'exercice ci-dessous :
-
---- RÉSUMÉ DES OPÉRATIONS ---
-• Nombre de transactions : ${transactions.length}
-• Recettes Totales : ${totalRecettes.toFixed(2)} €
-• Dépenses Totales : ${totalDepenses.toFixed(2)} €
-• Résultat Net (BNC) : ${benefice.toFixed(2)} €
-
-${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.
-
-Cordialement,`;
+  const corpsBrut = `Bonjour ${nomComptable},\n\nVeuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n--- RÉSUMÉ DES OPÉRATIONS ---\n• Nombre de transactions : ${transactions.length}\n• Recettes Totales : ${totalRecettes.toFixed(2)} €\n• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.\n\nCordialement,`;
 
   return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
 }
 
-function envoyerEmailExpert() {
+function preparerEnvoiEmail() {
   const { email, sujet, corpsBrut } = genererTexteMail();
 
   if (!email) {
@@ -98,23 +86,16 @@ function envoyerEmailExpert() {
     return;
   }
 
-  // Tente d'ouvrir l'application mail locale
   const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-  window.open(mailtoUrl, '_self');
-
-  // Secours si mailto ne se déclenche pas : redirige vers Gmail Web dans un nouvel onglet après 500ms
-  setTimeout(() => {
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-    window.open(gmailUrl, '_blank');
-  }, 500);
+  window.location.href = mailtoUrl;
 }
 
 function copierSynthese() {
   const { corpsBrut } = genererTexteMail();
   navigator.clipboard.writeText(corpsBrut).then(() => {
-    alert("📋 Synthèse copiée dans le presse-papier ! Vous pouvez la coller directement dans votre logiciel de messagerie.");
+    alert("📋 Synthèse copiée dans le presse-papier ! Vous pouvez la coller directement dans votre messagerie.");
   }).catch(() => {
-    alert("Impossible de copier automatiquement. Veuillez sélectionner et copier le texte manuellement.");
+    alert("Impossible de copier automatiquement. Veuillez copier le texte manuellement.");
   });
 }
 
@@ -147,11 +128,11 @@ function renderExportUI() {
           </p>
 
           <div class="flex flex-col gap-3 pt-2">
-            <button onclick="genererFichierJSON()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <button type="button" onclick="genererFichierJSON()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               ⬇️ Exporter la Sauvegarde Globale (.JSON)
             </button>
 
-            <button onclick="genererCSVJournal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <button type="button" onclick="genererCSVJournal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               📊 Télécharger le Journal des Écritures (.CSV)
             </button>
 
@@ -188,10 +169,10 @@ function renderExportUI() {
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <button onclick="envoyerEmailExpert()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
-                📧 Ouvrir dans la Messagerie
+              <button type="button" onclick="preparerEnvoiEmail()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+                📧 Ouvrir la Messagerie
               </button>
-              <button onclick="copierSynthese()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+              <button type="button" onclick="copierSynthese()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
                 📋 Copier le texte
               </button>
             </div>
