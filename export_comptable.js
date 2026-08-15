@@ -1,5 +1,5 @@
 /**
- * export_comptable.js - Module de sauvegarde des données et d'export/envoi à l'expert-comptable
+ * export_comptable.js - Module de sauvegarde et transmission expert-comptable
  */
 
 function genererFichierJSON() {
@@ -58,19 +58,12 @@ function genererCSVJournal() {
   link.remove();
 }
 
-function envoyerEmailExpert() {
+function genererTexteMail() {
   const email = document.getElementById('expert-email')?.value || '';
   const nomComptable = document.getElementById('expert-nom')?.value || 'Cabinet Comptable';
   const messagePerso = document.getElementById('expert-message')?.value || '';
-
-  if (!email) {
-    alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
-    return;
-  }
-
   const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-  
-  // Calcul rapide du BNC / Chiffre d'Affaires pour la synthèse par mail
+
   let totalRecettes = 0;
   let totalDepenses = 0;
   transactions.forEach(t => {
@@ -80,21 +73,49 @@ function envoyerEmailExpert() {
   });
   const benefice = totalRecettes - totalDepenses;
 
-  const sujet = encodeURIComponent("📄 Transmission de la comptabilité BNC - Bilan Annuel");
-  const corps = encodeURIComponent(
-    `Bonjour ${nomComptable},\n\n` +
-    `Veuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n` +
-    `--- RÉSUMÉ DES OPÉRATIONS ---\n` +
-    `• Nombre de transactions : ${transactions.length}\n` +
-    `• Recettes Totales : ${totalRecettes.toFixed(2)} €\n` +
-    `• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n` +
-    `• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n` +
-    (messagePerso ? `Note du praticien : ${messagePerso}\n\n` : '') +
-    `📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier de sauvegarde JSON téléchargés depuis l'application.\n\n` +
-    `Cordialement,`
-  );
+  const corpsBrut = `Bonjour ${nomComptable},
 
-  window.location.href = `mailto:${email}?subject=${sujet}&body=${corps}`;
+Veuillez trouver la synthèse comptable de l'exercice ci-dessous :
+
+--- RÉSUMÉ DES OPÉRATIONS ---
+• Nombre de transactions : ${transactions.length}
+• Recettes Totales : ${totalRecettes.toFixed(2)} €
+• Dépenses Totales : ${totalDepenses.toFixed(2)} €
+• Résultat Net (BNC) : ${benefice.toFixed(2)} €
+
+${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.
+
+Cordialement,`;
+
+  return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
+}
+
+function envoyerEmailExpert() {
+  const { email, sujet, corpsBrut } = genererTexteMail();
+
+  if (!email) {
+    alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
+    return;
+  }
+
+  // Tente d'ouvrir l'application mail locale
+  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
+  window.open(mailtoUrl, '_self');
+
+  // Secours si mailto ne se déclenche pas : redirige vers Gmail Web dans un nouvel onglet après 500ms
+  setTimeout(() => {
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
+    window.open(gmailUrl, '_blank');
+  }, 500);
+}
+
+function copierSynthese() {
+  const { corpsBrut } = genererTexteMail();
+  navigator.clipboard.writeText(corpsBrut).then(() => {
+    alert("📋 Synthèse copiée dans le presse-papier ! Vous pouvez la coller directement dans votre logiciel de messagerie.");
+  }).catch(() => {
+    alert("Impossible de copier automatiquement. Veuillez sélectionner et copier le texte manuellement.");
+  });
 }
 
 function renderExportUI() {
@@ -166,9 +187,14 @@ function renderExportUI() {
               <textarea id="expert-message" rows="3" placeholder="Notes particulières sur l'exercice..." class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50"></textarea>
             </div>
 
-            <button onclick="envoyerEmailExpert()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
-              📧 Préparer le Mail d'Envoi
-            </button>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button onclick="envoyerEmailExpert()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+                📧 Ouvrir dans la Messagerie
+              </button>
+              <button onclick="copierSynthese()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+                📋 Copier le texte
+              </button>
+            </div>
           </div>
         </div>
 
