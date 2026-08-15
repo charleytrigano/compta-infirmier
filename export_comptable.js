@@ -46,7 +46,7 @@ function genererCSVJournal() {
 
   let csvContent = "data:text/csv;charset=utf-8,ID;Date;Type;Categorie;Description;Montant (€)\n";
   transactions.forEach(t => {
-    csvContent += `"${t.id}";"${t.date}";"${t.type}";"${t.categorie}";"${t.description.replace(/"/g, '""')}";"${t.montant}"\n`;
+    csvContent += `"${t.id || ''}";"${t.date || ''}";"${t.type || ''}";"${t.categorie || ''}";"${(t.description || '').replace(/"/g, '""')}";"${t.montant || 0}"\n`;
   });
 
   const encodedUri = encodeURI(csvContent);
@@ -68,12 +68,29 @@ function envoyerEmailExpert() {
     return;
   }
 
-  const sujet = encodeURIComponent(" Transmission des documents comptables BNC");
+  const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+  
+  // Calcul rapide du BNC / Chiffre d'Affaires pour la synthèse par mail
+  let totalRecettes = 0;
+  let totalDepenses = 0;
+  transactions.forEach(t => {
+    const val = parseFloat(t.montant) || 0;
+    if (t.type === 'Recette') totalRecettes += val;
+    else if (t.type === 'Dépense') totalDepenses += val;
+  });
+  const benefice = totalRecettes - totalDepenses;
+
+  const sujet = encodeURIComponent("📄 Transmission de la comptabilité BNC - Bilan Annuel");
   const corps = encodeURIComponent(
     `Bonjour ${nomComptable},\n\n` +
-    `Veuillez trouver ci-joint les documents comptables et relevés pour l'exercice en cours.\n\n` +
-    (messagePerso ? `Note : ${messagePerso}\n\n` : '') +
-    `Note : Pensez à joindre les fichiers CSV et JSON exportés depuis l'application à ce courriel.\n\n` +
+    `Veuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n` +
+    `--- RÉSUMÉ DES OPÉRATIONS ---\n` +
+    `• Nombre de transactions : ${transactions.length}\n` +
+    `• Recettes Totales : ${totalRecettes.toFixed(2)} €\n` +
+    `• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n` +
+    `• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n` +
+    (messagePerso ? `Note du praticien : ${messagePerso}\n\n` : '') +
+    `📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier de sauvegarde JSON téléchargés depuis l'application.\n\n` +
     `Cordialement,`
   );
 
@@ -93,7 +110,7 @@ function renderExportUI() {
           <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
             💾 Sauvegarde & Envoi Expert-Comptable
           </h2>
-          <p class="text-xs text-slate-500 mt-1">Exportez vos données ou transmettez votre bilan annuel à votre cabinet</p>
+          <p class="text-xs text-slate-500 mt-1">Exportez vos données au format standard ou transmettez la synthèse à votre cabinet</p>
         </div>
       </div>
 
@@ -105,20 +122,20 @@ function renderExportUI() {
             📂 Sauvegarde et Données
           </h3>
           <p class="text-xs text-slate-600">
-            Téléchargez une sauvegarde complète de votre base de données ou réimportez un fichier précédemment sauvegardé.
+            Téléchargez une sauvegarde de la base de données locale ou réimportez un fichier de restauration.
           </p>
 
           <div class="flex flex-col gap-3 pt-2">
-            <button onclick="genererFichierJSON()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <button onclick="genererFichierJSON()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               ⬇️ Exporter la Sauvegarde Globale (.JSON)
             </button>
 
-            <button onclick="genererCSVJournal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <button onclick="genererCSVJournal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               📊 Télécharger le Journal des Écritures (.CSV)
             </button>
 
             <div class="border-t border-slate-200 pt-3 mt-2">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Restaurer depuis un fichier :</label>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Restaurer depuis un fichier JSON :</label>
               <input type="file" accept=".json" onchange="importerFichierJSON(event)" class="text-xs w-full text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
             </div>
           </div>
@@ -127,10 +144,10 @@ function renderExportUI() {
         <!-- ENVOI À L'EXPERT COMPTABLE -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 flex items-center gap-2">
-            ✉️ Envoi à l'Expert-Comptable
+            ✉️ Transmission Cabinet Comptable
           </h3>
           <p class="text-xs text-slate-600">
-            Préparez et envoyez un message directement à votre cabinet comptable avec la synthèse des opérations.
+            Préparez l'e-mail de transmission incluant les totaux d'exercice calculés automatiquement.
           </p>
 
           <div class="space-y-3 pt-1">
@@ -146,10 +163,10 @@ function renderExportUI() {
 
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Message personnel (facultatif) :</label>
-              <textarea id="expert-message" rows="3" placeholder="Remarques complémentaires sur l'exercice..." class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50"></textarea>
+              <textarea id="expert-message" rows="3" placeholder="Notes particulières sur l'exercice..." class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50"></textarea>
             </div>
 
-            <button onclick="envoyerEmailExpert()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <button onclick="envoyerEmailExpert()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               📧 Préparer le Mail d'Envoi
             </button>
           </div>
