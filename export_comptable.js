@@ -2,7 +2,7 @@
  * export_comptable.js - Module de sauvegarde et export compatible Supabase & LocalStorage
  */
 
-// Fonction utilitaire pour récupérer les transactions (Supabase ou LocalStorage)
+// Récupération asynchrone des transactions (Supabase avec fallback LocalStorage)
 async function obtenirTransactions() {
   if (window.supabaseClient) {
     try {
@@ -78,7 +78,7 @@ async function genererCSVJournal() {
   link.remove();
 }
 
-async function genererTexteMail() {
+async function genererDonneesMail() {
   const email = document.getElementById('expert-email')?.value || '';
   const nomComptable = document.getElementById('expert-nom')?.value || 'Cabinet Comptable';
   const messagePerso = document.getElementById('expert-message')?.value || '';
@@ -98,20 +98,34 @@ async function genererTexteMail() {
   return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
 }
 
-async function preparerEnvoiEmail() {
-  const { email, sujet, corpsBrut } = await genererTexteMail();
+async function ouvrirMessagerie() {
+  const { email, sujet, corpsBrut } = await genererDonneesMail();
 
   if (!email) {
     alert("Veuillez saisir l'adresse e-mail de votre expert-comptable.");
     return;
   }
 
+  // 1. Tente de déclencher un lien mailto réel
   const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
-  window.location.href = mailtoUrl;
+  
+  const tempLink = document.createElement('a');
+  tempLink.href = mailtoUrl;
+  document.body.appendChild(tempLink);
+  tempLink.click();
+  tempLink.remove();
+
+  // 2. Si aucune application locale n'est configurée, propose d'ouvrir Gmail Web
+  setTimeout(() => {
+    if (confirm("Votre application de messagerie ne s'est pas ouverte ?\n\nVoulez-vous ouvrir ce message directement dans Gmail Web ?")) {
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corpsBrut)}`;
+      window.open(gmailUrl, '_blank');
+    }
+  }, 1000);
 }
 
 async function copierSynthese() {
-  const { corpsBrut } = await genererTexteMail();
+  const { corpsBrut } = await genererDonneesMail();
   navigator.clipboard.writeText(corpsBrut).then(() => {
     alert("📋 Synthèse copiée dans le presse-papier ! Vous pouvez la coller directement dans votre messagerie.");
   }).catch(() => {
@@ -189,7 +203,7 @@ function renderExportUI() {
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <button type="button" onclick="preparerEnvoiEmail()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+              <button type="button" onclick="ouvrirMessagerie()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
                 📧 Ouvrir la Messagerie
               </button>
               <button type="button" onclick="copierSynthese()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold text-xs py-2.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
