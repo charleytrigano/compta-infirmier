@@ -1,4 +1,24 @@
-/**
+import os
+import json
+import requests
+from google.colab import files
+
+# ==========================================
+# 1. PARAMÈTRES SUPABASE (À RENSEIGNER)
+# ==========================================
+SUPABASE_URL = "https://xxxx.supabase.co"  # Remplacez par votre URL Supabase
+SUPABASE_KEY = "eyJhbGciOi..."            # Remplacez par votre clé anon/public
+
+# ==========================================
+# 2. RÉCUPÉRATION DU PROGRAMME ET INJECTION DE PROFIL.JS
+# ==========================================
+print("🚀 [1/3] Récupération et correction des fichiers du programme...")
+%cd /content
+!rm -rf compta-infirmier
+!git clone https://github.com/charleytrigano/compta-infirmier.git
+
+# Code JS complet et corrigé pour profil.js
+PROFIL_JS_CORRIGE = """/**
  * profil.js - Module Profil avec Sauvegarde Globale (Supabase + Local)
  */
 
@@ -93,17 +113,17 @@ async function renderProfilUI() {
           </div>
           <div>
             <h2 class="text-lg font-bold text-slate-800">
-              ${profileData.prenom || profileData.nom ? `${profileData.prenom || ''} ${profileData.nom || ''}` : 'Profil Praticien'}
+              \${profileData.prenom || profileData.nom ? `\${profileData.prenom || ''} \${profileData.nom || ''}` : 'Profil Praticien'}
             </h2>
             <p class="text-xs text-slate-500">
-              ${profileData.email || 'Email non renseigné'}
+              \${profileData.email || 'Email non renseigné'}
             </p>
           </div>
         </div>
         <div>
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${window.supabaseClient ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-            <span class="w-2 h-2 rounded-full ${window.supabaseClient ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
-            ${window.supabaseClient ? 'Connecté à Supabase' : 'Mode Hors-Ligne'}
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold \${window.supabaseClient ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+            <span class="w-2 h-2 rounded-full \${window.supabaseClient ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+            \${window.supabaseClient ? 'Connecté à Supabase' : 'Mode Hors-Ligne'}
           </span>
         </div>
       </div>
@@ -119,19 +139,19 @@ async function renderProfilUI() {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Nom :</label>
-              <input type="text" id="prof-nom" value="${profileData.nom || ''}" placeholder="Ex: DAMIANO" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-nom" value="\${profileData.nom || ''}" placeholder="Ex: DAMIANO" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Prénom :</label>
-              <input type="text" id="prof-prenom" value="${profileData.prenom || ''}" placeholder="Ex: Nolwenn" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-prenom" value="\${profileData.prenom || ''}" placeholder="Ex: Nolwenn" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Email :</label>
-              <input type="email" id="prof-email" value="${profileData.email || ''}" placeholder="ex: exemple@gmail.com" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="email" id="prof-email" value="\${profileData.email || ''}" placeholder="ex: exemple@gmail.com" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Téléphone :</label>
-              <input type="text" id="prof-telephone" value="${profileData.telephone || ''}" placeholder="Ex: 06 10 09 92 07" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-telephone" value="\${profileData.telephone || ''}" placeholder="Ex: 06 10 09 92 07" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
@@ -144,15 +164,15 @@ async function renderProfilUI() {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-3">
               <label class="block text-xs font-semibold text-slate-700 mb-1">Adresse :</label>
-              <input type="text" id="prof-adresse" value="${profileData.adresse || ''}" placeholder="Ex: 12 Rue des Infirmiers" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-adresse" value="\${profileData.adresse || ''}" placeholder="Ex: 12 Rue des Infirmiers" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Code Postal :</label>
-              <input type="text" id="prof-code-postal" value="${profileData.code_postal || ''}" placeholder="Ex: 06000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-code-postal" value="\${profileData.code_postal || ''}" placeholder="Ex: 06000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div class="md:col-span-2">
               <label class="block text-xs font-semibold text-slate-700 mb-1">Ville :</label>
-              <input type="text" id="prof-ville" value="${profileData.ville || ''}" placeholder="Ex: Nice" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-ville" value="\${profileData.ville || ''}" placeholder="Ex: Nice" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
@@ -165,19 +185,19 @@ async function renderProfilUI() {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">SIRET :</label>
-              <input type="text" id="prof-siret" value="${profileData.siret || ''}" placeholder="Ex: 123 456 789 00012" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-siret" value="\${profileData.siret || ''}" placeholder="Ex: 123 456 789 00012" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">N° RPPS :</label>
-              <input type="text" id="prof-rpps" value="${profileData.rpps || ''}" placeholder="Ex: 10101234567" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-rpps" value="\${profileData.rpps || ''}" placeholder="Ex: 10101234567" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">N° ADELI :</label>
-              <input type="text" id="prof-adeli" value="${profileData.adeli || ''}" placeholder="Ex: 066900000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-adeli" value="\${profileData.adeli || ''}" placeholder="Ex: 066900000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">N° URSSAF :</label>
-              <input type="text" id="prof-num-urssaf" value="${profileData.num_urssaf || ''}" placeholder="Ex: 060123456789" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-num-urssaf" value="\${profileData.num_urssaf || ''}" placeholder="Ex: 060123456789" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
@@ -191,19 +211,19 @@ async function renderProfilUI() {
             <div class="space-y-3">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Cabinet :</label>
-                <input type="text" id="prof-comptable-cabinet" value="${profileData.comptable_cabinet || ''}" placeholder="Ex: Cabinet ABC" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="prof-comptable-cabinet" value="\${profileData.comptable_cabinet || ''}" placeholder="Ex: Cabinet ABC" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Adresse :</label>
-                <input type="text" id="prof-comptable-adresse" value="${profileData.comptable_adresse || ''}" placeholder="Ex: 5 Av. des Comptes" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="prof-comptable-adresse" value="\${profileData.comptable_adresse || ''}" placeholder="Ex: 5 Av. des Comptes" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Téléphone :</label>
-                <input type="text" id="prof-comptable-tel" value="${profileData.comptable_tel || ''}" placeholder="Ex: 04 93 00 00 00" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="prof-comptable-tel" value="\${profileData.comptable_tel || ''}" placeholder="Ex: 04 93 00 00 00" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Email :</label>
-                <input type="email" id="prof-comptable-email" value="${profileData.comptable_email || ''}" placeholder="Ex: contact@comptable.fr" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="email" id="prof-comptable-email" value="\${profileData.comptable_email || ''}" placeholder="Ex: contact@comptable.fr" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
             </div>
           </div>
@@ -216,11 +236,11 @@ async function renderProfilUI() {
               <div class="space-y-3">
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Début d'exercice :</label>
-                  <input type="date" id="prof-exercice-debut" value="${profileData.exercice_debut || '2026-01-01'}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                  <input type="date" id="prof-exercice-debut" value="\${profileData.exercice_debut || '2026-01-01'}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Fin d'exercice :</label>
-                  <input type="date" id="prof-exercice-fin" value="${profileData.exercice_fin || '2026-12-31'}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                  <input type="date" id="prof-exercice-fin" value="\${profileData.exercice_fin || '2026-12-31'}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
                 </div>
               </div>
             </div>
@@ -314,3 +334,51 @@ window.initProfil = function() {
 };
 
 document.addEventListener('DOMContentLoaded', window.initProfil);
+"""
+
+# Écriture du fichier profil.js corrigé dans le projet
+with open('/content/compta-infirmier/profil.js', 'w', encoding='utf-8') as f:
+    f.write(PROFIL_JS_CORRIGE)
+
+print("  ✅ Fichier profil.js mis à jour et corrigé dans l'archive.")
+
+# Nettoyage éventuel de la syntaxe sur backup.js
+!sed -i "s/pour l'export/pour l export/g" /content/compta-infirmier/backup.js 2>/dev/null
+
+# ==========================================
+# 3. EXTRACTION DE LA BASE DE DONNÉES (SUPABASE)
+# ==========================================
+print("\n🗄️ [2/3] Extraction des tables Supabase...")
+headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}"
+}
+
+tables = ["profile", "transactions"]
+supabase_data = {}
+
+for table in tables:
+    url = f"{SUPABASE_URL}/rest/v1/{table}?select=*"
+    try:
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            supabase_data[table] = res.json()
+            print(f"  ✅ Table '{table}' extraite ({len(supabase_data[table])} lignes)")
+        else:
+            print(f"  ⚠️ Table '{table}': code statut {res.status_code}")
+    except Exception as e:
+        print(f"  ❌ Erreur sur la table '{table}': {e}")
+
+# Enregistrement du fichier JSON Supabase
+with open('/content/compta-infirmier/supabase_backup.json', 'w', encoding='utf-8') as f:
+    json.dump(supabase_data, f, ensure_ascii=False, indent=2)
+
+# ==========================================
+# 4. CRÉATION ET TÉLÉCHARGEMENT DE L'ARCHIVE ZIP
+# ==========================================
+print("\n📦 [3/3] Compression et téléchargement de la sauvegarde globale...")
+%cd /content
+!zip -r /content/Sauvegarde_Complete_Projet.zip compta-infirmier/
+
+files.download('/content/Sauvegarde_Complete_Projet.zip')
+print("\n🎉 Sauvegarde complète terminée ! Le fichier ZIP est dans votre dossier Téléchargements.")
