@@ -1,5 +1,5 @@
 /**
- * profil.js - Gestion du Profil Utilisateur et de la Session
+ * profil.js - Module Profil Utilisateur avec Remplacement Dynamique du DOM
  */
 
 async function obtenirInfosProfil() {
@@ -18,16 +18,24 @@ async function obtenirInfosProfil() {
 }
 
 async function renderProfilUI() {
-  // Détection automatique du conteneur disponible (profil-container ou main-content/app-container)
-  const container = document.getElementById('profil-container') || 
-                    document.getElementById('main-content') || 
-                    document.getElementById('app-container') ||
-                    document.querySelector('main');
+  // 1. Recherche du conteneur spécifique ou ciblage de la carte blanche active
+  let container = document.getElementById('profil-container');
+  
+  if (!container) {
+    // Si profil-container n'existe pas, on cherche la carte qui contient "Profil utilisateur"
+    const cartes = document.querySelectorAll('.bg-white, div');
+    cartes.forEach(el => {
+      if (el.innerText && el.innerText.includes('Profil utilisateur')) {
+        container = el;
+      }
+    });
+  }
 
   if (!container) {
-    console.error("Aucun conteneur d'affichage trouvé pour le profil.");
-    return;
+    container = document.getElementById('main-content') || document.querySelector('main');
   }
+
+  if (!container) return;
 
   const user = await obtenirInfosProfil();
 
@@ -156,8 +164,14 @@ async function deconnecterSession() {
   location.reload();
 }
 
+// Interception globale du clic sur l'onglet Profil
 window.initProfil = function() {
-  renderProfilUI();
+  setTimeout(renderProfilUI, 50);
 };
 
-document.addEventListener('DOMContentLoaded', window.initProfil);
+// Exécution au chargement du script
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('profil-container')) {
+    renderProfilUI();
+  }
+});
