@@ -1,4 +1,4 @@
-// grand_livre.js - Grand Livre incluant systématiquement toutes les classes de 1 à 9
+// grand_livre.js - Correction du déversement des comptes 411 dans la Classe 4
 
 (function () {
     function getSupabaseClient() {
@@ -14,16 +14,15 @@
         '1': 'Classe 1 - Comptes de capitaux',
         '2': 'Classe 2 - Comptes d\'immobilisations',
         '3': 'Classe 3 - Comptes de stocks et en-cours',
-        '4': 'Classe 4 - Comptes de tiers',
+        '4': 'Classe 4 - Comptes de tiers (Patients / Mutuelles / Caisses)',
         '5': 'Classe 5 - Comptes financiers',
         '6': 'Classe 6 - Comptes de charges',
-        '7': 'Classe 7 - Comptes de produits',
+        '7': 'Classe 7 - Comptes de produits (Honoraires)',
         '8': 'Classe 8 - Comptes spéciaux',
         '9': 'Classe 9 - Comptes analytiques'
     };
 
     const MAPPING_COMPTES = {
-        'soins infirmiers': { code: '706000', nom: '706000 - Prestations de services / Honoraires' },
         'carpimko': { code: '646000', nom: '646000 - Cotisations sociales CARPIMKO' },
         'urssaf': { code: '645000', nom: '645000 - Cotisations URSSAF' },
         'achats': { code: '606000', nom: '606000 - Achats de matériel et fournitures' },
@@ -94,21 +93,27 @@
     }
 
     function determinerCompte(tx) {
+        // Si un code compte explicite est présent (ex: 411000 ou personnalisé)
         if (tx.compte_code && tx.compte_code.length >= 3) {
-            return { code: tx.compte_code, nom: `${tx.compte_code} - ${tx.category || tx.categorie || 'Opération'}` };
+            return { code: tx.compte_code, nom: `${tx.compte_code} - ${tx.description || tx.category || 'Opération'}` };
         }
 
         const cat = (tx.category || tx.categorie || '').toLowerCase();
-        
+        const desc = (tx.description || '').trim();
+        const type = (tx.type || '').toLowerCase();
+
+        // 1. Déversement prioritaire des recettes/patients en 411 (Classe 4)
+        if (type.includes('recette') || type.includes('rec') || cat.includes('soins')) {
+            const nomPatient = desc || 'Divers';
+            const codeSub = `411${nomPatient.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase()}`;
+            return { code: codeSub, nom: `${codeSub} - Client / Patient (${nomPatient})` };
+        }
+
+        // 2. Traitement des charges (Classe 6)
         for (const key in MAPPING_COMPTES) {
             if (cat.includes(key)) {
                 return MAPPING_COMPTES[key];
             }
-        }
-
-        const desc = (tx.description || '').trim();
-        if (desc && (cat.includes('soins') || (tx.type || '').toLowerCase().includes('rec'))) {
-            return { code: '706000', nom: '706000 - Prestations de services / Honoraires' };
         }
 
         return { code: '471000', nom: '471000 - Compte d\'attente / Divers' };
@@ -163,13 +168,11 @@
         let totalGeneralDebit = 0;
         let totalGeneralCredit = 0;
 
-        // Pré-initialisation explicite des 9 classes comptables
         const arborescence = {};
         for (let i = 1; i <= 9; i++) {
             arborescence[String(i)] = {};
         }
 
-        // Remplissage avec les données existantes
         state.transactions.forEach(tx => {
             const c = determinerCompte(tx);
             if (state.compteFiltre !== 'TOUS' && c.code !== state.compteFiltre) return;
