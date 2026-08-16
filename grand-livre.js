@@ -1,4 +1,4 @@
-// grand_livre.js - Extraction universelle des montants et de la structure Supabase
+// grand_livre.js - Mapping exact pour la table Supabase 'transactions'
 
 (function () {
     function getSupabaseClient() {
@@ -78,37 +78,21 @@
         if (supabase) {
             try {
                 const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
-                state.transactions = txData || JSON.parse(localStorage.getItem('transactions') || '[]');
-
-                const { data: planData } = await supabase.from('plan_comptable').select('*');
-                state.planComptable = planData || JSON.parse(localStorage.getItem('plan_comptable') || '[]');
+                state.transactions = txData || [];
             } catch (err) {
-                recupererLocal();
+                state.transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
             }
         } else {
-            recupererLocal();
+            state.transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
         }
-    }
-
-    function recupererLocal() {
-        state.transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-        state.planComptable = JSON.parse(localStorage.getItem('plan_comptable') || '[]');
-    }
-
-    function nettoyerNombre(val) {
-        if (typeof val === 'number') return isNaN(val) ? 0 : val;
-        if (!val) return 0;
-        const str = String(val).replace(/[^0-9,-.]/g, '').replace(',', '.');
-        const num = parseFloat(str);
-        return isNaN(num) ? 0 : num;
     }
 
     function determinerCompte(tx) {
         let code = tx.compte_code || tx.compte || '411000';
-        let nom = tx.categorie || 'Soins infirmiers';
+        let nom = tx.category || tx.categorie || 'Soins infirmiers';
 
-        if (code === '411000' || tx.type === 'Recette' || nom === 'Soins infirmiers') {
-            const desc = (tx.description || tx.libelle || '').trim();
+        if (code === '411000' || (tx.type || '').toLowerCase().includes('recette') || nom === 'Soins infirmiers') {
+            const desc = (tx.description || '').trim();
             if (desc) {
                 code = desc.startsWith('411') ? desc : `411 ${desc}`;
                 nom = `411 ${desc}`;
@@ -117,22 +101,16 @@
         return { code, nom };
     }
 
-    // Analyse dynamique de toutes les propriétés financières possibles
     function extraireMontants(tx) {
-        let debit = nettoyerNombre(tx.debit || tx.recette || tx.recettes || tx.entree);
-        let credit = nettoyerNombre(tx.credit || tx.depense || tx.depenses || tx.sortie);
+        const val = Math.abs(parseFloat(tx.amount || tx.montant || 0));
+        const type = (tx.type || '').toLowerCase();
 
-        if (debit === 0 && credit === 0) {
-            const val = nettoyerNombre(tx.montant || tx.montant_ttc || tx.montant_ht || tx.valeur || tx.solde);
-            const type = String(tx.type || tx.nature || tx.sens || '').toLowerCase();
-
-            if (type.includes('recette') || type.includes('rec') || type.includes('credit') || val > 0) {
-                debit = Math.abs(val);
-            } else {
-                credit = Math.abs(val);
-            }
+        // Une recette augmente le Débit (compte 411 / banque), une dépense va au Crédit
+        if (type.includes('recette') || type.includes('rec')) {
+            return { debit: val, credit: 0 };
+        } else {
+            return { debit: 0, credit: val };
         }
-        return { debit, credit };
     }
 
     function initialiserFiltres() {
@@ -179,7 +157,7 @@
         });
 
         if (txs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération enregistrée pour ce filtre.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération trouvée.</td></tr>';
             if (totalDebitEl) totalDebitEl.textContent = '0.00 €';
             if (totalCreditEl) totalCreditEl.textContent = '0.00 €';
             if (soldeGlobalEl) soldeGlobalEl.textContent = '0.00 €';
@@ -196,10 +174,10 @@
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f3f4f6';
             tr.innerHTML = `
-                <td style="padding: 8px 10px;">${tx.date || tx.created_at || '-'}</td>
+                <td style="padding: 8px 10px;">${tx.date || '-'}</td>
                 <td style="padding: 8px 10px;"><strong>${c.code}</strong></td>
-                <td style="padding: 8px 10px;">${tx.categorie || tx.category || '-'}</td>
-                <td style="padding: 8px 10px;">${tx.description || tx.libelle || '-'}</td>
+                <td style="padding: 8px 10px;">${tx.category || tx.categorie || '-'}</td>
+                <td style="padding: 8px 10px;">${tx.description || '-'}</td>
                 <td style="padding: 8px 10px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 8px 10px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
             `;
