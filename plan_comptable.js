@@ -38,7 +38,9 @@ window.PLAN_AUXILIAIRE_411_DEFAUT = [
     { id: 4, code: '411400', intitule: 'SSIAD / HAD / Structures de soins', categorie: 'Etablissement' }
 ];
 
-window.ongletActifPlan = 'general';
+if (!window.ongletActifPlan) {
+    window.ongletActifPlan = 'general';
+}
 
 window.chargerDonneesComptables = function() {
     var general = localStorage.getItem('PLAN_COMPTABLE_BNC_CUSTOM');
@@ -50,7 +52,6 @@ window.chargerDonneesComptables = function() {
 window.chargerDonneesComptables();
 
 window.changerOngletPlan = function(type) {
-    console.log("Changement d'onglet vers :", type);
     window.ongletActifPlan = type;
     window.afficherPlanComptable();
 };
@@ -61,14 +62,11 @@ window.trouverConteneurPlan = function() {
             document.getElementById('vue-plan-comptable');
     if (c) return c;
 
-    var titres = document.querySelectorAll('h3, h2, div');
-    for (var j = 0; j < titres.length; j++) {
-        var txt = titres[j].textContent || '';
-        if (txt.includes('Comptes Généraux (Classes 1 à 7)') || txt.includes('Plan Auxiliaire - Comptes Individuels 411')) {
-            var box = titres[j].closest('div');
-            if (box && box.parentElement) {
-                return box.parentElement;
-            }
+    var divs = document.querySelectorAll('div');
+    for (var i = 0; i < divs.length; i++) {
+        if (divs[i].textContent.includes('Chargement du plan comptable...')) {
+            divs[i].id = 'contenu-plan-comptable';
+            return divs[i];
         }
     }
     return null;
@@ -93,7 +91,7 @@ window.afficherPlanComptable = function(filtreText) {
     }
 
     var html = `
-        <div id="contenu-plan-comptable" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:15px; margin-top:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             
             <!-- Onglets -->
             <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px; gap:10px;">
@@ -174,7 +172,7 @@ window.afficherPlanComptable = function(filtreText) {
         </div>
     `;
 
-    container.outerHTML = html;
+    container.innerHTML = html;
 
     var searchInput = document.getElementById('input-search-plan');
     if (searchInput && filtreText) {
@@ -183,128 +181,23 @@ window.afficherPlanComptable = function(filtreText) {
     }
 };
 
-window.ouvrirModalNouveau411 = function() {
-    var existingModal = document.getElementById('modal-nouveau-411');
-    if (existingModal) existingModal.remove();
-
-    var modal = document.createElement('div');
-    modal.id = 'modal-nouveau-411';
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.5); display:flex; justify-content:center; align-items:center; z-index:9999;';
-
-    modal.innerHTML = `
-        <div style="background:#fff; border-radius:8px; padding:20px; width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
-            <h3 style="margin-top:0; color:#0f172a; font-size:16px;">Créer un compte individuel 411</h3>
-            
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Code Compte (ex: 411DUPONT)</label>
-            <input type="text" id="add-code-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="411MARTIN" />
-
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Nom du Patient / Mutuelle</label>
-            <input type="text" id="add-nom-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="M. MARTIN Jean" />
-
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Catégorie</label>
-            <select id="add-cat-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;">
-                <option value="Patient Direct">Patient - Règlement Direct</option>
-                <option value="Caisse Sécurité Sociale">CPAM / Caisse Primaire</option>
-                <option value="Mutuelle">Mutuelle / Complémentaire</option>
-                <option value="Etablissement">HAD / SSIAD / Clinique</option>
-            </select>
-
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-                <button type="button" onclick="document.getElementById('modal-nouveau-411').remove()" 
-                        style="background:#f1f5f9; color:#475569; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:12px;">Annuler</button>
-                <button type="button" onclick="window.enregistrerNouveau411()" 
-                        style="background:#16a34a; color:#fff; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Créer le compte 411</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
+window.initialiserPlanComptable = function() {
+    var retries = 0;
+    var timer = setInterval(function() {
+        var container = window.trouverConteneurPlan();
+        if (container) {
+            window.afficherPlanComptable();
+            if (!container.textContent.includes('Chargement du plan comptable...')) {
+                clearInterval(timer);
+            }
+        }
+        retries++;
+        if (retries > 20) clearInterval(timer);
+    }, 300);
 };
 
-window.enregistrerNouveau411 = function() {
-    var code = document.getElementById('add-code-411').value.trim();
-    var intitule = document.getElementById('add-nom-411').value.trim();
-    var cat = document.getElementById('add-cat-411').value;
-
-    if (!code || !intitule) {
-        alert('Veuillez remplir le code et le nom du tiers.');
-        return;
-    }
-
-    if (!code.startsWith('411')) {
-        code = '411' + code;
-    }
-
-    var nouveau = {
-        id: window.PLAN_AUXILIAIRE_411.length + 1,
-        code: code.toUpperCase(),
-        intitule: intitule,
-        categorie: cat
-    };
-
-    window.PLAN_AUXILIAIRE_411.push(nouveau);
-    localStorage.setItem('PLAN_AUXILIAIRE_411_CUSTOM', JSON.stringify(window.PLAN_AUXILIAIRE_411));
-
-    document.getElementById('modal-nouveau-411').remove();
-    window.afficherPlanComptable();
-};
-
-window.ouvrirModalNouveauCompte = function() {
-    var existingModal = document.getElementById('modal-nouveau-compte');
-    if (existingModal) existingModal.remove();
-
-    var modal = document.createElement('div');
-    modal.id = 'modal-nouveau-compte';
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.5); display:flex; justify-content:center; align-items:center; z-index:9999;';
-
-    modal.innerHTML = `
-        <div style="background:#fff; border-radius:8px; padding:20px; width:380px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
-            <h3 style="margin-top:0; color:#0f172a; font-size:16px;">Créer un compte général</h3>
-            
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Code Compte (ex: 606100)</label>
-            <input type="text" id="add-code-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="606100" />
-
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Intitulé du compte</label>
-            <input type="text" id="add-libelle-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="Fournitures informatiques" />
-
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Type de compte</label>
-            <select id="add-type-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;">
-                <option value="Dépense">Dépense (Classe 6)</option>
-                <option value="Recette">Recette (Classe 7)</option>
-                <option value="Tiers">Tiers / Patient (Classe 4)</option>
-                <option value="Banque">Banque / Caisse (Classe 5)</option>
-                <option value="Immobilisation">Immobilisation (Classe 2)</option>
-                <option value="Bilan">Capital / Bilan (Classe 1)</option>
-            </select>
-
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-                <button type="button" onclick="document.getElementById('modal-nouveau-compte').remove()" 
-                        style="background:#f1f5f9; color:#475569; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:12px;">Annuler</button>
-                <button type="button" onclick="window.enregistrerNouveauCompte()" 
-                        style="background:#16a34a; color:#fff; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Enregistrer</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-};
-
-window.enregistrerNouveauCompte = function() {
-    var code = document.getElementById('add-code-compte').value.trim();
-    var intitule = document.getElementById('add-libelle-compte').value.trim();
-    var type = document.getElementById('add-type-compte').value;
-
-    if (!code || !intitule) {
-        alert('Veuillez remplir le code et l-intitulé du compte.');
-        return;
-    }
-
-    var nouvelId = window.PLAN_COMPTABLE_BNC.length + 1;
-    var nouveauCompte = { id: nouvelId, code: code, intitule: intitule, type: type };
-
-    window.PLAN_COMPTABLE_BNC.push(nouveauCompte);
-    localStorage.setItem('PLAN_COMPTABLE_BNC_CUSTOM', JSON.stringify(window.PLAN_COMPTABLE_BNC));
-
-    document.getElementById('modal-nouveau-compte').remove();
-    window.afficherPlanComptable();
-};
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    window.initialiserPlanComptable();
+} else {
+    document.addEventListener('DOMContentLoaded', window.initialiserPlanComptable);
+}
