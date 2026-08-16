@@ -1,4 +1,4 @@
-// journal.js - Gestion dynamique et affichage du Journal des écritures
+// journal.js - Rendu dynamique du Journal et des sous-onglets
 
 (function () {
     function getSupabase() {
@@ -11,18 +11,14 @@
         const table = document.querySelector('table');
         if (!table) return;
 
-        // 1. Injection de la barre de filtres au-dessus du tableau si elle n'existe pas encore
+        // 1. Création de la barre de filtres si elle n'existe pas
         let filterBar = document.getElementById('journal-filter-bar');
         if (!filterBar) {
             filterBar = document.createElement('div');
             filterBar.id = 'journal-filter-bar';
-            filterBar.style.display = 'flex';
-            filterBar.style.gap = '10px';
-            filterBar.style.marginBottom = '15px';
-            filterBar.style.flexWrap = 'wrap';
-
+            filterBar.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;';
             filterBar.innerHTML = `
-                <button data-filter="TOUS" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #2563eb; color: white; cursor: pointer; font-weight: 500;">
+                <button data-filter="TOUS" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #2563eb; color: white; cursor: pointer; font-weight: 600;">
                     Tous les journaux
                 </button>
                 <button data-filter="RECETTE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
@@ -38,15 +34,17 @@
 
             table.parentNode.insertBefore(filterBar, table);
 
-            // Événements sur les boutons de filtre
+            // Gestionnaires de clic sur les boutons de filtre
             filterBar.querySelectorAll('button').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', () => {
                     filterBar.querySelectorAll('button').forEach(b => {
                         b.style.backgroundColor = '#f1f5f9';
                         b.style.color = '#334155';
+                        b.style.fontWeight = '500';
                     });
                     btn.style.backgroundColor = '#2563eb';
                     btn.style.color = 'white';
+                    btn.style.fontWeight = '600';
                     currentFilter = btn.getAttribute('data-filter');
                     chargerEtAfficherJournal();
                 });
@@ -58,23 +56,21 @@
 
     async function chargerEtAfficherJournal() {
         const supabase = getSupabase();
-        let tbody = document.querySelector('table tbody');
+        const table = document.querySelector('table');
+        if (!table) return;
 
+        let tbody = table.querySelector('tbody');
         if (!tbody) {
-            const table = document.querySelector('table');
-            if (table) {
-                tbody = document.createElement('tbody');
-                table.appendChild(tbody);
-            }
+            tbody = document.createElement('tbody');
+            table.appendChild(tbody);
         }
-        if (!tbody) return;
 
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement du journal...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement des écritures...</td></tr>`;
 
         let ecritures = [];
 
         if (supabase) {
-            // Tente de récupérer d'abord depuis ecritures_comptables, sinon transactions
+            // Tentative de récupération depuis 'ecritures_comptables', fallback sur 'transactions'
             const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
             if (ecrData && ecrData.length > 0) {
                 ecritures = ecrData;
@@ -86,8 +82,8 @@
             ecritures = JSON.parse(localStorage.getItem('transactions') || '[]');
         }
 
-        // Filtration des données
-        let donnesFiltrees = ecritures.filter(row => {
+        // Filtre selon le sous-onglet sélectionné
+        const donneesFiltrees = ecritures.filter(row => {
             const cat = String(row.category || row.compte_code || '').toLowerCase();
             const type = String(row.type || '').toLowerCase();
 
@@ -103,12 +99,12 @@
 
         tbody.innerHTML = '';
 
-        if (donnesFiltrees.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8;">Aucune écriture trouvée dans Supabase.</td></tr>`;
+        if (donneesFiltrees.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8;">Aucune écriture enregistrée.</td></tr>`;
             return;
         }
 
-        donnesFiltrees.forEach(row => {
+        donneesFiltrees.forEach(row => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
 
@@ -119,7 +115,7 @@
             let debitVal = parseFloat(row.debit || 0);
             let creditVal = parseFloat(row.credit || 0);
 
-            // Si c'est issu de la table transactions directe
+            // Rétrocompatibilité si enregistrement direct de transactions
             if (!row.compte_code && row.amount) {
                 const amt = Math.abs(parseFloat(row.amount));
                 const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
@@ -129,7 +125,7 @@
 
             tr.innerHTML = `
                 <td style="padding: 10px 12px; color: #334155;">${date}</td>
-                <td style="padding: 10px 12px; color: #334155; font-weight: 500;">${cat}</td>
+                <td style="padding: 10px 12px; color: #334155; font-weight: 600;">${cat}</td>
                 <td style="padding: 10px 12px; color: #334155;">${desc}</td>
                 <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 500;">${debitVal > 0 ? debitVal.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 10px 12px; text-align: right; color: #16a34a; font-weight: 500;">${creditVal > 0 ? creditVal.toFixed(2) + ' €' : '-'}</td>
@@ -145,9 +141,16 @@
 
     window.initJournalUI = initJournalUI;
 
+    // Déclenchement automatique au chargement du DOM ou au clic d'onglet
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initJournalUI, 200);
+        setTimeout(initJournalUI, 150);
     } else {
         document.addEventListener('DOMContentLoaded', initJournalUI);
     }
+
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.textContent && e.target.textContent.includes('Journal')) {
+            setTimeout(initJournalUI, 150);
+        }
+    });
 })();
