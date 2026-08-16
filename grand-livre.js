@@ -1,4 +1,4 @@
-// grand_livre.js - Chargement dynamique sécurisé et ventilation auxiliaire
+// grand_livre.js - Correction doublons de titre & affichage des montants
 
 (function () {
     function getSupabaseClient() {
@@ -11,7 +11,6 @@
         compteFiltre: 'TOUS'
     };
 
-    // Détection précise du bloc "Chargement du grand livre..."
     function trouverConteneurGrandLivre() {
         const elements = document.querySelectorAll('div, section, main');
         for (let i = elements.length - 1; i >= 0; i--) {
@@ -27,13 +26,12 @@
         const container = trouverConteneurGrandLivre();
         if (!container) return;
 
-        // Injection du tableau dans la carte du Grand Livre uniquement
+        // Injection sans titre superflu pour éviter les doublons
         container.innerHTML = `
             <div style="padding: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h2 style="font-size: 1.25rem; font-weight: bold; margin: 0; color: #1f2937;">Grand Livre</h2>
-                    <div style="min-width: 280px;">
-                        <label for="filtreCompte" style="font-weight: 600; font-size: 0.875rem; margin-right: 8px; color: #374151;">Filtrer par compte :</label>
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px;">
+                    <div style="min-width: 280px; display: flex; align-items: center; gap: 8px;">
+                        <label for="filtreCompte" style="font-weight: 600; font-size: 0.875rem; color: #374151; white-space: nowrap;">Filtrer par compte :</label>
                         <select id="filtreCompte" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; background-color: #fff;">
                             <option value="TOUS">Tous les comptes (Vue globale)</option>
                         </select>
@@ -53,7 +51,7 @@
                             </tr>
                         </thead>
                         <tbody id="grandLivreTableBody">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Chargement des données Supabase...</td></tr>
+                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Chargement des données...</td></tr>
                         </tbody>
                         <tfoot>
                             <tr style="border-top: 2px solid #e5e7eb; font-weight: bold; background: #f9fafb;">
@@ -98,7 +96,6 @@
         state.planComptable = JSON.parse(localStorage.getItem('plan_comptable') || '[]');
     }
 
-    // Ventilation automatique des comptes auxiliaires 411
     function determinerCompte(tx) {
         let code = tx.compte_code || '411000';
         let nom = tx.categorie || 'Soins infirmiers';
@@ -107,10 +104,28 @@
             const desc = (tx.description || '').trim();
             if (desc) {
                 code = desc.startsWith('411') ? desc : `411 ${desc}`;
-                nom = `411 ${desc} (Patient / Tiers)`;
+                nom = `411 ${desc}`;
             }
         }
         return { code, nom };
+    }
+
+    // Extraction robuste des montants quelle que soit la structure de la base de données
+    function extraireMontants(tx) {
+        let debit = parseFloat(tx.debit || tx.recette || 0);
+        let credit = parseFloat(tx.credit || tx.depense || 0);
+
+        if (debit === 0 && credit === 0) {
+            const val = parseFloat(tx.montant || tx.montant_ttc || 0);
+            const type = (tx.type || '').toLowerCase();
+
+            if (type.includes('recette') || type.includes('rec') || val > 0) {
+                debit = Math.abs(val);
+            } else {
+                credit = Math.abs(val);
+            }
+        }
+        return { debit, credit };
     }
 
     function initialiserFiltres() {
@@ -157,7 +172,7 @@
         });
 
         if (txs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération enregistrée pour ce filtre.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération trouvée.</td></tr>';
             if (totalDebitEl) totalDebitEl.textContent = '0.00 €';
             if (totalCreditEl) totalCreditEl.textContent = '0.00 €';
             if (soldeGlobalEl) soldeGlobalEl.textContent = '0.00 €';
@@ -166,10 +181,7 @@
 
         txs.forEach(tx => {
             const c = determinerCompte(tx);
-            const m = parseFloat(tx.montant) || 0;
-            const isRecette = tx.type === 'Recette';
-            const debit = isRecette ? m : 0;
-            const credit = !isRecette ? m : 0;
+            const { debit, credit } = extraireMontants(tx);
 
             totalDebit += debit;
             totalCredit += credit;
@@ -198,7 +210,6 @@
 
     window.initGrandLivre = initGrandLivre;
 
-    // Déclenchement automatique au chargement et au clic sur l'onglet Grand Livre
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(initGrandLivre, 100);
     } else {
