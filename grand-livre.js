@@ -1,187 +1,191 @@
-/* ==========================================================================
-   MODULE GRAND LIVRE COMPLET (PARTIE DOUBLE : BILAN + GESTION)
-   ========================================================================== */
+// grand_livre.js - Gestion et ventilation du Grand Livre avec sous-comptes auxiliaires
 
-/**
- * Détermine le compte de gestion (Classe 6 / 7)
- */
-window.obtenirCompteGestion = function(tx) {
-    var cat = (tx.category || tx.categorie || '').toString().toLowerCase();
-    var typeRaw = (tx.type || '').toString().toLowerCase();
-    var isRecette = typeRaw.includes('recette') || typeRaw.includes('encaissement');
-
-    if (isRecette) {
-        if (cat.includes('retrocession') || cat.includes('rétrocession')) {
-            return { code: '709000', libelle: '709000 - Rétrocessions d honoraires reçues' };
-        }
-        return { code: '706000', libelle: '706000 - Prestations de soins / Honoraires' };
+(function () {
+    // 1. Détection dynamique du client Supabase
+    function getSupabaseClient() {
+        return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
 
-    if (cat.includes('urssaf')) return { code: '645100', libelle: '645100 - Cotisations Sociales URSSAF' };
-    if (cat.includes('carpimko')) return { code: '645200', libelle: '645200 - Cotisations Retraite CARPIMKO' };
-    if (cat.includes('matériel') || cat.includes('materiel') || cat.includes('fourniture')) {
-        return { code: '606400', libelle: '606400 - Achats de Matériel Médical et Fournitures' };
-    }
-    if (cat.includes('impôt') || cat.includes('impot') || cat.includes('cfe') || cat.includes('pas')) {
-        return { code: '635000', libelle: '635000 - Impôts, Taxes et Versements Assimilés' };
-    }
-    if (cat.includes('loyer') || cat.includes('location')) return { code: '613200', libelle: '613200 - Locations Immobilières / Cabinet' };
-    if (cat.includes('assurance')) return { code: '616000', libelle: '616000 - Primes d Assurances Professionnelles' };
-    if (cat.includes('banque') || cat.includes('frais')) return { code: '627000', libelle: '627000 - Services Bancaires et Assimilés' };
+    // État local du module
+    let state = {
+        transactions: [],
+        planComptable: [],
+        compteFiltre: 'TOUS'
+    };
 
-    return { code: '600000', libelle: '600000 - Autres Charges Exploitation' };
-};
+    // 2. Initialisation au chargement du DOM
+    document.addEventListener('DOMContentLoaded', async () => {
+        await chargerDonnees();
+        initialiserFiltres();
+        afficherGrandLivre();
+    });
 
-/**
- * Détermine le compte de bilan (Classe 4 ou 5)
- */
-window.obtenirCompteBilan = function(tx) {
-    var isEncaisse = tx.encaisse === true || tx.encaisse === 'true' || tx.encaisse === 1;
-    var typeRaw = (tx.type || '').toString().toLowerCase();
-    var isRecette = typeRaw.includes('recette') || typeRaw.includes('encaissement');
+    // 3. Synchronisation des données (Supabase / Fallback LocalStorage)
+    async function chargerDonnees() {
+        const supabase = getSupabaseClient();
 
-    if (isEncaisse) {
-        return { code: '512000', libelle: '512000 - Compte Banque' };
-    } else {
-        if (isRecette) {
-            return { code: '411000', libelle: '411000 - Clients et Patients (Créances à valider)' };
+        if (supabase) {
+            try {
+                // Chargement des transactions
+                const { data: txData, error: txErr } = await supabase
+                    .from('transactions')
+                    .select('*')
+                    .order('date', { ascending: true });
+
+                state.transactions = (!txErr && txData) ? txData : JSON.parse(localStorage.getItem('transactions') || '[]');
+
+                // Chargement du plan comptable
+                const { data: planData, error: planErr } = await supabase
+                    .from('plan_comptable')
+                    .select('*');
+
+                state.planComptable = (!planErr && planData) ? planData : JSON.parse(localStorage.getItem('plan_comptable') || '[]');
+            } catch (err) {
+                console.warn('Erreur de connexion Supabase, bascule sur le cache local :', err);
+                recupererDepuisLocalStorage();
+            }
         } else {
-            return { code: '401000', libelle: '401000 - Fournisseurs et Organismes (Dettes à régler)' };
+            recupererDepuisLocalStorage();
         }
     }
-};
 
-/**
- * Fonction principale : Calcule et affiche le Grand Livre complet
- */
-window.afficherGrandLivre = function() {
-    var container = document.getElementById('contenu-grand-livre') || 
-                      document.getElementById('grand-livre-contenu') || 
-                      document.getElementById('vue-grand-livre') || 
-                      document.getElementById('grand-livre-container');
+    function recupererDepuisLocalStorage() {
+        state.transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+        state.planComptable = JSON.parse(localStorage.getItem('plan_comptable') || '[]');
+    }
 
-    if (!container) {
-        var toutLesDivs = document.querySelectorAll('div');
-        toutLesDivs.forEach(function(div) {
-            if (div.textContent.includes('Chargement du grand livre...')) {
-                container = div;
+    // 4. Logique de ventilation : Association des écritures aux comptes auxiliaires
+    function determinerCompteEtLibelle(tx) {
+        let codeCompte = tx.compte_code || '411000';
+        let nomCompte = tx.categorie || 'Soins infirmiers';
+
+        // Traitement particulier du compte collectif 411000 & des recettes
+        if (codeCompte === '411000' || tx.type === 'Recette' || nomCompte === 'Soins infirmiers') {
+            const desc = (tx.description || '').trim();
+
+            if (desc) {
+                if (desc.startsWith('411')) {
+                    codeCompte = desc;
+                    nomCompte = desc;
+                } else {
+                    // Construction automatique du compte auxiliaire (ex: 411 Abadie)
+                    codeCompte = `411 ${desc}`;
+                    nomCompte = `411 ${desc} (Patient / Tiers)`;
+                }
+            } else {
+                codeCompte = '411000';
+                nomCompte = 'Patients & Caisses (Collectif)';
+            }
+        }
+
+        return { code: codeCompte, nom: nomCompte };
+    }
+
+    // 5. Génération dynamique du filtre de sélection de comptes
+    function initialiserFiltres() {
+        const selectFiltre = document.getElementById('filtreCompte');
+        if (!selectFiltre) return;
+
+        const comptesUniques = new Map();
+
+        state.transactions.forEach(tx => {
+            const c = determinerCompteEtLibelle(tx);
+            if (!comptesUniques.has(c.code)) {
+                comptesUniques.set(c.code, c.nom);
             }
         });
-    }
 
-    if (!container) return;
+        selectFiltre.innerHTML = '<option value="TOUS">Tous les comptes (Vue globale)</option>';
 
-    var transactions = window.transactions || [];
+        // Trier la liste par code comptable
+        const comptesTries = Array.from(comptesUniques.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
-    if (!Array.isArray(transactions) || transactions.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">Aucune transaction disponible pour générer le Grand Livre.</div>';
-        return;
-    }
+        comptesTries.forEach(([code, nom]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = `${code} - ${nom}`;
+            selectFiltre.appendChild(option);
+        });
 
-    var comptesMap = {};
-
-    function ajouterEcriture(compteObj, date, desc, debit, credit) {
-        var code = compteObj.code;
-        if (!comptesMap[code]) {
-            comptesMap[code] = {
-                code: code,
-                libelle: compteObj.libelle,
-                ecritures: [],
-                totalDebit: 0,
-                totalCredit: 0
-            };
-        }
-        comptesMap[code].totalDebit += debit;
-        comptesMap[code].totalCredit += credit;
-        comptesMap[code].ecritures.push({
-            date: date,
-            description: desc,
-            debit: debit,
-            credit: credit
+        selectFiltre.addEventListener('change', (e) => {
+            state.compteFiltre = e.target.value;
+            afficherGrandLivre();
         });
     }
 
-    // Traitement en Partie Double de chaque transaction
-    transactions.forEach(function(tx) {
-        var valMontant = parseFloat(tx.amount !== undefined && tx.amount !== null ? tx.amount : (tx.montant || 0)) || 0;
-        var typeRaw = (tx.type || '').toString().toLowerCase();
-        var isRecette = typeRaw.includes('recette') || typeRaw.includes('encaissement');
-        var date = tx.date || '';
-        var desc = tx.description || tx.libelle || '';
+    // 6. Rendu HTML du tableau du Grand Livre et calcul des solde
+    function afficherGrandLivre() {
+        const container = document.getElementById('grandLivreTableBody');
+        const totalDebitEl = document.getElementById('totalDebit');
+        const totalCreditEl = document.getElementById('totalCredit');
+        const soldeGlobalEl = document.getElementById('soldeGlobal');
 
-        var compteGestion = window.obtenirCompteGestion(tx);
-        var compteBilan = window.obtenirCompteBilan(tx);
+        if (!container) return;
+        container.innerHTML = '';
 
-        if (isRecette) {
-            // Recette : Crédit Gestion (706) / Débit Bilan (512 Banque ou 411 Patients)
-            ajouterEcriture(compteGestion, date, desc, 0, valMontant);
-            ajouterEcriture(compteBilan, date, desc, valMontant, 0);
-        } else {
-            // Dépense : Débit Gestion (6xx) / Crédit Bilan (512 Banque ou 401 Fournisseurs)
-            ajouterEcriture(compteGestion, date, desc, valMontant, 0);
-            ajouterEcriture(compteBilan, date, desc, 0, valMontant);
+        let totalDebit = 0;
+        let totalCredit = 0;
+
+        // Filtrage des transactions selon le compte sélectionné
+        const transactionsFiltrees = state.transactions.filter(tx => {
+            if (state.compteFiltre === 'TOUS') return true;
+            const c = determinerCompteEtLibelle(tx);
+            return c.code === state.compteFiltre;
+        });
+
+        if (transactionsFiltrees.length === 0) {
+            container.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px;">Aucune écriture enregistrée pour ce compte.</td></tr>`;
+            if (totalDebitEl) totalDebitEl.textContent = '0.00 €';
+            if (totalCreditEl) totalCreditEl.textContent = '0.00 €';
+            if (soldeGlobalEl) soldeGlobalEl.textContent = '0.00 €';
+            return;
         }
-    });
 
-    var codesTries = Object.keys(comptesMap).sort();
+        // Rendu des lignes
+        transactionsFiltrees.forEach(tx => {
+            const c = determinerCompteEtLibelle(tx);
+            const montant = parseFloat(tx.montant) || 0;
 
-    var html = '<div style="display:flex; flex-direction:column; gap:25px; margin-top:15px;">';
+            const isRecette = tx.type === 'Recette';
+            const debit = isRecette ? montant : 0;
+            const credit = !isRecette ? montant : 0;
 
-    codesTries.forEach(function(code) {
-        var compte = comptesMap[code];
-        var solde = compte.totalCredit - compte.totalDebit;
-        var soldeTexte = solde >= 0 ? `Créditeur : +${solde.toFixed(2)} €` : `Débitrice : ${solde.toFixed(2)} €`;
+            totalDebit += debit;
+            totalCredit += credit;
 
-        html += `
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="background:#f8fafc; padding:12px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:700; color:#1e293b; font-size:15px;">Compte ${compte.libelle}</span>
-                    <span style="font-size:13px; font-weight:600; color:${solde >= 0 ? '#16a34a' : '#dc2626'}; background:#fff; padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1;">
-                        Solde ${soldeTexte}
-                    </span>
-                </div>
-
-                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
-                    <thead>
-                        <tr style="background:#f1f5f9; color:#475569; border-bottom:1px solid #e2e8f0;">
-                            <th style="padding:8px 15px; width:15%;">Date</th>
-                            <th style="padding:8px 15px;">Libellé / Description</th>
-                            <th style="padding:8px 15px; text-align:right; width:20%;">Débit</th>
-                            <th style="padding:8px 15px; text-align:right; width:20%;">Crédit</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        compte.ecritures.forEach(function(ecr) {
-            html += `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:8px 15px; color:#64748b;">${ecr.date}</td>
-                    <td style="padding:8px 15px; color:#334155;">${ecr.description}</td>
-                    <td style="padding:8px 15px; text-align:right; color:#dc2626; font-weight:500;">${ecr.debit > 0 ? ecr.debit.toFixed(2) + ' €' : '-'}</td>
-                    <td style="padding:8px 15px; text-align:right; color:#16a34a; font-weight:500;">${ecr.credit > 0 ? ecr.credit.toFixed(2) + ' €' : '-'}</td>
-                </tr>
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${formatDate(tx.date)}</td>
+                <td><strong>${c.code}</strong></td>
+                <td>${tx.categorie || '-'}</td>
+                <td>${tx.description || '-'}</td>
+                <td style="text-align: right; color: #2e7d32;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
+                <td style="text-align: right; color: #c62828;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
             `;
+            container.appendChild(tr);
         });
 
-        html += `
-                    </tbody>
-                    <tfoot>
-                        <tr style="background:#fafafa; font-weight:700; border-top:2px solid #e2e8f0;">
-                            <td colspan="2" style="padding:10px 15px; text-align:right; color:#334155;">Totaux du Compte :</td>
-                            <td style="padding:10px 15px; text-align:right; color:#dc2626;">${compte.totalDebit.toFixed(2)} €</td>
-                            <td style="padding:10px 15px; text-align:right; color:#16a34a;">${compte.totalCredit.toFixed(2)} €</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        `;
-    });
+        // Mise à jour du pied de tableau
+        if (totalDebitEl) totalDebitEl.textContent = totalDebit.toFixed(2) + ' €';
+        if (totalCreditEl) totalCreditEl.textContent = totalCredit.toFixed(2) + ' €';
+        if (soldeGlobalEl) {
+            const solde = totalDebit - totalCredit;
+            soldeGlobalEl.textContent = solde.toFixed(2) + ' €';
+            soldeGlobalEl.style.color = solde >= 0 ? '#2e7d32' : '#c62828';
+        }
+    }
 
-    html += '</div>';
-    container.innerHTML = html;
-};
+    // Formatage de la date en notation française
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        return isNaN(d) ? dateStr : d.toLocaleDateString('fr-FR');
+    }
 
-if (window.transactions && window.transactions.length > 0) {
-    window.afficherGrandLivre();
-}
+    // Fonction d'actualisation globale accessible depuis la page
+    window.rafraichirGrandLivre = async function () {
+        await chargerDonnees();
+        initialiserFiltres();
+        afficherGrandLivre();
+    };
+})();
