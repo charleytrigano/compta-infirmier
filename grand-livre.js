@@ -1,4 +1,4 @@
-// grand_livre.js - Version sécurisée (ne touche qu'à sa propre zone)
+// grand_livre.js - Chargement dynamique sécurisé et ventilation auxiliaire
 
 (function () {
     function getSupabaseClient() {
@@ -11,22 +11,30 @@
         compteFiltre: 'TOUS'
     };
 
-    async function initGrandLivre() {
-        // Cible un conteneur spécifique au Grand Livre (ex: #grand-livre-content ou .main-content)
-        const container = document.getElementById('grand-livre-content') || document.querySelector('main') || document.body.firstElementChild;
-        
-        if (!container) {
-            console.error("❌ Conteneur du Grand Livre introuvable.");
-            return;
+    // Détection précise du bloc "Chargement du grand livre..."
+    function trouverConteneurGrandLivre() {
+        const elements = document.querySelectorAll('div, section, main');
+        for (let i = elements.length - 1; i >= 0; i--) {
+            const el = elements[i];
+            if (el.children.length <= 4 && el.textContent.includes('Chargement du grand livre...')) {
+                return el;
+            }
         }
+        return document.getElementById('grand-livre-content') || document.querySelector('.card');
+    }
 
+    async function initGrandLivre() {
+        const container = trouverConteneurGrandLivre();
+        if (!container) return;
+
+        // Injection du tableau dans la carte du Grand Livre uniquement
         container.innerHTML = `
-            <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 20px;">
+            <div style="padding: 10px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h2 style="font-size: 1.25rem; font-weight: bold; margin: 0;">Grand Livre</h2>
+                    <h2 style="font-size: 1.25rem; font-weight: bold; margin: 0; color: #1f2937;">Grand Livre</h2>
                     <div style="min-width: 280px;">
-                        <label for="filtreCompte" style="font-weight: 600; font-size: 0.875rem; margin-right: 8px;">Filtrer par compte :</label>
-                        <select id="filtreCompte" style="padding: 6px 12px; border: 1px solid #ccc; border-radius: 6px; width: 100%;">
+                        <label for="filtreCompte" style="font-weight: 600; font-size: 0.875rem; margin-right: 8px; color: #374151;">Filtrer par compte :</label>
+                        <select id="filtreCompte" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; background-color: #fff;">
                             <option value="TOUS">Tous les comptes (Vue globale)</option>
                         </select>
                     </div>
@@ -35,26 +43,26 @@
                 <div style="overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
                         <thead>
-                            <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                                <th style="padding: 10px;">Date</th>
-                                <th style="padding: 10px;">Compte</th>
-                                <th style="padding: 10px;">Catégorie</th>
-                                <th style="padding: 10px;">Description</th>
-                                <th style="padding: 10px; text-align: right;">Débit (€)</th>
-                                <th style="padding: 10px; text-align: right;">Crédit (€)</th>
+                            <tr style="background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 10px; color: #4b5563;">Date</th>
+                                <th style="padding: 10px; color: #4b5563;">Compte</th>
+                                <th style="padding: 10px; color: #4b5563;">Catégorie</th>
+                                <th style="padding: 10px; color: #4b5563;">Description</th>
+                                <th style="padding: 10px; text-align: right; color: #4b5563;">Débit (€)</th>
+                                <th style="padding: 10px; text-align: right; color: #4b5563;">Crédit (€)</th>
                             </tr>
                         </thead>
                         <tbody id="grandLivreTableBody">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px;">Chargement des données...</td></tr>
+                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Chargement des données Supabase...</td></tr>
                         </tbody>
                         <tfoot>
-                            <tr style="border-top: 2px solid #dee2e6; font-weight: bold; background: #fafafa;">
-                                <td colspan="4" style="text-align: right; padding: 10px;">Totaux :</td>
-                                <td id="totalDebit" style="text-align: right; padding: 10px; color: #2e7d32;">0.00 €</td>
-                                <td id="totalCredit" style="text-align: right; padding: 10px; color: #c62828;">0.00 €</td>
+                            <tr style="border-top: 2px solid #e5e7eb; font-weight: bold; background: #f9fafb;">
+                                <td colspan="4" style="text-align: right; padding: 10px; color: #374151;">Totaux :</td>
+                                <td id="totalDebit" style="text-align: right; padding: 10px; color: #16a34a;">0.00 €</td>
+                                <td id="totalCredit" style="text-align: right; padding: 10px; color: #dc2626;">0.00 €</td>
                             </tr>
-                            <tr style="font-weight: bold; background: #f0f4f8;">
-                                <td colspan="4" style="text-align: right; padding: 10px;">Solde Général :</td>
+                            <tr style="font-weight: bold; background: #f3f4f6;">
+                                <td colspan="4" style="text-align: right; padding: 10px; color: #111827;">Solde Général :</td>
                                 <td id="soldeGlobal" colspan="2" style="text-align: right; padding: 10px; font-size: 1rem;">0.00 €</td>
                             </tr>
                         </tfoot>
@@ -90,6 +98,7 @@
         state.planComptable = JSON.parse(localStorage.getItem('plan_comptable') || '[]');
     }
 
+    // Ventilation automatique des comptes auxiliaires 411
     function determinerCompte(tx) {
         let code = tx.compte_code || '411000';
         let nom = tx.categorie || 'Soins infirmiers';
@@ -148,7 +157,7 @@
         });
 
         if (txs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Aucune opération trouvée.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération enregistrée pour ce filtre.</td></tr>';
             if (totalDebitEl) totalDebitEl.textContent = '0.00 €';
             if (totalCreditEl) totalCreditEl.textContent = '0.00 €';
             if (soldeGlobalEl) soldeGlobalEl.textContent = '0.00 €';
@@ -166,14 +175,14 @@
             totalCredit += credit;
 
             const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #eee';
+            tr.style.borderBottom = '1px solid #f3f4f6';
             tr.innerHTML = `
                 <td style="padding: 8px 10px;">${tx.date || '-'}</td>
                 <td style="padding: 8px 10px;"><strong>${c.code}</strong></td>
                 <td style="padding: 8px 10px;">${tx.categorie || '-'}</td>
                 <td style="padding: 8px 10px;">${tx.description || '-'}</td>
-                <td style="padding: 8px 10px; text-align: right; color: #2e7d32;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
-                <td style="padding: 8px 10px; text-align: right; color: #c62828;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
+                <td style="padding: 8px 10px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
+                <td style="padding: 8px 10px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -183,9 +192,22 @@
         if (soldeGlobalEl) {
             const solde = totalDebit - totalCredit;
             soldeGlobalEl.textContent = solde.toFixed(2) + ' €';
-            soldeGlobalEl.style.color = solde >= 0 ? '#2e7d32' : '#c62828';
+            soldeGlobalEl.style.color = solde >= 0 ? '#16a34a' : '#dc2626';
         }
     }
 
     window.initGrandLivre = initGrandLivre;
+
+    // Déclenchement automatique au chargement et au clic sur l'onglet Grand Livre
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(initGrandLivre, 100);
+    } else {
+        document.addEventListener('DOMContentLoaded', initGrandLivre);
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.textContent && e.target.textContent.includes('Grand Livre')) {
+            setTimeout(initGrandLivre, 100);
+        }
+    });
 })();
