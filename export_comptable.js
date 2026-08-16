@@ -2,7 +2,7 @@
  * export_comptable.js - Module d'exportation, impression et sauvegarde
  */
 
-// Récupération asynchrone des écritures comptables réelles (Compte Banque 512)
+// Récupération asynchrone des écritures réelles
 async function obtenirEcritures() {
   if (window.supabaseClient) {
     try {
@@ -59,7 +59,7 @@ async function importerFichierJSON(event) {
   reader.readAsText(file);
 }
 
-// Génération du CSV compatible Excel FR (Montants réels + Catégorie + Encodage UTF-8 BOM)
+// Génération du CSV compatible Excel FR avec support de la propriété 'amount'
 async function genererCSVJournal() {
   const ecritures = await obtenirEcritures();
   if (!ecritures || ecritures.length === 0) {
@@ -72,9 +72,14 @@ async function genererCSVJournal() {
     const debit = parseFloat(row.debit || 0);
     const credit = parseFloat(row.credit || 0);
 
-    const type = debit > 0 ? "Recette" : "Dépense";
-    const montant = debit > 0 ? debit : credit;
-    const categorie = row.category || (debit > 0 ? "Soins infirmiers" : "Autre dépense");
+    // Extraction prioritaire de 'amount', fallback sur 'montant' ou debit/credit
+    let valMontant = parseFloat(row.amount !== undefined ? row.amount : (row.montant || 0));
+    if (isNaN(valMontant) || valMontant === 0) {
+      valMontant = debit > 0 ? debit : credit;
+    }
+
+    const type = (row.type || (debit > 0 ? "Recette" : "Dépense")).toLowerCase().includes('recette') ? "Recette" : "Dépense";
+    const categorie = row.category || row.categorie || (type === "Recette" ? "Soins infirmiers" : "Autre dépense");
     const description = (row.description || '').replace(/"/g, '""');
 
     return [
@@ -83,12 +88,12 @@ async function genererCSVJournal() {
       `"${type}"`,
       `"${categorie}"`,
       `"${description}"`,
-      montant.toFixed(2).replace('.', ','),
+      valMontant.toFixed(2).replace('.', ','),
       `"${row.compte_code || ''}"`
     ].join(';');
   });
 
-  // \ufeff permet à Excel de lire immédiatement les accents sans bogue (DÃ©pense)
+  // \ufeff active le codage UTF-8 sous Excel pour éliminer les bugs d'accents
   const csvContent = "\ufeff" + [headers.join(';'), ...rows].join('\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -114,12 +119,24 @@ async function genererDonneesMail() {
 
   let totalRecettes = 0;
   let totalDepenses = 0;
-  ecritures.forEach(e => {
-    const debit = parseFloat(e.debit || 0);
-    const credit = parseFloat(e.credit || 0);
-    if (debit > 0) totalRecettes += debit;
-    else if (credit > 0) totalDepenses += credit;
+
+  ecritures.forEach(row => {
+    const debit = parseFloat(row.debit || 0);
+    const credit = parseFloat(row.credit || 0);
+    let valMontant = parseFloat(row.amount !== undefined ? row.amount : (row.montant || 0));
+    
+    if (isNaN(valMontant) || valMontant === 0) {
+      valMontant = debit > 0 ? debit : credit;
+    }
+
+    const isRecette = (row.type || (debit > 0 ? "Recette" : "Dépense")).toLowerCase().includes('recette');
+    if (isRecette) {
+      totalRecettes += valMontant;
+    } else {
+      totalDepenses += valMontant;
+    }
   });
+
   const benefice = totalRecettes - totalDepenses;
 
   const corpsBrut = `Bonjour ${nomComptable},\n\nVeuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n--- RÉSUMÉ DES OPÉRATIONS ---\n• Nombre d'opérations : ${ecritures.length}\n• Recettes Totales : ${totalRecettes.toFixed(2)} €\n• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.\n\nCordialement,`;
@@ -277,6 +294,8 @@ window.initExportModule = function() {
   renderExportUI();
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
   renderExportUI();
-});
+} else {
+  document.addEventListener('DOMContentLoaded', renderExportUI);
+}
