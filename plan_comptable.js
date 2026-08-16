@@ -74,9 +74,18 @@ window.changerOngletPlan = function(type) {
 };
 
 window.trouverZonePlan = function() {
-    return document.getElementById('vue-plan-comptable') || 
-           document.getElementById('plan-comptable-container') || 
-           document.getElementById('contenu-plan-comptable');
+    var el = document.getElementById('contenu-plan-comptable-unique') ||
+             document.getElementById('vue-plan-comptable') || 
+             document.getElementById('plan-comptable-container');
+    if (el) return el;
+
+    var elems = document.querySelectorAll('*');
+    for (var i = 0; i < elems.length; i++) {
+        if (elems[i].children.length === 0 && elems[i].textContent.includes('Chargement du plan comptable...')) {
+            return elems[i].parentElement;
+        }
+    }
+    return null;
 };
 
 window.afficherPlanComptable = function(filtreText) {
@@ -99,9 +108,9 @@ window.afficherPlanComptable = function(filtreText) {
     }
 
     var html = `
-        <div id="contenu-plan-comptable-unique" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-top:10px;">
+        <div id="contenu-plan-comptable-unique" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             
-            <!-- Onglets de basculement -->
+            <!-- Onglets internes -->
             <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px; gap:10px;">
                 <button type="button" onclick="window.changerOngletPlan('general')" 
                         style="padding:10px 18px; font-weight:700; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${isGeneral ? '#2563eb' : 'transparent'}; color:${isGeneral ? '#2563eb' : '#64748b'};">
@@ -135,7 +144,7 @@ window.afficherPlanComptable = function(filtreText) {
                 </div>
             </div>
 
-            <!-- Tableau unique -->
+            <!-- Tableau -->
             <div style="overflow-x:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
                     <thead>
@@ -180,7 +189,6 @@ window.afficherPlanComptable = function(filtreText) {
         </div>
     `;
 
-    // Nettoyage strict : remplace tout le contenu de la zone sans dupliquer
     container.innerHTML = html;
 
     var searchInput = document.getElementById('input-search-plan');
@@ -316,10 +324,10 @@ window.enregistrerNouveauCompte = function() {
     window.afficherPlanComptable();
 };
 
-// Initialisation unique
-if (!window.planComptableInitialise) {
-    window.planComptableInitialise = true;
-    setTimeout(function() {
+// Surveillance continue pour injecter le tableau dès l'affichage du texte temporaire
+setInterval(function() {
+    var z = window.trouverZonePlan();
+    if (z && z.textContent.includes('Chargement du plan comptable...')) {
         window.afficherPlanComptable();
-    }, 100);
-}
+    }
+}, 250);
