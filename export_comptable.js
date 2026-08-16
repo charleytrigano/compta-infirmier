@@ -2,14 +2,13 @@
  * export_comptable.js - Module d'exportation, impression et sauvegarde
  */
 
-// Récupération asynchrone des écritures réelles
+// Récupération de l'ensemble des écritures (Banque + Contreparties)
 async function obtenirEcritures() {
   if (window.supabaseClient) {
     try {
       const { data, error } = await window.supabaseClient
         .from('ecritures_comptables')
         .select('*')
-        .or('compte_code.eq.512000,compte_code.like.512%')
         .order('date', { ascending: true });
       if (!error && data && data.length > 0) return data;
     } catch (e) {
@@ -59,7 +58,7 @@ async function importerFichierJSON(event) {
   reader.readAsText(file);
 }
 
-// Génération du CSV compatible Excel FR avec support de la propriété 'amount'
+// Génération du CSV avec Partie Double (Compte + Contrepartie + Débit / Crédit)
 async function genererCSVJournal() {
   const ecritures = await obtenirEcritures();
   if (!ecritures || ecritures.length === 0) {
@@ -67,33 +66,40 @@ async function genererCSVJournal() {
     return;
   }
 
-  const headers = ["ID", "Date", "Type", "Categorie", "Description", "Montant (€)", "Compte"];
+  const headers = ["ID", "Date", "Compte", "Compte Contrepartie", "Categorie", "Description", "Debit (€)", "Credit (€)"];
+  
   const rows = ecritures.map(row => {
-    const debit = parseFloat(row.debit || 0);
-    const credit = parseFloat(row.credit || 0);
-
-    // Extraction prioritaire de 'amount', fallback sur 'montant' ou debit/credit
-    let valMontant = parseFloat(row.amount !== undefined ? row.amount : (row.montant || 0));
-    if (isNaN(valMontant) || valMontant === 0) {
-      valMontant = debit > 0 ? debit : credit;
+    let debit = parseFloat(row.debit || 0);
+    let credit = parseFloat(row.credit || 0);
+    
+    // Déduction Débit/Crédit si seule la valeur 'amount' est stockée
+    if (debit === 0 && credit === 0 && row.amount) {
+      const val = parseFloat(row.amount);
+      const isRecette = (row.type || '').toLowerCase().includes('recette');
+      if (isRecette) {
+        debit = val;
+      } else {
+        credit = val;
+      }
     }
 
-    const type = (row.type || (debit > 0 ? "Recette" : "Dépense")).toLowerCase().includes('recette') ? "Recette" : "Dépense";
-    const categorie = row.category || row.categorie || (type === "Recette" ? "Soins infirmiers" : "Autre dépense");
+    const categorie = row.category || row.categorie || "Général";
     const description = (row.description || '').replace(/"/g, '""');
+    const compteContrepartie = row.compte_contrepartie || row.contrepartie_code || (debit > 0 ? "706000" : "600000");
 
     return [
       `"${row.id || ''}"`,
       `"${row.date || ''}"`,
-      `"${type}"`,
+      `"${row.compte_code || '512000'}"`,
+      `"${compteContrepartie}"`,
       `"${categorie}"`,
       `"${description}"`,
-      valMontant.toFixed(2).replace('.', ','),
-      `"${row.compte_code || ''}"`
+      debit > 0 ? debit.toFixed(2).replace('.', ',') : "0,00",
+      credit > 0 ? credit.toFixed(2).replace('.', ',') : "0,00"
     ].join(';');
   });
 
-  // \ufeff active le codage UTF-8 sous Excel pour éliminer les bugs d'accents
+  // \ufeff pour forcer l'encodage UTF-8 sous Excel
   const csvContent = "\ufeff" + [headers.join(';'), ...rows].join('\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -106,7 +112,6 @@ async function genererCSVJournal() {
   link.remove();
 }
 
-// Fonction globale d'impression directe de la vue courante
 function imprimerPageCourante() {
   window.print();
 }
@@ -163,7 +168,6 @@ async function copierSynthese() {
   });
 }
 
-// Injection des styles d'impression dans la page globale
 function injecterStylesImpression() {
   if (document.getElementById('style-impression-global')) return;
   const style = document.createElement('style');
@@ -203,7 +207,6 @@ function renderExportUI() {
   container.innerHTML = `
     <div class="space-y-6 max-w-5xl mx-auto p-4 font-sans text-slate-800">
 
-      <!-- ENTÊTE AVEC BOUTON IMPRESSION GLOBALE -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -218,7 +221,6 @@ function renderExportUI() {
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-        <!-- SAUVEGARDE & RESTAURATION LOCALE -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 flex items-center gap-2">
             📂 Sauvegarde et Exports Fichiers
@@ -243,7 +245,6 @@ function renderExportUI() {
           </div>
         </div>
 
-        <!-- ENVOI À L'EXPERT COMPTABLE -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-sm font-bold uppercase tracking-wider text-blue-700 flex items-center gap-2">
             ✉️ Transmission Cabinet Comptable
