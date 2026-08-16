@@ -1,4 +1,4 @@
-// plan_comptable.js - Gestion complète et autonome du Plan Comptable
+// plan_comptable.js - Gestion ciblée du Plan Comptable
 
 (function () {
     function getSupabase() {
@@ -14,16 +14,23 @@
     let ongletActif = 'GENERAL';
 
     async function initialiserPlanComptable() {
-        // Recherche de la zone d'affichage
-        const zonePC = Array.from(document.querySelectorAll('div, section, main')).find(el => 
-            el.textContent && el.textContent.includes('Chargement du plan comptable...')
-        ) || document.querySelector('.card, .bg-white') || document.body;
+        // Ciblage strict de la zone de contenu principale pour éviter d'écraser la navigation
+        let zoneCentrale = document.getElementById('main-content') || document.querySelector('main') || document.getElementById('content');
 
-        if (!zonePC) return;
+        if (!zoneCentrale) {
+            const titres = Array.from(document.querySelectorAll('h1, h2, h3, div')).filter(el => 
+                el.textContent && (el.textContent.includes('Plan Comptable') || el.textContent.includes('Chargement'))
+            );
+            if (titres.length > 0) {
+                zoneCentrale = titres[0].closest('.card, .bg-white, section') || titres[0].parentElement;
+            }
+        }
 
-        // 1. Injection de l'interface complète
-        zonePC.innerHTML = `
-            <div style="padding: 20px;">
+        if (!zoneCentrale) return;
+
+        // Structure HTML isolée
+        zoneCentrale.innerHTML = `
+            <div id="module-plan-comptable" style="padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; gap: 10px;">
                         <button id="btn-tab-general" style="padding: 8px 16px; border-radius: 6px; border: none; background-color: #2563eb; color: white; font-weight: 600; cursor: pointer;">
@@ -33,7 +40,7 @@
                             Comptes Tiers (Patients/Organismes)
                         </button>
                     </div>
-                    <button id="btn-ouvrir-modal" style="padding: 8px 16px; border-radius: 6px; border: none; background-color: #2563eb; color: white; font-weight: 600; cursor: pointer;">
+                    <button id="btn-ouvrir-modal-pc" style="padding: 8px 16px; border-radius: 6px; border: none; background-color: #2563eb; color: white; font-weight: 600; cursor: pointer;">
                         + Nouveau compte
                     </button>
                 </div>
@@ -55,8 +62,8 @@
                 </div>
             </div>
 
-            <!-- Modale de création de compte -->
-            <div id="modal-nouveau-compte" style="display: none; position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 9999;">
+            <!-- Modale de création -->
+            <div id="modal-nouveau-compte-pc" style="display: none; position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 9999;">
                 <div style="background-color: white; border-radius: 8px; padding: 24px; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
                     <h3 style="margin-top: 0; color: #1e293b; margin-bottom: 15px;">Créer un compte</h3>
                     
@@ -86,10 +93,10 @@
             </div>
         `;
 
-        // 2. Écouteurs d'événements
+        // Événements
         const btnGen = document.getElementById('btn-tab-general');
         const btnTiers = document.getElementById('btn-tab-tiers');
-        const modal = document.getElementById('modal-nouveau-compte');
+        const modal = document.getElementById('modal-nouveau-compte-pc');
 
         btnGen.onclick = () => {
             ongletActif = 'GENERAL';
@@ -105,7 +112,7 @@
             chargerDonneesComptes();
         };
 
-        document.getElementById('btn-ouvrir-modal').onclick = () => { modal.style.display = 'flex'; };
+        document.getElementById('btn-ouvrir-modal-pc').onclick = () => { modal.style.display = 'flex'; };
         document.getElementById('pc-btn-annuler').onclick = () => { modal.style.display = 'none'; };
         document.getElementById('pc-btn-enregistrer').onclick = sauvegarderCompte;
 
@@ -116,26 +123,33 @@
         const tbody = document.getElementById('pc-table-body');
         if (!tbody) return;
 
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #64748b;">Chargement depuis Supabase...</td></tr>`;
-
         const supabase = getSupabase();
         if (!supabase) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur de connexion Supabase.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Supabase indisponible.</td></tr>`;
             return;
         }
 
+        // Lecture flexible sans spécifier order('code_compte') pour éviter l'erreur 400 Supabase
         const { data: comptes, error } = await supabase
             .from('plan_comptable')
-            .select('*')
-            .order('code_compte', { ascending: true });
+            .select('*');
 
         if (error) {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur : ${error.message}</td></tr>`;
             return;
         }
 
-        const comptesFiltres = (comptes || []).filter(c => {
-            const code = String(c.code_compte || '');
+        const listeComptes = comptes || [];
+
+        // Tri local Javascript
+        listeComptes.sort((a, b) => {
+            const codeA = String(a.code_compte || a.compte_code || a.code || '');
+            const codeB = String(b.code_compte || b.compte_code || b.code || '');
+            return codeA.localeCompare(codeB);
+        });
+
+        const comptesFiltres = listeComptes.filter(c => {
+            const code = String(c.code_compte || c.compte_code || c.code || '');
             const type = String(c.type || '').toUpperCase();
             if (ongletActif === 'TIERS') return code.startsWith('4') || type.includes('TIERS');
             return !code.startsWith('4') && !type.includes('TIERS');
@@ -149,12 +163,15 @@
         }
 
         comptesFiltres.forEach((item, idx) => {
+            const codeVal = item.code_compte || item.compte_code || item.code || '-';
+            const intituleVal = item.intitule || item.compte_libelle || item.label || '-';
+
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
             tr.innerHTML = `
                 <td style="padding: 10px 12px; color: #64748b;">${item.id || idx + 1}</td>
-                <td style="padding: 10px 12px; font-weight: 700; color: #1e293b;">${item.code_compte || '-'}</td>
-                <td style="padding: 10px 12px; color: #334155;">${item.intitule || item.label || '-'}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #1e293b;">${codeVal}</td>
+                <td style="padding: 10px 12px; color: #334155;">${intituleVal}</td>
                 <td style="padding: 10px 12px;">
                     <span style="background-color: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">
                         ${item.type || 'Général'}
@@ -176,17 +193,28 @@
             return;
         }
 
-        const { error } = await supabase.from('plan_comptable').insert([{
+        // Test de structure d'insertion
+        let { error } = await supabase.from('plan_comptable').insert([{
             code_compte: code,
             intitule: intitule,
             type: typeCompte
         }]);
 
+        if (error && error.message.includes('code_compte')) {
+            // Fallback si la colonne s'appelle compte_code
+            const res = await supabase.from('plan_comptable').insert([{
+                compte_code: code,
+                compte_libelle: intitule,
+                type: typeCompte
+            }]);
+            error = res.error;
+        }
+
         if (error) {
             alert("Erreur d'enregistrement : " + error.message);
         } else {
             alert("Compte " + code + " créé avec succès !");
-            document.getElementById('modal-nouveau-compte').style.display = 'none';
+            document.getElementById('modal-nouveau-compte-pc').style.display = 'none';
             document.getElementById('pc-input-code').value = '';
             document.getElementById('pc-input-intitule').value = '';
             chargerDonneesComptes();
@@ -194,19 +222,4 @@
     }
 
     window.initialiserPlanComptable = initialiserPlanComptable;
-
-    // Déclencheur au clic de l'onglet
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest('button, a, div');
-        if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('plan comptable')) {
-            setTimeout(initialiserPlanComptable, 100);
-            setTimeout(initialiserPlanComptable, 300);
-        }
-    });
-
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initialiserPlanComptable, 200);
-    } else {
-        document.addEventListener('DOMContentLoaded', initialiserPlanComptable);
-    }
 })();
