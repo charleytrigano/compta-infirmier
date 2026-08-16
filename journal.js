@@ -1,74 +1,55 @@
-// journal.js - Gestionnaire robuste du Journal des Écritures
+// journal.js - Rendu direct et robuste du Journal des Écritures
 
 (function () {
     function getSupabase() {
         return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
 
-    let currentFilter = 'TOUS';
+    let filterActif = 'TOUS';
 
-    // Cible la table appartenant spécifiquement au bloc "Journal des écritures"
-    function trouverTableJournal() {
-        const elTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span, p'))
-            .find(el => el.textContent && el.textContent.trim().toLowerCase().includes('journal des écritures'));
-        
-        if (elTitre) {
-            const conteneur = elTitre.closest('div, section, main') || elTitre.parentElement;
-            if (conteneur) {
-                const table = conteneur.querySelector('table');
-                if (table) return table;
-            }
-        }
-        
-        // Fallback : prend la table actuellement visible à l'écran
-        const tables = Array.from(document.querySelectorAll('table'));
-        return tables.find(t => t.offsetParent !== null) || tables[0];
-    }
+    async function initialiserRenduJournal() {
+        // 1. Détection de la zone "Journal des écritures"
+        let conteneurTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span, p'))
+            .find(el => el.textContent && el.textContent.trim().toLowerCase() === 'journal des écritures');
 
-    async function chargerEtAfficherJournal() {
-        const table = trouverTableJournal();
-        if (!table) return;
+        if (!conteneurTitre) return;
 
-        // 1. Injection de la barre de filtres au-dessus du tableau si elle est absente
-        const parent = table.parentNode;
-        let filterBar = parent.querySelector('#journal-filter-bar');
-        
+        let zoneJournal = conteneurTitre.closest('div.card, div.bg-white, section, main') || conteneurTitre.parentElement;
+        if (!zoneJournal) return;
+
+        // 2. Vérification/Injection de la barre de boutons de filtres
+        let filterBar = zoneJournal.querySelector('#journal-filter-bar');
         if (!filterBar) {
             filterBar = document.createElement('div');
             filterBar.id = 'journal-filter-bar';
-            filterBar.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; margin-top: 10px;';
+            filterBar.style.cssText = 'display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;';
             filterBar.innerHTML = `
-                <button data-filter="TOUS" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #2563eb; color: white; cursor: pointer; font-weight: 600;">
-                    Tous les journaux
-                </button>
-                <button data-filter="RECETTE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
-                    🟢 Encaissements (VE)
-                </button>
-                <button data-filter="DEPENSE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
-                    🔴 Dépenses (HA)
-                </button>
-                <button data-filter="BANQUE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
-                    🏦 Journal Banque (512)
-                </button>
+                <button data-f="TOUS" style="padding: 6px 14px; border-radius: 6px; border: none; background-color: #2563eb; color: white; cursor: pointer; font-weight: 600;">Tous les journaux</button>
+                <button data-f="REC" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; color: #334155; cursor: pointer; font-weight: 500;">🟢 Encaissements (VE)</button>
+                <button data-f="DEP" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; color: #334155; cursor: pointer; font-weight: 500;">🔴 Dépenses (HA)</button>
+                <button data-f="BQ" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; color: #334155; cursor: pointer; font-weight: 500;">🏦 Banque (512)</button>
             `;
-
-            parent.insertBefore(filterBar, table);
+            conteneurTitre.parentNode.insertBefore(filterBar, conteneurTitre.nextSibling);
 
             filterBar.querySelectorAll('button').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', (e) => {
                     filterBar.querySelectorAll('button').forEach(b => {
-                        b.style.backgroundColor = '#f1f5f9';
+                        b.style.backgroundColor = '#f8fafc';
                         b.style.color = '#334155';
-                        b.style.fontWeight = '500';
+                        b.style.border = '1px solid #cbd5e1';
                     });
                     btn.style.backgroundColor = '#2563eb';
                     btn.style.color = 'white';
-                    btn.style.fontWeight = '600';
-                    currentFilter = btn.getAttribute('data-filter');
-                    chargerEtAfficherJournal();
+                    btn.style.border = 'none';
+                    filterActif = btn.getAttribute('data-f');
+                    chargerDonneesEtRendre();
                 });
             });
         }
+
+        // 3. Ciblage du tableau HTML dans la zone
+        let table = zoneJournal.querySelector('table');
+        if (!table) return;
 
         let tbody = table.querySelector('tbody');
         if (!tbody) {
@@ -76,55 +57,60 @@
             table.appendChild(tbody);
         }
 
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement des écritures...</td></tr>`;
+        await chargerDonneesEtRendre(tbody);
+    }
 
-        // 2. Lecture des données depuis Supabase
+    async function chargerDonneesEtRendre(tbodyTarget) {
+        let tbody = tbodyTarget;
+        if (!tbody) {
+            let table = document.querySelector('table');
+            if (table) tbody = table.querySelector('tbody') || table.appendChild(document.createElement('tbody'));
+        }
+        if (!tbody) return;
+
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement des données...</td></tr>`;
+
         const supabase = getSupabase();
         let ecritures = [];
 
-        if (supabase) {
-            const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
-            if (ecrData && ecrData.length > 0) {
-                ecritures = ecrData;
+        try {
+            if (supabase) {
+                const { data: ecr } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
+                if (ecr && ecr.length > 0) {
+                    ecritures = ecr;
+                } else {
+                    const { data: tx } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+                    ecritures = tx || [];
+                }
             } else {
-                const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: false });
-                ecritures = txData || [];
+                ecritures = JSON.parse(localStorage.getItem('transactions') || '[]');
             }
-        } else {
-            ecritures = JSON.parse(localStorage.getItem('transactions') || '[]');
+        } catch (e) {
+            console.error("Erreur Supabase Journal:", e);
         }
 
-        // 3. Filtrage dynamique selon le sous-onglet actif
-        const donneesFiltrees = ecritures.filter(row => {
+        // Filtrage
+        const donnesFiltrees = ecritures.filter(row => {
             const cat = String(row.category || row.compte_code || '').toLowerCase();
             const type = String(row.type || '').toLowerCase();
 
-            if (currentFilter === 'RECETTE') {
-                return type.includes('rec') || cat.includes('soins') || row.credit > 0;
-            } else if (currentFilter === 'DEPENSE') {
-                return type.includes('dep') || type.includes('dép') || (row.debit > 0 && row.compte_code !== '512000');
-            } else if (currentFilter === 'BANQUE') {
-                return (row.compte_code && row.compte_code.startsWith('512')) || row.payment_method;
-            }
+            if (filterActif === 'REC') return type.includes('rec') || cat.includes('soins') || row.credit > 0;
+            if (filterActif === 'DEP') return type.includes('dep') || type.includes('dép') || (row.debit > 0 && row.compte_code !== '512000');
+            if (filterActif === 'BQ') return (row.compte_code && row.compte_code.startsWith('512')) || row.payment_method;
             return true;
         });
 
         tbody.innerHTML = '';
 
-        if (donneesFiltrees.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8;">Aucune écriture enregistrée dans Supabase.</td></tr>`;
+        if (donnesFiltrees.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 25px; color: #94a3b8;">Aucune donnée disponible.</td></tr>`;
             return;
         }
 
-        // 4. Génération des lignes du tableau
-        donneesFiltrees.forEach(row => {
+        donnesFiltrees.forEach(row => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
 
-            const date = row.date || '-';
-            const cat = row.category || row.compte_code || '-';
-            const desc = row.description || row.compte_libelle || '-';
-            
             let debitVal = parseFloat(row.debit || 0);
             let creditVal = parseFloat(row.credit || 0);
 
@@ -136,35 +122,33 @@
             }
 
             tr.innerHTML = `
-                <td style="padding: 10px 12px; color: #334155;">${date}</td>
-                <td style="padding: 10px 12px; color: #334155; font-weight: 600;">${cat}</td>
-                <td style="padding: 10px 12px; color: #334155;">${desc}</td>
+                <td style="padding: 10px 12px; color: #334155;">${row.date || '-'}</td>
+                <td style="padding: 10px 12px; color: #334155; font-weight: 600;">${row.category || row.compte_code || '-'}</td>
+                <td style="padding: 10px 12px; color: #334155;">${row.description || row.compte_libelle || '-'}</td>
                 <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 500;">${debitVal > 0 ? debitVal.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 10px 12px; text-align: right; color: #16a34a; font-weight: 500;">${creditVal > 0 ? creditVal.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 10px 12px; text-align: center;">
-                    <span style="background-color: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">
-                        Comptabilisé
-                    </span>
+                    <span style="background-color: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">Comptabilisé</span>
                 </td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // Réactualise l'affichage dès que l'utilisateur clique sur le bouton "Journal"
+    // Écouteur global pour réagir immédiatement au clic sur l'onglet Journal
     document.addEventListener('click', (e) => {
-        const target = e.target;
-        if (target && target.textContent && target.textContent.trim().toLowerCase().includes('journal')) {
-            setTimeout(chargerEtAfficherJournal, 100);
-            setTimeout(chargerEtAfficherJournal, 300);
+        const btn = e.target.closest('button, a, div');
+        if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('journal')) {
+            setTimeout(initialiserRenduJournal, 100);
+            setTimeout(initialiserRenduJournal, 400);
         }
     });
 
-    window.chargerEtAfficherJournal = chargerEtAfficherJournal;
+    window.initialiserRenduJournal = initialiserRenduJournal;
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(chargerEtAfficherJournal, 200);
+        setTimeout(initialiserRenduJournal, 300);
     } else {
-        document.addEventListener('DOMContentLoaded', chargerEtAfficherJournal);
+        document.addEventListener('DOMContentLoaded', initialiserRenduJournal);
     }
 })();
