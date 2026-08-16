@@ -40,9 +40,7 @@ window.PLAN_AUXILIAIRE_411_DEFAUT = [
     { id: 6, code: '411SAINTANDRE', intitule: 'SAINT-ANDRE (Patient / Tiers)', categorie: 'Patient Direct' }
 ];
 
-if (!window.ongletActifPlan) {
-    window.ongletActifPlan = 'general';
-}
+window.ongletActifPlan = 'general';
 
 window.chargerDonneesComptables = function() {
     var general = localStorage.getItem('PLAN_COMPTABLE_BNC_CUSTOM');
@@ -51,7 +49,6 @@ window.chargerDonneesComptables = function() {
     var aux = localStorage.getItem('PLAN_AUXILIAIRE_411_CUSTOM');
     var listeAux = aux ? JSON.parse(aux) : window.PLAN_AUXILIAIRE_411_DEFAUT;
 
-    // Récupération des tiers existants dans la session/transactions si présents
     if (window.TRANSACTIONS && Array.isArray(window.TRANSACTIONS)) {
         window.TRANSACTIONS.forEach(function(t) {
             if (t.compte_num && String(t.compte_num).startsWith('411')) {
@@ -70,7 +67,6 @@ window.chargerDonneesComptables = function() {
 
     window.PLAN_AUXILIAIRE_411 = listeAux;
 };
-window.chargerDonneesComptables();
 
 window.changerOngletPlan = function(type) {
     window.ongletActifPlan = type;
@@ -78,23 +74,9 @@ window.changerOngletPlan = function(type) {
 };
 
 window.trouverZonePlan = function() {
-    // Ne cible QUE le conteneur interne pour ne pas écraser la barre de navigation
-    var el = document.getElementById('vue-plan-comptable') || 
-             document.getElementById('plan-comptable-container');
-    
-    if (el) return el;
-
-    var divs = document.querySelectorAll('div');
-    for (var i = 0; i < divs.length; i++) {
-        var txt = divs[i].textContent || '';
-        if (txt.includes('Chargement du plan comptable...') || txt.includes('Comptes Généraux (Classes 1 à 7)')) {
-            // S'assurer qu'il ne s'agit pas du grand conteneur racine avec les onglets généraux
-            if (!divs[i].querySelector('button') || divs[i].id === 'vue-plan-comptable') {
-                return divs[i];
-            }
-        }
-    }
-    return null;
+    return document.getElementById('vue-plan-comptable') || 
+           document.getElementById('plan-comptable-container') || 
+           document.getElementById('contenu-plan-comptable');
 };
 
 window.afficherPlanComptable = function(filtreText) {
@@ -117,9 +99,9 @@ window.afficherPlanComptable = function(filtreText) {
     }
 
     var html = `
-        <div style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-top:10px;">
+        <div id="contenu-plan-comptable-unique" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-top:10px;">
             
-            <!-- Onglets d'alternance du Plan -->
+            <!-- Onglets de basculement -->
             <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px; gap:10px;">
                 <button type="button" onclick="window.changerOngletPlan('general')" 
                         style="padding:10px 18px; font-weight:700; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${isGeneral ? '#2563eb' : 'transparent'}; color:${isGeneral ? '#2563eb' : '#64748b'};">
@@ -153,7 +135,7 @@ window.afficherPlanComptable = function(filtreText) {
                 </div>
             </div>
 
-            <!-- Tableau -->
+            <!-- Tableau unique -->
             <div style="overflow-x:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
                     <thead>
@@ -198,6 +180,7 @@ window.afficherPlanComptable = function(filtreText) {
         </div>
     `;
 
+    // Nettoyage strict : remplace tout le contenu de la zone sans dupliquer
     container.innerHTML = html;
 
     var searchInput = document.getElementById('input-search-plan');
@@ -333,21 +316,10 @@ window.enregistrerNouveauCompte = function() {
     window.afficherPlanComptable();
 };
 
-window.initialiserPlanComptable = function() {
-    var retries = 0;
-    var timer = setInterval(function() {
-        var container = window.trouverZonePlan();
-        if (container) {
-            window.afficherPlanComptable();
-            clearInterval(timer);
-        }
-        retries++;
-        if (retries > 15) clearInterval(timer);
-    }, 200);
-};
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    window.initialiserPlanComptable();
-} else {
-    document.addEventListener('DOMContentLoaded', window.initialiserPlanComptable);
+// Initialisation unique
+if (!window.planComptableInitialise) {
+    window.planComptableInitialise = true;
+    setTimeout(function() {
+        window.afficherPlanComptable();
+    }, 100);
 }
