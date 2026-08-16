@@ -1,103 +1,96 @@
-// sync_ecritures.js - Synchronisation de la partie double dans la table Supabase 'ecritures_comptables'
+// transactions.js - Gestion du tableau UI et synchronisation Supabase
 
-async function synchroniserEcrituresSupabase() {
-    const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
-    if (!supabase) {
-        console.error("Client Supabase non trouvé.");
-        return;
+(function () {
+    function getSupabase() {
+        return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
 
-    // 1. Récupération des transactions brutes
-    const { data: transactions, error: errTx } = await supabase.from('transactions').select('*');
-    if (errTx) {
-        console.error("Erreur récupération transactions :", errTx);
-        return;
-    }
+    async function chargerEtAfficherTransactions() {
+        const supabase = getSupabase();
+        if (!supabase) return;
 
-    // 2. Génération des paires Débit / Crédit pour chaque transaction
-    const nouvellesEcritures = [];
+        // 1. Récupération des transactions depuis Supabase
+        const { data: transactions, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .order('date', { ascending: false });
 
-    transactions.forEach(tx => {
-        const val = Math.abs(parseFloat(tx.amount || tx.montant || 0));
-        const type = String(tx.type || '').toLowerCase();
-        const cat = (tx.category || tx.categorie || '').toLowerCase();
-        const desc = (tx.description || '').trim();
-        const isRecette = type.includes('recette') || type.includes('rec') || cat.includes('soins');
-
-        if (isRecette) {
-            // Ligne Débit : Banque (512000)
-            nouvellesEcritures.push({
-                transaction_id: tx.id,
-                date: tx.date,
-                compte_code: '512000',
-                compte_libelle: '512000 - Banque / Compte Courant',
-                category: tx.category || 'Soins infirmiers',
-                description: `Encaissement : ${desc || 'Patient'}`,
-                debit: val,
-                credit: 0
-            });
-
-            // Ligne Crédit : Patient / Tiers (411xxx)
-            const codePatient = desc ? `411${desc.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase()}` : '411000';
-            nouvellesEcritures.push({
-                transaction_id: tx.id,
-                date: tx.date,
-                compte_code: codePatient,
-                compte_libelle: `${codePatient} - Patient (${desc || 'Divers'})`,
-                category: tx.category || 'Soins infirmiers',
-                description: `Règlement soins : ${desc || 'Patient'}`,
-                debit: 0,
-                credit: val
-            });
-        } else {
-            // Ligne Débit : Charge (6xxxx)
-            let codeCharge = '606000';
-            let libelleCharge = '606000 - Achats et fournitures';
-
-            if (cat.includes('carpimko')) {
-                codeCharge = '646000';
-                libelleCharge = '646000 - Cotisations CARPIMKO';
-            } else if (cat.includes('urssaf')) {
-                codeCharge = '645000';
-                libelleCharge = '645000 - Cotisations URSSAF';
-            }
-
-            nouvellesEcritures.push({
-                transaction_id: tx.id,
-                date: tx.date,
-                compte_code: codeCharge,
-                compte_libelle: libelleCharge,
-                category: tx.category || 'Dépense',
-                description: desc || 'Paiement charge',
-                debit: val,
-                credit: 0
-            });
-
-            // Ligne Crédit : Banque (512000)
-            nouvellesEcritures.push({
-                transaction_id: tx.id,
-                date: tx.date,
-                compte_code: '512000',
-                compte_libelle: '512000 - Banque / Compte Courant',
-                category: tx.category || 'Dépense',
-                description: `Décaissement : ${desc || 'Charge'}`,
-                debit: 0,
-                credit: val
-            });
+        if (error) {
+            console.error("Erreur de chargement des transactions :", error);
+            return;
         }
-    });
 
-    // 3. Réinitialisation et enregistrement dans Supabase
-    await supabase.from('ecritures_comptables').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-    const { data: inserted, error: errInsert } = await supabase.from('ecritures_comptables').insert(nouvellesEcritures);
-
-    if (errInsert) {
-        console.error("Erreur lors de l'insertion Supabase :", errInsert);
-    } else {
-        console.log(`✅ Synchronisation réussie : ${nouvellesEcritures.length} écritures insérées dans Supabase.`);
+        afficherTableauUI(transactions || []);
     }
-}
 
-// Exécution directe
-synchroniserEcrituresSupabase();
+    function afficherTableauUI(liste) {
+        // Ciblage dynamique du <tbody> de l'historique
+        let tbody = document.querySelector('table tbody');
+        
+        if (!tbody) {
+            const table = document.querySelector('table');
+            if (table) {
+                tbody = document.createElement('tbody');
+                table.appendChild(tbody);
+            }
+        }
+
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (liste.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune transaction enregistrée dans Supabase.</td></tr>`;
+            return;
+        }
+
+        liste.forEach(tx => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #e2e8f0';
+
+            const typeStr = String(tx.type || '').toLowerCase();
+            const isRecette = typeStr.includes('recette') || typeStr.includes('rec');
+            const montantVal = Math.abs(parseFloat(tx.amount || tx.montant || 0)).toFixed(2);
+
+            tr.innerHTML = `
+                <td style="padding: 10px 12px; color: #334155;">${tx.date || '-'}</td>
+                <td style="padding: 10px 12px;">
+                    <span style="background-color: ${isRecette ? '#dcfce7' : '#fee2e2'}; color: ${isRecette ? '#15803d' : '#b91c1c'}; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">
+                        ${tx.type || (isRecette ? 'Recette' : 'Dépense')}
+                    </span>
+                </td>
+                <td style="padding: 10px 12px; color: #334155;">${tx.category || tx.categorie || '-'}</td>
+                <td style="padding: 10px 12px; color: #334155;">${tx.description || '-'}</td>
+                <td style="padding: 10px 12px; font-weight: bold; color: ${isRecette ? '#16a34a' : '#dc2626'}; text-align: right;">
+                    ${isRecette ? '+' : '-'}${montantVal} €
+                </td>
+                <td style="padding: 10px 12px; text-align: center;">
+                    <button onclick="supprimerTransaction('${tx.id}')" style="background-color: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
+                        Supprimer
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Gestion de la suppression
+    window.supprimerTransaction = async function(id) {
+        if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+        const supabase = getSupabase();
+        if (!supabase) return;
+
+        await supabase.from('transactions').delete().eq('id', id);
+        await supabase.from('ecritures_comptables').delete().eq('transaction_id', id);
+        
+        chargerEtAfficherTransactions();
+    };
+
+    window.chargerEtAfficherTransactions = chargerEtAfficherTransactions;
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(chargerEtAfficherTransactions, 200);
+    } else {
+        document.addEventListener('DOMContentLoaded', chargerEtAfficherTransactions);
+    }
+})();
