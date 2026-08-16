@@ -2,11 +2,10 @@
    MODULE TRANSACTIONS & JOURNAL
    ========================================================================== */
 
-// Initialisation globale du tableau des transactions si inexistant
 window.transactions = window.transactions || [];
 
 /**
- * Charge les transactions depuis Supabase (ou fallback local)
+ * Charge les transactions depuis Supabase
  */
 window.chargerTransactions = async function() {
     try {
@@ -17,7 +16,7 @@ window.chargerTransactions = async function() {
                 .order('date', { ascending: false });
 
             if (error) {
-                console.warn("Erreur Supabase, chargement du fallback local :", error.message);
+                console.warn("Erreur Supabase :", error.message);
             } else if (data) {
                 window.transactions = data;
             }
@@ -31,7 +30,7 @@ window.chargerTransactions = async function() {
 };
 
 /**
- * Affiche la liste des transactions dans le tableau principal de la vue Transactions
+ * Affiche la liste des transactions avec gestion flexible des nommages de champs
  */
 window.afficherTransactions = function() {
     var tbody = document.getElementById('body-tableau-transactions');
@@ -47,14 +46,28 @@ window.afficherTransactions = function() {
 
     liste.forEach(function(tx) {
         var tr = document.createElement('tr');
-        var montantFormatted = parseFloat(tx.montant || 0).toFixed(2) + ' €';
-        var classMontant = tx.type === 'Recette' ? 'color:#16a34a; font-weight:600;' : 'color:#dc2626; font-weight:600;';
+
+        // Normalisation du type (gestion majuscule/minuscule)
+        var typeRaw = (tx.type || '').toString().toLowerCase();
+        var isRecette = typeRaw === 'recette' || typeRaw === 'encaissement';
+        var typeLabel = isRecette ? 'Recette' : 'Dépense';
+
+        // Récupération sécurisée de la catégorie (cherche categorie, categorie_libelle ou compte)
+        var categorie = tx.categorie || tx.categorie_libelle || tx.compte || tx.libelle_categorie || '-';
+
+        // Récupération sécurisée du montant (cherche montant, montant_ttc, debit ou credit)
+        var valMontant = tx.montant !== undefined && tx.montant !== null ? tx.montant : 
+                        (tx.montant_ttc !== undefined ? tx.montant_ttc : 
+                        (tx.credit || tx.debit || 0));
+        
+        var montantFormatted = parseFloat(valMontant || 0).toFixed(2) + ' €';
+        var classMontant = isRecette ? 'color:#16a34a; font-weight:600;' : 'color:#dc2626; font-weight:600;';
 
         tr.innerHTML = `
             <td>${tx.date || ''}</td>
-            <td><span style="background-color:${tx.type === 'Recette' ? '#dcfce7' : '#fee2e2'}; color:${tx.type === 'Recette' ? '#15803d' : '#b91c1c'}; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:600;">${tx.type || ''}</span></td>
-            <td>${tx.categorie || ''}</td>
-            <td>${tx.description || ''}</td>
+            <td><span style="background-color:${isRecette ? '#dcfce7' : '#fee2e2'}; color:${isRecette ? '#15803d' : '#b91c1c'}; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:600;">${typeLabel}</span></td>
+            <td>${categorie}</td>
+            <td>${tx.description || tx.libelle || ''}</td>
             <td style="${classMontant}">${montantFormatted}</td>
             <td>
                 <button onclick="window.ouvrirModalModification('${tx.id}')" style="background:none; border:none; cursor:pointer; color:#2563eb; font-weight:500;">✏️ Modifier</button>
@@ -66,7 +79,7 @@ window.afficherTransactions = function() {
 };
 
 /**
- * Ajoute une nouvelle transaction dans Supabase et met à jour l'interface
+ * Ajoute une nouvelle transaction dans Supabase
  */
 window.ajouterTransaction = async function() {
     var dateInput = document.getElementById('tx-date');
@@ -77,13 +90,15 @@ window.ajouterTransaction = async function() {
 
     if (!dateInput || !typeInput || !catInput || !descInput || !montantInput) return;
 
+    var valMontant = parseFloat(montantInput.value) || 0;
+
     var nouvelleTx = {
         id: 'tx_' + Date.now(),
         date: dateInput.value,
         type: typeInput.value,
         categorie: catInput.value,
         description: descInput.value,
-        montant: parseFloat(montantInput.value) || 0
+        montant: valMontant
     };
 
     if (window.supabaseClient) {
@@ -100,11 +115,9 @@ window.ajouterTransaction = async function() {
 
     window.transactions.unshift(nouvelleTx);
     
-    // Réinitialisation du formulaire
     descInput.value = '';
     montantInput.value = '';
 
-    // Mise à jour de l'affichage
     window.afficherTransactions();
     window.afficherJournal();
     if (typeof window.afficherGrandLivre === 'function') window.afficherGrandLivre();
@@ -120,7 +133,7 @@ window.supprimerTransaction = async function(id) {
         try {
             await window.supabaseClient.from('transactions').delete().eq('id', id);
         } catch (e) {
-            console.error("Erreur lors de la suppression Supabase :", e);
+            console.error("Erreur de suppression Supabase :", e);
         }
     }
 
@@ -132,18 +145,21 @@ window.supprimerTransaction = async function(id) {
 };
 
 /**
- * Ouvre la modale de modification d'une transaction
+ * Ouvre la modale de modification
  */
 window.ouvrirModalModification = function(id) {
     var tx = (window.transactions || []).find(function(t) { return t.id === id; });
     if (!tx) return;
 
+    var valMontant = tx.montant !== undefined ? tx.montant : (tx.montant_ttc || tx.credit || tx.debit || 0);
+    var valCat = tx.categorie || tx.categorie_libelle || tx.compte || '';
+
     document.getElementById('edit-id').value = tx.id;
-    document.getElementById('edit-date').value = tx.date;
-    document.getElementById('edit-type').value = tx.type;
-    document.getElementById('edit-categorie').value = tx.categorie;
-    document.getElementById('edit-description').value = tx.description;
-    document.getElementById('edit-montant').value = tx.montant;
+    document.getElementById('edit-date').value = tx.date || '';
+    document.getElementById('edit-type').value = (tx.type || '').toString().toLowerCase() === 'recette' ? 'Recette' : 'Dépense';
+    document.getElementById('edit-categorie').value = valCat;
+    document.getElementById('edit-description').value = tx.description || tx.libelle || '';
+    document.getElementById('edit-montant').value = valMontant;
 
     var modal = document.getElementById('modal-modifier');
     if (modal) modal.style.display = 'flex';
@@ -157,11 +173,13 @@ window.sauvegarderModification = async function() {
     var tx = (window.transactions || []).find(function(t) { return t.id === id; });
     if (!tx) return;
 
+    var valMontant = parseFloat(document.getElementById('edit-montant').value) || 0;
+
     tx.date = document.getElementById('edit-date').value;
     tx.type = document.getElementById('edit-type').value;
     tx.categorie = document.getElementById('edit-categorie').value;
     tx.description = document.getElementById('edit-description').value;
-    tx.montant = parseFloat(document.getElementById('edit-montant').value) || 0;
+    tx.montant = valMontant;
 
     if (window.supabaseClient) {
         try {
@@ -184,15 +202,13 @@ window.sauvegarderModification = async function() {
 };
 
 /**
- * Affiche le Journal des écritures avec vérification sécurisée des données (Fix forEach)
+ * Affiche le Journal des écritures
  */
 window.afficherJournal = function() {
     var tbody = document.getElementById('body-tableau-journal');
     if (!tbody) return;
 
     tbody.innerHTML = '';
-
-    // S'assurer que la liste de transactions est toujours un tableau valide
     var listeTransactions = window.transactions || [];
 
     if (!Array.isArray(listeTransactions) || listeTransactions.length === 0) {
@@ -203,13 +219,23 @@ window.afficherJournal = function() {
     listeTransactions.forEach(function(tx) {
         var tr = document.createElement('tr');
         
-        var debit = tx.type === 'Dépense' ? parseFloat(tx.montant || 0).toFixed(2) + ' €' : '-';
-        var credit = tx.type === 'Recette' ? parseFloat(tx.montant || 0).toFixed(2) + ' €' : '-';
+        var typeRaw = (tx.type || '').toString().toLowerCase();
+        var isRecette = typeRaw === 'recette' || typeRaw === 'encaissement';
+
+        var valMontant = tx.montant !== undefined && tx.montant !== null ? tx.montant : 
+                        (tx.montant_ttc !== undefined ? tx.montant_ttc : 
+                        (tx.credit || tx.debit || 0));
+
+        var valCat = tx.categorie || tx.categorie_libelle || tx.compte || '-';
+        var valDesc = tx.description || tx.libelle || '';
+
+        var debit = !isRecette ? parseFloat(valMontant || 0).toFixed(2) + ' €' : '-';
+        var credit = isRecette ? parseFloat(valMontant || 0).toFixed(2) + ' €' : '-';
 
         tr.innerHTML = `
             <td>${tx.date || ''}</td>
-            <td>${tx.categorie || ''}</td>
-            <td>${tx.description || ''}</td>
+            <td>${valCat}</td>
+            <td>${valDesc}</td>
             <td style="color:#dc2626; font-weight:500;">${debit}</td>
             <td style="color:#16a34a; font-weight:500;">${credit}</td>
             <td><span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:600;">Validé</span></td>
