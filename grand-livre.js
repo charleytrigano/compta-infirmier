@@ -1,4 +1,4 @@
-// grand_livre.js - Correction doublons de titre & affichage des montants
+// grand_livre.js - Extraction universelle des montants et de la structure Supabase
 
 (function () {
     function getSupabaseClient() {
@@ -26,7 +26,6 @@
         const container = trouverConteneurGrandLivre();
         if (!container) return;
 
-        // Injection sans titre superflu pour éviter les doublons
         container.innerHTML = `
             <div style="padding: 10px;">
                 <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px;">
@@ -96,12 +95,20 @@
         state.planComptable = JSON.parse(localStorage.getItem('plan_comptable') || '[]');
     }
 
+    function nettoyerNombre(val) {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val;
+        if (!val) return 0;
+        const str = String(val).replace(/[^0-9,-.]/g, '').replace(',', '.');
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
+    }
+
     function determinerCompte(tx) {
-        let code = tx.compte_code || '411000';
+        let code = tx.compte_code || tx.compte || '411000';
         let nom = tx.categorie || 'Soins infirmiers';
 
         if (code === '411000' || tx.type === 'Recette' || nom === 'Soins infirmiers') {
-            const desc = (tx.description || '').trim();
+            const desc = (tx.description || tx.libelle || '').trim();
             if (desc) {
                 code = desc.startsWith('411') ? desc : `411 ${desc}`;
                 nom = `411 ${desc}`;
@@ -110,16 +117,16 @@
         return { code, nom };
     }
 
-    // Extraction robuste des montants quelle que soit la structure de la base de données
+    // Analyse dynamique de toutes les propriétés financières possibles
     function extraireMontants(tx) {
-        let debit = parseFloat(tx.debit || tx.recette || 0);
-        let credit = parseFloat(tx.credit || tx.depense || 0);
+        let debit = nettoyerNombre(tx.debit || tx.recette || tx.recettes || tx.entree);
+        let credit = nettoyerNombre(tx.credit || tx.depense || tx.depenses || tx.sortie);
 
         if (debit === 0 && credit === 0) {
-            const val = parseFloat(tx.montant || tx.montant_ttc || 0);
-            const type = (tx.type || '').toLowerCase();
+            const val = nettoyerNombre(tx.montant || tx.montant_ttc || tx.montant_ht || tx.valeur || tx.solde);
+            const type = String(tx.type || tx.nature || tx.sens || '').toLowerCase();
 
-            if (type.includes('recette') || type.includes('rec') || val > 0) {
+            if (type.includes('recette') || type.includes('rec') || type.includes('credit') || val > 0) {
                 debit = Math.abs(val);
             } else {
                 credit = Math.abs(val);
@@ -172,7 +179,7 @@
         });
 
         if (txs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération trouvée.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération enregistrée pour ce filtre.</td></tr>';
             if (totalDebitEl) totalDebitEl.textContent = '0.00 €';
             if (totalCreditEl) totalCreditEl.textContent = '0.00 €';
             if (soldeGlobalEl) soldeGlobalEl.textContent = '0.00 €';
@@ -189,10 +196,10 @@
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f3f4f6';
             tr.innerHTML = `
-                <td style="padding: 8px 10px;">${tx.date || '-'}</td>
+                <td style="padding: 8px 10px;">${tx.date || tx.created_at || '-'}</td>
                 <td style="padding: 8px 10px;"><strong>${c.code}</strong></td>
-                <td style="padding: 8px 10px;">${tx.categorie || '-'}</td>
-                <td style="padding: 8px 10px;">${tx.description || '-'}</td>
+                <td style="padding: 8px 10px;">${tx.categorie || tx.category || '-'}</td>
+                <td style="padding: 8px 10px;">${tx.description || tx.libelle || '-'}</td>
                 <td style="padding: 8px 10px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 8px 10px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
             `;
