@@ -1,4 +1,4 @@
-// plan_comptable.js - Version corrigée et intégrée
+// plan_comptable.js - Version corrigée avec détection automatique des libellés et intégration HTML
 
 (function () {
     /**
@@ -14,11 +14,11 @@
      * Initialisation du module et injection de la structure HTML
      */
     async function chargerPlanComptable() {
-        // Ciblage préférentiel du conteneur défini dans index.html
+        // Ciblage prioritaire du conteneur défini dans index.html
         const zoneCible = document.getElementById('conteneur-plan-comptable') || 
                           Array.from(document.querySelectorAll('div, section, main')).find(el => 
                               el.children.length <= 2 && el.textContent && el.textContent.includes('Chargement du plan comptable...')
-                          );
+                          ) || document.querySelector('#plan-comptable') || document.querySelector('.plan-comptable-content');
 
         if (!zoneCible) return;
 
@@ -142,14 +142,14 @@
 
             let liste = data || [];
 
-            // Tri par code de compte
+            // Tri par code
             liste.sort((a, b) => {
                 const codeA = String(a.code_compte || a.compte_code || a.code || '');
                 const codeB = String(b.code_compte || b.compte_code || b.code || '');
                 return codeA.localeCompare(codeB);
             });
 
-            // Filtrage selon l'onglet actif
+            // Filtrage onglet
             const filtres = liste.filter(row => {
                 const code = String(row.code_compte || row.compte_code || row.code || '');
                 const type = String(row.type || row.categorie || '').toUpperCase();
@@ -164,6 +164,8 @@
 
             tbody.innerHTML = filtres.map((row, idx) => {
                 const code = row.code_compte || row.compte_code || row.code || '-';
+                
+                // Détection dynamique du champ de libellé
                 const label = row.intitule || row.libelle || row.compte_libelle || row.nom || row.label || row.description || '-';
                 const type = row.type || row.categorie || 'Général';
 
@@ -183,12 +185,12 @@
     }
 
     /**
-     * Enregistrement d'un compte dans Supabase avec rétrocompatibilité des colonnes
+     * Enregistrement d'un nouveau compte
      */
     async function enregistrerCompte() {
         const supabase = getSupabase();
         if (!supabase) {
-            alert("Erreur : Connexion à Supabase indisponible.");
+            alert("Erreur : Client Supabase introuvable.");
             return;
         }
 
@@ -201,6 +203,7 @@
             return;
         }
 
+        // Modèles d'insertion selon la structure exacte des colonnes
         const optionsInsertion = [
             { code_compte: code, intitule: label, type: type },
             { code_compte: code, libelle: label, type: type },
@@ -230,19 +233,20 @@
         }
     }
 
-    // Expositions globales pour déclenchement depuis le HTML / switchTab
+    // Export des fonctions vers le scope global (window)
     window.chargerPlanComptable = chargerPlanComptable;
     window.afficherPlanComptable = chargerPlanComptable;
 
-    // Détection d'interaction avec le menu
+    // Détection du clic sur l'onglet "Plan Comptable"
     document.addEventListener('click', (e) => {
         const el = e.target.closest('button, a, div');
         if (el && el.textContent && el.textContent.trim().toLowerCase().includes('plan comptable')) {
             setTimeout(chargerPlanComptable, 100);
+            setTimeout(chargerPlanComptable, 300);
         }
     });
 
-    // Chargement automatique lors du chargement de la page
+    // Déclenchement automatique au chargement initial
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(chargerPlanComptable, 200);
     } else {
