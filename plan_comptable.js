@@ -1,4 +1,4 @@
-// plan_comptable.js - Version autonome et sécurisée
+// plan_comptable.js - Version corrigée avec détection automatique des libellés
 
 (function () {
     function getSupabase() {
@@ -8,14 +8,12 @@
     let ongletActif = 'GENERAL';
 
     async function chargerPlanComptable() {
-        // Ciblage spécifique du bloc contenant le message de chargement
         const zoneCible = Array.from(document.querySelectorAll('div, section, main')).find(el => 
             el.children.length <= 2 && el.textContent && el.textContent.includes('Chargement du plan comptable...')
         ) || document.querySelector('#plan-comptable') || document.querySelector('.plan-comptable-content');
 
         if (!zoneCible) return;
 
-        // Génération de l'interface
         zoneCible.innerHTML = `
             <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; width: 100%; box-sizing: border-box;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
@@ -43,7 +41,7 @@
                             </tr>
                         </thead>
                         <tbody id="pc-tbody">
-                            <tr><td colspan="4" style="text-align: center; padding: 20px; color: #64748b;">Connexion à Supabase...</td></tr>
+                            <tr><td colspan="4" style="text-align: center; padding: 20px; color: #64748b;">Chargement Supabase...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -80,7 +78,6 @@
             </div>
         `;
 
-        // Événements
         const btnGen = document.getElementById('pc-tab-gen');
         const btnTiers = document.getElementById('pc-tab-tiers');
         const modal = document.getElementById('pc-modal');
@@ -112,31 +109,27 @@
 
         try {
             const supabase = getSupabase();
-            if (!supabase) {
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Client Supabase non détecté.</td></tr>`;
-                return;
-            }
+            if (!supabase) return;
 
             const { data, error } = await supabase.from('plan_comptable').select('*');
-
             if (error) {
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur Supabase : ${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur : ${error.message}</td></tr>`;
                 return;
             }
 
             let liste = data || [];
 
-            // Tri par code de compte
+            // Tri par code
             liste.sort((a, b) => {
                 const codeA = String(a.code_compte || a.compte_code || a.code || '');
                 const codeB = String(b.code_compte || b.compte_code || b.code || '');
                 return codeA.localeCompare(codeB);
             });
 
-            // Filtrage par onglet (Général vs Tiers)
+            // Filtrage onglet
             const filtres = liste.filter(row => {
                 const code = String(row.code_compte || row.compte_code || row.code || '');
-                const type = String(row.type || '').toUpperCase();
+                const type = String(row.type || row.categorie || '').toUpperCase();
                 if (ongletActif === 'TIERS') return code.startsWith('4') || type.includes('TIERS');
                 return !code.startsWith('4') && !type.includes('TIERS');
             });
@@ -148,8 +141,11 @@
 
             tbody.innerHTML = filtres.map((row, idx) => {
                 const code = row.code_compte || row.compte_code || row.code || '-';
-                const label = row.intitule || row.compte_libelle || row.label || '-';
-                const type = row.type || 'Général';
+                
+                // Détection dynamique du champ de libellé dans l'objet
+                const label = row.intitule || row.libelle || row.compte_libelle || row.nom || row.label || row.description || '-';
+                const type = row.type || row.categorie || 'Général';
+
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; color: #64748b;">${row.id || idx + 1}</td>
@@ -161,7 +157,7 @@
             }).join('');
 
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur d'exécution : ${err.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur : ${err.message}</td></tr>`;
         }
     }
 
@@ -176,30 +172,38 @@
             return;
         }
 
-        // Essai avec le champ standard
-        let payload = { code_compte: code, intitule: label, type: type };
-        let { error } = await supabase.from('plan_comptable').insert([payload]);
+        // Test de structures pour s'adapter au schéma exact de Supabase
+        const optionsIncertion = [
+            { code_compte: code, intitule: label, type: type },
+            { code_compte: code, libelle: label, type: type },
+            { compte_code: code, compte_libelle: label, type: type },
+            { code: code, libelle: label, type: type }
+        ];
 
-        if (error) {
-            // Fallback si les noms de colonnes sont différents
-            payload = { compte_code: code, compte_libelle: label, type: type };
-            const res = await supabase.from('plan_comptable').insert([payload]);
-            error = res.error;
+        let reussi = false;
+        let dernierMessageErreur = '';
+
+        for (const payload of optionsIncertion) {
+            const { error } = await supabase.from('plan_comptable').insert([payload]);
+            if (!error) {
+                reussi = true;
+                break;
+            }
+            dernierMessageErreur = error.message;
         }
 
-        if (error) {
-            alert("Erreur lors de la sauvegarde : " + error.message);
-        } else {
+        if (reussi) {
             document.getElementById('pc-modal').style.display = 'none';
             document.getElementById('pc-in-code').value = '';
             document.getElementById('pc-in-label').value = '';
             chargerDonnees();
+        } else {
+            alert("Erreur lors de la sauvegarde : " + dernierMessageErreur);
         }
     }
 
     window.chargerPlanComptable = chargerPlanComptable;
 
-    // Déclencheur au clic sur l'onglet
     document.addEventListener('click', (e) => {
         const el = e.target.closest('button, a, div');
         if (el && el.textContent && el.textContent.trim().toLowerCase().includes('plan comptable')) {
