@@ -50,24 +50,32 @@ window.chargerDonneesComptables = function() {
 window.chargerDonneesComptables();
 
 window.changerOngletPlan = function(type) {
+    console.log("Changement d'onglet vers :", type);
     window.ongletActifPlan = type;
     window.afficherPlanComptable();
 };
 
-window.afficherPlanComptable = function(filtreText) {
-    var container = document.getElementById('contenu-plan-comptable') || 
-                      document.getElementById('plan-comptable-container') || 
-                      document.getElementById('vue-plan-comptable');
+window.trouverConteneurPlan = function() {
+    var c = document.getElementById('contenu-plan-comptable') || 
+            document.getElementById('plan-comptable-container') || 
+            document.getElementById('vue-plan-comptable');
+    if (c) return c;
 
-    if (!container) {
-        var divs = document.querySelectorAll('div');
-        divs.forEach(function(div) {
-            if (div.textContent.includes('Chargement du plan comptable...')) {
-                container = div;
+    var titres = document.querySelectorAll('h3, h2, div');
+    for (var j = 0; j < titres.length; j++) {
+        var txt = titres[j].textContent || '';
+        if (txt.includes('Comptes Généraux (Classes 1 à 7)') || txt.includes('Plan Auxiliaire - Comptes Individuels 411')) {
+            var box = titres[j].closest('div');
+            if (box && box.parentElement) {
+                return box.parentElement;
             }
-        });
+        }
     }
+    return null;
+};
 
+window.afficherPlanComptable = function(filtreText) {
+    var container = window.trouverConteneurPlan();
     if (!container) return;
 
     var isGeneral = (window.ongletActifPlan === 'general');
@@ -85,7 +93,7 @@ window.afficherPlanComptable = function(filtreText) {
     }
 
     var html = `
-        <div style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:15px; margin-top:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div id="contenu-plan-comptable" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:15px; margin-top:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             
             <!-- Onglets -->
             <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px; gap:10px;">
@@ -166,7 +174,7 @@ window.afficherPlanComptable = function(filtreText) {
         </div>
     `;
 
-    container.innerHTML = html;
+    container.outerHTML = html;
 
     var searchInput = document.getElementById('input-search-plan');
     if (searchInput && filtreText) {
