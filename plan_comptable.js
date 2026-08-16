@@ -1,8 +1,8 @@
 /* ==========================================================================
-   MODULE PLAN COMPTABLE BNC / INFIRMIER (AVEC CRÉATION DE COMPTES)
+   MODULE PLAN COMPTABLE BNC & COMPTES AUXILIAIRES (411)
    ========================================================================== */
 
-// Liste par défaut des comptes BNC
+// --- PLAN COMPTABLE GÉNÉRAL PAR DÉFAUT ---
 window.PLAN_COMPTABLE_DEFAUT = [
     { id: 1, code: '108000', intitule: 'Compte de l exploitant (Prélèvements / Apports)', type: 'Bilan' },
     { id: 2, code: '215400', intitule: 'Matériel médical et biomédical', type: 'Immobilisation' },
@@ -10,7 +10,7 @@ window.PLAN_COMPTABLE_DEFAUT = [
     { id: 4, code: '218300', intitule: 'Matériel informatique et de bureau', type: 'Immobilisation' },
     { id: 5, code: '281500', intitule: 'Amortissements du matériel', type: 'Amortissement' },
     { id: 6, code: '401000', intitule: 'Fournisseurs et Dettes à régler', type: 'Tiers' },
-    { id: 7, code: '411000', intitule: 'Patients & Caisses (Créances d honoraires)', type: 'Tiers' },
+    { id: 7, code: '411000', intitule: 'Patients & Caisses (Compte Collectif)', type: 'Tiers' },
     { id: 8, code: '437000', intitule: 'Organismes sociaux (URSSAF, CARPIMKO)', type: 'Tiers' },
     { id: 9, code: '445700', intitule: 'TVA collectée', type: 'Tiers' },
     { id: 10, code: '445660', intitule: 'TVA déductible sur autres biens et services', type: 'Tiers' },
@@ -32,19 +32,28 @@ window.PLAN_COMPTABLE_DEFAUT = [
     { id: 26, code: '709000', intitule: 'Rétrocessions d honoraires reçues', type: 'Recette' }
 ];
 
-// Chargement depuis le cache local s'il existe
-window.chargerComptes = function() {
-    var sautes = localStorage.getItem('PLAN_COMPTABLE_BNC_CUSTOM');
-    if (sautes) {
-        try { return JSON.parse(sautes); } catch(e){}
-    }
-    return window.PLAN_COMPTABLE_DEFAUT;
-};
+// --- COMPTES AUXILIAIRES 411 PAR DÉFAUT ---
+window.PLAN_AUXILIAIRE_411_DEFAUT = [
+    { id: 1, code: '411200', intitule: 'CPAM / Assurance Maladie (Tiers-Payant)', categorie: 'Caisse Sécurité Sociale' },
+    { id: 2, code: '411300', intitule: 'Mutuelles / Complémentaires Santé', categorie: 'Mutuelle' },
+    { id: 3, code: '411100', intitule: 'Patients - Règlements Directs', categorie: 'Patient Direct' },
+    { id: 4, code: '411400', intitule: 'SSIAD / HAD / Structures de soins', categorie: 'Etablissement' }
+];
 
-window.PLAN_COMPTABLE_BNC = window.chargerComptes();
+window.ongletActifPlan = 'general'; // 'general' ou 'auxiliaire'
+
+// Chargement du stockage local
+window.chargerDonneesComptables = function() {
+    var general = localStorage.getItem('PLAN_COMPTABLE_BNC_CUSTOM');
+    window.PLAN_COMPTABLE_BNC = general ? JSON.parse(general) : window.PLAN_COMPTABLE_DEFAUT;
+
+    var aux = localStorage.getItem('PLAN_AUXILIAIRE_411_CUSTOM');
+    window.PLAN_AUXILIAIRE_411 = aux ? JSON.parse(aux) : window.PLAN_AUXILIAIRE_411_DEFAUT;
+};
+window.chargerDonneesComptables();
 
 /**
- * Rendu principal du Plan Comptable
+ * Affichage Principal
  */
 window.afficherPlanComptable = function(filtreText) {
     var container = document.getElementById('contenu-plan-comptable') || 
@@ -62,31 +71,54 @@ window.afficherPlanComptable = function(filtreText) {
 
     if (!container) return;
 
-    var liste = window.PLAN_COMPTABLE_BNC;
+    var isGeneral = (window.ongletActifPlan === 'general');
+    var liste = isGeneral ? window.PLAN_COMPTABLE_BNC : window.PLAN_AUXILIAIRE_411;
 
+    // Filtrage
     if (filtreText && filtreText.trim() !== '') {
         var term = filtreText.toLowerCase().trim();
         liste = liste.filter(function(item) {
-            return item.code.toLowerCase().includes(term) || item.intitule.toLowerCase().includes(term);
+            var cat = item.categorie ? item.categorie.toLowerCase() : '';
+            var type = item.type ? item.type.toLowerCase() : '';
+            return item.code.toLowerCase().includes(term) || 
+                   item.intitule.toLowerCase().includes(term) ||
+                   cat.includes(term) || type.includes(term);
         });
     }
 
     var html = `
         <div style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:15px; margin-top:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            <!-- En-tête avec Actions -->
+            
+            <!-- Commutateur d'Onglets -->
+            <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px;">
+                <button onclick="window.changerOngletPlan('general')" 
+                        style="padding:10px 18px; font-weight:600; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${isGeneral ? '#2563eb' : 'transparent'}; color:${isGeneral ? '#2563eb' : '#64748b'};">
+                    Plan Comptable Général
+                </button>
+                <button onclick="window.changerOngletPlan('auxiliaire')" 
+                        style="padding:10px 18px; font-weight:600; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${!isGeneral ? '#2563eb' : 'transparent'}; color:${!isGeneral ? '#2563eb' : '#64748b'};">
+                    Comptes Individuels Patients / Caisses (411 Auxiliaires)
+                </button>
+            </div>
+
+            <!-- Barre d'actions -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
                 <div>
-                    <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">Plan Comptable - Infirmiers Libéraux</h3>
-                    <p style="font-size:12px; color:#64748b; margin:2px 0 0 0;">Liste dynamique des comptes comptables</p>
+                    <h3 style="font-size:15px; font-weight:700; color:#0f172a; margin:0;">
+                        ${isGeneral ? 'Comptes Généraux (Classes 1 à 7)' : 'Plan Auxiliaire - Comptes Individuels 411'}
+                    </h3>
+                    <p style="font-size:12px; color:#64748b; margin:2px 0 0 0;">
+                        ${isGeneral ? 'Structure générale de votre comptabilité BNC' : 'Suivi individuel par patient, caisse CPAM ou mutuelle'}
+                    </p>
                 </div>
                 <div style="display:flex; gap:10px;">
                     <input type="text" id="input-search-plan" placeholder="🔍 Rechercher..." 
                            oninput="window.afficherPlanComptable(this.value)" 
                            value="${filtreText || ''}"
                            style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; width:200px; outline:none;" />
-                    <button onclick="window.ouvrirModalNouveauCompte()" 
+                    <button onclick="${isGeneral ? 'window.ouvrirModalNouveauCompte()' : 'window.ouvrirModalNouveau411()'}" 
                             style="background:#2563eb; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer;">
-                        + Nouveau compte
+                        ${isGeneral ? '+ Nouveau compte général' : '+ Nouveau compte 411'}
                     </button>
                 </div>
             </div>
@@ -97,9 +129,9 @@ window.afficherPlanComptable = function(filtreText) {
                     <thead>
                         <tr style="background:#f8fafc; color:#475569; border-bottom:1px solid #e2e8f0;">
                             <th style="padding:10px 15px; width:8%;">ID</th>
-                            <th style="padding:10px 15px; width:18%;">Code Compte</th>
-                            <th style="padding:10px 15px;">Intitulé du compte</th>
-                            <th style="padding:10px 15px; text-align:center; width:18%;">Type</th>
+                            <th style="padding:10px 15px; width:20%;">Code Compte</th>
+                            <th style="padding:10px 15px;">Intitulé / Nom du Tiers</th>
+                            <th style="padding:10px 15px; text-align:center; width:22%;">${isGeneral ? 'Type' : 'Catégorie'}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,11 +140,12 @@ window.afficherPlanComptable = function(filtreText) {
     liste.forEach(function(item) {
         var badgeColor = '#64748b';
         var badgeBg = '#f1f5f9';
+        var labelType = isGeneral ? item.type : item.categorie;
 
-        if (item.type === 'Recette') { badgeColor = '#15803d'; badgeBg = '#dcfce7'; }
-        else if (item.type === 'Dépense') { badgeColor = '#b91c1c'; badgeBg = '#fee2e2'; }
-        else if (item.type === 'Banque' || item.type === 'Caisse') { badgeColor = '#0369a1'; badgeBg = '#e0f2fe'; }
-        else if (item.type === 'Tiers' || item.type === 'Bilan' || item.type === 'Immobilisation') { badgeColor = '#6b21a8'; badgeBg = '#f3e8ff'; }
+        if (labelType === 'Recette' || labelType === 'Patient Direct') { badgeColor = '#15803d'; badgeBg = '#dcfce7'; }
+        else if (labelType === 'Dépense') { badgeColor = '#b91c1c'; badgeBg = '#fee2e2'; }
+        else if (labelType === 'Banque' || labelType === 'Caisse Sécurité Sociale') { badgeColor = '#0369a1'; badgeBg = '#e0f2fe'; }
+        else if (labelType === 'Mutuelle' || labelType === 'Etablissement' || labelType === 'Tiers') { badgeColor = '#6b21a8'; badgeBg = '#f3e8ff'; }
 
         html += `
             <tr style="border-bottom:1px solid #f1f5f9;">
@@ -121,7 +154,7 @@ window.afficherPlanComptable = function(filtreText) {
                 <td style="padding:10px 15px; color:#334155;">${item.intitule}</td>
                 <td style="padding:10px 15px; text-align:center;">
                     <span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; color:${badgeColor}; background:${badgeBg};">
-                        ${item.type}
+                        ${labelType}
                     </span>
                 </td>
             </tr>
@@ -144,8 +177,82 @@ window.afficherPlanComptable = function(filtreText) {
     }
 };
 
+window.changerOngletPlan = function(type) {
+    window.ongletActifPlan = type;
+    window.afficherPlanComptable();
+};
+
 /**
- * Fenêtre Pop-up d'ajout de compte
+ * Modal d'ajout de compte individuel 411 (Patient / Mutuelle / CPAM)
+ */
+window.ouvrirModalNouveau411 = function() {
+    var existingModal = document.getElementById('modal-nouveau-411');
+    if (existingModal) existingModal.remove();
+
+    var modal = document.createElement('div');
+    modal.id = 'modal-nouveau-411';
+    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.5); display:flex; justify-content:center; align-items:center; z-index:9999;';
+
+    modal.innerHTML = `
+        <div style="background:#fff; border-radius:8px; padding:20px; width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+            <h3 style="margin-top:0; color:#0f172a; font-size:16px;">Créer un compte individuel 411</h3>
+            
+            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Code Compte Auxiliaire (ex: 411DUPONT ou 411005)</label>
+            <input type="text" id="add-code-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="411MARTIN" />
+
+            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Nom du Patient, Organisme ou Mutuelle</label>
+            <input type="text" id="add-nom-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="M. MARTIN Jean / Harmonie Mutuelle" />
+
+            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Catégorie de tiers</label>
+            <select id="add-cat-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;">
+                <option value="Patient Direct">Patient - Règlement Direct</option>
+                <option value="Caisse Sécurité Sociale">CPAM / Caisse Primaire</option>
+                <option value="Mutuelle">Mutuelle / Complémentaire</option>
+                <option value="Etablissement">HAD / SSIAD / Clinique</option>
+            </select>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button onclick="document.getElementById('modal-nouveau-411').remove()" 
+                        style="background:#f1f5f9; color:#475569; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:12px;">Annuler</button>
+                <button onclick="window.enregistrerNouveau411()" 
+                        style="background:#16a34a; color:#fff; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Créer le compte 411</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+};
+
+window.enregistrerNouveau411 = function() {
+    var code = document.getElementById('add-code-411').value.trim();
+    var intitule = document.getElementById('add-nom-411').value.trim();
+    var cat = document.getElementById('add-cat-411').value;
+
+    if (!code || !intitule) {
+        alert('Veuillez remplir le code et le nom du tiers.');
+        return;
+    }
+
+    if (!code.startsWith('411')) {
+        code = '411' + code;
+    }
+
+    var nouveau = {
+        id: window.PLAN_AUXILIAIRE_411.length + 1,
+        code: code.toUpperCase(),
+        intitule: intitule,
+        categorie: cat
+    };
+
+    window.PLAN_AUXILIAIRE_411.push(nouveau);
+    localStorage.setItem('PLAN_AUXILIAIRE_411_CUSTOM', JSON.stringify(window.PLAN_AUXILIAIRE_411));
+
+    document.getElementById('modal-nouveau-411').remove();
+    window.afficherPlanComptable();
+};
+
+/**
+ * Modal d'ajout de compte Général
  */
 window.ouvrirModalNouveauCompte = function() {
     var existingModal = document.getElementById('modal-nouveau-compte');
@@ -157,13 +264,13 @@ window.ouvrirModalNouveauCompte = function() {
 
     modal.innerHTML = `
         <div style="background:#fff; border-radius:8px; padding:20px; width:380px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
-            <h3 style="margin-top:0; color:#0f172a; font-size:16px;">Créer un nouveau compte</h3>
+            <h3 style="margin-top:0; color:#0f172a; font-size:16px;">Créer un compte général</h3>
             
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Code Compte (ex: 606100)</label>
             <input type="text" id="add-code-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="606100" />
 
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Intitulé du compte</label>
-            <input type="text" id="add-libelle-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="Électricité cabinet" />
+            <input type="text" id="add-libelle-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="Fournitures informatiques" />
 
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Type de compte</label>
             <select id="add-type-compte" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;">
@@ -187,9 +294,6 @@ window.ouvrirModalNouveauCompte = function() {
     document.body.appendChild(modal);
 };
 
-/**
- * Enregistrement dans le Plan Comptable
- */
 window.enregistrerNouveauCompte = function() {
     var code = document.getElementById('add-code-compte').value.trim();
     var intitule = document.getElementById('add-libelle-compte').value.trim();
@@ -210,7 +314,7 @@ window.enregistrerNouveauCompte = function() {
     window.afficherPlanComptable();
 };
 
-// Exécution automatique
+// Auto-exécution lors du basculement d'onglet
 setInterval(function() {
     var container = document.getElementById('contenu-plan-comptable') || document.getElementById('plan-comptable-container');
     if (container && container.innerHTML.includes('Chargement du plan comptable...')) {
