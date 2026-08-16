@@ -1,16 +1,24 @@
-// plan_comptable.js - Version corrigée avec détection automatique des libellés
+// plan_comptable.js - Version corrigée et intégrée
 
 (function () {
+    /**
+     * Récupération sécurisée du client Supabase
+     */
     function getSupabase() {
         return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
 
     let ongletActif = 'GENERAL';
 
+    /**
+     * Initialisation du module et injection de la structure HTML
+     */
     async function chargerPlanComptable() {
-        const zoneCible = Array.from(document.querySelectorAll('div, section, main')).find(el => 
-            el.children.length <= 2 && el.textContent && el.textContent.includes('Chargement du plan comptable...')
-        ) || document.querySelector('#plan-comptable') || document.querySelector('.plan-comptable-content');
+        // Ciblage préférentiel du conteneur défini dans index.html
+        const zoneCible = document.getElementById('conteneur-plan-comptable') || 
+                          Array.from(document.querySelectorAll('div, section, main')).find(el => 
+                              el.children.length <= 2 && el.textContent && el.textContent.includes('Chargement du plan comptable...')
+                          );
 
         if (!zoneCible) return;
 
@@ -82,34 +90,49 @@
         const btnTiers = document.getElementById('pc-tab-tiers');
         const modal = document.getElementById('pc-modal');
 
-        btnGen.onclick = () => {
-            ongletActif = 'GENERAL';
-            btnGen.style.backgroundColor = '#2563eb'; btnGen.style.color = 'white'; btnGen.style.border = 'none';
-            btnTiers.style.backgroundColor = '#f8fafc'; btnTiers.style.color = '#334155'; btnTiers.style.border = '1px solid #cbd5e1';
-            chargerDonnees();
-        };
+        if (btnGen) {
+            btnGen.onclick = () => {
+                ongletActif = 'GENERAL';
+                btnGen.style.backgroundColor = '#2563eb'; btnGen.style.color = 'white'; btnGen.style.border = 'none';
+                btnTiers.style.backgroundColor = '#f8fafc'; btnTiers.style.color = '#334155'; btnTiers.style.border = '1px solid #cbd5e1';
+                chargerDonnees();
+            };
+        }
 
-        btnTiers.onclick = () => {
-            ongletActif = 'TIERS';
-            btnTiers.style.backgroundColor = '#2563eb'; btnTiers.style.color = 'white'; btnTiers.style.border = 'none';
-            btnGen.style.backgroundColor = '#f8fafc'; btnGen.style.color = '#334155'; btnGen.style.border = '1px solid #cbd5e1';
-            chargerDonnees();
-        };
+        if (btnTiers) {
+            btnTiers.onclick = () => {
+                ongletActif = 'TIERS';
+                btnTiers.style.backgroundColor = '#2563eb'; btnTiers.style.color = 'white'; btnTiers.style.border = 'none';
+                btnGen.style.backgroundColor = '#f8fafc'; btnGen.style.color = '#334155'; btnGen.style.border = '1px solid #cbd5e1';
+                chargerDonnees();
+            };
+        }
 
-        document.getElementById('pc-btn-add').onclick = () => { modal.style.display = 'flex'; };
-        document.getElementById('pc-btn-close').onclick = () => { modal.style.display = 'none'; };
-        document.getElementById('pc-btn-save').onclick = enregistrerCompte;
+        const btnAdd = document.getElementById('pc-btn-add');
+        if (btnAdd) btnAdd.onclick = () => { modal.style.display = 'flex'; };
+
+        const btnClose = document.getElementById('pc-btn-close');
+        if (btnClose) btnClose.onclick = () => { modal.style.display = 'none'; };
+
+        const btnSave = document.getElementById('pc-btn-save');
+        if (btnSave) btnSave.onclick = enregistrerCompte;
 
         await chargerDonnees();
     }
 
+    /**
+     * Récupération des données depuis Supabase et affichage
+     */
     async function chargerDonnees() {
         const tbody = document.getElementById('pc-tbody');
         if (!tbody) return;
 
         try {
             const supabase = getSupabase();
-            if (!supabase) return;
+            if (!supabase) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ef4444;">Erreur : Supabase non initialisé.</td></tr>`;
+                return;
+            }
 
             const { data, error } = await supabase.from('plan_comptable').select('*');
             if (error) {
@@ -119,14 +142,14 @@
 
             let liste = data || [];
 
-            // Tri par code
+            // Tri par code de compte
             liste.sort((a, b) => {
                 const codeA = String(a.code_compte || a.compte_code || a.code || '');
                 const codeB = String(b.code_compte || b.compte_code || b.code || '');
                 return codeA.localeCompare(codeB);
             });
 
-            // Filtrage onglet
+            // Filtrage selon l'onglet actif
             const filtres = liste.filter(row => {
                 const code = String(row.code_compte || row.compte_code || row.code || '');
                 const type = String(row.type || row.categorie || '').toUpperCase();
@@ -141,8 +164,6 @@
 
             tbody.innerHTML = filtres.map((row, idx) => {
                 const code = row.code_compte || row.compte_code || row.code || '-';
-                
-                // Détection dynamique du champ de libellé dans l'objet
                 const label = row.intitule || row.libelle || row.compte_libelle || row.nom || row.label || row.description || '-';
                 const type = row.type || row.categorie || 'Général';
 
@@ -161,8 +182,16 @@
         }
     }
 
+    /**
+     * Enregistrement d'un compte dans Supabase avec rétrocompatibilité des colonnes
+     */
     async function enregistrerCompte() {
         const supabase = getSupabase();
+        if (!supabase) {
+            alert("Erreur : Connexion à Supabase indisponible.");
+            return;
+        }
+
         const code = document.getElementById('pc-in-code').value.trim();
         const label = document.getElementById('pc-in-label').value.trim();
         const type = document.getElementById('pc-in-type').value;
@@ -172,8 +201,7 @@
             return;
         }
 
-        // Test de structures pour s'adapter au schéma exact de Supabase
-        const optionsIncertion = [
+        const optionsInsertion = [
             { code_compte: code, intitule: label, type: type },
             { code_compte: code, libelle: label, type: type },
             { compte_code: code, compte_libelle: label, type: type },
@@ -183,7 +211,7 @@
         let reussi = false;
         let dernierMessageErreur = '';
 
-        for (const payload of optionsIncertion) {
+        for (const payload of optionsInsertion) {
             const { error } = await supabase.from('plan_comptable').insert([payload]);
             if (!error) {
                 reussi = true;
@@ -202,16 +230,19 @@
         }
     }
 
+    // Expositions globales pour déclenchement depuis le HTML / switchTab
     window.chargerPlanComptable = chargerPlanComptable;
+    window.afficherPlanComptable = chargerPlanComptable;
 
+    // Détection d'interaction avec le menu
     document.addEventListener('click', (e) => {
         const el = e.target.closest('button, a, div');
         if (el && el.textContent && el.textContent.trim().toLowerCase().includes('plan comptable')) {
             setTimeout(chargerPlanComptable, 100);
-            setTimeout(chargerPlanComptable, 300);
         }
     });
 
+    // Chargement automatique lors du chargement de la page
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(chargerPlanComptable, 200);
     } else {
