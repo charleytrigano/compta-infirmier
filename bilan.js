@@ -1,4 +1,4 @@
-// bilan.js - Compte de Résultat / Déclaration 2035 & Bilan
+// bilan.js - Compte de Résultat / Déclaration 2035 avec Filtre d'Exercice
 
 (function () {
     function getSupabase() {
@@ -9,21 +9,32 @@
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
     }
 
+    // Année sélectionnée par défaut (année en cours ou dernière saisie)
+    let anneeSelectionnee = new Date().getFullYear();
+
     async function chargerBilanEtCE() {
         const vueBilan = document.getElementById('vue-bilan') || document.querySelector('[data-view="bilan"]') || document.querySelector('[id*="bilan"]');
-        if (!vueBilan && !document.querySelector('body')) return;
+        if (!vueBilan && !document.body) return;
 
         const supabase = getSupabase();
         if (!supabase) return;
 
+        // Inserer le filtre d'exercice dans la vue s'il n'existe pas encore
+        injecterFiltreExercice(vueBilan);
+
         try {
-            // Lecture des écritures bancaires (Compte 512000)
+            // Filtrer les ecritures par annee d'exercice (1er janv au 31 dec)
+            const dateDebut = `${anneeSelectionnee}-01-01`;
+            const dateFin = `${anneeSelectionnee}-12-31`;
+
             const { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
-                .or('compte_code.eq.512000,compte_code.like.512%');
+                .or('compte_code.eq.512000,compte_code.like.512%')
+                .gte('date', dateDebut)
+                .lte('date', dateFin);
 
-            if (error || !data) return;
+            if (error) return;
 
             let totalRecettes = 0;
             let totalDepenses = 0;
@@ -31,29 +42,28 @@
             const recMap = new Map();
             const depMap = new Map();
 
-            data.forEach(row => {
+            (data || []).forEach(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
                 const cat = row.category || 'Autres';
 
                 if (debit > 0) {
-                    // Encaissement / Recette
                     totalRecettes += debit;
                     recMap.set(cat, (recMap.get(cat) || 0) + debit);
                 } else if (credit > 0) {
-                    // Décaissement / Dépense
                     totalDepenses += credit;
                     depMap.set(cat, (depMap.get(cat) || 0) + credit);
                 }
             });
 
-            // Mise à jour des blocs Recettes
-            const elTotalRecettes = vueBilan ? vueBilan.querySelector('.recettes-total, [id*="total-recettes"]') : null;
-            const tbodyRecettes = vueBilan ? vueBilan.querySelectorAll('tbody')[0] : null;
+            // Affichage des Recettes
+            const tbodies = vueBilan ? vueBilan.querySelectorAll('tbody') : document.querySelectorAll('tbody');
+            const tbodyRecettes = tbodies[0];
+            const tbodyDepenses = tbodies[1];
 
             if (tbodyRecettes) {
                 if (recMap.size === 0) {
-                    tbodyRecettes.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 10px;">Aucune recette enregistrée.</td></tr>`;
+                    tbodyRecettes.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 12px;">Aucune recette enregistrée pour l'exercice ${anneeSelectionnee}.</td></tr>`;
                 } else {
                     let htmlRec = '';
                     recMap.forEach((montant, cat) => {
@@ -62,18 +72,16 @@
                                 <td style="padding: 8px; color: #64748b; font-weight: 600;">AA</td>
                                 <td style="padding: 8px; color: #334155;">${cat}</td>
                                 <td style="padding: 8px; text-align: right; font-weight: 600; color: #16a34a;">${formatEuro(montant)}</td>
-                            </tr>
-                        `;
+                            </tr>`;
                     });
                     tbodyRecettes.innerHTML = htmlRec;
                 }
             }
 
-            // Mise à jour des blocs Dépenses
-            const tbodyDepenses = vueBilan ? vueBilan.querySelectorAll('tbody')[1] : null;
+            // Affichage des Dépenses
             if (tbodyDepenses) {
                 if (depMap.size === 0) {
-                    tbodyDepenses.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 10px;">Aucune dépense enregistrée.</td></tr>`;
+                    tbodyDepenses.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 12px;">Aucune dépense enregistrée pour l'exercice ${anneeSelectionnee}.</td></tr>`;
                 } else {
                     let htmlDep = '';
                     depMap.forEach((montant, cat) => {
@@ -82,30 +90,25 @@
                                 <td style="padding: 8px; color: #64748b; font-weight: 600;">BT</td>
                                 <td style="padding: 8px; color: #334155;">${cat}</td>
                                 <td style="padding: 8px; text-align: right; font-weight: 600; color: #dc2626;">${formatEuro(montant)}</td>
-                            </tr>
-                        `;
+                            </tr>`;
                     });
                     tbodyDepenses.innerHTML = htmlDep;
                 }
             }
 
-            // Mise à jour des Totaux généraux et Résultat
+            // Totaux et Résultat
             const resultat = totalRecettes - totalDepenses;
 
-            // Recherche dynamique des zones de texte de totaux
             document.querySelectorAll('*').forEach(el => {
                 if (el.children.length === 0) {
                     if (el.textContent.includes('TOTAL RECETTES BRUTES')) {
-                        const target = el.querySelector('span') || el.nextElementSibling || el;
-                        if (target) target.textContent = `TOTAL RECETTES BRUTES (Ligne AG) : ${formatEuro(totalRecettes)}`;
+                        el.textContent = `TOTAL RECETTES BRUTES (Ligne AG) : ${formatEuro(totalRecettes)}`;
                     }
                     if (el.textContent.includes('TOTAL DÉPENSES DÉDUCTIBLES')) {
-                        const target = el.querySelector('span') || el.nextElementSibling || el;
-                        if (target) target.textContent = `TOTAL DÉPENSES DÉDUCTIBLES (Ligne CH) : ${formatEuro(totalDepenses)}`;
+                        el.textContent = `TOTAL DÉPENSES DÉDUCTIBLES (Ligne CH) : ${formatEuro(totalDepenses)}`;
                     }
                     if (el.textContent.includes('RÉSULTAT FISCAL')) {
-                        const target = el.querySelector('span') || el.nextElementSibling || el;
-                        if (target) target.textContent = `RÉSULTAT FISCAL : BÉNÉFICE (Ligne CP) : ${formatEuro(resultat)}`;
+                        el.textContent = `RÉSULTAT FISCAL : BÉNÉFICE (Ligne CP) : ${formatEuro(resultat)}`;
                     }
                 }
             });
@@ -115,9 +118,35 @@
         }
     }
 
+    /**
+     * Injecte le menu déroulant de sélection d'exercice
+     */
+    function injecterFiltreExercice(vueBilan) {
+        if (document.getElementById('select-exercice-annee')) return;
+
+        const conteneur = vueBilan || document.querySelector('main') || document.body;
+        const divFiltre = document.createElement('div');
+        divFiltre.style.cssText = "display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;";
+        
+        divFiltre.innerHTML = `
+            <label for="select-exercice-annee" style="font-weight: 600; color: #334155;">📅 Exercice fiscal :</label>
+            <select id="select-exercice-annee" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; background: white;">
+                <option value="2026" selected>2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+            </select>
+        `;
+
+        conteneur.insertBefore(divFiltre, conteneur.firstChild);
+
+        document.getElementById('select-exercice-annee').addEventListener('change', (e) => {
+            anneeSelectionnee = parseInt(e.target.value, 10);
+            chargerBilanEtCE();
+        });
+    }
+
     window.chargerBilanEtCE = chargerBilanEtCE;
 
-    // Clic sur l'onglet Bilan / CE
     document.addEventListener('click', (e) => {
         const el = e.target.closest('button, a, div');
         if (el && el.textContent && el.textContent.trim().toLowerCase().includes('bilan')) {
