@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MODULE GRAND LIVRE (COMPTES DE CLASSE 6 ET 7 + BANQUE 512)
+   MODULE GRAND LIVRE (COMPTES DE CLASSE 6 ET 7)
    ========================================================================== */
 
 /**
@@ -51,7 +51,22 @@ window.obtenirCompteComptable = function(tx) {
  * Fonction principale : Calcule et affiche le Grand Livre complet
  */
 window.afficherGrandLivre = function() {
-    var container = document.getElementById('vue-grand-livre') || document.getElementById('grand-livre-container');
+    // Ciblage multi-ID pour s'adapter à la structure HTML exacte
+    var container = document.getElementById('contenu-grand-livre') || 
+                      document.getElementById('grand-livre-contenu') || 
+                      document.getElementById('vue-grand-livre') || 
+                      document.getElementById('grand-livre-container');
+
+    // Si aucun ID spécifique n'est trouvé, cherche la zone sous le titre "Grand Livre"
+    if (!container) {
+        var toutLesDivs = document.querySelectorAll('div');
+        toutLesDivs.forEach(function(div) {
+            if (div.textContent.includes('Chargement du grand livre...')) {
+                container = div;
+            }
+        });
+    }
+
     if (!container) return;
 
     var transactions = window.transactions || [];
@@ -72,7 +87,7 @@ window.afficherGrandLivre = function() {
             comptesMap[codeCompte] = {
                 code: codeCompte,
                 libelle: infoCompte.libelle,
-                écritures: [],
+                ecritures: [],
                 totalDebit: 0,
                 totalCredit: 0
             };
@@ -88,7 +103,7 @@ window.afficherGrandLivre = function() {
         comptesMap[codeCompte].totalDebit += debit;
         comptesMap[codeCompte].totalCredit += credit;
 
-        comptesMap[codeCompte].écritures.push({
+        comptesMap[codeCompte].ecritures.push({
             date: tx.date || '',
             description: tx.description || tx.libelle || '',
             debit: debit,
@@ -100,7 +115,7 @@ window.afficherGrandLivre = function() {
     var codesTries = Object.keys(comptesMap).sort();
 
     // Génération du HTML
-    var html = '<div style="display:flex; flex-direction:column; gap:25px;">';
+    var html = '<div style="display:flex; flex-direction:column; gap:25px; margin-top:15px;">';
 
     codesTries.forEach(function(code) {
         var compte = comptesMap[code];
@@ -130,7 +145,7 @@ window.afficherGrandLivre = function() {
                     <tbody>
         `;
 
-        compte.écritures.forEach(function(ecr) {
+        compte.ecritures.forEach(function(ecr) {
             html += `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:8px 15px; color:#64748b;">${ecr.date}</td>
@@ -160,7 +175,7 @@ window.afficherGrandLivre = function() {
     container.innerHTML = html;
 };
 
-// Auto-exécution si les transactions sont prêtes
+// Exécution automatique si les transactions sont déjà chargées
 if (window.transactions && window.transactions.length > 0) {
     window.afficherGrandLivre();
 }
