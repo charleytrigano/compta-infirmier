@@ -1,4 +1,4 @@
-// grand_livre.js - Mapping réel avec le Plan Comptable général libéral (BNC)
+// grand_livre.js - Grand Livre structuré par Classes (1 à 9), Sous-totaux Comptes & Totaux Classes
 
 (function () {
     function getSupabaseClient() {
@@ -10,16 +10,27 @@
         compteFiltre: 'TOUS'
     };
 
-    // Table de correspondance officielle des catégories vers les numéros de comptes
+    const NOMS_CLASSES = {
+        '1': 'Classe 1 - Comptes de capitaux',
+        '2': 'Classe 2 - Comptes d\'immobilisations',
+        '3': 'Classe 3 - Comptes de stocks et en-cours',
+        '4': 'Classe 4 - Comptes de tiers',
+        '5': 'Classe 5 - Comptes financiers',
+        '6': 'Classe 6 - Comptes de charges',
+        '7': 'Classe 7 - Comptes de produits',
+        '8': 'Classe 8 - Comptes spéciaux',
+        '9': 'Classe 9 - Comptes analytiques'
+    };
+
     const MAPPING_COMPTES = {
-        'soins infirmiers': { code: '706000', nom: 'Prestations de services / Honoraires (706000)' },
-        'carpimko': { code: '646000', nom: 'Cotisations sociales CARPIMKO (646000)' },
-        'urssaf': { code: '645000', nom: 'Cotisations URSSAF (645000)' },
-        'achats': { code: '606000', nom: 'Achats de matériel et fournitures (606000)' },
-        'frais de deplacement': { code: '625100', nom: 'Frais de déplacement / Carburant (625100)' },
-        'frais bancaires': { code: '627000', nom: 'Frais bancaires (627000)' },
-        'loyer': { code: '613200', nom: 'Loyer professionnel (613200)' },
-        'assurance': { code: '616000', nom: 'Primes d\'assurances (616000)' }
+        'soins infirmiers': { code: '706000', nom: '706000 - Prestations de services / Honoraires' },
+        'carpimko': { code: '646000', nom: '646000 - Cotisations sociales CARPIMKO' },
+        'urssaf': { code: '645000', nom: '645000 - Cotisations URSSAF' },
+        'achats': { code: '606000', nom: '606000 - Achats de matériel et fournitures' },
+        'frais de deplacement': { code: '625100', nom: '625100 - Frais de déplacement' },
+        'frais bancaires': { code: '627000', nom: '627000 - Frais bancaires' },
+        'loyer': { code: '613200', nom: '613200 - Loyer professionnel' },
+        'assurance': { code: '616000', nom: '616000 - Primes d\'assurances' }
     };
 
     function trouverConteneurGrandLivre() {
@@ -48,33 +59,17 @@
                     </div>
                 </div>
 
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
-                        <thead>
-                            <tr style="background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
-                                <th style="padding: 10px; color: #4b5563;">Date</th>
-                                <th style="padding: 10px; color: #4b5563;">Compte</th>
-                                <th style="padding: 10px; color: #4b5563;">Catégorie</th>
-                                <th style="padding: 10px; color: #4b5563;">Description</th>
-                                <th style="padding: 10px; text-align: right; color: #4b5563;">Débit (€)</th>
-                                <th style="padding: 10px; text-align: right; color: #4b5563;">Crédit (€)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="grandLivreTableBody">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Chargement des données...</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr style="border-top: 2px solid #e5e7eb; font-weight: bold; background: #f9fafb;">
-                                <td colspan="4" style="text-align: right; padding: 10px; color: #374151;">Totaux :</td>
-                                <td id="totalDebit" style="text-align: right; padding: 10px; color: #16a34a;">0.00 €</td>
-                                <td id="totalCredit" style="text-align: right; padding: 10px; color: #dc2626;">0.00 €</td>
-                            </tr>
-                            <tr style="font-weight: bold; background: #f3f4f6;">
-                                <td colspan="4" style="text-align: right; padding: 10px; color: #111827;">Solde Général :</td>
-                                <td id="soldeGlobal" colspan="2" style="text-align: right; padding: 10px; font-size: 1rem;">0.00 €</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                <div id="grandLivreContainer" style="display: flex; flex-direction: column; gap: 20px;">
+                    <div style="text-align: center; padding: 20px; color: #6b7280;">Chargement du Grand Livre...</div>
+                </div>
+
+                <div style="margin-top: 25px; padding: 15px; background-color: #1e293b; color: white; border-radius: 8px; font-weight: bold; font-size: 1rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <span>TOTAL GÉNÉRAL DU GRAND LIVRE :</span>
+                    <div style="display: flex; gap: 30px;">
+                        <span style="color: #4ade80;">Débit : <span id="totalGeneralDebit">0.00 €</span></span>
+                        <span style="color: #f87171;">Crédit : <span id="totalGeneralCredit">0.00 €</span></span>
+                        <span>Solde : <span id="totalGeneralSolde">0.00 €</span></span>
+                    </div>
                 </div>
             </div>
         `;
@@ -99,8 +94,8 @@
     }
 
     function determinerCompte(tx) {
-        if (tx.compte_code && tx.compte_code !== '411000') {
-            return { code: tx.compte_code, nom: `${tx.compte_code} - ${tx.category || tx.categorie}` };
+        if (tx.compte_code && tx.compte_code.length >= 3) {
+            return { code: tx.compte_code, nom: `${tx.compte_code} - ${tx.category || tx.categorie || 'Opération'}` };
         }
 
         const cat = (tx.category || tx.categorie || '').toLowerCase();
@@ -111,10 +106,9 @@
             }
         }
 
-        // Si c'est un client/patient spécifique (ex: Tiers payant / Patient Abadie)
         const desc = (tx.description || '').trim();
-        if (desc && (cat.includes('soins') || tx.type === 'recette')) {
-            return { code: `411 ${desc}`, nom: `411 ${desc} (Compte auxiliaire Client)` };
+        if (desc && (cat.includes('soins') || (tx.type || '').toLowerCase().includes('rec'))) {
+            return { code: `411${desc.substring(0, 3).toUpperCase()}`, nom: `411 - Patient/Tiers (${desc})` };
         }
 
         return { code: '471000', nom: '471000 - Compte d\'attente / Divers' };
@@ -122,9 +116,9 @@
 
     function extraireMontants(tx) {
         const val = Math.abs(parseFloat(tx.amount || tx.montant || 0));
-        const type = (tx.type || '').toLowerCase();
+        const type = String(tx.type || '').toLowerCase();
 
-        if (type.includes('recette') || type.includes('rec')) {
+        if (type.startsWith('rec') || type.includes('recette')) {
             return { debit: val, credit: 0 };
         } else {
             return { debit: 0, credit: val };
@@ -147,7 +141,7 @@
             .forEach(([code, nom]) => {
                 const opt = document.createElement('option');
                 opt.value = code;
-                opt.textContent = `${code} - ${nom}`;
+                opt.textContent = nom;
                 select.appendChild(opt);
             });
 
@@ -158,56 +152,167 @@
     }
 
     function afficherGrandLivre() {
-        const tbody = document.getElementById('grandLivreTableBody');
-        const totalDebitEl = document.getElementById('totalDebit');
-        const totalCreditEl = document.getElementById('totalCredit');
-        const soldeGlobalEl = document.getElementById('soldeGlobal');
+        const container = document.getElementById('grandLivreContainer');
+        const totDebitEl = document.getElementById('totalGeneralDebit');
+        const totCreditEl = document.getElementById('totalGeneralCredit');
+        const totSoldeEl = document.getElementById('totalGeneralSolde');
 
-        if (!tbody) return;
-        tbody.innerHTML = '';
+        if (!container) return;
+        container.innerHTML = '';
 
-        let totalDebit = 0;
-        let totalCredit = 0;
+        let totalGeneralDebit = 0;
+        let totalGeneralCredit = 0;
 
-        const txs = state.transactions.filter(tx => {
-            if (state.compteFiltre === 'TOUS') return true;
-            return determinerCompte(tx).code === state.compteFiltre;
+        // Regroupement par Classe -> Compte -> Transactions
+        const arborescence = {};
+
+        state.transactions.forEach(tx => {
+            const c = determinerCompte(tx);
+            if (state.compteFiltre !== 'TOUS' && c.code !== state.compteFiltre) return;
+
+            const numClasse = c.code.charAt(0);
+            const numCompte = c.code;
+
+            if (!arborescence[numClasse]) arborescence[numClasse] = {};
+            if (!arborescence[numClasse][numCompte]) {
+                arborescence[numClasse][numCompte] = {
+                    nom: c.nom,
+                    txs: []
+                };
+            }
+
+            arborescence[numClasse][numCompte].txs.push(tx);
         });
 
-        if (txs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération trouvée.</td></tr>';
-            if (totalDebitEl) totalDebitEl.textContent = '0.00 €';
-            if (totalCreditEl) totalCreditEl.textContent = '0.00 €';
-            if (soldeGlobalEl) soldeGlobalEl.textContent = '0.00 €';
+        const classesTriees = Object.keys(arborescence).sort();
+
+        if (classesTriees.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération enregistrée.</div>';
+            if (totDebitEl) totDebitEl.textContent = '0.00 €';
+            if (totCreditEl) totCreditEl.textContent = '0.00 €';
+            if (totSoldeEl) totSoldeEl.textContent = '0.00 €';
             return;
         }
 
-        txs.forEach(tx => {
-            const c = determinerCompte(tx);
-            const { debit, credit } = extraireMontants(tx);
+        classesTriees.forEach(numClasse => {
+            let totalClasseDebit = 0;
+            let totalClasseCredit = 0;
 
-            totalDebit += debit;
-            totalCredit += credit;
+            const classBloc = document.createElement('div');
+            classBloc.style.border = '1px solid #cbd5e1';
+            classBloc.style.borderRadius = '8px';
+            classBloc.style.overflow = 'hidden';
 
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #f3f4f6';
-            tr.innerHTML = `
-                <td style="padding: 8px 10px;">${tx.date || '-'}</td>
-                <td style="padding: 8px 10px;"><strong>${c.code}</strong></td>
-                <td style="padding: 8px 10px;">${tx.category || tx.categorie || '-'}</td>
-                <td style="padding: 8px 10px;">${tx.description || '-'}</td>
-                <td style="padding: 8px 10px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
-                <td style="padding: 8px 10px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
+            const classHeader = document.createElement('div');
+            classHeader.style.backgroundColor = '#0f172a';
+            classHeader.style.color = '#ffffff';
+            classHeader.style.padding = '10px 15px';
+            classHeader.style.fontWeight = 'bold';
+            classHeader.style.fontSize = '1rem';
+            classHeader.textContent = NOMS_CLASSES[numClasse] || `Classe ${numClasse}`;
+            classBloc.appendChild(classHeader);
+
+            const comptes = arborescence[numClasse];
+            const comptesTries = Object.keys(comptes).sort();
+
+            comptesTries.forEach(numCompte => {
+                const compteData = comptes[numCompte];
+                let subTotalDebit = 0;
+                let subTotalCredit = 0;
+
+                const table = document.createElement('table');
+                table.style.width = '100%';
+                table.style.borderCollapse = 'collapse';
+                table.style.fontSize = '0.875rem';
+
+                let htmlContent = `
+                    <thead>
+                        <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+                            <th colspan="6" style="padding: 8px 12px; color: #1e293b; text-align: left; font-size: 0.9rem;">
+                                📁 <strong>${compteData.nom}</strong>
+                            </th>
+                        </tr>
+                        <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #64748b;">
+                            <th style="padding: 6px 12px; text-align: left; width: 100px;">Date</th>
+                            <th style="padding: 6px 12px; text-align: left; width: 100px;">Compte</th>
+                            <th style="padding: 6px 12px; text-align: left;">Catégorie</th>
+                            <th style="padding: 6px 12px; text-align: left;">Description</th>
+                            <th style="padding: 6px 12px; text-align: right; width: 120px;">Débit (€)</th>
+                            <th style="padding: 6px 12px; text-align: right; width: 120px;">Crédit (€)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                `;
+
+                compteData.txs.forEach(tx => {
+                    const { debit, credit } = extraireMontants(tx);
+                    subTotalDebit += debit;
+                    subTotalCredit += credit;
+
+                    htmlContent += `
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 6px 12px;">${tx.date || '-'}</td>
+                            <td style="padding: 6px 12px;"><strong>${numCompte}</strong></td>
+                            <td style="padding: 6px 12px;">${tx.category || tx.categorie || '-'}</td>
+                            <td style="padding: 6px 12px;">${tx.description || '-'}</td>
+                            <td style="padding: 6px 12px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
+                            <td style="padding: 6px 12px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                totalClasseDebit += subTotalDebit;
+                totalClasseCredit += subTotalCredit;
+
+                const subSolde = subTotalDebit - subTotalCredit;
+                htmlContent += `
+                    </tbody>
+                    <tfoot>
+                        <tr style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; font-weight: 600;">
+                            <td colspan="4" style="text-align: right; padding: 6px 12px; color: #334155;">Sous-total (${numCompte}) :</td>
+                            <td style="text-align: right; padding: 6px 12px; color: #16a34a;">${subTotalDebit.toFixed(2)} €</td>
+                            <td style="text-align: right; padding: 6px 12px; color: #dc2626;">${subTotalCredit.toFixed(2)} €</td>
+                        </tr>
+                        <tr style="background-color: #f1f5f9; border-bottom: 2px solid #e2e8f0; font-weight: 600;">
+                            <td colspan="4" style="text-align: right; padding: 6px 12px; color: #475569;">Solde Compte :</td>
+                            <td colspan="2" style="text-align: right; padding: 6px 12px; color: ${subSolde >= 0 ? '#16a34a' : '#dc2626'};">${subSolde.toFixed(2)} €</td>
+                        </tr>
+                    </tfoot>
+                `;
+
+                table.innerHTML = htmlContent;
+                classBloc.appendChild(table);
+            });
+
+            totalGeneralDebit += totalClasseDebit;
+            totalGeneralCredit += totalClasseCredit;
+
+            const soldeClasse = totalClasseDebit - totalClasseCredit;
+            const classFooter = document.createElement('div');
+            classFooter.style.backgroundColor = '#e2e8f0';
+            classFooter.style.padding = '8px 15px';
+            classFooter.style.fontWeight = 'bold';
+            classFooter.style.fontSize = '0.9rem';
+            classFooter.style.display = 'flex';
+            classFooter.style.justifyContent = 'space-between';
+            classFooter.innerHTML = `
+                <span>TOTAL CLASSE ${numClasse} :</span>
+                <div style="display: flex; gap: 20px;">
+                    <span style="color: #16a34a;">Débit : ${totalClasseDebit.toFixed(2)} €</span>
+                    <span style="color: #dc2626;">Crédit : ${totalClasseCredit.toFixed(2)} €</span>
+                    <span>Solde : ${soldeClasse.toFixed(2)} €</span>
+                </div>
             `;
-            tbody.appendChild(tr);
+            classBloc.appendChild(classFooter);
+            container.appendChild(classBloc);
         });
 
-        if (totalDebitEl) totalDebitEl.textContent = totalDebit.toFixed(2) + ' €';
-        if (totalCreditEl) totalCreditEl.textContent = totalCredit.toFixed(2) + ' €';
-        if (soldeGlobalEl) {
-            const solde = totalDebit - totalCredit;
-            soldeGlobalEl.textContent = solde.toFixed(2) + ' €';
-            soldeGlobalEl.style.color = solde >= 0 ? '#16a34a' : '#dc2626';
+        if (totDebitEl) totDebitEl.textContent = totalGeneralDebit.toFixed(2) + ' €';
+        if (totCreditEl) totCreditEl.textContent = totalGeneralCredit.toFixed(2) + ' €';
+        if (totSoldeEl) {
+            const soldeG = totalGeneralDebit - totalGeneralCredit;
+            totSoldeEl.textContent = soldeG.toFixed(2) + ' €';
+            totSoldeEl.style.color = soldeG >= 0 ? '#4ade80' : '#f87171';
         }
     }
 
