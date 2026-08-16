@@ -32,10 +32,7 @@ window.PLAN_COMPTABLE_DEFAUT = [
 ];
 
 window.PLAN_AUXILIAIRE_411_DEFAUT = [
-    { id: 1, code: '411200', intitule: 'CPAM / Assurance Maladie (Tiers-Payant)', categorie: 'Caisse Sécurité Sociale' },
-    { id: 2, code: '411300', intitule: 'Mutuelles / Complémentaires Santé', categorie: 'Mutuelle' },
-    { id: 3, code: '411100', intitule: 'Patients - Règlements Directs', categorie: 'Patient Direct' },
-    { id: 4, code: '411400', intitule: 'SSIAD / HAD / Structures de soins', categorie: 'Etablissement' },
+    
     { id: 5, code: '411 Abadie', intitule: 'Abadie (Patient / Tiers)', categorie: 'Patient Direct' },
     { id: 6, code: '411 Saint-André', intitule: 'Saint-André (Patient / Tiers)', categorie: 'Patient Direct' }
 ];
