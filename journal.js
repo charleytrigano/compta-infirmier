@@ -1,4 +1,4 @@
-// journal.js - Rendu dynamique du Journal et des sous-onglets
+// journal.js - Gestionnaire robuste du Journal des Écritures
 
 (function () {
     function getSupabase() {
@@ -7,16 +7,36 @@
 
     let currentFilter = 'TOUS';
 
-    async function initJournalUI() {
-        const table = document.querySelector('table');
+    // Cible la table appartenant spécifiquement au bloc "Journal des écritures"
+    function trouverTableJournal() {
+        const elTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span, p'))
+            .find(el => el.textContent && el.textContent.trim().toLowerCase().includes('journal des écritures'));
+        
+        if (elTitre) {
+            const conteneur = elTitre.closest('div, section, main') || elTitre.parentElement;
+            if (conteneur) {
+                const table = conteneur.querySelector('table');
+                if (table) return table;
+            }
+        }
+        
+        // Fallback : prend la table actuellement visible à l'écran
+        const tables = Array.from(document.querySelectorAll('table'));
+        return tables.find(t => t.offsetParent !== null) || tables[0];
+    }
+
+    async function chargerEtAfficherJournal() {
+        const table = trouverTableJournal();
         if (!table) return;
 
-        // 1. Création de la barre de filtres si elle n'existe pas
-        let filterBar = document.getElementById('journal-filter-bar');
+        // 1. Injection de la barre de filtres au-dessus du tableau si elle est absente
+        const parent = table.parentNode;
+        let filterBar = parent.querySelector('#journal-filter-bar');
+        
         if (!filterBar) {
             filterBar = document.createElement('div');
             filterBar.id = 'journal-filter-bar';
-            filterBar.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;';
+            filterBar.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; margin-top: 10px;';
             filterBar.innerHTML = `
                 <button data-filter="TOUS" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #2563eb; color: white; cursor: pointer; font-weight: 600;">
                     Tous les journaux
@@ -32,9 +52,8 @@
                 </button>
             `;
 
-            table.parentNode.insertBefore(filterBar, table);
+            parent.insertBefore(filterBar, table);
 
-            // Gestionnaires de clic sur les boutons de filtre
             filterBar.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => {
                     filterBar.querySelectorAll('button').forEach(b => {
@@ -51,14 +70,6 @@
             });
         }
 
-        await chargerEtAfficherJournal();
-    }
-
-    async function chargerEtAfficherJournal() {
-        const supabase = getSupabase();
-        const table = document.querySelector('table');
-        if (!table) return;
-
         let tbody = table.querySelector('tbody');
         if (!tbody) {
             tbody = document.createElement('tbody');
@@ -67,10 +78,11 @@
 
         tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement des écritures...</td></tr>`;
 
+        // 2. Lecture des données depuis Supabase
+        const supabase = getSupabase();
         let ecritures = [];
 
         if (supabase) {
-            // Tentative de récupération depuis 'ecritures_comptables', fallback sur 'transactions'
             const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
             if (ecrData && ecrData.length > 0) {
                 ecritures = ecrData;
@@ -82,7 +94,7 @@
             ecritures = JSON.parse(localStorage.getItem('transactions') || '[]');
         }
 
-        // Filtre selon le sous-onglet sélectionné
+        // 3. Filtrage dynamique selon le sous-onglet actif
         const donneesFiltrees = ecritures.filter(row => {
             const cat = String(row.category || row.compte_code || '').toLowerCase();
             const type = String(row.type || '').toLowerCase();
@@ -100,10 +112,11 @@
         tbody.innerHTML = '';
 
         if (donneesFiltrees.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8;">Aucune écriture enregistrée.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8;">Aucune écriture enregistrée dans Supabase.</td></tr>`;
             return;
         }
 
+        // 4. Génération des lignes du tableau
         donneesFiltrees.forEach(row => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
@@ -115,7 +128,6 @@
             let debitVal = parseFloat(row.debit || 0);
             let creditVal = parseFloat(row.credit || 0);
 
-            // Rétrocompatibilité si enregistrement direct de transactions
             if (!row.compte_code && row.amount) {
                 const amt = Math.abs(parseFloat(row.amount));
                 const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
@@ -139,18 +151,20 @@
         });
     }
 
-    window.initJournalUI = initJournalUI;
-
-    // Déclenchement automatique au chargement du DOM ou au clic d'onglet
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initJournalUI, 150);
-    } else {
-        document.addEventListener('DOMContentLoaded', initJournalUI);
-    }
-
+    // Réactualise l'affichage dès que l'utilisateur clique sur le bouton "Journal"
     document.addEventListener('click', (e) => {
-        if (e.target && e.target.textContent && e.target.textContent.includes('Journal')) {
-            setTimeout(initJournalUI, 150);
+        const target = e.target;
+        if (target && target.textContent && target.textContent.trim().toLowerCase().includes('journal')) {
+            setTimeout(chargerEtAfficherJournal, 100);
+            setTimeout(chargerEtAfficherJournal, 300);
         }
     });
+
+    window.chargerEtAfficherJournal = chargerEtAfficherJournal;
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(chargerEtAfficherJournal, 200);
+    } else {
+        document.addEventListener('DOMContentLoaded', chargerEtAfficherJournal);
+    }
 })();
