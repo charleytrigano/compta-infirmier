@@ -1,4 +1,4 @@
-// grand_livre.js - Mapping exact pour la table Supabase 'transactions'
+// grand_livre.js - Mapping réel avec le Plan Comptable général libéral (BNC)
 
 (function () {
     function getSupabaseClient() {
@@ -7,8 +7,19 @@
 
     let state = {
         transactions: [],
-        planComptable: [],
         compteFiltre: 'TOUS'
+    };
+
+    // Table de correspondance officielle des catégories vers les numéros de comptes
+    const MAPPING_COMPTES = {
+        'soins infirmiers': { code: '706000', nom: 'Prestations de services / Honoraires (706000)' },
+        'carpimko': { code: '646000', nom: 'Cotisations sociales CARPIMKO (646000)' },
+        'urssaf': { code: '645000', nom: 'Cotisations URSSAF (645000)' },
+        'achats': { code: '606000', nom: 'Achats de matériel et fournitures (606000)' },
+        'frais de deplacement': { code: '625100', nom: 'Frais de déplacement / Carburant (625100)' },
+        'frais bancaires': { code: '627000', nom: 'Frais bancaires (627000)' },
+        'loyer': { code: '613200', nom: 'Loyer professionnel (613200)' },
+        'assurance': { code: '616000', nom: 'Primes d\'assurances (616000)' }
     };
 
     function trouverConteneurGrandLivre() {
@@ -29,7 +40,7 @@
         container.innerHTML = `
             <div style="padding: 10px;">
                 <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px;">
-                    <div style="min-width: 280px; display: flex; align-items: center; gap: 8px;">
+                    <div style="min-width: 320px; display: flex; align-items: center; gap: 8px;">
                         <label for="filtreCompte" style="font-weight: 600; font-size: 0.875rem; color: #374151; white-space: nowrap;">Filtrer par compte :</label>
                         <select id="filtreCompte" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; background-color: #fff;">
                             <option value="TOUS">Tous les comptes (Vue globale)</option>
@@ -88,24 +99,31 @@
     }
 
     function determinerCompte(tx) {
-        let code = tx.compte_code || tx.compte || '411000';
-        let nom = tx.category || tx.categorie || 'Soins infirmiers';
+        if (tx.compte_code && tx.compte_code !== '411000') {
+            return { code: tx.compte_code, nom: `${tx.compte_code} - ${tx.category || tx.categorie}` };
+        }
 
-        if (code === '411000' || (tx.type || '').toLowerCase().includes('recette') || nom === 'Soins infirmiers') {
-            const desc = (tx.description || '').trim();
-            if (desc) {
-                code = desc.startsWith('411') ? desc : `411 ${desc}`;
-                nom = `411 ${desc}`;
+        const cat = (tx.category || tx.categorie || '').toLowerCase();
+        
+        for (const key in MAPPING_COMPTES) {
+            if (cat.includes(key)) {
+                return MAPPING_COMPTES[key];
             }
         }
-        return { code, nom };
+
+        // Si c'est un client/patient spécifique (ex: Tiers payant / Patient Abadie)
+        const desc = (tx.description || '').trim();
+        if (desc && (cat.includes('soins') || tx.type === 'recette')) {
+            return { code: `411 ${desc}`, nom: `411 ${desc} (Compte auxiliaire Client)` };
+        }
+
+        return { code: '471000', nom: '471000 - Compte d\'attente / Divers' };
     }
 
     function extraireMontants(tx) {
         const val = Math.abs(parseFloat(tx.amount || tx.montant || 0));
         const type = (tx.type || '').toLowerCase();
 
-        // Une recette augmente le Débit (compte 411 / banque), une dépense va au Crédit
         if (type.includes('recette') || type.includes('rec')) {
             return { debit: val, credit: 0 };
         } else {
