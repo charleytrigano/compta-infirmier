@@ -1,57 +1,65 @@
-// journal.js - Gestion dynamique des journaux comptables et sous-onglets
+// journal.js - Gestion dynamique et affichage du Journal des écritures
 
 (function () {
     function getSupabase() {
         return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
 
-    let state = {
-        transactions: [],
-        ecritures: [],
-        currentTab: 'encaissements' // 'encaissements', 'depenses', 've', 'ha', 'bq'
-    };
+    let currentFilter = 'TOUS';
 
-    async function chargerDonneesJournal() {
-        const supabase = getSupabase();
-        if (!supabase) return;
+    async function initJournalUI() {
+        const table = document.querySelector('table');
+        if (!table) return;
 
-        try {
-            // Chargement des transactions brutes
-            const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: false });
-            state.transactions = txData || [];
+        // 1. Injection de la barre de filtres au-dessus du tableau si elle n'existe pas encore
+        let filterBar = document.getElementById('journal-filter-bar');
+        if (!filterBar) {
+            filterBar = document.createElement('div');
+            filterBar.id = 'journal-filter-bar';
+            filterBar.style.display = 'flex';
+            filterBar.style.gap = '10px';
+            filterBar.style.marginBottom = '15px';
+            filterBar.style.flexWrap = 'wrap';
 
-            // Chargement des écritures en partie double si disponibles
-            const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
-            state.ecritures = ecrData || [];
-        } catch (err) {
-            console.error("Erreur chargement journal :", err);
+            filterBar.innerHTML = `
+                <button data-filter="TOUS" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #2563eb; color: white; cursor: pointer; font-weight: 500;">
+                    Tous les journaux
+                </button>
+                <button data-filter="RECETTE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
+                    🟢 Encaissements (VE)
+                </button>
+                <button data-filter="DEPENSE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
+                    🔴 Dépenses (HA)
+                </button>
+                <button data-filter="BANQUE" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; cursor: pointer; font-weight: 500;">
+                    🏦 Journal Banque (512)
+                </button>
+            `;
+
+            table.parentNode.insertBefore(filterBar, table);
+
+            // Événements sur les boutons de filtre
+            filterBar.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    filterBar.querySelectorAll('button').forEach(b => {
+                        b.style.backgroundColor = '#f1f5f9';
+                        b.style.color = '#334155';
+                    });
+                    btn.style.backgroundColor = '#2563eb';
+                    btn.style.color = 'white';
+                    currentFilter = btn.getAttribute('data-filter');
+                    chargerEtAfficherJournal();
+                });
+            });
         }
 
-        mettreAJourCompteurs();
-        afficherContenuJournal();
+        await chargerEtAfficherJournal();
     }
 
-    function mettreAJourCompteurs() {
-        const encaissementsAttente = state.transactions.filter(t => {
-            const isRec = String(t.type || '').toLowerCase().includes('rec') || String(t.category || '').toLowerCase().includes('soins');
-            return isRec && (t.encaisse === false || t.encaisse === null || t.encaisse === undefined);
-        });
-
-        const depensesAttente = state.transactions.filter(t => {
-            const isDep = String(t.type || '').toLowerCase().includes('dep') || String(t.type || '').toLowerCase().includes('dép');
-            return isDep && (t.encaisse === false || t.encaisse === null || t.encaisse === undefined);
-        });
-
-        // Mise à jour du texte des boutons
-        const btnEnc = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Encaissements'));
-        if (btnEnc) btnEnc.innerHTML = `🟢 Encaissements à Valider (${encaissementsAttente.length || state.transactions.filter(t => String(t.type || '').toLowerCase().includes('rec')).length})`;
-
-        const btnDep = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Dépenses à Régler'));
-        if (btnDep) btnDep.innerHTML = `🔴 Dépenses à Régler (${depensesAttente.length || state.transactions.filter(t => String(t.type || '').toLowerCase().includes('dep')).length})`;
-    }
-
-    function afficherContenuJournal() {
+    async function chargerEtAfficherJournal() {
+        const supabase = getSupabase();
         let tbody = document.querySelector('table tbody');
+
         if (!tbody) {
             const table = document.querySelector('table');
             if (table) {
@@ -61,51 +69,73 @@
         }
         if (!tbody) return;
 
-        tbody.innerHTML = '';
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement du journal...</td></tr>`;
 
-        let donneesAffichage = [];
+        let ecritures = [];
 
-        // Filtre selon le sous-onglet actif
-        if (state.currentTab === 'encaissements') {
-            donneesAffichage = state.transactions.filter(t => 
-                String(t.type || '').toLowerCase().includes('rec') || 
-                String(t.category || '').toLowerCase().includes('soins')
-            );
-        } else if (state.currentTab === 'depenses') {
-            donneesAffichage = state.transactions.filter(t => 
-                String(t.type || '').toLowerCase().includes('dep') || 
-                String(t.type || '').toLowerCase().includes('dép')
-            );
-        } else if (state.currentTab === 've') {
-            donneesAffichage = state.transactions.filter(t => String(t.type || '').toLowerCase().includes('rec'));
-        } else if (state.currentTab === 'ha') {
-            donneesAffichage = state.transactions.filter(t => String(t.type || '').toLowerCase().includes('dep'));
-        } else if (state.currentTab === 'bq') {
-            donneesAffichage = state.ecritures.length > 0 ? state.ecritures : state.transactions;
+        if (supabase) {
+            // Tente de récupérer d'abord depuis ecritures_comptables, sinon transactions
+            const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
+            if (ecrData && ecrData.length > 0) {
+                ecritures = ecrData;
+            } else {
+                const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+                ecritures = txData || [];
+            }
+        } else {
+            ecritures = JSON.parse(localStorage.getItem('transactions') || '[]');
         }
 
-        if (donneesAffichage.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 25px; color: #64748b;">Aucune opération trouvée pour ce journal.</td></tr>`;
+        // Filtration des données
+        let donnesFiltrees = ecritures.filter(row => {
+            const cat = String(row.category || row.compte_code || '').toLowerCase();
+            const type = String(row.type || '').toLowerCase();
+
+            if (currentFilter === 'RECETTE') {
+                return type.includes('rec') || cat.includes('soins') || row.credit > 0;
+            } else if (currentFilter === 'DEPENSE') {
+                return type.includes('dep') || type.includes('dép') || (row.debit > 0 && row.compte_code !== '512000');
+            } else if (currentFilter === 'BANQUE') {
+                return (row.compte_code && row.compte_code.startsWith('512')) || row.payment_method;
+            }
+            return true;
+        });
+
+        tbody.innerHTML = '';
+
+        if (donnesFiltrees.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8;">Aucune écriture trouvée dans Supabase.</td></tr>`;
             return;
         }
 
-        donneesAffichage.forEach(row => {
+        donnesFiltrees.forEach(row => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
 
-            const amt = Math.abs(parseFloat(row.amount || row.debit || row.credit || row.montant || 0)).toFixed(2);
-            const isRec = String(row.type || '').toLowerCase().includes('rec') || (row.debit > 0);
-            const isEncaisse = row.encaisse === true;
+            const date = row.date || '-';
+            const cat = row.category || row.compte_code || '-';
+            const desc = row.description || row.compte_libelle || '-';
+            
+            let debitVal = parseFloat(row.debit || 0);
+            let creditVal = parseFloat(row.credit || 0);
+
+            // Si c'est issu de la table transactions directe
+            if (!row.compte_code && row.amount) {
+                const amt = Math.abs(parseFloat(row.amount));
+                const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
+                if (isRec) creditVal = amt;
+                else debitVal = amt;
+            }
 
             tr.innerHTML = `
-                <td style="padding: 10px 12px; color: #334155;">${row.date || '-'}</td>
-                <td style="padding: 10px 12px; color: #334155;">${row.category || row.compte_code || '-'}</td>
-                <td style="padding: 10px 12px; color: #334155;">${row.description || row.compte_libelle || '-'}</td>
-                <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 500;">${!isRec ? amt + ' €' : '-'}</td>
-                <td style="padding: 10px 12px; text-align: right; color: #16a34a; font-weight: 500;">${isRec ? amt + ' €' : '-'}</td>
+                <td style="padding: 10px 12px; color: #334155;">${date}</td>
+                <td style="padding: 10px 12px; color: #334155; font-weight: 500;">${cat}</td>
+                <td style="padding: 10px 12px; color: #334155;">${desc}</td>
+                <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 500;">${debitVal > 0 ? debitVal.toFixed(2) + ' €' : '-'}</td>
+                <td style="padding: 10px 12px; text-align: right; color: #16a34a; font-weight: 500;">${creditVal > 0 ? creditVal.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 10px 12px; text-align: center;">
-                    <span style="background-color: ${isEncaisse ? '#dcfce7' : '#fef3c7'}; color: ${isEncaisse ? '#15803d' : '#d97706'}; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">
-                        ${isEncaisse ? 'Encaissé' : 'En attente'}
+                    <span style="background-color: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">
+                        Comptabilisé
                     </span>
                 </td>
             `;
@@ -113,34 +143,11 @@
         });
     }
 
-    // Association des événements de clics aux sous-boutons du Journal
-    function attacherEvenementsBoutons() {
-        const btns = document.querySelectorAll('div > button');
-        btns.forEach(btn => {
-            const txt = btn.textContent.toLowerCase();
-            btn.addEventListener('click', () => {
-                if (txt.includes('encaissement')) state.currentTab = 'encaissements';
-                else if (txt.includes('dépenses à régler')) state.currentTab = 'depenses';
-                else if (txt.includes('ventes') || txt.includes('(ve)')) state.currentTab = 've';
-                else if (txt.includes('dépenses') || txt.includes('(ha)')) state.currentTab = 'ha';
-                else if (txt.includes('banque') || txt.includes('(bq)')) state.currentTab = 'bq';
-                
-                afficherContenuJournal();
-            });
-        });
-    }
-
-    window.chargerDonneesJournal = chargerDonneesJournal;
+    window.initJournalUI = initJournalUI;
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(() => {
-            attacherEvenementsBoutons();
-            chargerDonneesJournal();
-        }, 200);
+        setTimeout(initJournalUI, 200);
     } else {
-        document.addEventListener('DOMContentLoaded', () => {
-            attacherEvenementsBoutons();
-            chargerDonneesJournal();
-        });
+        document.addEventListener('DOMContentLoaded', initJournalUI);
     }
 })();
