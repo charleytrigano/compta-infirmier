@@ -1,4 +1,4 @@
-// grand_livre.js - Chargement dynamique et ventilation par compte auxiliaire
+// grand_livre.js - Version sécurisée (ne touche qu'à sa propre zone)
 
 (function () {
     function getSupabaseClient() {
@@ -11,15 +11,18 @@
         compteFiltre: 'TOUS'
     };
 
-    // 1. Initialisation globale et construction du HTML
     async function initGrandLivre() {
-        // Recherche du conteneur du Grand Livre dans la page
-        const container = document.querySelector('.card, #grand-livre, [data-tab="grand-livre"]') || document.body;
+        // Cible un conteneur spécifique au Grand Livre (ex: #grand-livre-content ou .main-content)
+        const container = document.getElementById('grand-livre-content') || document.querySelector('main') || document.body.firstElementChild;
         
-        // Injection du squelette HTML
+        if (!container) {
+            console.error("❌ Conteneur du Grand Livre introuvable.");
+            return;
+        }
+
         container.innerHTML = `
-            <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                     <h2 style="font-size: 1.25rem; font-weight: bold; margin: 0;">Grand Livre</h2>
                     <div style="min-width: 280px;">
                         <label for="filtreCompte" style="font-weight: 600; font-size: 0.875rem; margin-right: 8px;">Filtrer par compte :</label>
@@ -65,7 +68,6 @@
         afficherGrandLivre();
     }
 
-    // 2. Chargement des données Supabase / LocalStorage
     async function chargerDonnees() {
         const supabase = getSupabaseClient();
         if (supabase) {
@@ -88,7 +90,6 @@
         state.planComptable = JSON.parse(localStorage.getItem('plan_comptable') || '[]');
     }
 
-    // 3. Ventilation dynamique du compte 411000 vers les sous-comptes auxiliaires
     function determinerCompte(tx) {
         let code = tx.compte_code || '411000';
         let nom = tx.categorie || 'Soins infirmiers';
@@ -103,7 +104,6 @@
         return { code, nom };
     }
 
-    // 4. Remplissage du sélecteur de filtres
     function initialiserFiltres() {
         const select = document.getElementById('filtreCompte');
         if (!select) return;
@@ -130,7 +130,6 @@
         });
     }
 
-    // 5. Affichage des lignes et calcul des totaux
     function afficherGrandLivre() {
         const tbody = document.getElementById('grandLivreTableBody');
         const totalDebitEl = document.getElementById('totalDebit');
@@ -188,13 +187,5 @@
         }
     }
 
-    // Exposer l'initialisation globalement
     window.initGrandLivre = initGrandLivre;
-
-    // Lancer automatiquement
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initGrandLivre, 100);
-    } else {
-        document.addEventListener('DOMContentLoaded', initGrandLivre);
-    }
 })();
