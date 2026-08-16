@@ -1,429 +1,166 @@
-// ==========================================
-// MODULE COMPTABLE : GRAND LIVRE DES COMPTES
-// ==========================================
+/* ==========================================================================
+   MODULE GRAND LIVRE (COMPTES DE CLASSE 6 ET 7 + BANQUE 512)
+   ========================================================================== */
 
-window.initGrandLivre = function() {
-    // CIBLAGE STRICT : On cherche uniquement les conteneurs explicitement réservés au Grand Livre
-    var container = document.getElementById('grandlivre-container') || 
-                    document.getElementById('view-grandlivre') || 
-                    document.getElementById('grand-livre-content');
+/**
+ * Associe une transaction à un numéro et libellé de compte PCG / BNC
+ */
+window.obtenirCompteComptable = function(tx) {
+    var cat = (tx.category || tx.categorie || '').toString().toLowerCase();
+    var typeRaw = (tx.type || '').toString().toLowerCase();
+    var isRecette = typeRaw.includes('recette') || typeRaw.includes('encaissement');
 
-    // Recherche alternative ciblée par texte dans les titres (sans toucher aux autres vues)
-    if (!container) {
-        var zones = document.querySelectorAll('[id*="grandlivre"], [id*="grand-livre"]');
-        if (zones.length > 0) {
-            container = zones[0];
+    // 1. RECETTES & PRODUITS (CLASSE 7)
+    if (isRecette) {
+        if (cat.includes('soin') || cat.includes('infirmier') || cat.includes('honoraires') || cat.includes('prestation')) {
+            return { code: '706000', libelle: '706000 - Prestations de soins / Honoraires' };
         }
+        if (cat.includes('retrocession') || cat.includes('rétrocession')) {
+            return { code: '709000', libelle: '709000 - Rétrocessions d honoraires reçues' };
+        }
+        return { code: '706000', libelle: '706000 - Autres Recettes / Honoraires' };
     }
 
-    // Sécurité : Si aucun conteneur dédié n'est trouvé, on ne touche à rien pour préserver les autres onglets
-    if (!container) {
-        console.log("Grand Livre : En attente du conteneur spécifique (#grandlivre-container)");
+    // 2. DÉPENSES & CHARGES (CLASSE 6)
+    if (cat.includes('urssaf')) {
+        return { code: '645100', libelle: '645100 - Cotisations Sociales URSSAF' };
+    }
+    if (cat.includes('carpimko')) {
+        return { code: '645200', libelle: '645200 - Cotisations Retraite CARPIMKO' };
+    }
+    if (cat.includes('matériel') || cat.includes('materiel') || cat.includes('fourniture')) {
+        return { code: '606400', libelle: '606400 - Achats de Matériel Médical et Fournitures' };
+    }
+    if (cat.includes('impôt') || cat.includes('impot') || cat.includes('cfe') || cat.includes('pas')) {
+        return { code: '635000', libelle: '635000 - Impôts, Taxes et Versements Assimilés' };
+    }
+    if (cat.includes('loyer') || cat.includes('location')) {
+        return { code: '613200', libelle: '613200 - Locations Immobilières / Cabinet' };
+    }
+    if (cat.includes('assurance')) {
+        return { code: '616000', libelle: '616000 - Primes d Assurances Professionnelles' };
+    }
+    if (cat.includes('banque') || cat.includes('frais')) {
+        return { code: '627000', libelle: '627000 - Services Bancaires et Assimilés' };
+    }
+
+    return { code: '600000', libelle: '600000 - Autres Charges Exploitation' };
+};
+
+/**
+ * Fonction principale : Calcule et affiche le Grand Livre complet
+ */
+window.afficherGrandLivre = function() {
+    var container = document.getElementById('vue-grand-livre') || document.getElementById('grand-livre-container');
+    if (!container) return;
+
+    var transactions = window.transactions || [];
+
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">Aucune transaction disponible pour générer le Grand Livre.</div>';
         return;
     }
 
-    window.afficherGrandLivre(container);
-};
-
-// Fonction d'analyse comptable
-window.analyserDepenseGL = function(categorie, description, dateOp) {
-    var catClean = (categorie || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    var descClean = (description || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    var texte = catClean || descClean;
-
-    var anneeEnCours = new Date().getFullYear();
-    var anneeTx = dateOp ? new Date(dateOp).getFullYear() : anneeEnCours;
-    var isAnneeNMinus1 = (anneeTx < anneeEnCours) || texte.includes('n-1') || texte.includes('regul');
-    var mentionExercice = isAnneeNMinus1 ? " (Charges année N-1)" : " (Charges année N)";
-
-    // CARPIMKO
-    if (texte.includes('carpimko') || texte.includes('carp') || texte.includes('retraite')) {
-        return { charge: '646200', libelleCharge: 'Cotisations Retraite CARPIMKO' + mentionExercice, tiers: '438CARPIMKO', nomTiers: 'CARPIMKO' };
-    }
-    // URSSAF
-    if (texte.includes('urssaf') || texte.includes('urss') || texte.includes('cotis')) {
-        return { charge: '646100', libelleCharge: 'Cotisations Sociales URSSAF' + mentionExercice, tiers: '438URSSAF', nomTiers: 'URSSAF' };
-    }
-    // IMPOTS
-    if (texte.includes('impot') || texte.includes('taxe') || texte.includes('cfe') || texte.includes('pas')) {
-        return { charge: '635000', libelleCharge: 'Impôts et Taxes' + mentionExercice, tiers: '447IMPOTS', nomTiers: 'Impôts' };
-    }
-    // AUTRES
-    var nomAffichage = categorie || description || 'Fournisseur';
-    var codeClean = nomAffichage.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
-    return { charge: '606000', libelleCharge: 'Achats / Fournitures - ' + nomAffichage, tiers: '401' + (codeClean || 'FOURNISSEUR'), nomTiers: nomAffichage };
-};
-
-// Generateur d'écritures brutes
-window.obtenirToutesEcritures = function() {
-    var transactions = window.allTransactions || [];
-    var encaissementsValides = JSON.parse(localStorage.getItem('encaissementsValides')) || [];
-    var decaissementsValides = JSON.parse(localStorage.getItem('decaissementsValides')) || [];
-    
-    var ecritures = [];
-
-    // 1. Écritures HA et VE
-    transactions.forEach(function(tx, index) {
-        var montant = parseFloat(tx.amount) || 0;
-        var type = (tx.type || '').toLowerCase();
-        var categorie = tx.categorie || tx.category || '';
-        var description = tx.label || tx.description || tx.libelle || 'Opération';
-        var dateOp = tx.date || new Date().toISOString().split('T')[0];
-
-        if (type === 'recette' || (type === '' && montant > 0)) {
-            var valM = Math.abs(montant);
-            var codeTiersC = '411' + description.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
-            ecritures.push({ compte: codeTiersC, nomCompte: 'Client - ' + description, date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), libelle: 'Facture Honoraires', debit: valM, credit: 0 });
-            ecritures.push({ compte: '706000', nomCompte: 'Honoraires BNC', date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), libelle: 'Prestation - ' + description, debit: 0, credit: valM });
-        } else if (type === 'depense' || montant < 0 || (type === '' && montant < 0)) {
-            var valD = Math.abs(montant);
-            var analyse = window.analyserDepenseGL(categorie, description, dateOp);
-
-            ecritures.push({ compte: analyse.charge, nomCompte: analyse.libelleCharge, date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), libelle: analyse.libelleCharge, debit: valD, credit: 0 });
-            ecritures.push({ compte: analyse.tiers, nomCompte: 'Tiers - ' + analyse.nomTiers, date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), libelle: 'Appel / Facture ' + analyse.nomTiers, debit: 0, credit: valD });
-        }
-    });
-
-    // 2. Écritures Banque (BQ)
-    encaissementsValides.forEach(function(enc, index) {
-        ecritures.push({ compte: '512000', nomCompte: 'Banque (Compte Courant)', date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), libelle: 'Encaissement ' + enc.nomTiers, debit: enc.montant, credit: 0 });
-        ecritures.push({ compte: enc.codeTiers, nomCompte: 'Client - ' + enc.nomTiers, date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), libelle: 'Règlement ' + enc.piece, debit: 0, credit: enc.montant });
-    });
-
-    decaissementsValides.forEach(function(dec, index) {
-        ecritures.push({ compte: dec.codeTiers, nomCompte: 'Tiers - ' + dec.nomTiers, date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), libelle: 'Règlement ' + dec.nomTiers, debit: dec.montant, credit: 0 });
-        ecritures.push({ compte: '512000', nomCompte: 'Banque (Compte Courant)', date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), libelle: 'Prélèvement / Virement', debit: 0, credit: dec.montant });
-    });
-
-    return ecritures;
-};
-
-// Rendu du Grand Livre
-window.afficherGrandLivre = function(container) {
-    var toutesEcritures = window.obtenirToutesEcritures();
-
+    // Regroupement des transactions par compte comptable
     var comptesMap = {};
-    toutesEcritures.forEach(function(e) {
-        if (!comptesMap[e.compte]) {
-            comptesMap[e.compte] = {
-                numCompte: e.compte,
-                nomCompte: e.nomCompte,
-                ecritures: [],
+
+    transactions.forEach(function(tx) {
+        var infoCompte = window.obtenirCompteComptable(tx);
+        var codeCompte = infoCompte.code;
+
+        if (!comptesMap[codeCompte]) {
+            comptesMap[codeCompte] = {
+                code: codeCompte,
+                libelle: infoCompte.libelle,
+                écritures: [],
                 totalDebit: 0,
                 totalCredit: 0
             };
         }
-        comptesMap[e.compte].ecritures.push(e);
-        comptesMap[e.compte].totalDebit += e.debit;
-        comptesMap[e.compte].totalCredit += e.credit;
+
+        var valMontant = parseFloat(tx.amount !== undefined && tx.amount !== null ? tx.amount : (tx.montant || 0)) || 0;
+        var typeRaw = (tx.type || '').toString().toLowerCase();
+        var isRecette = typeRaw.includes('recette') || typeRaw.includes('encaissement');
+
+        var debit = !isRecette ? valMontant : 0;
+        var credit = isRecette ? valMontant : 0;
+
+        comptesMap[codeCompte].totalDebit += debit;
+        comptesMap[codeCompte].totalCredit += credit;
+
+        comptesMap[codeCompte].écritures.push({
+            date: tx.date || '',
+            description: tx.description || tx.libelle || '',
+            debit: debit,
+            credit: credit
+        });
     });
 
-    var listeComptesTries = Object.keys(comptesMap).sort();
+    // Tri des comptes par numéro (Classe 6 puis Classe 7)
+    var codesTries = Object.keys(comptesMap).sort();
 
-    var htmlComptes = listeComptesTries.map(function(num) {
-        var c = comptesMap[num];
-        var solde = c.totalDebit - c.totalCredit;
-        var isDebiteur = solde >= 0;
+    // Génération du HTML
+    var html = '<div style="display:flex; flex-direction:column; gap:25px;">';
 
-        var rows = c.ecritures.map(function(e) {
-            return `
-                <tr>
-                    <td>${e.date}</td>
-                    <td><span style="background:#f1f5f9; padding:2px 6px; border-radius:4px; font-weight:bold;">${e.journal}</span></td>
-                    <td>${e.piece}</td>
-                    <td>${e.libelle}</td>
-                    <td style="text-align:right;">${e.debit > 0 ? e.debit.toFixed(2) + ' €' : '-'}</td>
-                    <td style="text-align:right;">${e.credit > 0 ? e.credit.toFixed(2) + ' €' : '-'}</td>
-                </tr>
-            `;
-        }).join('');
+    codesTries.forEach(function(code) {
+        var compte = comptesMap[code];
+        var solde = compte.totalCredit - compte.totalDebit;
+        var soldeTexte = solde >= 0 ? `Créditeur : +${solde.toFixed(2)} €` : `Débitrice : ${solde.toFixed(2)} €`;
 
-        return `
-            <div class="gl-card-compte" data-compte="${c.numCompte}" data-nom="${c.nomCompte.toLowerCase()}">
-                <div class="gl-header-compte">
-                    <div>
-                        <span class="gl-badge-num">${c.numCompte}</span>
-                        <strong style="font-size: 15px; margin-left: 8px;">${c.nomCompte}</strong>
-                    </div>
-                    <div style="text-align: right;">
-                        <small style="color:#64748b;">Solde : </small>
-                        <strong style="color: ${isDebiteur ? '#16a34a' : '#dc2626'}; font-size: 14px;">
-                            ${Math.abs(solde).toFixed(2)} € ${isDebiteur ? '(Débiteur)' : '(Créditeur)'}
-                        </strong>
-                    </div>
+        html += `
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <!-- En-tête du Compte -->
+                <div style="background:#f8fafc; padding:12px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:700; color:#1e293b; font-size:15px;">Compte ${compte.libelle}</span>
+                    <span style="font-size:13px; font-weight:600; color:${solde >= 0 ? '#16a34a' : '#dc2626'}; background:#fff; padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1;">
+                        Solde ${soldeTexte}
+                    </span>
                 </div>
 
-                <table class="jrn-table">
+                <!-- Tableau des écritures du Compte -->
+                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
                     <thead>
-                        <tr>
-                            <th>Date</th><th>Journal</th><th>Pièce</th><th>Libellé</th><th style="text-align:right;">Débit</th><th style="text-align:right;">Crédit</th>
+                        <tr style="background:#f1f5f9; color:#475569; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:8px 15px; width:15%;">Date</th>
+                            <th style="padding:8px 15px;">Libellé / Description</th>
+                            <th style="padding:8px 15px; text-align:right; width:20%;">Débit (Dépense)</th>
+                            <th style="padding:8px 15px; text-align:right; width:20%;">Crédit (Recette)</th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    <tbody>
+        `;
+
+        compte.écritures.forEach(function(ecr) {
+            html += `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:8px 15px; color:#64748b;">${ecr.date}</td>
+                    <td style="padding:8px 15px; color:#334155;">${ecr.description}</td>
+                    <td style="padding:8px 15px; text-align:right; color:#dc2626; font-weight:500;">${ecr.debit > 0 ? ecr.debit.toFixed(2) + ' €' : '-'}</td>
+                    <td style="padding:8px 15px; text-align:right; color:#16a34a; font-weight:500;">${ecr.credit > 0 ? ecr.credit.toFixed(2) + ' €' : '-'}</td>
+                </tr>
+            `;
+        });
+
+        // Totaux du Compte
+        html += `
+                    </tbody>
                     <tfoot>
-                        <tr style="background:#f8fafc; font-weight:bold;">
-                            <td colspan="4" style="text-align:right;">Totaux Compte ${c.numCompte} :</td>
-                            <td style="text-align:right; color:#2563eb;">${c.totalDebit.toFixed(2)} €</td>
-                            <td style="text-align:right; color:#2563eb;">${c.totalCredit.toFixed(2)} €</td>
+                        <tr style="background:#fafafa; font-weight:700; border-top:2px solid #e2e8f0;">
+                            <td colspan="2" style="padding:10px 15px; text-align:right; color:#334155;">Totaux du Compte :</td>
+                            <td style="padding:10px 15px; text-align:right; color:#dc2626;">${compte.totalDebit.toFixed(2)} €</td>
+                            <td style="padding:10px 15px; text-align:right; color:#16a34a;">${compte.totalCredit.toFixed(2)} €</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
         `;
-    }).join('');
-
-    container.innerHTML = `
-        <style>
-            .gl-box { font-family: system-ui, -apple-system, sans-serif; }
-            .gl-card-compte { background: #ffffff; padding: 18px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-            .gl-header-compte { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #cbd5e1; margin-bottom: 10px; }
-            .gl-badge-num { background: #2563eb; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 14px; }
-            .gl-search { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
-        </style>
-
-        <div class="gl-box">
-            <h2>📖 Grand Livre des Comptes</h2>
-            <input type="text" class="gl-search" placeholder="🔍 Rechercher un compte (ex: 646100, URSSAF, CARPIMKO, 512000)..." onkeyup="window.filtrerGrandLivre(this.value)">
-
-            <div id="gl-liste-comptes">
-                ${htmlComptes || '<p style="color:#64748b;">Aucune écriture comptable disponible.</p>'}
-            </div>
-        </div>
-    `;
-};
-
-window.filtrerGrandLivre = function(texte) {
-    var query = (texte || '').toLowerCase().trim();
-    var cartes = document.querySelectorAll('.gl-card-compte');
-
-    cartes.forEach(function(card) {
-        var num = card.getAttribute('data-compte').toLowerCase();
-        var nom = card.getAttribute('data-nom');
-
-        if (num.includes(query) || nom.includes(query)) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
-};
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(window.initGrandLivre, 100);
-} else {
-    document.addEventListener('DOMContentLoaded', window.initGrandLivre);
-}// ==========================================
-// MODULE COMPTABLE : GRAND LIVRE DES COMPTES
-// ==========================================
-
-window.initGrandLivre = function() {
-    // CIBLAGE STRICT : On cherche uniquement les conteneurs explicitement réservés au Grand Livre
-    var container = document.getElementById('grandlivre-container') || 
-                    document.getElementById('view-grandlivre') || 
-                    document.getElementById('grand-livre-content');
-
-    // Recherche alternative ciblée par texte dans les titres (sans toucher aux autres vues)
-    if (!container) {
-        var zones = document.querySelectorAll('[id*="grandlivre"], [id*="grand-livre"]');
-        if (zones.length > 0) {
-            container = zones[0];
-        }
-    }
-
-    // Sécurité : Si aucun conteneur dédié n'est trouvé, on ne touche à rien pour préserver les autres onglets
-    if (!container) {
-        console.log("Grand Livre : En attente du conteneur spécifique (#grandlivre-container)");
-        return;
-    }
-
-    window.afficherGrandLivre(container);
-};
-
-// Fonction d'analyse comptable
-window.analyserDepenseGL = function(categorie, description, dateOp) {
-    var catClean = (categorie || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    var descClean = (description || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    var texte = catClean || descClean;
-
-    var anneeEnCours = new Date().getFullYear();
-    var anneeTx = dateOp ? new Date(dateOp).getFullYear() : anneeEnCours;
-    var isAnneeNMinus1 = (anneeTx < anneeEnCours) || texte.includes('n-1') || texte.includes('regul');
-    var mentionExercice = isAnneeNMinus1 ? " (Charges année N-1)" : " (Charges année N)";
-
-    // CARPIMKO
-    if (texte.includes('carpimko') || texte.includes('carp') || texte.includes('retraite')) {
-        return { charge: '646200', libelleCharge: 'Cotisations Retraite CARPIMKO' + mentionExercice, tiers: '438CARPIMKO', nomTiers: 'CARPIMKO' };
-    }
-    // URSSAF
-    if (texte.includes('urssaf') || texte.includes('urss') || texte.includes('cotis')) {
-        return { charge: '646100', libelleCharge: 'Cotisations Sociales URSSAF' + mentionExercice, tiers: '438URSSAF', nomTiers: 'URSSAF' };
-    }
-    // IMPOTS
-    if (texte.includes('impot') || texte.includes('taxe') || texte.includes('cfe') || texte.includes('pas')) {
-        return { charge: '635000', libelleCharge: 'Impôts et Taxes' + mentionExercice, tiers: '447IMPOTS', nomTiers: 'Impôts' };
-    }
-    // AUTRES
-    var nomAffichage = categorie || description || 'Fournisseur';
-    var codeClean = nomAffichage.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
-    return { charge: '606000', libelleCharge: 'Achats / Fournitures - ' + nomAffichage, tiers: '401' + (codeClean || 'FOURNISSEUR'), nomTiers: nomAffichage };
-};
-
-// Generateur d'écritures brutes
-window.obtenirToutesEcritures = function() {
-    var transactions = window.allTransactions || [];
-    var encaissementsValides = JSON.parse(localStorage.getItem('encaissementsValides')) || [];
-    var decaissementsValides = JSON.parse(localStorage.getItem('decaissementsValides')) || [];
-    
-    var ecritures = [];
-
-    // 1. Écritures HA et VE
-    transactions.forEach(function(tx, index) {
-        var montant = parseFloat(tx.amount) || 0;
-        var type = (tx.type || '').toLowerCase();
-        var categorie = tx.categorie || tx.category || '';
-        var description = tx.label || tx.description || tx.libelle || 'Opération';
-        var dateOp = tx.date || new Date().toISOString().split('T')[0];
-
-        if (type === 'recette' || (type === '' && montant > 0)) {
-            var valM = Math.abs(montant);
-            var codeTiersC = '411' + description.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8);
-            ecritures.push({ compte: codeTiersC, nomCompte: 'Client - ' + description, date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), libelle: 'Facture Honoraires', debit: valM, credit: 0 });
-            ecritures.push({ compte: '706000', nomCompte: 'Honoraires BNC', date: dateOp, journal: 'VE', piece: 'FAC-' + (1000 + index), libelle: 'Prestation - ' + description, debit: 0, credit: valM });
-        } else if (type === 'depense' || montant < 0 || (type === '' && montant < 0)) {
-            var valD = Math.abs(montant);
-            var analyse = window.analyserDepenseGL(categorie, description, dateOp);
-
-            ecritures.push({ compte: analyse.charge, nomCompte: analyse.libelleCharge, date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), libelle: analyse.libelleCharge, debit: valD, credit: 0 });
-            ecritures.push({ compte: analyse.tiers, nomCompte: 'Tiers - ' + analyse.nomTiers, date: dateOp, journal: 'HA', piece: 'DEP-' + (2000 + index), libelle: 'Appel / Facture ' + analyse.nomTiers, debit: 0, credit: valD });
-        }
     });
 
-    // 2. Écritures Banque (BQ)
-    encaissementsValides.forEach(function(enc, index) {
-        ecritures.push({ compte: '512000', nomCompte: 'Banque (Compte Courant)', date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), libelle: 'Encaissement ' + enc.nomTiers, debit: enc.montant, credit: 0 });
-        ecritures.push({ compte: enc.codeTiers, nomCompte: 'Client - ' + enc.nomTiers, date: enc.dateBQ, journal: 'BQ', piece: 'ENC-' + (5000 + index), libelle: 'Règlement ' + enc.piece, debit: 0, credit: enc.montant });
-    });
-
-    decaissementsValides.forEach(function(dec, index) {
-        ecritures.push({ compte: dec.codeTiers, nomCompte: 'Tiers - ' + dec.nomTiers, date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), libelle: 'Règlement ' + dec.nomTiers, debit: dec.montant, credit: 0 });
-        ecritures.push({ compte: '512000', nomCompte: 'Banque (Compte Courant)', date: dec.dateBQ, journal: 'BQ', piece: 'DEC-' + (6000 + index), libelle: 'Prélèvement / Virement', debit: 0, credit: dec.montant });
-    });
-
-    return ecritures;
+    html += '</div>';
+    container.innerHTML = html;
 };
 
-// Rendu du Grand Livre
-window.afficherGrandLivre = function(container) {
-    var toutesEcritures = window.obtenirToutesEcritures();
-
-    var comptesMap = {};
-    toutesEcritures.forEach(function(e) {
-        if (!comptesMap[e.compte]) {
-            comptesMap[e.compte] = {
-                numCompte: e.compte,
-                nomCompte: e.nomCompte,
-                ecritures: [],
-                totalDebit: 0,
-                totalCredit: 0
-            };
-        }
-        comptesMap[e.compte].ecritures.push(e);
-        comptesMap[e.compte].totalDebit += e.debit;
-        comptesMap[e.compte].totalCredit += e.credit;
-    });
-
-    var listeComptesTries = Object.keys(comptesMap).sort();
-
-    var htmlComptes = listeComptesTries.map(function(num) {
-        var c = comptesMap[num];
-        var solde = c.totalDebit - c.totalCredit;
-        var isDebiteur = solde >= 0;
-
-        var rows = c.ecritures.map(function(e) {
-            return `
-                <tr>
-                    <td>${e.date}</td>
-                    <td><span style="background:#f1f5f9; padding:2px 6px; border-radius:4px; font-weight:bold;">${e.journal}</span></td>
-                    <td>${e.piece}</td>
-                    <td>${e.libelle}</td>
-                    <td style="text-align:right;">${e.debit > 0 ? e.debit.toFixed(2) + ' €' : '-'}</td>
-                    <td style="text-align:right;">${e.credit > 0 ? e.credit.toFixed(2) + ' €' : '-'}</td>
-                </tr>
-            `;
-        }).join('');
-
-        return `
-            <div class="gl-card-compte" data-compte="${c.numCompte}" data-nom="${c.nomCompte.toLowerCase()}">
-                <div class="gl-header-compte">
-                    <div>
-                        <span class="gl-badge-num">${c.numCompte}</span>
-                        <strong style="font-size: 15px; margin-left: 8px;">${c.nomCompte}</strong>
-                    </div>
-                    <div style="text-align: right;">
-                        <small style="color:#64748b;">Solde : </small>
-                        <strong style="color: ${isDebiteur ? '#16a34a' : '#dc2626'}; font-size: 14px;">
-                            ${Math.abs(solde).toFixed(2)} € ${isDebiteur ? '(Débiteur)' : '(Créditeur)'}
-                        </strong>
-                    </div>
-                </div>
-
-                <table class="jrn-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th><th>Journal</th><th>Pièce</th><th>Libellé</th><th style="text-align:right;">Débit</th><th style="text-align:right;">Crédit</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                    <tfoot>
-                        <tr style="background:#f8fafc; font-weight:bold;">
-                            <td colspan="4" style="text-align:right;">Totaux Compte ${c.numCompte} :</td>
-                            <td style="text-align:right; color:#2563eb;">${c.totalDebit.toFixed(2)} €</td>
-                            <td style="text-align:right; color:#2563eb;">${c.totalCredit.toFixed(2)} €</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = `
-        <style>
-            .gl-box { font-family: system-ui, -apple-system, sans-serif; }
-            .gl-card-compte { background: #ffffff; padding: 18px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-            .gl-header-compte { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #cbd5e1; margin-bottom: 10px; }
-            .gl-badge-num { background: #2563eb; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 14px; }
-            .gl-search { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
-        </style>
-
-        <div class="gl-box">
-            <h2>📖 Grand Livre des Comptes</h2>
-            <input type="text" class="gl-search" placeholder="🔍 Rechercher un compte (ex: 646100, URSSAF, CARPIMKO, 512000)..." onkeyup="window.filtrerGrandLivre(this.value)">
-
-            <div id="gl-liste-comptes">
-                ${htmlComptes || '<p style="color:#64748b;">Aucune écriture comptable disponible.</p>'}
-            </div>
-        </div>
-    `;
-};
-
-window.filtrerGrandLivre = function(texte) {
-    var query = (texte || '').toLowerCase().trim();
-    var cartes = document.querySelectorAll('.gl-card-compte');
-
-    cartes.forEach(function(card) {
-        var num = card.getAttribute('data-compte').toLowerCase();
-        var nom = card.getAttribute('data-nom');
-
-        if (num.includes(query) || nom.includes(query)) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
-};
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(window.initGrandLivre, 100);
-} else {
-    document.addEventListener('DOMContentLoaded', window.initGrandLivre);
+// Auto-exécution si les transactions sont prêtes
+if (window.transactions && window.transactions.length > 0) {
+    window.afficherGrandLivre();
 }
