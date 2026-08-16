@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MODULE PLAN COMPTABLE BNC & COMPTES AUXILIAIRES 411
+   MODULE PLAN COMPTABLE BNC & COMPTES AUXILIAIRES 411 (SYNCHRO SUPABASE)
    ========================================================================== */
 
 window.PLAN_COMPTABLE_DEFAUT = [
@@ -36,8 +36,8 @@ window.PLAN_AUXILIAIRE_411_DEFAUT = [
     { id: 2, code: '411300', intitule: 'Mutuelles / Complémentaires Santé', categorie: 'Mutuelle' },
     { id: 3, code: '411100', intitule: 'Patients - Règlements Directs', categorie: 'Patient Direct' },
     { id: 4, code: '411400', intitule: 'SSIAD / HAD / Structures de soins', categorie: 'Etablissement' },
-    { id: 5, code: '411ABADIE', intitule: 'ABADIE (Patient / Tiers)', categorie: 'Patient Direct' },
-    { id: 6, code: '411SAINTANDRE', intitule: 'SAINT-ANDRE (Patient / Tiers)', categorie: 'Patient Direct' }
+    { id: 5, code: '411 Abadie', intitule: 'Abadie (Patient / Tiers)', categorie: 'Patient Direct' },
+    { id: 6, code: '411 Saint-André', intitule: 'Saint-André (Patient / Tiers)', categorie: 'Patient Direct' }
 ];
 
 window.ongletActifPlan = 'general';
@@ -110,7 +110,7 @@ window.afficherPlanComptable = function(filtreText) {
     var html = `
         <div id="contenu-plan-comptable-unique" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             
-            <!-- Onglets internes -->
+            <!-- Onglets de basculement -->
             <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px; gap:10px;">
                 <button type="button" onclick="window.changerOngletPlan('general')" 
                         style="padding:10px 18px; font-weight:700; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${isGeneral ? '#2563eb' : 'transparent'}; color:${isGeneral ? '#2563eb' : '#64748b'};">
@@ -144,7 +144,7 @@ window.afficherPlanComptable = function(filtreText) {
                 </div>
             </div>
 
-            <!-- Tableau -->
+            <!-- Tableau unique -->
             <div style="overflow-x:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
                     <thead>
@@ -163,8 +163,8 @@ window.afficherPlanComptable = function(filtreText) {
         var badgeBg = '#f1f5f9';
         var labelType = isGeneral ? item.type : item.categorie;
 
-        if (labelType === 'Recette' || labelType === 'Patient Direct') { badgeColor = '#15803d'; badgeBg = '#dcfce7'; }
-        else if (labelType === 'Dépense') { badgeColor = '#b91c1c'; badgeBg = '#fee2e2'; }
+        if (labelType === 'Recette' || labelType === 'Patient Direct' || labelType === 'recette') { badgeColor = '#15803d'; badgeBg = '#dcfce7'; }
+        else if (labelType === 'Dépense' || labelType === 'depense') { badgeColor = '#b91c1c'; badgeBg = '#fee2e2'; }
         else if (labelType === 'Banque' || labelType === 'Caisse Sécurité Sociale') { badgeColor = '#0369a1'; badgeBg = '#e0f2fe'; }
         else if (labelType === 'Mutuelle' || labelType === 'Etablissement' || labelType === 'Tiers') { badgeColor = '#6b21a8'; badgeBg = '#f3e8ff'; }
 
@@ -210,11 +210,11 @@ window.ouvrirModalNouveau411 = function() {
         <div style="background:#fff; border-radius:8px; padding:20px; width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
             <h3 style="margin-top:0; color:#0f172a; font-size:16px;">Créer un compte individuel 411</h3>
             
-            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Code Compte (ex: 411ABADIE)</label>
-            <input type="text" id="add-code-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="411ABADIE" />
+            <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Code Compte (ex: 411 Abadie)</label>
+            <input type="text" id="add-code-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="411 Abadie" />
 
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Nom du Patient / Mutuelle</label>
-            <input type="text" id="add-nom-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="ABADIE" />
+            <input type="text" id="add-nom-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;" placeholder="Abadie" />
 
             <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-top:10px;">Catégorie</label>
             <select id="add-cat-411" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; margin-top:4px; box-sizing:border-box;">
@@ -236,7 +236,7 @@ window.ouvrirModalNouveau411 = function() {
     document.body.appendChild(modal);
 };
 
-window.enregistrerNouveau411 = function() {
+window.enregistrerNouveau411 = async function() {
     var code = document.getElementById('add-code-411').value.trim();
     var intitule = document.getElementById('add-nom-411').value.trim();
     var cat = document.getElementById('add-cat-411').value;
@@ -247,18 +247,31 @@ window.enregistrerNouveau411 = function() {
     }
 
     if (!code.startsWith('411')) {
-        code = '411' + code;
+        code = '411 ' + code;
     }
 
-    var nouveau = {
+    var nouveauCompte = {
         id: window.PLAN_AUXILIAIRE_411.length + 1,
-        code: code.toUpperCase(),
+        code: code,
         intitule: intitule,
-        categorie: cat
+        categorie: cat,
+        type: 'Tiers'
     };
 
-    window.PLAN_AUXILIAIRE_411.push(nouveau);
+    window.PLAN_AUXILIAIRE_411.push(nouveauCompte);
     localStorage.setItem('PLAN_AUXILIAIRE_411_CUSTOM', JSON.stringify(window.PLAN_AUXILIAIRE_411));
+
+    if (window.supabase) {
+        const { error } = await window.supabase
+            .from('plan_comptable')
+            .upsert([{ code: nouveauCompte.code, nom: nouveauCompte.intitule, type: 'Tiers' }], { onConflict: 'code' });
+
+        if (error) {
+            console.error('Erreur Supabase 411 :', error.message);
+        } else {
+            console.log('Compte 411 synchronisé sur Supabase !');
+        }
+    }
 
     document.getElementById('modal-nouveau-411').remove();
     window.afficherPlanComptable();
@@ -304,7 +317,7 @@ window.ouvrirModalNouveauCompte = function() {
     document.body.appendChild(modal);
 };
 
-window.enregistrerNouveauCompte = function() {
+window.enregistrerNouveauCompte = async function() {
     var code = document.getElementById('add-code-compte').value.trim();
     var intitule = document.getElementById('add-libelle-compte').value.trim();
     var type = document.getElementById('add-type-compte').value;
@@ -314,17 +327,32 @@ window.enregistrerNouveauCompte = function() {
         return;
     }
 
-    var nouvelId = window.PLAN_COMPTABLE_BNC.length + 1;
-    var nouveauCompte = { id: nouvelId, code: code, intitule: intitule, type: type };
+    var nouveauCompte = {
+        id: window.PLAN_COMPTABLE_BNC.length + 1,
+        code: code,
+        intitule: intitule,
+        type: type
+    };
 
     window.PLAN_COMPTABLE_BNC.push(nouveauCompte);
     localStorage.setItem('PLAN_COMPTABLE_BNC_CUSTOM', JSON.stringify(window.PLAN_COMPTABLE_BNC));
+
+    if (window.supabase) {
+        const { error } = await window.supabase
+            .from('plan_comptable')
+            .upsert([{ code: nouveauCompte.code, nom: nouveauCompte.intitule, type: nouveauCompte.type }], { onConflict: 'code' });
+
+        if (error) {
+            console.error('Erreur Supabase Compte Général :', error.message);
+        } else {
+            console.log('Compte général synchronisé sur Supabase !');
+        }
+    }
 
     document.getElementById('modal-nouveau-compte').remove();
     window.afficherPlanComptable();
 };
 
-// Surveillance continue pour injecter le tableau dès l'affichage du texte temporaire
 setInterval(function() {
     var z = window.trouverZonePlan();
     if (z && z.textContent.includes('Chargement du plan comptable...')) {
