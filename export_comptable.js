@@ -2,25 +2,27 @@
  * export_comptable.js - Module d'exportation, impression et sauvegarde
  */
 
-// Récupération asynchrone des transactions (Supabase avec fallback LocalStorage)
-async function obtenirTransactions() {
+// Récupération asynchrone des écritures comptables réelles (Compte Banque 512)
+async function obtenirEcritures() {
   if (window.supabaseClient) {
     try {
       const { data, error } = await window.supabaseClient
-        .from('transactions')
-        .select('*');
+        .from('ecritures_comptables')
+        .select('*')
+        .or('compte_code.eq.512000,compte_code.like.512%')
+        .order('date', { ascending: true });
       if (!error && data && data.length > 0) return data;
     } catch (e) {
       console.warn("Supabase indisponible, bascule sur LocalStorage", e);
     }
   }
-  return JSON.parse(localStorage.getItem('transactions') || '[]');
+  return JSON.parse(localStorage.getItem('ecritures_comptables') || '[]');
 }
 
 async function genererFichierJSON() {
-  const transactions = await obtenirTransactions();
+  const ecritures = await obtenirEcritures();
   const donnees = {
-    transactions: transactions,
+    ecritures: ecritures,
     paiements: JSON.parse(localStorage.getItem('paiements') || '[]'),
     dateExport: new Date().toISOString()
   };
@@ -42,10 +44,10 @@ async function importerFichierJSON(event) {
   reader.onload = async function(e) {
     try {
       const donnees = JSON.parse(e.target.result);
-      if (donnees.transactions) {
-        localStorage.setItem('transactions', JSON.stringify(donnees.transactions));
+      if (donnees.ecritures) {
+        localStorage.setItem('ecritures_comptables', JSON.stringify(donnees.ecritures));
         if (window.supabaseClient) {
-          await window.supabaseClient.from('transactions').upsert(donnees.transactions);
+          await window.supabaseClient.from('ecritures_comptables').upsert(donnees.ecritures);
         }
       }
       alert("✅ Sauvegarde restaurée avec succès !");
@@ -57,21 +59,42 @@ async function importerFichierJSON(event) {
   reader.readAsText(file);
 }
 
+// Génération du CSV compatible Excel FR (Montants réels + Catégorie + Encodage UTF-8 BOM)
 async function genererCSVJournal() {
-  const transactions = await obtenirTransactions();
-  if (!transactions || transactions.length === 0) {
-    alert("Aucune transaction à exporter.");
+  const ecritures = await obtenirEcritures();
+  if (!ecritures || ecritures.length === 0) {
+    alert("Aucune écriture comptable à exporter.");
     return;
   }
 
-  let csvContent = "data:text/csv;charset=utf-8,ID;Date;Type;Categorie;Description;Montant (€)\n";
-  transactions.forEach(t => {
-    csvContent += `"${t.id || ''}";"${t.date || ''}";"${t.type || ''}";"${t.categorie || ''}";"${(t.description || '').replace(/"/g, '""')}";"${t.montant || 0}"\n`;
+  const headers = ["ID", "Date", "Type", "Categorie", "Description", "Montant (€)", "Compte"];
+  const rows = ecritures.map(row => {
+    const debit = parseFloat(row.debit || 0);
+    const credit = parseFloat(row.credit || 0);
+
+    const type = debit > 0 ? "Recette" : "Dépense";
+    const montant = debit > 0 ? debit : credit;
+    const categorie = row.category || (debit > 0 ? "Soins infirmiers" : "Autre dépense");
+    const description = (row.description || '').replace(/"/g, '""');
+
+    return [
+      `"${row.id || ''}"`,
+      `"${row.date || ''}"`,
+      `"${type}"`,
+      `"${categorie}"`,
+      `"${description}"`,
+      montant.toFixed(2).replace('.', ','),
+      `"${row.compte_code || ''}"`
+    ].join(';');
   });
 
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
+  // \ufeff permet à Excel de lire immédiatement les accents sans bogue (DÃ©pense)
+  const csvContent = "\ufeff" + [headers.join(';'), ...rows].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute("href", url);
   link.setAttribute("download", `journal_comptable_${new Date().toISOString().slice(0,10)}.csv`);
   document.body.appendChild(link);
   link.click();
@@ -87,18 +110,19 @@ async function genererDonneesMail() {
   const email = document.getElementById('expert-email')?.value || '';
   const nomComptable = document.getElementById('expert-nom')?.value || 'Cabinet Comptable';
   const messagePerso = document.getElementById('expert-message')?.value || '';
-  const transactions = await obtenirTransactions();
+  const ecritures = await obtenirEcritures();
 
   let totalRecettes = 0;
   let totalDepenses = 0;
-  transactions.forEach(t => {
-    const val = parseFloat(t.montant) || 0;
-    if (t.type === 'Recette') totalRecettes += val;
-    else if (t.type === 'Dépense') totalDepenses += val;
+  ecritures.forEach(e => {
+    const debit = parseFloat(e.debit || 0);
+    const credit = parseFloat(e.credit || 0);
+    if (debit > 0) totalRecettes += debit;
+    else if (credit > 0) totalDepenses += credit;
   });
   const benefice = totalRecettes - totalDepenses;
 
-  const corpsBrut = `Bonjour ${nomComptable},\n\nVeuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n--- RÉSUMÉ DES OPÉRATIONS ---\n• Nombre de transactions : ${transactions.length}\n• Recettes Totales : ${totalRecettes.toFixed(2)} €\n• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.\n\nCordialement,`;
+  const corpsBrut = `Bonjour ${nomComptable},\n\nVeuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n--- RÉSUMÉ DES OPÉRATIONS ---\n• Nombre d'opérations : ${ecritures.length}\n• Recettes Totales : ${totalRecettes.toFixed(2)} €\n• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.\n\nCordialement,`;
 
   return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
 }
@@ -129,7 +153,6 @@ function injecterStylesImpression() {
   style.id = 'style-impression-global';
   style.innerHTML = `
     @media print {
-      /* Masquer la navigation, les boutons et la console à l'impression */
       nav, header, button, input[type="file"], .no-print, #export-container > div > div:first-child button {
         display: none !important;
       }
@@ -254,4 +277,6 @@ window.initExportModule = function() {
   renderExportUI();
 };
 
-document.addEventListener('DOMContentLoaded', window.initExportModule);
+document.addEventListener('DOMContentLoaded', () => {
+  renderExportUI();
+});
