@@ -1,4 +1,4 @@
-// grand_livre.js - Grand Livre structuré par Classes (1 à 9), Sous-totaux Comptes & Totaux Classes
+// grand_livre.js - Grand Livre incluant systématiquement toutes les classes de 1 à 9
 
 (function () {
     function getSupabaseClient() {
@@ -108,7 +108,7 @@
 
         const desc = (tx.description || '').trim();
         if (desc && (cat.includes('soins') || (tx.type || '').toLowerCase().includes('rec'))) {
-            return { code: `411${desc.substring(0, 3).toUpperCase()}`, nom: `411 - Patient/Tiers (${desc})` };
+            return { code: '706000', nom: '706000 - Prestations de services / Honoraires' };
         }
 
         return { code: '471000', nom: '471000 - Compte d\'attente / Divers' };
@@ -163,9 +163,13 @@
         let totalGeneralDebit = 0;
         let totalGeneralCredit = 0;
 
-        // Regroupement par Classe -> Compte -> Transactions
+        // Pré-initialisation explicite des 9 classes comptables
         const arborescence = {};
+        for (let i = 1; i <= 9; i++) {
+            arborescence[String(i)] = {};
+        }
 
+        // Remplissage avec les données existantes
         state.transactions.forEach(tx => {
             const c = determinerCompte(tx);
             if (state.compteFiltre !== 'TOUS' && c.code !== state.compteFiltre) return;
@@ -173,28 +177,22 @@
             const numClasse = c.code.charAt(0);
             const numCompte = c.code;
 
-            if (!arborescence[numClasse]) arborescence[numClasse] = {};
-            if (!arborescence[numClasse][numCompte]) {
-                arborescence[numClasse][numCompte] = {
-                    nom: c.nom,
-                    txs: []
-                };
+            if (arborescence[numClasse]) {
+                if (!arborescence[numClasse][numCompte]) {
+                    arborescence[numClasse][numCompte] = {
+                        nom: c.nom,
+                        txs: []
+                    };
+                }
+                arborescence[numClasse][numCompte].txs.push(tx);
             }
-
-            arborescence[numClasse][numCompte].txs.push(tx);
         });
 
-        const classesTriees = Object.keys(arborescence).sort();
+        for (let i = 1; i <= 9; i++) {
+            const numClasse = String(i);
+            const comptes = arborescence[numClasse];
+            const comptesTries = Object.keys(comptes).sort();
 
-        if (classesTriees.length === 0) {
-            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #6b7280;">Aucune opération enregistrée.</div>';
-            if (totDebitEl) totDebitEl.textContent = '0.00 €';
-            if (totCreditEl) totCreditEl.textContent = '0.00 €';
-            if (totSoldeEl) totSoldeEl.textContent = '0.00 €';
-            return;
-        }
-
-        classesTriees.forEach(numClasse => {
             let totalClasseDebit = 0;
             let totalClasseCredit = 0;
 
@@ -209,80 +207,87 @@
             classHeader.style.padding = '10px 15px';
             classHeader.style.fontWeight = 'bold';
             classHeader.style.fontSize = '1rem';
-            classHeader.textContent = NOMS_CLASSES[numClasse] || `Classe ${numClasse}`;
+            classHeader.textContent = NOMS_CLASSES[numClasse];
             classBloc.appendChild(classHeader);
 
-            const comptes = arborescence[numClasse];
-            const comptesTries = Object.keys(comptes).sort();
+            if (comptesTries.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.style.padding = '12px 15px';
+                emptyDiv.style.color = '#94a3b8';
+                emptyDiv.style.fontSize = '0.875rem';
+                emptyDiv.style.fontStyle = 'italic';
+                emptyDiv.textContent = 'Aucune écriture pour cette classe.';
+                classBloc.appendChild(emptyDiv);
+            } else {
+                comptesTries.forEach(numCompte => {
+                    const compteData = comptes[numCompte];
+                    let subTotalDebit = 0;
+                    let subTotalCredit = 0;
 
-            comptesTries.forEach(numCompte => {
-                const compteData = comptes[numCompte];
-                let subTotalDebit = 0;
-                let subTotalCredit = 0;
+                    const table = document.createElement('table');
+                    table.style.width = '100%';
+                    table.style.borderCollapse = 'collapse';
+                    table.style.fontSize = '0.875rem';
 
-                const table = document.createElement('table');
-                table.style.width = '100%';
-                table.style.borderCollapse = 'collapse';
-                table.style.fontSize = '0.875rem';
-
-                let htmlContent = `
-                    <thead>
-                        <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
-                            <th colspan="6" style="padding: 8px 12px; color: #1e293b; text-align: left; font-size: 0.9rem;">
-                                📁 <strong>${compteData.nom}</strong>
-                            </th>
-                        </tr>
-                        <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #64748b;">
-                            <th style="padding: 6px 12px; text-align: left; width: 100px;">Date</th>
-                            <th style="padding: 6px 12px; text-align: left; width: 100px;">Compte</th>
-                            <th style="padding: 6px 12px; text-align: left;">Catégorie</th>
-                            <th style="padding: 6px 12px; text-align: left;">Description</th>
-                            <th style="padding: 6px 12px; text-align: right; width: 120px;">Débit (€)</th>
-                            <th style="padding: 6px 12px; text-align: right; width: 120px;">Crédit (€)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                `;
-
-                compteData.txs.forEach(tx => {
-                    const { debit, credit } = extraireMontants(tx);
-                    subTotalDebit += debit;
-                    subTotalCredit += credit;
-
-                    htmlContent += `
-                        <tr style="border-bottom: 1px solid #f1f5f9;">
-                            <td style="padding: 6px 12px;">${tx.date || '-'}</td>
-                            <td style="padding: 6px 12px;"><strong>${numCompte}</strong></td>
-                            <td style="padding: 6px 12px;">${tx.category || tx.categorie || '-'}</td>
-                            <td style="padding: 6px 12px;">${tx.description || '-'}</td>
-                            <td style="padding: 6px 12px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
-                            <td style="padding: 6px 12px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
-                        </tr>
+                    let htmlContent = `
+                        <thead>
+                            <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+                                <th colspan="6" style="padding: 8px 12px; color: #1e293b; text-align: left; font-size: 0.9rem;">
+                                    📁 <strong>${compteData.nom}</strong>
+                                </th>
+                            </tr>
+                            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #64748b;">
+                                <th style="padding: 6px 12px; text-align: left; width: 100px;">Date</th>
+                                <th style="padding: 6px 12px; text-align: left; width: 100px;">Compte</th>
+                                <th style="padding: 6px 12px; text-align: left;">Catégorie</th>
+                                <th style="padding: 6px 12px; text-align: left;">Description</th>
+                                <th style="padding: 6px 12px; text-align: right; width: 120px;">Débit (€)</th>
+                                <th style="padding: 6px 12px; text-align: right; width: 120px;">Crédit (€)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                     `;
+
+                    compteData.txs.forEach(tx => {
+                        const { debit, credit } = extraireMontants(tx);
+                        subTotalDebit += debit;
+                        subTotalCredit += credit;
+
+                        htmlContent += `
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 6px 12px;">${tx.date || '-'}</td>
+                                <td style="padding: 6px 12px;"><strong>${numCompte}</strong></td>
+                                <td style="padding: 6px 12px;">${tx.category || tx.categorie || '-'}</td>
+                                <td style="padding: 6px 12px;">${tx.description || '-'}</td>
+                                <td style="padding: 6px 12px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
+                                <td style="padding: 6px 12px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
+                            </tr>
+                        `;
+                    });
+
+                    totalClasseDebit += subTotalDebit;
+                    totalClasseCredit += subTotalCredit;
+
+                    const subSolde = subTotalDebit - subTotalCredit;
+                    htmlContent += `
+                        </tbody>
+                        <tfoot>
+                            <tr style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; font-weight: 600;">
+                                <td colspan="4" style="text-align: right; padding: 6px 12px; color: #334155;">Sous-total (${numCompte}) :</td>
+                                <td style="text-align: right; padding: 6px 12px; color: #16a34a;">${subTotalDebit.toFixed(2)} €</td>
+                                <td style="text-align: right; padding: 6px 12px; color: #dc2626;">${subTotalCredit.toFixed(2)} €</td>
+                            </tr>
+                            <tr style="background-color: #f1f5f9; border-bottom: 2px solid #e2e8f0; font-weight: 600;">
+                                <td colspan="4" style="text-align: right; padding: 6px 12px; color: #475569;">Solde Compte :</td>
+                                <td colspan="2" style="text-align: right; padding: 6px 12px; color: ${subSolde >= 0 ? '#16a34a' : '#dc2626'};">${subSolde.toFixed(2)} €</td>
+                            </tr>
+                        </tfoot>
+                    `;
+
+                    table.innerHTML = htmlContent;
+                    classBloc.appendChild(table);
                 });
-
-                totalClasseDebit += subTotalDebit;
-                totalClasseCredit += subTotalCredit;
-
-                const subSolde = subTotalDebit - subTotalCredit;
-                htmlContent += `
-                    </tbody>
-                    <tfoot>
-                        <tr style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; font-weight: 600;">
-                            <td colspan="4" style="text-align: right; padding: 6px 12px; color: #334155;">Sous-total (${numCompte}) :</td>
-                            <td style="text-align: right; padding: 6px 12px; color: #16a34a;">${subTotalDebit.toFixed(2)} €</td>
-                            <td style="text-align: right; padding: 6px 12px; color: #dc2626;">${subTotalCredit.toFixed(2)} €</td>
-                        </tr>
-                        <tr style="background-color: #f1f5f9; border-bottom: 2px solid #e2e8f0; font-weight: 600;">
-                            <td colspan="4" style="text-align: right; padding: 6px 12px; color: #475569;">Solde Compte :</td>
-                            <td colspan="2" style="text-align: right; padding: 6px 12px; color: ${subSolde >= 0 ? '#16a34a' : '#dc2626'};">${subSolde.toFixed(2)} €</td>
-                        </tr>
-                    </tfoot>
-                `;
-
-                table.innerHTML = htmlContent;
-                classBloc.appendChild(table);
-            });
+            }
 
             totalGeneralDebit += totalClasseDebit;
             totalGeneralCredit += totalClasseCredit;
@@ -305,7 +310,7 @@
             `;
             classBloc.appendChild(classFooter);
             container.appendChild(classBloc);
-        });
+        }
 
         if (totDebitEl) totDebitEl.textContent = totalGeneralDebit.toFixed(2) + ' €';
         if (totCreditEl) totCreditEl.textContent = totalGeneralCredit.toFixed(2) + ' €';
