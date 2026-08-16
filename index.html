@@ -12,9 +12,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ==========================================
-           1. STYLES DE BASE ET LAYOUT
-           ========================================== */
         * {
             box-sizing: border-box;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -32,7 +29,6 @@
             margin: 0 auto;
         }
 
-        /* En-tête */
         header {
             display: flex;
             justify-content: space-between;
@@ -58,7 +54,6 @@
             font-weight: 600;
         }
 
-        /* Navigation par Onglets */
         nav {
             display: flex;
             gap: 8px;
@@ -89,7 +84,6 @@
             border-color: #2563eb;
         }
 
-        /* Vues */
         .view-section {
             display: none;
             background: #ffffff;
@@ -102,7 +96,6 @@
             display: block;
         }
 
-        /* Formulaire */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -145,7 +138,6 @@
             background-color: #1d4ed8;
         }
 
-        /* Tableaux */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -167,7 +159,6 @@
             font-size: 14px;
         }
 
-        /* Modale */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -359,7 +350,7 @@
             </div>
         </section>
 
-        <!-- VUE 6 : URSSAF (Correction de l'ID) -->
+        <!-- VUE 6 : URSSAF -->
         <section id="vue-urssaf" class="view-section">
             <div id="urssaf-container">
                 <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
@@ -387,19 +378,33 @@
             </div>
         </section>
 
-        <!-- VUE 10 : JOURNAL (Correction de l'ID) -->
+        <!-- VUE 10 : JOURNAL -->
         <section id="vue-journal" class="view-section">
             <h2>Journal des écritures</h2>
             <div id="journal-container">
-                <p style="color: #64748b;">Chargement du journal...</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Catégorie</th>
+                            <th>Description</th>
+                            <th>Débit (Dépense)</th>
+                            <th>Crédit (Recette)</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody id="body-tableau-journal"></tbody>
+                </table>
             </div>
         </section>
 
-        <!-- VUE 11 : GRAND LIVRE (Correction de l'ID) -->
+        <!-- VUE 11 : GRAND LIVRE -->
         <section id="vue-grandlivre" class="view-section">
             <h2>Grand Livre</h2>
             <div id="grandlivre-container">
-                <p style="color: #64748b;">Chargement du grand livre...</p>
+                <div id="grandlivre-contenu">
+                    <p style="color: #64748b;">Chargement du grand livre...</p>
+                </div>
             </div>
         </section>
 
@@ -457,6 +462,9 @@
     <script src="config.js"></script>
 
     <script>
+        // Initialisation globale des tableaux si vide
+        window.transactions = window.transactions || [];
+
         // Gestionnaire d'onglets dynamique
         window.switchTab = function(tabId, btnElement) {
             var sections = document.querySelectorAll('.view-section');
@@ -494,7 +502,7 @@
         });
     </script>
 
-    <!-- SCRIPTS APPLICATIFS MODULES (Notez le nom grand-livre.js avec le tiret) -->
+    <!-- SCRIPTS APPLICATIFS MODULES -->
     <script src="transactions.js"></script>
     <script src="bilan.js"></script>
     <script src="declaration2035.js"></script>
