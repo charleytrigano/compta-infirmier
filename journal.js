@@ -1,4 +1,4 @@
-// journal.js - Rendu direct et robuste du Journal des Écritures
+// journal.js - Gestion du Journal avec Numéro de Compte Éditable en direct
 
 (function () {
     function getSupabase() {
@@ -7,18 +7,45 @@
 
     let filterActif = 'TOUS';
 
-    async function initialiserRenduJournal() {
-        // 1. Détection de la zone "Journal des écritures"
-        let conteneurTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span, p'))
+    function trouverTableJournal() {
+        const elTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span, p'))
             .find(el => el.textContent && el.textContent.trim().toLowerCase() === 'journal des écritures');
 
-        if (!conteneurTitre) return;
+        if (elTitre) {
+            const conteneur = elTitre.closest('div.card, div.bg-white, section, main') || elTitre.parentElement;
+            if (conteneur) {
+                const table = conteneur.querySelector('table');
+                if (table) return table;
+            }
+        }
+        const tables = Array.from(document.querySelectorAll('table'));
+        return tables.find(t => t.offsetParent !== null) || tables[0];
+    }
 
-        let zoneJournal = conteneurTitre.closest('div.card, div.bg-white, section, main') || conteneurTitre.parentElement;
-        if (!zoneJournal) return;
+    async function initialiserRenduJournal() {
+        const table = trouverTableJournal();
+        if (!table) return;
 
-        // 2. Vérification/Injection de la barre de boutons de filtres
-        let filterBar = zoneJournal.querySelector('#journal-filter-bar');
+        // 1. Mise à jour des en-têtes du tableau pour inclure "N° Compte"
+        let thead = table.querySelector('thead');
+        if (thead) {
+            thead.innerHTML = `
+                <tr style="border-bottom: 2px solid #e2e8f0; background-color: #f8fafc;">
+                    <th style="padding: 10px 12px; text-align: left; color: #475569;">Date</th>
+                    <th style="padding: 10px 12px; text-align: left; color: #475569;">N° Compte</th>
+                    <th style="padding: 10px 12px; text-align: left; color: #475569;">Catégorie</th>
+                    <th style="padding: 10px 12px; text-align: left; color: #475569;">Description</th>
+                    <th style="padding: 10px 12px; text-align: right; color: #475569;">Débit (Dépense)</th>
+                    <th style="padding: 10px 12px; text-align: right; color: #475569;">Crédit (Recette)</th>
+                    <th style="padding: 10px 12px; text-align: center; color: #475569;">Statut</th>
+                </tr>
+            `;
+        }
+
+        // 2. Barre de filtres
+        const parent = table.parentNode;
+        let filterBar = parent.querySelector('#journal-filter-bar');
+        
         if (!filterBar) {
             filterBar = document.createElement('div');
             filterBar.id = 'journal-filter-bar';
@@ -29,10 +56,11 @@
                 <button data-f="DEP" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; color: #334155; cursor: pointer; font-weight: 500;">🔴 Dépenses (HA)</button>
                 <button data-f="BQ" style="padding: 6px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; color: #334155; cursor: pointer; font-weight: 500;">🏦 Banque (512)</button>
             `;
-            conteneurTitre.parentNode.insertBefore(filterBar, conteneurTitre.nextSibling);
+
+            parent.insertBefore(filterBar, table);
 
             filterBar.querySelectorAll('button').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', () => {
                     filterBar.querySelectorAll('button').forEach(b => {
                         b.style.backgroundColor = '#f8fafc';
                         b.style.color = '#334155';
@@ -47,10 +75,6 @@
             });
         }
 
-        // 3. Ciblage du tableau HTML dans la zone
-        let table = zoneJournal.querySelector('table');
-        if (!table) return;
-
         let tbody = table.querySelector('tbody');
         if (!tbody) {
             tbody = document.createElement('tbody');
@@ -63,21 +87,23 @@
     async function chargerDonneesEtRendre(tbodyTarget) {
         let tbody = tbodyTarget;
         if (!tbody) {
-            let table = document.querySelector('table');
+            let table = trouverTableJournal();
             if (table) tbody = table.querySelector('tbody') || table.appendChild(document.createElement('tbody'));
         }
         if (!tbody) return;
 
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Chargement des données...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: #64748b;">Chargement des données...</td></tr>`;
 
         const supabase = getSupabase();
         let ecritures = [];
+        let isEcrituresTable = false;
 
         try {
             if (supabase) {
                 const { data: ecr } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: false });
                 if (ecr && ecr.length > 0) {
                     ecritures = ecr;
+                    isEcrituresTable = true;
                 } else {
                     const { data: tx } = await supabase.from('transactions').select('*').order('date', { ascending: false });
                     ecritures = tx || [];
@@ -86,7 +112,7 @@
                 ecritures = JSON.parse(localStorage.getItem('transactions') || '[]');
             }
         } catch (e) {
-            console.error("Erreur Supabase Journal:", e);
+            console.error("Erreur chargement Supabase:", e);
         }
 
         // Filtrage
@@ -103,7 +129,7 @@
         tbody.innerHTML = '';
 
         if (donnesFiltrees.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 25px; color: #94a3b8;">Aucune donnée disponible.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 25px; color: #94a3b8;">Aucune écriture enregistrée.</td></tr>`;
             return;
         }
 
@@ -121,9 +147,23 @@
                 else debitVal = amt;
             }
 
+            // Déduction par défaut du numéro de compte si non défini
+            let numCompteDefaut = row.compte_code || row.account_number || '';
+            if (!numCompteDefaut) {
+                if (creditVal > 0) numCompteDefaut = '706000';
+                else if (debitVal > 0) numCompteDefaut = '600000';
+            }
+
             tr.innerHTML = `
                 <td style="padding: 10px 12px; color: #334155;">${row.date || '-'}</td>
-                <td style="padding: 10px 12px; color: #334155; font-weight: 600;">${row.category || row.compte_code || '-'}</td>
+                <td style="padding: 6px 8px;">
+                    <input type="text" value="${numCompteDefaut}" 
+                           data-id="${row.id}" 
+                           data-table="${isEcrituresTable ? 'ecritures_comptables' : 'transactions'}"
+                           class="input-num-compte"
+                           style="width: 90px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 600; color: #1e293b; text-align: center; background-color: #ffffff;" />
+                </td>
+                <td style="padding: 10px 12px; color: #334155; font-weight: 500;">${row.category || '-'}</td>
                 <td style="padding: 10px 12px; color: #334155;">${row.description || row.compte_libelle || '-'}</td>
                 <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 500;">${debitVal > 0 ? debitVal.toFixed(2) + ' €' : '-'}</td>
                 <td style="padding: 10px 12px; text-align: right; color: #16a34a; font-weight: 500;">${creditVal > 0 ? creditVal.toFixed(2) + ' €' : '-'}</td>
@@ -133,21 +173,57 @@
             `;
             tbody.appendChild(tr);
         });
+
+        // 3. Attachement des écouteurs de modification sur les numéros de compte
+        tbody.querySelectorAll('.input-num-compte').forEach(input => {
+            const sauvegarder = async () => {
+                const newCode = input.value.trim();
+                const id = input.getAttribute('data-id');
+                const tableName = input.getAttribute('data-table');
+                const supabase = getSupabase();
+
+                if (!supabase || !id) return;
+
+                input.style.borderColor = '#3b82f6';
+
+                const champCode = tableName === 'ecritures_comptables' ? 'compte_code' : 'account_number';
+                
+                const payload = {};
+                payload[champCode] = newCode;
+
+                const { error } = await supabase.from(tableName).update(payload).eq('id', id);
+
+                if (error) {
+                    console.error("Erreur de sauvegarde du compte :", error);
+                    input.style.borderColor = '#ef4444';
+                } else {
+                    input.style.borderColor = '#22c55e';
+                    setTimeout(() => { input.style.borderColor = '#cbd5e1'; }, 1200);
+                }
+            };
+
+            input.addEventListener('change', sauvegarder);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+            });
+        });
     }
 
-    // Écouteur global pour réagir immédiatement au clic sur l'onglet Journal
+    // Ré-exécution automatique au clic d'onglet
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('button, a, div');
         if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('journal')) {
             setTimeout(initialiserRenduJournal, 100);
-            setTimeout(initialiserRenduJournal, 400);
+            setTimeout(initialiserRenduJournal, 300);
         }
     });
 
     window.initialiserRenduJournal = initialiserRenduJournal;
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initialiserRenduJournal, 300);
+        setTimeout(initialiserRenduJournal, 200);
     } else {
         document.addEventListener('DOMContentLoaded', initialiserRenduJournal);
     }
