@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MODULE PLAN COMPTABLE DE SANTÉ & BNC (COMPLET : CLASSES 1 À 7)
+   MODULE PLAN COMPTABLE BNC / INFIRMIER (COMPLET : CLASSES 1 À 7)
    ========================================================================== */
 
 window.PLAN_COMPTABLE_BNC = [
@@ -42,18 +42,16 @@ window.PLAN_COMPTABLE_BNC = [
     { id: 26, code: '709000', intitule: 'Rétrocessions d honoraires reçues', type: 'Recette' }
 ];
 
-/**
- * Génère le tableau d'affichage du Plan Comptable
- */
 window.afficherPlanComptable = function(filtreText) {
     var container = document.getElementById('contenu-plan-comptable') || 
-                      document.getElementById('plan-comptable-container') ||
-                      document.getElementById('vue-plan-comptable');
+                      document.getElementById('plan-comptable-contenu') || 
+                      document.getElementById('vue-plan-comptable') || 
+                      document.getElementById('plan-comptable-container');
 
     if (!container) {
-        var toutLesDivs = document.querySelectorAll('div');
-        toutLesDivs.forEach(function(div) {
-            if (div.textContent.includes('Plan Comptable - Infirmier')) {
+        var divs = document.querySelectorAll('div');
+        divs.forEach(function(div) {
+            if (div.textContent.includes('Chargement du plan comptable...')) {
                 container = div;
             }
         });
@@ -62,8 +60,7 @@ window.afficherPlanComptable = function(filtreText) {
     if (!container) return;
 
     var liste = window.PLAN_COMPTABLE_BNC;
-    
-    // Application de la recherche
+
     if (filtreText && filtreText.trim() !== '') {
         var term = filtreText.toLowerCase().trim();
         liste = liste.filter(function(item) {
@@ -72,17 +69,29 @@ window.afficherPlanComptable = function(filtreText) {
     }
 
     var html = `
-        <div style="background:#fff; border-radius:8px; border:1px solid #e2e8f0; overflow:hidden; margin-top:15px;">
-            <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
-                <thead>
-                    <tr style="background:#f8fafc; color:#475569; border-bottom:1px solid #e2e8f0;">
-                        <th style="padding:10px 15px; width:10%;">ID</th>
-                        <th style="padding:10px 15px; width:20%;">Code Compte</th>
-                        <th style="padding:10px 15px;">Intitulé du compte</th>
-                        <th style="padding:10px 15px; text-align:center; width:20%;">Type</th>
-                    </tr>
-                </thead>
-                <tbody>
+        <div style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; padding:15px; margin-top:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <div>
+                    <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin:0;">Plan Comptable - Infirmiers Libéraux</h3>
+                    <p style="font-size:12px; color:#64748b; margin:2px 0 0 0;">Liste complète des comptes enregistrés (Classes 1 à 7)</p>
+                </div>
+                <input type="text" id="input-search-plan" placeholder="🔍 Rechercher par code ou libellé..." 
+                       oninput="window.afficherPlanComptable(this.value)" 
+                       value="${filtreText || ''}"
+                       style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; width:260px; outline:none;" />
+            </div>
+
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+                    <thead>
+                        <tr style="background:#f8fafc; color:#475569; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:10px 15px; width:10%;">ID</th>
+                            <th style="padding:10px 15px; width:20%;">Code Compte</th>
+                            <th style="padding:10px 15px;">Intitulé du compte</th>
+                            <th style="padding:10px 15px; text-align:center; width:20%;">Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
     `;
 
     liste.forEach(function(item) {
@@ -97,7 +106,7 @@ window.afficherPlanComptable = function(filtreText) {
         html += `
             <tr style="border-bottom:1px solid #f1f5f9;">
                 <td style="padding:10px 15px; color:#94a3b8;">${item.id}</td>
-                <td style="padding:10px 15px; font-weight:700; color:#1e293b;">${item.code}</td>
+                <td style="padding:10px 15px; font-weight:700; color:#0f172a;">${item.code}</td>
                 <td style="padding:10px 15px; color:#334155;">${item.intitule}</td>
                 <td style="padding:10px 15px; text-align:center;">
                     <span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; color:${badgeColor}; background:${badgeBg};">
@@ -109,19 +118,26 @@ window.afficherPlanComptable = function(filtreText) {
     });
 
     html += `
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
 
     container.innerHTML = html;
+
+    var searchInput = document.getElementById('input-search-plan');
+    if (searchInput && filtreText) {
+        searchInput.focus();
+        searchInput.setSelectionRange(filtreText.length, filtreText.length);
+    }
 };
 
-// Initialisation au chargement
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    window.afficherPlanComptable();
-} else {
-    document.addEventListener('DOMContentLoaded', function() {
+// Execution automatique
+setInterval(function() {
+    var container = document.getElementById('contenu-plan-comptable') || 
+                      document.getElementById('plan-comptable-container');
+    if (container && container.innerHTML.includes('Chargement du plan comptable...')) {
         window.afficherPlanComptable();
-    });
-}
+    }
+}, 300);
