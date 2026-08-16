@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MODULE PLAN COMPTABLE BNC & COMPTES AUXILIAIRES 411 (CORRIGÉ)
+   MODULE PLAN COMPTABLE BNC & COMPTES AUXILIAIRES 411
    ========================================================================== */
 
 window.PLAN_COMPTABLE_DEFAUT = [
@@ -38,9 +38,7 @@ window.PLAN_AUXILIAIRE_411_DEFAUT = [
     { id: 4, code: '411400', intitule: 'SSIAD / HAD / Structures de soins', categorie: 'Etablissement' }
 ];
 
-if (!window.ongletActifPlan) {
-    window.ongletActifPlan = 'general';
-}
+window.ongletActifPlan = 'general';
 
 window.chargerDonneesComptables = function() {
     var general = localStorage.getItem('PLAN_COMPTABLE_BNC_CUSTOM');
@@ -51,12 +49,7 @@ window.chargerDonneesComptables = function() {
 };
 window.chargerDonneesComptables();
 
-window.changerOngletPlan = function(type, event) {
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    console.log("Changement d'onglet vers :", type);
+window.changerOngletPlan = function(type) {
     window.ongletActifPlan = type;
     window.afficherPlanComptable();
 };
@@ -96,11 +89,11 @@ window.afficherPlanComptable = function(filtreText) {
             
             <!-- Onglets -->
             <div style="display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:15px; gap:10px;">
-                <button type="button" onclick="window.changerOngletPlan('general', event)" 
+                <button type="button" onclick="window.changerOngletPlan('general')" 
                         style="padding:10px 18px; font-weight:700; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${isGeneral ? '#2563eb' : 'transparent'}; color:${isGeneral ? '#2563eb' : '#64748b'};">
                     Plan Comptable Général
                 </button>
-                <button type="button" onclick="window.changerOngletPlan('auxiliaire', event)" 
+                <button type="button" onclick="window.changerOngletPlan('auxiliaire')" 
                         style="padding:10px 18px; font-weight:700; font-size:13px; border:none; background:none; cursor:pointer; border-bottom:3px solid ${!isGeneral ? '#2563eb' : 'transparent'}; color:${!isGeneral ? '#2563eb' : '#64748b'};">
                     Comptes Individuels Patients / Caisses (411 Auxiliaires)
                 </button>
@@ -307,10 +300,3 @@ window.enregistrerNouveauCompte = function() {
     document.getElementById('modal-nouveau-compte').remove();
     window.afficherPlanComptable();
 };
-
-setInterval(function() {
-    var container = document.getElementById('contenu-plan-comptable') || document.getElementById('plan-comptable-container');
-    if (container && container.innerHTML.includes('Chargement du plan comptable...')) {
-        window.afficherPlanComptable();
-    }
-}, 300);
