@@ -1,4 +1,4 @@
-// grand_livre.js - Correction du déversement des comptes 411 dans la Classe 4
+// grand_livre.js - Gestion intégrale de la partie double (Classes 4, 5, 6, 7)
 
 (function () {
     function getSupabaseClient() {
@@ -14,22 +14,12 @@
         '1': 'Classe 1 - Comptes de capitaux',
         '2': 'Classe 2 - Comptes d\'immobilisations',
         '3': 'Classe 3 - Comptes de stocks et en-cours',
-        '4': 'Classe 4 - Comptes de tiers (Patients / Mutuelles / Caisses)',
-        '5': 'Classe 5 - Comptes financiers',
-        '6': 'Classe 6 - Comptes de charges',
+        '4': 'Classe 4 - Comptes de tiers (Patients / Mutuelles)',
+        '5': 'Classe 5 - Comptes financiers (Banque / Caisse)',
+        '6': 'Classe 6 - Comptes de charges (URSSAF / CARPIMKO / Frais)',
         '7': 'Classe 7 - Comptes de produits (Honoraires)',
         '8': 'Classe 8 - Comptes spéciaux',
         '9': 'Classe 9 - Comptes analytiques'
-    };
-
-    const MAPPING_COMPTES = {
-        'carpimko': { code: '646000', nom: '646000 - Cotisations sociales CARPIMKO' },
-        'urssaf': { code: '645000', nom: '645000 - Cotisations URSSAF' },
-        'achats': { code: '606000', nom: '606000 - Achats de matériel et fournitures' },
-        'frais de deplacement': { code: '625100', nom: '625100 - Frais de déplacement' },
-        'frais bancaires': { code: '627000', nom: '627000 - Frais bancaires' },
-        'loyer': { code: '613200', nom: '613200 - Loyer professionnel' },
-        'assurance': { code: '616000', nom: '616000 - Primes d\'assurances' }
     };
 
     function trouverConteneurGrandLivre() {
@@ -92,42 +82,84 @@
         }
     }
 
-    function determinerCompte(tx) {
-        // Si un code compte explicite est présent (ex: 411000 ou personnalisé)
-        if (tx.compte_code && tx.compte_code.length >= 3) {
-            return { code: tx.compte_code, nom: `${tx.compte_code} - ${tx.description || tx.category || 'Opération'}` };
-        }
-
-        const cat = (tx.category || tx.categorie || '').toLowerCase();
-        const desc = (tx.description || '').trim();
-        const type = (tx.type || '').toLowerCase();
-
-        // 1. Déversement prioritaire des recettes/patients en 411 (Classe 4)
-        if (type.includes('recette') || type.includes('rec') || cat.includes('soins')) {
-            const nomPatient = desc || 'Divers';
-            const codeSub = `411${nomPatient.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase()}`;
-            return { code: codeSub, nom: `${codeSub} - Client / Patient (${nomPatient})` };
-        }
-
-        // 2. Traitement des charges (Classe 6)
-        for (const key in MAPPING_COMPTES) {
-            if (cat.includes(key)) {
-                return MAPPING_COMPTES[key];
-            }
-        }
-
-        return { code: '471000', nom: '471000 - Compte d\'attente / Divers' };
-    }
-
-    function extraireMontants(tx) {
+    // Génération des 2 écritures en partie double pour chaque transaction
+    function genererEcrituresPartieDouble(tx) {
         const val = Math.abs(parseFloat(tx.amount || tx.montant || 0));
         const type = String(tx.type || '').toLowerCase();
+        const cat = (tx.category || tx.categorie || '').toLowerCase();
+        const desc = (tx.description || '').trim();
+        const date = tx.date || '-';
 
-        if (type.startsWith('rec') || type.includes('recette')) {
-            return { debit: val, credit: 0 };
+        const ecritures = [];
+        const isRecette = type.includes('recette') || type.includes('rec') || cat.includes('soins');
+
+        if (isRecette) {
+            // Écriture 1 : Entrée de trésorerie (Classe 5 - Banque DÉBIT)
+            ecritures.push({
+                date: date,
+                compteCode: '512000',
+                compteNom: '512000 - Banque / Compte Courant',
+                category: tx.category || 'Soins infirmiers',
+                description: `Encaissement : ${desc || 'Patient'}`,
+                debit: val,
+                credit: 0
+            });
+
+            // Écriture 2 : Compte Tiers Patient (Classe 4 - CRÉDIT)
+            const codePatient = desc ? `411${desc.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase()}` : '411000';
+            ecritures.push({
+                date: date,
+                compteCode: codePatient,
+                compteNom: `${codePatient} - Patient / Tiers (${desc || 'Divers'})`,
+                category: tx.category || 'Soins infirmiers',
+                description: `Règlement soins : ${desc || 'Patient'}`,
+                debit: 0,
+                credit: val
+            });
         } else {
-            return { debit: 0, credit: val };
+            // Écriture 1 : Charge (Classe 6 - DÉBIT)
+            let codeCharge = '606000';
+            let nomCharge = '606000 - Achats et fournitures';
+
+            if (cat.includes('carpimko')) {
+                codeCharge = '646000';
+                nomCharge = '646000 - Cotisations sociales CARPIMKO';
+            } else if (cat.includes('urssaf')) {
+                codeCharge = '645000';
+                nomCharge = '645000 - Cotisations URSSAF';
+            }
+
+            ecritures.push({
+                date: date,
+                compteCode: codeCharge,
+                compteNom: nomCharge,
+                category: tx.category || 'Dépense',
+                description: desc || 'Paiement charge',
+                debit: val,
+                credit: 0
+            });
+
+            // Écriture 2 : Sortie de trésorerie (Classe 5 - Banque CRÉDIT)
+            ecritures.push({
+                date: date,
+                compteCode: '512000',
+                compteNom: '512000 - Banque / Compte Courant',
+                category: tx.category || 'Dépense',
+                description: `Décaissement : ${desc || 'Charge'}`,
+                debit: 0,
+                credit: val
+            });
         }
+
+        return ecritures;
+    }
+
+    function obtenirToutesLesEcritures() {
+        let toutes = [];
+        state.transactions.forEach(tx => {
+            toutes = toutes.concat(genererEcrituresPartieDouble(tx));
+        });
+        return toutes;
     }
 
     function initialiserFiltres() {
@@ -135,9 +167,10 @@
         if (!select) return;
 
         const comptesMap = new Map();
-        state.transactions.forEach(tx => {
-            const c = determinerCompte(tx);
-            if (!comptesMap.has(c.code)) comptesMap.set(c.code, c.nom);
+        const ecritures = obtenirToutesLesEcritures();
+
+        ecritures.forEach(e => {
+            if (!comptesMap.has(e.compteCode)) comptesMap.set(e.compteCode, e.compteNom);
         });
 
         select.innerHTML = '<option value="TOUS">Tous les comptes (Vue globale)</option>';
@@ -173,21 +206,22 @@
             arborescence[String(i)] = {};
         }
 
-        state.transactions.forEach(tx => {
-            const c = determinerCompte(tx);
-            if (state.compteFiltre !== 'TOUS' && c.code !== state.compteFiltre) return;
+        const ecritures = obtenirToutesLesEcritures();
 
-            const numClasse = c.code.charAt(0);
-            const numCompte = c.code;
+        ecritures.forEach(e => {
+            if (state.compteFiltre !== 'TOUS' && e.compteCode !== state.compteFiltre) return;
+
+            const numClasse = e.compteCode.charAt(0);
+            const numCompte = e.compteCode;
 
             if (arborescence[numClasse]) {
                 if (!arborescence[numClasse][numCompte]) {
                     arborescence[numClasse][numCompte] = {
-                        nom: c.nom,
-                        txs: []
+                        nom: e.compteNom,
+                        ecritures: []
                     };
                 }
-                arborescence[numClasse][numCompte].txs.push(tx);
+                arborescence[numClasse][numCompte].ecritures.push(e);
             }
         });
 
@@ -251,19 +285,18 @@
                         <tbody>
                     `;
 
-                    compteData.txs.forEach(tx => {
-                        const { debit, credit } = extraireMontants(tx);
-                        subTotalDebit += debit;
-                        subTotalCredit += credit;
+                    compteData.ecritures.forEach(e => {
+                        subTotalDebit += e.debit;
+                        subTotalCredit += e.credit;
 
                         htmlContent += `
                             <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 6px 12px;">${tx.date || '-'}</td>
+                                <td style="padding: 6px 12px;">${e.date}</td>
                                 <td style="padding: 6px 12px;"><strong>${numCompte}</strong></td>
-                                <td style="padding: 6px 12px;">${tx.category || tx.categorie || '-'}</td>
-                                <td style="padding: 6px 12px;">${tx.description || '-'}</td>
-                                <td style="padding: 6px 12px; text-align: right; color: #16a34a; font-weight: 500;">${debit > 0 ? debit.toFixed(2) + ' €' : '-'}</td>
-                                <td style="padding: 6px 12px; text-align: right; color: #dc2626; font-weight: 500;">${credit > 0 ? credit.toFixed(2) + ' €' : '-'}</td>
+                                <td style="padding: 6px 12px;">${e.category}</td>
+                                <td style="padding: 6px 12px;">${e.description}</td>
+                                <td style="padding: 6px 12px; text-align: right; color: #16a34a; font-weight: 500;">${e.debit > 0 ? e.debit.toFixed(2) + ' €' : '-'}</td>
+                                <td style="padding: 6px 12px; text-align: right; color: #dc2626; font-weight: 500;">${e.credit > 0 ? e.credit.toFixed(2) + ' €' : '-'}</td>
                             </tr>
                         `;
                     });
