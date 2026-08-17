@@ -85,6 +85,9 @@
         const descValeur = descInput ? descInput.value.trim() : '';
         const txId = crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now();
 
+        const estRecette = typeValeur.toLowerCase() === 'recette';
+        const codeJournal = estRecette ? 'VT' : 'HA';
+
         const supabase = getSupabase();
         if (supabase) {
             // 1. Enregistrement dans la table transactions
@@ -93,6 +96,7 @@
                 date: dateVal,
                 type: typeValeur.toLowerCase(),
                 category: categorieValeur,
+                journal: codeJournal,
                 description: descValeur,
                 amount: montantVal,
                 file_path: justificatifUrl,
@@ -106,7 +110,6 @@
             }
 
             // 2. Enregistrement dans ecritures_comptables (Partie double)
-            const estRecette = typeValeur.toLowerCase() === 'recette';
             const codeCategorie = getCompteCode(typeValeur, categorieValeur);
 
             const ligneBanque = {
@@ -115,6 +118,7 @@
                 compte_code: '512000',
                 compte_libelle: '512000 - Banque / Compte Courant',
                 category: categorieValeur,
+                journal: 'BQ',
                 description: (estRecette ? 'Encaissement : ' : 'Décaissement : ') + (descValeur || categorieValeur),
                 debit: estRecette ? montantVal : 0,
                 credit: estRecette ? 0 : montantVal
@@ -126,6 +130,7 @@
                 compte_code: codeCategorie,
                 compte_libelle: `${codeCategorie} - ${categorieValeur}`,
                 category: categorieValeur,
+                journal: codeJournal,
                 description: descValeur || categorieValeur,
                 debit: estRecette ? 0 : montantVal,
                 credit: estRecette ? montantVal : 0
@@ -158,12 +163,18 @@
         const supabase = getSupabase();
 
         if (supabase) {
-            const { data } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+            // Exclut les OD pour ne garder que le flux Recette / Dépense courant
+            const { data } = await supabase
+                .from('transactions')
+                .select('*')
+                .neq('category', 'Opération Diverse')
+                .order('date', { ascending: false });
             if (data && data.length > 0) list = data;
         }
 
         if (list.length === 0) {
-            list = JSON.parse(localStorage.getItem('allTransactions') || '[]');
+            list = JSON.parse(localStorage.getItem('allTransactions') || '[]')
+                .filter(t => t.category !== 'Opération Diverse');
         }
 
         window.allTransactions = list;
@@ -234,14 +245,20 @@
         if (!supabase) return;
 
         try {
+            // Récupère uniquement les mouvements bancaires en excluant les OD
             let { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
                 .or('compte_code.eq.512000,compte_code.like.512%')
+                .neq('category', 'Opération Diverse')
                 .order('date', { ascending: false });
 
             if (error || !data || data.length === 0) {
-                const resTrans = await supabase.from('transactions').select('*').order('date', { ascending: false });
+                const resTrans = await supabase
+                    .from('transactions')
+                    .select('*')
+                    .neq('category', 'Opération Diverse')
+                    .order('date', { ascending: false });
                 if (!resTrans.error && resTrans.data && resTrans.data.length > 0) {
                     data = resTrans.data;
                 }
@@ -341,6 +358,7 @@
             compte_code: '512000',
             compte_libelle: '512000 - Banque / Compte Courant',
             category: catVal,
+            journal: 'BQ',
             description: (isEncaissement ? 'Encaissement : ' : 'Décaissement : ') + (libelleVal || catVal),
             debit: isEncaissement ? montantVal : 0,
             credit: isEncaissement ? 0 : montantVal
