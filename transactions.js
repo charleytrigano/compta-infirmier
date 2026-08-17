@@ -67,45 +67,42 @@
         }
 
         const categorieValeur = catInput ? catInput.value : 'Soins infirmiers';
+        const typeValeur = typeInput ? typeInput.value : 'Recette';
+        const descValeur = descInput ? descInput.value.trim() : '';
 
-        // Objet JavaScript local (pour la mise en cache et le tableau)
+        // Objet local pour l'affichage immédiat
         const nouvelleTxLocal = {
             id: crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now(),
             date: dateVal,
-            type: typeInput ? typeInput.value : 'Recette',
+            type: typeValeur,
             categorie: categorieValeur,
             category: categorieValeur,
-            description: descInput ? descInput.value.trim() : '',
+            description: descValeur,
             montant: montantVal,
-            justificatif_url: justificatifUrl
+            amount: montantVal,
+            justificatif_url: justificatifUrl,
+            file_path: justificatifUrl
         };
 
-        // Objet formaté pour la table Supabase (colonne 'category')
+        // Payload strict aligné sur la table Supabase ('amount', 'category', 'file_path')
         const payloadSupabase = {
             id: nouvelleTxLocal.id,
-            date: nouvelleTxLocal.date,
-            type: nouvelleTxLocal.type,
-            category: nouvelleTxLocal.categorie,
-            description: nouvelleTxLocal.description,
-            montant: nouvelleTxLocal.montant,
-            justificatif_url: nouvelleTxLocal.justificatif_url
+            date: dateVal,
+            type: typeValeur.toLowerCase(),
+            category: categorieValeur,
+            description: descValeur,
+            amount: montantVal,
+            file_path: justificatifUrl,
+            has_attachments: Boolean(justificatifUrl)
         };
 
         const supabase = getSupabase();
         if (supabase) {
-            // Tentative 1 : Insertion complète
             let { error } = await supabase.from('transactions').insert([payloadSupabase]);
 
-            // Tentative 2 : Fallback sans justificatif_url si la colonne est absente en BDD
             if (error) {
-                console.warn("Erreur BDD, tentative de sauvegarde sans 'justificatif_url' :", error.message);
-                delete payloadSupabase.justificatif_url;
-                
-                const resFallback = await supabase.from('transactions').insert([payloadSupabase]);
-                if (resFallback.error) {
-                    alert("Erreur lors de la sauvegarde : " + resFallback.error.message);
-                    return;
-                }
+                alert("Erreur lors de la sauvegarde : " + error.message);
+                return;
             }
         }
 
@@ -150,9 +147,12 @@
 
         tbody.innerHTML = list.map(tx => {
             const estRecette = (tx.type || '').toLowerCase() === 'recette';
-            const montantVal = Math.abs(parseFloat(tx.montant) || 0).toFixed(2);
-            const docLink = tx.justificatif_url 
-                ? `<a href="${tx.justificatif_url}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:underline;">📎 Voir</a>` 
+            const valMontant = tx.amount !== undefined ? tx.amount : tx.montant;
+            const montantFormatted = Math.abs(parseFloat(valMontant) || 0).toFixed(2);
+            const fileUrl = tx.file_path || tx.justificatif_url;
+
+            const docLink = fileUrl 
+                ? `<a href="${fileUrl}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:underline;">📎 Voir</a>` 
                 : `<span style="color:#94a3b8;">-</span>`;
 
             return `
@@ -161,7 +161,7 @@
                     <td><strong>${tx.type || 'Recette'}</strong></td>
                     <td>${tx.category || tx.categorie || ''}</td>
                     <td>${tx.description || ''}</td>
-                    <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">${montantVal} €</td>
+                    <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">${montantFormatted} €</td>
                     <td style="text-align: center;">${docLink}</td>
                     <td>
                         <button class="btn-edit-tx" onclick="window.ouvrirModalModification('${tx.id}')">Modifier</button>
@@ -232,7 +232,8 @@
                 const credit = parseFloat(row.credit || 0);
                 
                 const isEncaissement = debit > 0 || (row.sens && row.sens.toLowerCase().includes('encaissement'));
-                const montant = isEncaissement ? (debit || parseFloat(row.montant || 0)) : (credit || parseFloat(row.montant || 0));
+                const valMontant = row.amount !== undefined ? row.amount : row.montant;
+                const montant = isEncaissement ? (debit || parseFloat(valMontant || 0)) : (credit || parseFloat(valMontant || 0));
 
                 if (isEncaissement) {
                     totalDebit += montant;
