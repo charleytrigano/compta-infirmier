@@ -1,4 +1,4 @@
-// transactions.js - Gestion du Journal de Banque et des Écritures Bancaires (512000)
+// transactions.js - Gestion des Transactions et du Journal de Banque
 
 (function () {
     function getSupabase() {
@@ -10,7 +10,7 @@
     }
 
     /**
-     * Envoie le fichier justificatif sur Supabase Storage
+     * Televersement du fichier justificatif sur Supabase Storage
      */
     async function uploaderJustificatif(fileInput) {
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) return null;
@@ -26,7 +26,7 @@
                 .upload(fileName, file);
 
             if (error) {
-                console.warn("Erreur d'envoi du fichier dans Supabase Storage:", error);
+                console.warn("Erreur Supabase Storage :", error.message);
                 return null;
             }
 
@@ -36,13 +36,13 @@
 
             return publicData ? publicData.publicUrl : null;
         } catch (e) {
-            console.error("Exception upload:", e);
+            console.error("Exception upload justificatif :", e);
             return null;
         }
     }
 
     /**
-     * Ajoute une opération dans l'onglet Transactions
+     * Enregistre une nouvelle transaction
      */
     async function ajouterTransaction() {
         const dateInput = document.getElementById('tx-date');
@@ -52,11 +52,15 @@
         const montantInput = document.getElementById('tx-montant');
         const fileInput = document.getElementById('tx-justificatif');
 
-        if (!dateInput || !montantInput || !dateInput.value || parseFloat(montantInput.value) <= 0) {
-            alert("Veuillez remplir les champs obligatoires (Date, Montant > 0).");
+        const dateVal = dateInput ? dateInput.value : '';
+        const montantVal = montantInput ? parseFloat(montantInput.value) : 0;
+
+        if (!dateVal || isNaN(montantVal) || montantVal <= 0) {
+            alert("Veuillez remplir une date valide et un montant supérieur à 0.");
             return;
         }
 
+        // Upload du justificatif si présent
         let justificatifUrl = null;
         if (fileInput && fileInput.files.length > 0) {
             justificatifUrl = await uploaderJustificatif(fileInput);
@@ -64,29 +68,39 @@
 
         const nouvelleTx = {
             id: crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now(),
-            date: dateInput.value,
+            date: dateVal,
             type: typeInput ? typeInput.value : 'Recette',
             categorie: catInput ? catInput.value : 'Soins infirmiers',
             description: descInput ? descInput.value.trim() : '',
-            montant: parseFloat(montantInput.value),
+            montant: montantVal,
             justificatif_url: justificatifUrl
         };
 
         const supabase = getSupabase();
         if (supabase) {
-            try {
-                await supabase.from('transactions').insert([nouvelleTx]);
-            } catch (err) {
-                console.log("Sauvegarde Supabase:", err);
+            // Tente l'insertion avec le champ justificatif_url
+            let { error } = await supabase.from('transactions').insert([nouvelleTx]);
+
+            // Si la colonne n'existe pas en BDD (Erreur 400 Bad Request), réessaie sans ce champ
+            if (error) {
+                console.warn("Erreur BDD, tentative de sauvegarde sans la colonne justificatif_url :", error.message);
+                const txSansJustificatif = { ...nouvelleTx };
+                delete txSansJustificatif.justificatif_url;
+                
+                const resFallback = await supabase.from('transactions').insert([txSansJustificatif]);
+                if (resFallback.error) {
+                    alert("Erreur lors de la sauvegarde : " + resFallback.error.message);
+                    return;
+                }
             }
         }
 
-        // Sauvegarde locale de secours
+        // Sauvegarde locale
         window.allTransactions = window.allTransactions || [];
         window.allTransactions.unshift(nouvelleTx);
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
-        // Réinitialisation du formulaire
+        // Nettoyage du formulaire
         if (descInput) descInput.value = '';
         if (montantInput) montantInput.value = '';
         if (fileInput) fileInput.value = '';
@@ -95,7 +109,7 @@
     }
 
     /**
-     * Charge la liste complète des transactions
+     * Charge et affiche la liste des transactions
      */
     async function chargerTransactionsListe() {
         const tbody = document.getElementById('body-tableau-transactions');
@@ -155,14 +169,14 @@
             await supabase.from('transactions').delete().eq('id', id);
         }
 
-        window.allTransactions = (window.allTransactions || []).filter(t => t.id.toString() !== id.toString());
+        window.allTransactions = (window.allTransactions || []).filter(t => (t.id || '').toString() !== id.toString());
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
         await chargerTransactionsListe();
     }
 
     /**
-     * Charge et affiche les mouvements du Journal de Banque (Compte 512000)
+     * Charge et affiche le journal de banque
      */
     async function chargerJournalBanque() {
         await chargerTransactionsListe();
@@ -174,10 +188,7 @@
         if (!tbody) return;
 
         const supabase = getSupabase();
-        if (!supabase) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : Client Supabase non initialisé.</td></tr>`;
-            return;
-        }
+        if (!supabase) return;
 
         try {
             let { data, error } = await supabase
@@ -191,11 +202,6 @@
                 if (!resTrans.error && resTrans.data && resTrans.data.length > 0) {
                     data = resTrans.data;
                 }
-            }
-
-            if (error && (!data || data.length === 0)) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${error.message}</td></tr>`;
-                return;
             }
 
             if (!data || data.length === 0) {
@@ -225,16 +231,12 @@
                     ? `<span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">${sensLabel}</span>`
                     : `<span style="background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">${sensLabel}</span>`;
 
-                const categorie = row.category || row.categorie || 'Soins infirmiers';
-                const description = row.description || row.libelle || '-';
-                const dateFormatted = row.date || '-';
-
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155;">${dateFormatted}</td>
+                        <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
                         <td style="padding: 10px;">${sensBadge}</td>
-                        <td style="padding: 10px; color: #475569;">${categorie}</td>
-                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${description}</td>
+                        <td style="padding: 10px; color: #475569;">${row.category || row.categorie || 'Soins infirmiers'}</td>
+                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${row.description || row.libelle || '-'}</td>
                         <td style="padding: 10px; color: #dc2626; font-weight: 600; text-align: right;">${!isEncaissement ? formatEuro(montant) : '-'}</td>
                         <td style="padding: 10px; color: #16a34a; font-weight: 600; text-align: right;">${isEncaissement ? formatEuro(montant) : '-'}</td>
                         <td style="padding: 10px; text-align: center;">
@@ -246,18 +248,17 @@
 
             tbody.innerHTML = html;
 
-            const solde = totalDebit - totalCredit;
             if (soldeEl) {
-                soldeEl.textContent = formatEuro(solde);
+                soldeEl.textContent = formatEuro(totalDebit - totalCredit);
             }
 
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${err.message}</td></tr>`;
+            console.error("Erreur chargement journal banque :", err);
         }
     }
 
     /**
-     * Enregistre un nouveau paiement bancaire dans Supabase
+     * Enregistre un paiement bancaire
      */
     async function ajouterPaiement(e) {
         if (e) e.preventDefault();
@@ -265,9 +266,9 @@
         const vueBanque = document.getElementById('vue-banque');
         if (!vueBanque) return;
 
-        const dateInput = vueBanque.querySelector('input[type="date"]') || document.getElementById('banque-date');
+        const dateInput = vueBanque.querySelector('input[type="date"]') || document.getElementById('pay-date');
         const selects = vueBanque.querySelectorAll('select');
-        const sensSelect = selects[0] || document.getElementById('banque-sens');
+        const sensSelect = selects[0] || document.getElementById('pay-type');
         const catSelect = selects.length > 1 ? selects[1] : sensSelect;
         const inputs = vueBanque.querySelectorAll('input');
         const libelleInput = inputs.length > 1 ? inputs[1] : null;
@@ -285,10 +286,7 @@
         }
 
         const supabase = getSupabase();
-        if (!supabase) {
-            alert("Erreur : Client Supabase introuvable.");
-            return;
-        }
+        if (!supabase) return;
 
         const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
         const transactionId = crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now();
@@ -316,7 +314,7 @@
     }
 
     /**
-     * Supprime une ligne bancaire
+     * Supprime un mouvement bancaire
      */
     async function supprimerMouvementBanque(id, transactionId) {
         if (!confirm("Voulez-vous vraiment supprimer cet enregistrement ?")) return;
@@ -339,7 +337,7 @@
         }
     }
 
-    // Expositions des méthodes globales
+    // Expositions des fonctions sur l'objet window
     window.ajouterTransaction = ajouterTransaction;
     window.chargerTransactionsListe = chargerTransactionsListe;
     window.supprimerTransaction = supprimerTransaction;
@@ -348,16 +346,7 @@
     window.ajouterPaiement = ajouterPaiement;
     window.supprimerMouvementBanque = supprimerMouvementBanque;
 
-    // Détection de clic sur l'onglet Journal de Banque
-    document.addEventListener('click', (e) => {
-        const el = e.target.closest('button, a, div');
-        if (el && el.textContent && el.textContent.trim().toLowerCase().includes('journal de banque')) {
-            setTimeout(chargerJournalBanque, 100);
-            setTimeout(chargerJournalBanque, 300);
-        }
-    });
-
-    // Chargement initial au démarrage
+    // Événement d'initialisation
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(chargerJournalBanque, 200);
     } else {
