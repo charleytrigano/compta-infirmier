@@ -1,5 +1,5 @@
 /**
- * export_comptable.js - Module d'exportation, impression et sauvegarde
+ * export_comptable.js - Module d'exportation, impression, sauvegarde et pièces justificatives
  */
 
 // Récupération de l'ensemble des écritures (Banque + Contreparties)
@@ -66,7 +66,7 @@ async function genererCSVJournal() {
     return;
   }
 
-  const headers = ["ID", "Date", "Compte", "Compte Contrepartie", "Categorie", "Description", "Debit (€)", "Credit (€)"];
+  const headers = ["ID", "Date", "Compte", "Compte Contrepartie", "Categorie", "Description", "Debit (€)", "Credit (€)", "Lien Justificatif"];
   
   const rows = ecritures.map(row => {
     let debit = parseFloat(row.debit || 0);
@@ -86,6 +86,7 @@ async function genererCSVJournal() {
     const categorie = row.category || row.categorie || "Général";
     const description = (row.description || '').replace(/"/g, '""');
     const compteContrepartie = row.compte_contrepartie || row.contrepartie_code || (debit > 0 ? "706000" : "600000");
+    const justificatifUrl = row.justificatif_url || row.receipt_url || row.document_url || '';
 
     return [
       `"${row.id || ''}"`,
@@ -95,7 +96,8 @@ async function genererCSVJournal() {
       `"${categorie}"`,
       `"${description}"`,
       debit > 0 ? debit.toFixed(2).replace('.', ',') : "0,00",
-      credit > 0 ? credit.toFixed(2).replace('.', ',') : "0,00"
+      credit > 0 ? credit.toFixed(2).replace('.', ',') : "0,00",
+      `"${justificatifUrl}"`
     ].join(';');
   });
 
@@ -107,6 +109,37 @@ async function genererCSVJournal() {
   const link = document.createElement('a');
   link.setAttribute("href", url);
   link.setAttribute("download", `journal_comptable_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+// Exporter l'index HTML de tous les justificatifs scannés
+async function exporterIndexJustificatifs() {
+  const ecritures = await obtenirEcritures();
+  const pieces = ecritures.filter(e => e.justificatif_url || e.receipt_url || e.document_url);
+
+  if (pieces.length === 0) {
+    alert("Aucun justificatif scanné n'a été trouvé.");
+    return;
+  }
+
+  let htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Justificatifs Comptables</title><style>body{font-family:sans-serif;padding:20px;color:#333;} table{width:100%;border-collapse:collapse;margin-top:15px;} th,td{border:1px solid #ddd;padding:10px;text-align:left;} th{background:#f4f4f4;} a{color:#2563eb;text-decoration:none;font-weight:bold;} a:hover{text-decoration:underline;}</style></head><body>`;
+  htmlContent += `<h2>📁 Relevé des Pièces Justificatives Scannées</h2><p>Généré le : ${new Date().toLocaleDateString('fr-FR')}</p><table><tr><th>Date</th><th>Description</th><th>Montant</th><th>Lien de la Pièce Jointe</th></tr>`;
+
+  pieces.forEach(p => {
+    const url = p.justificatif_url || p.receipt_url || p.document_url;
+    const montant = parseFloat(p.amount || p.montant || p.debit || p.credit || 0).toFixed(2);
+    htmlContent += `<tr><td>${p.date || ''}</td><td>${p.description || 'Saisie sans libellé'}</td><td>${montant} €</td><td><a href="${url}" target="_blank">Consulter la pièce</a></td></tr>`;
+  });
+
+  htmlContent += `</table></body></html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute("href", url);
+  link.setAttribute("download", `dossier_pieces_justificatives_${new Date().toISOString().slice(0,10)}.html`);
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -124,6 +157,7 @@ async function genererDonneesMail() {
 
   let totalRecettes = 0;
   let totalDepenses = 0;
+  let totalPieces = 0;
 
   ecritures.forEach(row => {
     const debit = parseFloat(row.debit || 0);
@@ -140,11 +174,15 @@ async function genererDonneesMail() {
     } else {
       totalDepenses += valMontant;
     }
+
+    if (row.justificatif_url || row.receipt_url || row.document_url) {
+      totalPieces++;
+    }
   });
 
   const benefice = totalRecettes - totalDepenses;
 
-  const corpsBrut = `Bonjour ${nomComptable},\n\nVeuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n--- RÉSUMÉ DES OPÉRATIONS ---\n• Nombre d'opérations : ${ecritures.length}\n• Recettes Totales : ${totalRecettes.toFixed(2)} €\n• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal et le fichier JSON de sauvegarde téléchargés depuis l'application.\n\nCordialement,`;
+  const corpsBrut = `Bonjour ${nomComptable},\n\nVeuillez trouver la synthèse comptable de l'exercice ci-dessous :\n\n--- RÉSUMÉ DES OPÉRATIONS ---\n• Nombre d'opérations : ${ecritures.length}\n• Pièces justificatives scannées : ${totalPieces}\n• Recettes Totales : ${totalRecettes.toFixed(2)} €\n• Dépenses Totales : ${totalDepenses.toFixed(2)} €\n• Résultat Net (BNC) : ${benefice.toFixed(2)} €\n\n${messagePerso ? `Note du praticien : ${messagePerso}\n\n` : ''}📌 N.B. N'oubliez pas d'attacher à ce mail le fichier CSV du journal, le fichier HTML des pièces justificatives et le fichier JSON de sauvegarde téléchargés depuis l'application.\n\nCordialement,`;
 
   return { email, sujet: "Transmission de la comptabilité BNC - Bilan Annuel", corpsBrut };
 }
@@ -226,7 +264,7 @@ function renderExportUI() {
             📂 Sauvegarde et Exports Fichiers
           </h3>
           <p class="text-xs text-slate-600">
-            Téléchargez une sauvegarde globale ou le journal complet sous forme de fichier.
+            Téléchargez une sauvegarde globale, le journal complet ou l'index des pièces justificatives.
           </p>
 
           <div class="flex flex-col gap-3 pt-2">
@@ -236,6 +274,10 @@ function renderExportUI() {
 
             <button type="button" onclick="genererCSVJournal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               📊 Télécharger le Journal des Écritures (.CSV)
+            </button>
+
+            <button type="button" onclick="exporterIndexJustificatifs()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+              📁 Exporter le Dossier des Pièces Scannées (.HTML)
             </button>
 
             <div class="border-t border-slate-200 pt-3 mt-2">
@@ -250,7 +292,7 @@ function renderExportUI() {
             ✉️ Transmission Cabinet Comptable
           </h3>
           <p class="text-xs text-slate-600">
-            Préparez l'e-mail de transmission incluant les totaux d'exercice.
+            Préparez l'e-mail de transmission incluant les totaux d'exercice et le récapitulatif des justificatifs.
           </p>
 
           <div class="space-y-3 pt-1">
