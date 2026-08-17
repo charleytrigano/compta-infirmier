@@ -48,6 +48,7 @@
             compte_code: compteDebit,
             compte_libelle: `${compteDebit} - ${libelleCompteDebit}`,
             category: 'Opération Diverse',
+            journal: 'OD',
             description: libelleVal || 'Écriture OD',
             debit: montantVal,
             credit: 0
@@ -60,6 +61,7 @@
             compte_code: compteCredit,
             compte_libelle: `${compteCredit} - ${libelleCompteCredit}`,
             category: 'Opération Diverse',
+            journal: 'OD',
             description: libelleVal || 'Écriture OD',
             debit: 0,
             credit: montantVal
@@ -73,8 +75,10 @@
             alert("Écriture OD enregistrée avec succès !");
             
             // Réinitialisation des champs du formulaire
-            document.getElementById('od-description').value = '';
-            document.getElementById('od-montant').value = '';
+            const descEl = document.getElementById('od-description');
+            const montantEl = document.getElementById('od-montant');
+            if (descEl) descEl.value = '';
+            if (montantEl) montantEl.value = '';
             
             await chargerJournalOD();
         }
@@ -91,12 +95,10 @@
         if (!supabase) return;
 
         try {
-            // Récupère les écritures qui ne passent ni par le compte 512 (Banque) ni par le compte 530 (Caisse)
+            // Filtre directement sur la catégorie 'Opération Diverse'
             const { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
-                .not('compte_code', 'like', '512%')
-                .not('compte_code', 'like', '530%')
                 .eq('category', 'Opération Diverse')
                 .order('date', { ascending: false });
 
