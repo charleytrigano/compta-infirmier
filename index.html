@@ -244,6 +244,12 @@
                     <input type="number" step="0.01" id="tx-montant" class="form-control" placeholder="0.00" required>
                 </div>
 
+                <!-- CHAMP AJOUTÉ : SCAN / JUSTIFICATIF -->
+                <div class="form-group">
+                    <label for="tx-justificatif">📸 Scan / Justificatif (PDF, Photo)</label>
+                    <input type="file" id="tx-justificatif" accept="image/*,application/pdf" capture="environment" class="form-control">
+                </div>
+
                 <button type="submit" class="btn-primary">+ Enregistrer l'écriture</button>
             </form>
 
@@ -256,6 +262,7 @@
                         <th>Catégorie</th>
                         <th>Description</th>
                         <th>Montant</th>
+                        <th>Justificatif</th>
                         <th>Action</th>
                     </tr>
                 </thead>
