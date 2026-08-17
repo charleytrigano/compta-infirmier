@@ -41,7 +41,25 @@
 
         const transactionId = crypto.randomUUID ? crypto.randomUUID() : 'od_' + Date.now();
 
-        // Ligne DEBIT
+        // 1. Enregistrement préalable de l'enregistrement parent dans la table transactions (satisfait la clé étrangère)
+        const payloadParent = {
+            id: transactionId,
+            date: dateVal,
+            type: 'od',
+            category: 'Opération Diverse',
+            journal: 'OD',
+            description: libelleVal || 'Écriture OD',
+            amount: montantVal,
+            has_attachments: false
+        };
+
+        const resParent = await supabase.from('transactions').insert([payloadParent]);
+        if (resParent.error) {
+            alert("Erreur lors de la création de la transaction OD : " + resParent.error.message);
+            return;
+        }
+
+        // 2. Lignes d'écritures comptables Débit et Crédit
         const ligneDebit = {
             transaction_id: transactionId,
             date: dateVal,
@@ -54,7 +72,6 @@
             credit: 0
         };
 
-        // Ligne CREDIT
         const ligneCredit = {
             transaction_id: transactionId,
             date: dateVal,
@@ -70,11 +87,10 @@
         const { error } = await supabase.from('ecritures_comptables').insert([ligneDebit, ligneCredit]);
 
         if (error) {
-            alert("Erreur lors de l'enregistrement de l'OD : " + error.message);
+            alert("Erreur lors de l'enregistrement des écritures OD : " + error.message);
         } else {
             alert("Écriture OD enregistrée avec succès !");
             
-            // Réinitialisation des champs du formulaire
             const descEl = document.getElementById('od-description');
             const montantEl = document.getElementById('od-montant');
             if (descEl) descEl.value = '';
@@ -95,7 +111,6 @@
         if (!supabase) return;
 
         try {
-            // Filtre directement sur la catégorie 'Opération Diverse'
             const { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -133,7 +148,6 @@
         }
     }
 
-    // Expositions globales
     window.enregistrerEcritureOD = enregistrerEcritureOD;
     window.chargerJournalOD = chargerJournalOD;
 
