@@ -10,7 +10,7 @@
     }
 
     /**
-     * Televersement du fichier justificatif sur Supabase Storage
+     * Téléversement du fichier justificatif sur Supabase Storage
      */
     async function uploaderJustificatif(fileInput) {
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) return null;
@@ -66,28 +66,42 @@
             justificatifUrl = await uploaderJustificatif(fileInput);
         }
 
-        const nouvelleTx = {
+        const categorieValeur = catInput ? catInput.value : 'Soins infirmiers';
+
+        // Objet JavaScript local (pour la mise en cache et le tableau)
+        const nouvelleTxLocal = {
             id: crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now(),
             date: dateVal,
             type: typeInput ? typeInput.value : 'Recette',
-            categorie: catInput ? catInput.value : 'Soins infirmiers',
+            categorie: categorieValeur,
+            category: categorieValeur,
             description: descInput ? descInput.value.trim() : '',
             montant: montantVal,
             justificatif_url: justificatifUrl
         };
 
+        // Objet formaté pour la table Supabase (colonne 'category')
+        const payloadSupabase = {
+            id: nouvelleTxLocal.id,
+            date: nouvelleTxLocal.date,
+            type: nouvelleTxLocal.type,
+            category: nouvelleTxLocal.categorie,
+            description: nouvelleTxLocal.description,
+            montant: nouvelleTxLocal.montant,
+            justificatif_url: nouvelleTxLocal.justificatif_url
+        };
+
         const supabase = getSupabase();
         if (supabase) {
-            // Tente l'insertion avec le champ justificatif_url
-            let { error } = await supabase.from('transactions').insert([nouvelleTx]);
+            // Tentative 1 : Insertion complète
+            let { error } = await supabase.from('transactions').insert([payloadSupabase]);
 
-            // Si la colonne n'existe pas en BDD (Erreur 400 Bad Request), réessaie sans ce champ
+            // Tentative 2 : Fallback sans justificatif_url si la colonne est absente en BDD
             if (error) {
-                console.warn("Erreur BDD, tentative de sauvegarde sans la colonne justificatif_url :", error.message);
-                const txSansJustificatif = { ...nouvelleTx };
-                delete txSansJustificatif.justificatif_url;
+                console.warn("Erreur BDD, tentative de sauvegarde sans 'justificatif_url' :", error.message);
+                delete payloadSupabase.justificatif_url;
                 
-                const resFallback = await supabase.from('transactions').insert([txSansJustificatif]);
+                const resFallback = await supabase.from('transactions').insert([payloadSupabase]);
                 if (resFallback.error) {
                     alert("Erreur lors de la sauvegarde : " + resFallback.error.message);
                     return;
@@ -95,12 +109,12 @@
             }
         }
 
-        // Sauvegarde locale
+        // Sauvegarde local
         window.allTransactions = window.allTransactions || [];
-        window.allTransactions.unshift(nouvelleTx);
+        window.allTransactions.unshift(nouvelleTxLocal);
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
-        // Nettoyage du formulaire
+        // Réinitialisation du formulaire
         if (descInput) descInput.value = '';
         if (montantInput) montantInput.value = '';
         if (fileInput) fileInput.value = '';
@@ -145,7 +159,7 @@
                 <tr>
                     <td>${tx.date || ''}</td>
                     <td><strong>${tx.type || 'Recette'}</strong></td>
-                    <td>${tx.categorie || tx.category || ''}</td>
+                    <td>${tx.category || tx.categorie || ''}</td>
                     <td>${tx.description || ''}</td>
                     <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">${montantVal} €</td>
                     <td style="text-align: center;">${docLink}</td>
