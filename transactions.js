@@ -10,9 +10,163 @@
     }
 
     /**
+     * Envoie le fichier justificatif sur Supabase Storage
+     */
+    async function uploaderJustificatif(fileInput) {
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) return null;
+        const file = fileInput.files[0];
+        const supabase = getSupabase();
+        if (!supabase) return null;
+
+        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+
+        try {
+            const { data, error } = await supabase.storage
+                .from('justificatifs')
+                .upload(fileName, file);
+
+            if (error) {
+                console.warn("Erreur d'envoi du fichier dans Supabase Storage:", error);
+                return null;
+            }
+
+            const { data: publicData } = supabase.storage
+                .from('justificatifs')
+                .getPublicUrl(fileName);
+
+            return publicData ? publicData.publicUrl : null;
+        } catch (e) {
+            console.error("Exception upload:", e);
+            return null;
+        }
+    }
+
+    /**
+     * Ajoute une opération dans l'onglet Transactions
+     */
+    async function ajouterTransaction() {
+        const dateInput = document.getElementById('tx-date');
+        const typeInput = document.getElementById('tx-type');
+        const catInput = document.getElementById('tx-categorie');
+        const descInput = document.getElementById('tx-description');
+        const montantInput = document.getElementById('tx-montant');
+        const fileInput = document.getElementById('tx-justificatif');
+
+        if (!dateInput || !montantInput || !dateInput.value || parseFloat(montantInput.value) <= 0) {
+            alert("Veuillez remplir les champs obligatoires (Date, Montant > 0).");
+            return;
+        }
+
+        let justificatifUrl = null;
+        if (fileInput && fileInput.files.length > 0) {
+            justificatifUrl = await uploaderJustificatif(fileInput);
+        }
+
+        const nouvelleTx = {
+            id: crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now(),
+            date: dateInput.value,
+            type: typeInput ? typeInput.value : 'Recette',
+            categorie: catInput ? catInput.value : 'Soins infirmiers',
+            description: descInput ? descInput.value.trim() : '',
+            montant: parseFloat(montantInput.value),
+            justificatif_url: justificatifUrl
+        };
+
+        const supabase = getSupabase();
+        if (supabase) {
+            try {
+                await supabase.from('transactions').insert([nouvelleTx]);
+            } catch (err) {
+                console.log("Sauvegarde Supabase:", err);
+            }
+        }
+
+        // Sauvegarde locale de secours
+        window.allTransactions = window.allTransactions || [];
+        window.allTransactions.unshift(nouvelleTx);
+        localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
+
+        // Réinitialisation du formulaire
+        if (descInput) descInput.value = '';
+        if (montantInput) montantInput.value = '';
+        if (fileInput) fileInput.value = '';
+
+        await chargerTransactionsListe();
+    }
+
+    /**
+     * Charge la liste complète des transactions
+     */
+    async function chargerTransactionsListe() {
+        const tbody = document.getElementById('body-tableau-transactions');
+        if (!tbody) return;
+
+        let list = [];
+        const supabase = getSupabase();
+
+        if (supabase) {
+            const { data } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+            if (data && data.length > 0) list = data;
+        }
+
+        if (list.length === 0) {
+            list = JSON.parse(localStorage.getItem('allTransactions') || '[]');
+        }
+
+        window.allTransactions = list;
+
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune transaction enregistrée.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = list.map(tx => {
+            const estRecette = (tx.type || '').toLowerCase() === 'recette';
+            const montantVal = Math.abs(parseFloat(tx.montant) || 0).toFixed(2);
+            const docLink = tx.justificatif_url 
+                ? `<a href="${tx.justificatif_url}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:underline;">📎 Voir</a>` 
+                : `<span style="color:#94a3b8;">-</span>`;
+
+            return `
+                <tr>
+                    <td>${tx.date || ''}</td>
+                    <td><strong>${tx.type || 'Recette'}</strong></td>
+                    <td>${tx.categorie || tx.category || ''}</td>
+                    <td>${tx.description || ''}</td>
+                    <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">${montantVal} €</td>
+                    <td style="text-align: center;">${docLink}</td>
+                    <td>
+                        <button class="btn-edit-tx" onclick="window.ouvrirModalModification('${tx.id}')">Modifier</button>
+                        <button class="btn-delete-tx" onclick="window.supprimerTransaction('${tx.id}')">Supprimer</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Supprime une transaction
+     */
+    async function supprimerTransaction(id) {
+        if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
+
+        const supabase = getSupabase();
+        if (supabase) {
+            await supabase.from('transactions').delete().eq('id', id);
+        }
+
+        window.allTransactions = (window.allTransactions || []).filter(t => t.id.toString() !== id.toString());
+        localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
+
+        await chargerTransactionsListe();
+    }
+
+    /**
      * Charge et affiche les mouvements du Journal de Banque (Compte 512000)
      */
     async function chargerJournalBanque() {
+        await chargerTransactionsListe();
+
         const vueBanque = document.getElementById('vue-banque');
         const tbody = document.getElementById('body-tableau-banque') || (vueBanque ? vueBanque.querySelector('tbody') : null);
         const soldeEl = document.getElementById('solde-banque') || (vueBanque ? vueBanque.querySelector('span') : null);
@@ -26,14 +180,12 @@
         }
 
         try {
-            // Lecture des écritures bancaires (Compte 512000)
             let { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
                 .or('compte_code.eq.512000,compte_code.like.512%')
                 .order('date', { ascending: false });
 
-            // Fallback si la table transactions principale est utilisée
             if ((error || !data || data.length === 0)) {
                 const resTrans = await supabase.from('transactions').select('*').order('date', { ascending: false });
                 if (!resTrans.error && resTrans.data && resTrans.data.length > 0) {
@@ -52,14 +204,13 @@
                 return;
             }
 
-            let totalDebit = 0;   // Encaissements
-            let totalCredit = 0;  // Décaissements
+            let totalDebit = 0;
+            let totalCredit = 0;
 
             const html = data.map(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
                 
-                // Débit sur compte 512 = Encaissement / Recette
                 const isEncaissement = debit > 0 || (row.sens && row.sens.toLowerCase().includes('encaissement'));
                 const montant = isEncaissement ? (debit || parseFloat(row.montant || 0)) : (credit || parseFloat(row.montant || 0));
 
@@ -95,7 +246,6 @@
 
             tbody.innerHTML = html;
 
-            // Calcul du Solde = Encaissements - Décaissements
             const solde = totalDebit - totalCredit;
             if (soldeEl) {
                 soldeEl.textContent = formatEuro(solde);
@@ -190,6 +340,9 @@
     }
 
     // Expositions des méthodes globales
+    window.ajouterTransaction = ajouterTransaction;
+    window.chargerTransactionsListe = chargerTransactionsListe;
+    window.supprimerTransaction = supprimerTransaction;
     window.chargerJournalBanque = chargerJournalBanque;
     window.chargerTransactions = chargerJournalBanque;
     window.ajouterPaiement = ajouterPaiement;
