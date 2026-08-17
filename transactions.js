@@ -1,4 +1,4 @@
-// transactions.js - Gestion des Transactions et du Journal de Banque
+// transactions.js - Gestion intégrale des Transactions et du Journal de Banque
 
 (function () {
     function getSupabase() {
@@ -10,7 +10,7 @@
     }
 
     /**
-     * Obtenir le code comptable selon la catégorie
+     * Mappage automatique des catégories vers les comptes du Plan Comptable IDEL
      */
     function getCompteCode(type, categorie) {
         const cat = (categorie || '').toLowerCase();
@@ -21,7 +21,7 @@
         if (cat.includes('loyer') || cat.includes('local')) return '613200';
         if (cat.includes('assurance')) return '616000';
         if (cat.includes('formation')) return '625600';
-        return '628000'; // Diverses charges
+        return '628000'; // Dépenses diverses
     }
 
     /**
@@ -57,7 +57,7 @@
     }
 
     /**
-     * Enregistre une nouvelle transaction ET son écriture comptable
+     * Enregistre une nouvelle transaction ET ses écritures comptables associées
      */
     async function ajouterTransaction() {
         const dateInput = document.getElementById('tx-date');
@@ -75,34 +75,19 @@
             return;
         }
 
-        // Upload du justificatif si présent
         let justificatifUrl = null;
         if (fileInput && fileInput.files.length > 0) {
             justificatifUrl = await uploaderJustificatif(fileInput);
         }
 
         const categorieValeur = catInput ? catInput.value : 'Soins infirmiers';
-        const typeValeur = typeInput ? typeInput.value : 'Recette';
+        const typeValeur = typeInput ? typeInput.value : 'Dépense';
         const descValeur = descInput ? descInput.value.trim() : '';
         const txId = crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now();
 
-        // 1. Sauvegarde local
-        const nouvelleTxLocal = {
-            id: txId,
-            date: dateVal,
-            type: typeValeur,
-            categorie: categorieValeur,
-            category: categorieValeur,
-            description: descValeur,
-            montant: montantVal,
-            amount: montantVal,
-            justificatif_url: justificatifUrl,
-            file_path: justificatifUrl
-        };
-
         const supabase = getSupabase();
         if (supabase) {
-            // 2. Insertion dans la table transactions
+            // 1. Enregistrement dans la table transactions
             const payloadTransactions = {
                 id: txId,
                 date: dateVal,
@@ -116,11 +101,11 @@
 
             const resTx = await supabase.from('transactions').insert([payloadTransactions]);
             if (resTx.error) {
-                alert("Erreur lors de l'enregistrement de la transaction : " + resTx.error.message);
+                alert("Erreur d'enregistrement dans Transactions : " + resTx.error.message);
                 return;
             }
 
-            // 3. Insertion automatique dans ecritures_comptables
+            // 2. Enregistrement dans ecritures_comptables (Partie double)
             const estRecette = typeValeur.toLowerCase() === 'recette';
             const codeCategorie = getCompteCode(typeValeur, categorieValeur);
 
@@ -148,14 +133,10 @@
 
             const resEcritures = await supabase.from('ecritures_comptables').insert([ligneBanque, ligneContrepartie]);
             if (resEcritures.error) {
-                console.warn("Attention: écriture comptable non enregistrée :", resEcritures.error.message);
+                alert("Erreur d'enregistrement dans la comptabilité : " + resEcritures.error.message);
+                return;
             }
         }
-
-        // Sauvegarde locale en secours
-        window.allTransactions = window.allTransactions || [];
-        window.allTransactions.unshift(nouvelleTxLocal);
-        localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
         // Réinitialisation du formulaire
         if (descInput) descInput.value = '';
@@ -163,10 +144,11 @@
         if (fileInput) fileInput.value = '';
 
         await chargerTransactionsListe();
+        alert("Transaction enregistrée avec succès dans toutes les tables !");
     }
 
     /**
-     * Charge et affiche la liste des transactions
+     * Charge et affiche l'historique des transactions
      */
     async function chargerTransactionsListe() {
         const tbody = document.getElementById('body-tableau-transactions');
@@ -219,7 +201,7 @@
     }
 
     /**
-     * Supprime une transaction et ses écritures comptables associées
+     * Supprime une transaction et ses écritures liées
      */
     async function supprimerTransaction(id) {
         if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
@@ -258,7 +240,7 @@
                 .or('compte_code.eq.512000,compte_code.like.512%')
                 .order('date', { ascending: false });
 
-            if ((error || !data || data.length === 0)) {
+            if (error || !data || data.length === 0) {
                 const resTrans = await supabase.from('transactions').select('*').order('date', { ascending: false });
                 if (!resTrans.error && resTrans.data && resTrans.data.length > 0) {
                     data = resTrans.data;
@@ -315,12 +297,12 @@
             }
 
         } catch (err) {
-            console.error("Erreur chargement journal banque :", err);
+            console.error("Erreur lors du chargement du journal de banque :", err);
         }
     }
 
     /**
-     * Enregistre un paiement bancaire manuel
+     * Saisie manuelle directe dans le Journal de Banque
      */
     async function ajouterPaiement(e) {
         if (e) e.preventDefault();
@@ -376,7 +358,7 @@
     }
 
     /**
-     * Supprime un mouvement bancaire
+     * Supprime une ligne spécifique du Journal de Banque
      */
     async function supprimerMouvementBanque(id, transactionId) {
         if (!confirm("Voulez-vous vraiment supprimer cet enregistrement ?")) return;
@@ -399,7 +381,7 @@
         }
     }
 
-    // Expositions des fonctions sur l'objet window
+    // Exposition globale des fonctions
     window.ajouterTransaction = ajouterTransaction;
     window.chargerTransactionsListe = chargerTransactionsListe;
     window.supprimerTransaction = supprimerTransaction;
@@ -408,7 +390,7 @@
     window.ajouterPaiement = ajouterPaiement;
     window.supprimerMouvementBanque = supprimerMouvementBanque;
 
-    // Événement d'initialisation
+    // Initialisation
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(chargerJournalBanque, 200);
     } else {
