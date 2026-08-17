@@ -10,6 +10,21 @@
     }
 
     /**
+     * Obtenir le code comptable selon la catégorie
+     */
+    function getCompteCode(type, categorie) {
+        const cat = (categorie || '').toLowerCase();
+        if (type.toLowerCase() === 'recette') return '706000';
+        if (cat.includes('carpimko')) return '646200';
+        if (cat.includes('urssaf')) return '646100';
+        if (cat.includes('matériel') || cat.includes('fourniture')) return '606000';
+        if (cat.includes('loyer') || cat.includes('local')) return '613200';
+        if (cat.includes('assurance')) return '616000';
+        if (cat.includes('formation')) return '625600';
+        return '628000'; // Diverses charges
+    }
+
+    /**
      * Téléversement du fichier justificatif sur Supabase Storage
      */
     async function uploaderJustificatif(fileInput) {
@@ -42,7 +57,7 @@
     }
 
     /**
-     * Enregistre une nouvelle transaction
+     * Enregistre une nouvelle transaction ET son écriture comptable
      */
     async function ajouterTransaction() {
         const dateInput = document.getElementById('tx-date');
@@ -69,10 +84,11 @@
         const categorieValeur = catInput ? catInput.value : 'Soins infirmiers';
         const typeValeur = typeInput ? typeInput.value : 'Recette';
         const descValeur = descInput ? descInput.value.trim() : '';
+        const txId = crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now();
 
-        // Objet local pour l'affichage immédiat
+        // 1. Sauvegarde local
         const nouvelleTxLocal = {
-            id: crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now(),
+            id: txId,
             date: dateVal,
             type: typeValeur,
             categorie: categorieValeur,
@@ -84,29 +100,59 @@
             file_path: justificatifUrl
         };
 
-        // Payload strict aligné sur la table Supabase ('amount', 'category', 'file_path')
-        const payloadSupabase = {
-            id: nouvelleTxLocal.id,
-            date: dateVal,
-            type: typeValeur.toLowerCase(),
-            category: categorieValeur,
-            description: descValeur,
-            amount: montantVal,
-            file_path: justificatifUrl,
-            has_attachments: Boolean(justificatifUrl)
-        };
-
         const supabase = getSupabase();
         if (supabase) {
-            let { error } = await supabase.from('transactions').insert([payloadSupabase]);
+            // 2. Insertion dans la table transactions
+            const payloadTransactions = {
+                id: txId,
+                date: dateVal,
+                type: typeValeur.toLowerCase(),
+                category: categorieValeur,
+                description: descValeur,
+                amount: montantVal,
+                file_path: justificatifUrl,
+                has_attachments: Boolean(justificatifUrl)
+            };
 
-            if (error) {
-                alert("Erreur lors de la sauvegarde : " + error.message);
+            const resTx = await supabase.from('transactions').insert([payloadTransactions]);
+            if (resTx.error) {
+                alert("Erreur lors de l'enregistrement de la transaction : " + resTx.error.message);
                 return;
+            }
+
+            // 3. Insertion automatique dans ecritures_comptables
+            const estRecette = typeValeur.toLowerCase() === 'recette';
+            const codeCategorie = getCompteCode(typeValeur, categorieValeur);
+
+            const ligneBanque = {
+                transaction_id: txId,
+                date: dateVal,
+                compte_code: '512000',
+                compte_libelle: '512000 - Banque / Compte Courant',
+                category: categorieValeur,
+                description: (estRecette ? 'Encaissement : ' : 'Décaissement : ') + (descValeur || categorieValeur),
+                debit: estRecette ? montantVal : 0,
+                credit: estRecette ? 0 : montantVal
+            };
+
+            const ligneContrepartie = {
+                transaction_id: txId,
+                date: dateVal,
+                compte_code: codeCategorie,
+                compte_libelle: `${codeCategorie} - ${categorieValeur}`,
+                category: categorieValeur,
+                description: descValeur || categorieValeur,
+                debit: estRecette ? 0 : montantVal,
+                credit: estRecette ? montantVal : 0
+            };
+
+            const resEcritures = await supabase.from('ecritures_comptables').insert([ligneBanque, ligneContrepartie]);
+            if (resEcritures.error) {
+                console.warn("Attention: écriture comptable non enregistrée :", resEcritures.error.message);
             }
         }
 
-        // Sauvegarde local
+        // Sauvegarde locale en secours
         window.allTransactions = window.allTransactions || [];
         window.allTransactions.unshift(nouvelleTxLocal);
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
@@ -173,7 +219,7 @@
     }
 
     /**
-     * Supprime une transaction
+     * Supprime une transaction et ses écritures comptables associées
      */
     async function supprimerTransaction(id) {
         if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
@@ -181,6 +227,7 @@
         const supabase = getSupabase();
         if (supabase) {
             await supabase.from('transactions').delete().eq('id', id);
+            await supabase.from('ecritures_comptables').delete().eq('transaction_id', id);
         }
 
         window.allTransactions = (window.allTransactions || []).filter(t => (t.id || '').toString() !== id.toString());
@@ -273,7 +320,7 @@
     }
 
     /**
-     * Enregistre un paiement bancaire
+     * Enregistre un paiement bancaire manuel
      */
     async function ajouterPaiement(e) {
         if (e) e.preventDefault();
