@@ -96,42 +96,28 @@
             display: block;
         }
 
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 15px;
-            align-items: end;
-            margin-bottom: 30px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .form-group label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #475569;
-        }
-
         .form-control {
-            padding: 8px 12px;
+            height: 38px;
+            padding: 6px 10px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             font-size: 14px;
             width: 100%;
+            background-color: #ffffff;
         }
 
         .btn-primary {
             background-color: #2563eb;
             color: white;
             border: none;
-            padding: 9px 16px;
+            padding: 0 16px;
             border-radius: 6px;
             font-weight: 600;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
         }
 
         .btn-primary:hover {
@@ -190,7 +176,7 @@
             <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
         </header>
 
-        <!-- Menu Onglets (Toujours préservé) -->
+        <!-- Menu Onglets -->
         <nav>
             <button class="nav-btn active" onclick="switchTab('vue-transactions', this)">📄 Transactions</button>
             <button class="nav-btn" onclick="switchTab('vue-banque', this)">🏦 Journal de Banque</button>
@@ -209,22 +195,22 @@
         <!-- VUE 1 : TRANSACTIONS -->
         <section id="vue-transactions" class="view-section active">
             <h2>Ajouter une opération</h2>
-            <form id="form-ajouter-transaction" class="form-grid" onsubmit="event.preventDefault(); window.ajouterTransaction();">
-                <div class="form-group">
-                    <label for="tx-date">Date *</label>
+            <form id="form-ajouter-transaction" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterTransaction();">
+                <div class="flex-1 min-w-[140px] flex flex-col gap-1">
+                    <label for="tx-date" class="text-xs font-semibold text-slate-600">Date *</label>
                     <input type="date" id="tx-date" class="form-control" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="tx-type">Type *</label>
+                <div class="w-32 flex flex-col gap-1">
+                    <label for="tx-type" class="text-xs font-semibold text-slate-600">Type *</label>
                     <select id="tx-type" class="form-control" required>
                         <option value="Recette">Recette</option>
                         <option value="Dépense">Dépense</option>
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="tx-categorie">Catégorie *</label>
+                <div class="flex-1 min-w-[160px] flex flex-col gap-1">
+                    <label for="tx-categorie" class="text-xs font-semibold text-slate-600">Catégorie *</label>
                     <select id="tx-categorie" class="form-control" required>
                         <option value="Soins infirmiers">Soins infirmiers</option>
                         <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
@@ -234,23 +220,24 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="tx-description">Description *</label>
+                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
+                    <label for="tx-description" class="text-xs font-semibold text-slate-600">Description *</label>
                     <input type="text" id="tx-description" class="form-control" placeholder="Ex: Patient X, Matériel..." required>
                 </div>
 
-                <div class="form-group">
-                    <label for="tx-montant">Montant (€) *</label>
+                <div class="w-32 flex flex-col gap-1">
+                    <label for="tx-montant" class="text-xs font-semibold text-slate-600">Montant (€) *</label>
                     <input type="number" step="0.01" id="tx-montant" class="form-control" placeholder="0.00" required>
                 </div>
 
-                <!-- CHAMP AJOUTÉ : SCAN / JUSTIFICATIF -->
-                <div class="form-group">
-                    <label for="tx-justificatif">📸 Scan / Justificatif (PDF, Photo)</label>
-                    <input type="file" id="tx-justificatif" accept="image/*,application/pdf" capture="environment" class="form-control">
+                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
+                    <label for="tx-justificatif" class="text-xs font-semibold text-slate-600 truncate">📷 Scan / Justificatif</label>
+                    <input type="file" id="tx-justificatif" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
                 </div>
 
-                <button type="submit" class="btn-primary">+ Enregistrer l'écriture</button>
+                <button type="submit" class="btn-primary h-[38px] whitespace-nowrap px-4 font-semibold text-sm self-end">
+                    + Enregistrer l'écriture
+                </button>
             </form>
 
             <h2>Historique des transactions</h2>
@@ -280,22 +267,22 @@
             </div>
 
             <h3>Saisir un règlement / paiement bancaire</h3>
-            <form id="form-ajouter-paiement" class="form-grid" onsubmit="event.preventDefault(); window.ajouterPaiement();">
-                <div class="form-group">
-                    <label for="pay-date">Date de valeur *</label>
+            <form id="form-ajouter-paiement" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterPaiement();">
+                <div class="flex-1 min-w-[140px] flex flex-col gap-1">
+                    <label for="pay-date" class="text-xs font-semibold text-slate-600">Date de valeur *</label>
                     <input type="date" id="pay-date" class="form-control" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="pay-type">Sens du flux *</label>
+                <div class="w-48 flex flex-col gap-1">
+                    <label for="pay-type" class="text-xs font-semibold text-slate-600">Sens du flux *</label>
                     <select id="pay-type" class="form-control" required>
                         <option value="Recette">Encaissement (Recette)</option>
                         <option value="Dépense">Décaissement (Dépense)</option>
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="pay-categorie">Catégorie *</label>
+                <div class="flex-1 min-w-[160px] flex flex-col gap-1">
+                    <label for="pay-categorie" class="text-xs font-semibold text-slate-600">Catégorie *</label>
                     <select id="pay-categorie" class="form-control" required>
                         <option value="Soins infirmiers">Soins infirmiers</option>
                         <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
@@ -306,17 +293,19 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="pay-description">Libellé / Tiers *</label>
+                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
+                    <label for="pay-description" class="text-xs font-semibold text-slate-600">Libellé / Tiers *</label>
                     <input type="text" id="pay-description" class="form-control" placeholder="Ex: Virement CPAM..." required>
                 </div>
 
-                <div class="form-group">
-                    <label for="pay-montant">Montant (€) *</label>
+                <div class="w-32 flex flex-col gap-1">
+                    <label for="pay-montant" class="text-xs font-semibold text-slate-600">Montant (€) *</label>
                     <input type="number" step="0.01" id="pay-montant" class="form-control" placeholder="0.00" required>
                 </div>
 
-                <button type="submit" class="btn-primary" style="background-color: #059669;">💳 Valider le paiement</button>
+                <button type="submit" class="btn-primary h-[38px] whitespace-nowrap px-4 font-semibold text-sm self-end" style="background-color: #059669;">
+                    💳 Valider le paiement
+                </button>
             </form>
 
             <h3>Mouvements bancaires enregistrés</h3>
@@ -343,45 +332,45 @@
             </div>
         </section>
 
-        <!-- VUE 4 : BILAN & COMPTE D'EXPLOITATION -->
-        <section id="vue-bilan" class="view-section">
-            <h2>📋 Présentation Fiscale - Déclaration 2035 & Bilan</h2>
-            <div id="conteneur-compte-exploitation"></div>
-            <div id="conteneur-bilan"></div>
-        </section>
-
-        <!-- VUE 5 : DÉCLARATION 2035 -->
-        <section id="vue-2035" class="view-section">
-            <div id="conteneur-2035">
-                <p style="color: #64748b;">Chargement de la déclaration 2035...</p>
-            </div>
-        </section>
-
-        <!-- VUE 6 : URSSAF -->
+        <!-- VUE 4 : URSSAF -->
         <section id="vue-urssaf" class="view-section">
             <div id="urssaf-container">
                 <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
             </div>
         </section>
 
-        <!-- VUE 7 : CARPIMKO -->
+        <!-- VUE 5 : CARPIMKO -->
         <section id="vue-carpimko" class="view-section">
             <div id="carpimko-container">
                 <p style="color: #64748b;">Chargement du module CARPIMKO...</p>
             </div>
         </section>
 
-        <!-- VUE 8 : CALCUL IR -->
+        <!-- VUE 6 : CALCUL IR -->
         <section id="vue-ir" class="view-section">
             <div id="ir-container">
                 <p style="color: #64748b;">Chargement du simulateur IR...</p>
             </div>
         </section>
 
-        <!-- VUE 9 : EXPORT & SAUVEGARDE -->
+        <!-- VUE 7 : SAUVEGARDE & EXPERT -->
         <section id="vue-export" class="view-section">
             <div id="export-container">
                 <p style="color: #64748b;">Chargement du module d'exportation...</p>
+            </div>
+        </section>
+
+        <!-- VUE 8 : BILAN & COMPTE D'EXPLOITATION -->
+        <section id="vue-bilan" class="view-section">
+            <h2>📋 Présentation Fiscale - Déclaration 2035 & Bilan</h2>
+            <div id="conteneur-compte-exploitation"></div>
+            <div id="conteneur-bilan"></div>
+        </section>
+
+        <!-- VUE 9 : DÉCLARATION 2035 -->
+        <section id="vue-2035" class="view-section">
+            <div id="conteneur-2035">
+                <p style="color: #64748b;">Chargement de la déclaration 2035...</p>
             </div>
         </section>
 
@@ -426,40 +415,42 @@
     <!-- MODALE MODIFICATION -->
     <div id="modal-modifier" class="modal-overlay">
         <div class="modal-content">
-            <h3>✏️ Modifier l'opération</h3>
+            <h3 style="margin-top:0;">✏️ Modifier l'opération</h3>
             <input type="hidden" id="edit-id">
 
-            <div class="form-group" style="margin-bottom: 10px;">
-                <label for="edit-date">Date</label>
-                <input type="date" id="edit-date" class="form-control">
-            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
+                <div class="form-group">
+                    <label for="edit-date" class="text-xs font-semibold text-slate-600">Date</label>
+                    <input type="date" id="edit-date" class="form-control">
+                </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-                <label for="edit-type">Type</label>
-                <select id="edit-type" class="form-control">
-                    <option value="Recette">Recette</option>
-                    <option value="Dépense">Dépense</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label for="edit-type" class="text-xs font-semibold text-slate-600">Type</label>
+                    <select id="edit-type" class="form-control">
+                        <option value="Recette">Recette</option>
+                        <option value="Dépense">Dépense</option>
+                    </select>
+                </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-                <label for="edit-categorie">Catégorie</label>
-                <input type="text" id="edit-categorie" class="form-control">
-            </div>
+                <div class="form-group">
+                    <label for="edit-categorie" class="text-xs font-semibold text-slate-600">Catégorie</label>
+                    <input type="text" id="edit-categorie" class="form-control">
+                </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-                <label for="edit-description">Description</label>
-                <input type="text" id="edit-description" class="form-control">
-            </div>
+                <div class="form-group">
+                    <label for="edit-description" class="text-xs font-semibold text-slate-600">Description</label>
+                    <input type="text" id="edit-description" class="form-control">
+                </div>
 
-            <div class="form-group" style="margin-bottom: 15px;">
-                <label for="edit-montant">Montant (€)</label>
-                <input type="number" step="0.01" id="edit-montant" class="form-control">
+                <div class="form-group">
+                    <label for="edit-montant" class="text-xs font-semibold text-slate-600">Montant (€)</label>
+                    <input type="number" step="0.01" id="edit-montant" class="form-control">
+                </div>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" class="btn-primary" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
-                <button type="button" class="btn-primary" onclick="window.sauvegarderModification()">Enregistrer</button>
+                <button type="button" class="btn-primary h-[38px]" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
+                <button type="button" class="btn-primary h-[38px]" onclick="window.sauvegarderModification()">Enregistrer</button>
             </div>
         </div>
     </div>
