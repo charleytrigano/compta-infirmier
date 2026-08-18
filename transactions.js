@@ -9,9 +9,6 @@
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
     }
 
-    /**
-     * Mappage automatique des catégories vers les comptes du Plan Comptable IDEL
-     */
     function getCompteCode(type, categorie) {
         const cat = (categorie || '').toLowerCase();
         if (type.toLowerCase() === 'recette') return '706000';
@@ -21,12 +18,9 @@
         if (cat.includes('loyer') || cat.includes('local')) return '613200';
         if (cat.includes('assurance')) return '616000';
         if (cat.includes('formation')) return '625600';
-        return '628000'; // Dépenses diverses
+        return '628000';
     }
 
-    /**
-     * Téléversement du fichier justificatif sur Supabase Storage
-     */
     async function uploaderJustificatif(fileInput) {
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) return null;
         const file = fileInput.files[0];
@@ -57,7 +51,7 @@
     }
 
     /**
-     * Enregistre une nouvelle transaction ET ses écritures comptables associées
+     * Enregistre une nouvelle transaction standard ET ses écritures comptables
      */
     async function ajouterTransaction() {
         const dateInput = document.getElementById('tx-date');
@@ -83,16 +77,13 @@
         const categorieValeur = catInput ? catInput.value : 'Soins infirmiers';
         const typeValeur = typeInput ? typeInput.value : 'Dépense';
         const descValeur = descInput ? descInput.value.trim() : '';
-        const txId = crypto.randomUUID ? crypto.randomUUID() : 'tx_' + Date.now();
-
         const estRecette = typeValeur.toLowerCase() === 'recette';
         const codeJournal = estRecette ? 'VT' : 'HA';
 
         const supabase = getSupabase();
         if (supabase) {
-            // 1. Enregistrement dans la table transactions
+            // 1. Insertion dans la table transactions (Supabase génère l'UUID)
             const payloadTransactions = {
-                id: txId,
                 date: dateVal,
                 type: typeValeur.toLowerCase(),
                 category: categorieValeur,
@@ -103,17 +94,22 @@
                 has_attachments: Boolean(justificatifUrl)
             };
 
-            const resTx = await supabase.from('transactions').insert([payloadTransactions]);
-            if (resTx.error) {
-                alert("Erreur d'enregistrement dans Transactions : " + resTx.error.message);
+            const { data: parentData, error: parentError } = await supabase
+                .from('transactions')
+                .insert([payloadTransactions])
+                .select();
+
+            if (parentError || !parentData || parentData.length === 0) {
+                alert("Erreur lors de la création de la transaction : " + (parentError ? parentError.message : "Erreur inconnue"));
                 return;
             }
 
-            // 2. Enregistrement dans ecritures_comptables (Partie double)
+            const realTxId = parentData[0].id;
             const codeCategorie = getCompteCode(typeValeur, categorieValeur);
 
+            // 2. Insertion des écritures comptables
             const ligneBanque = {
-                transaction_id: txId,
+                transaction_id: realTxId,
                 date: dateVal,
                 compte_code: '512000',
                 compte_libelle: '512000 - Banque / Compte Courant',
@@ -125,7 +121,7 @@
             };
 
             const ligneContrepartie = {
-                transaction_id: txId,
+                transaction_id: realTxId,
                 date: dateVal,
                 compte_code: codeCategorie,
                 compte_libelle: `${codeCategorie} - ${categorieValeur}`,
@@ -138,23 +134,102 @@
 
             const resEcritures = await supabase.from('ecritures_comptables').insert([ligneBanque, ligneContrepartie]);
             if (resEcritures.error) {
-                alert("Erreur d'enregistrement dans la comptabilité : " + resEcritures.error.message);
+                alert("Erreur lors de l'enregistrement des écritures comptables : " + resEcritures.error.message);
                 return;
             }
         }
 
-        // Réinitialisation du formulaire
         if (descInput) descInput.value = '';
         if (montantInput) montantInput.value = '';
         if (fileInput) fileInput.value = '';
 
         await chargerTransactionsListe();
-        alert("Transaction enregistrée avec succès dans toutes les tables !");
+        alert("Transaction enregistrée avec succès !");
     }
 
     /**
-     * Charge et affiche l'historique des transactions
+     * Saisie manuelle directe depuis l'onglet Journal de Banque
      */
+    async function ajouterPaiement(e) {
+        if (e) e.preventDefault();
+
+        const vueBanque = document.getElementById('vue-banque');
+        if (!vueBanque) return;
+
+        const dateInput = vueBanque.querySelector('input[type="date"]') || document.getElementById('pay-date');
+        const selects = vueBanque.querySelectorAll('select');
+        const sensSelect = selects[0] || document.getElementById('pay-type');
+        const catSelect = selects.length > 1 ? selects[1] : sensSelect;
+        const inputs = vueBanque.querySelectorAll('input');
+        const libelleInput = inputs.length > 1 ? inputs[1] : null;
+        const montantInput = inputs.length > 2 ? inputs[2] : null;
+
+        const dateVal = dateInput ? dateInput.value : '';
+        const sensVal = sensSelect ? sensSelect.value : 'Encaissement (Recette)';
+        const catVal = catSelect ? catSelect.value : 'Soins infirmiers';
+        const libelleVal = libelleInput ? libelleInput.value.trim() : '';
+        const montantVal = montantInput ? parseFloat(montantInput.value) : 0;
+
+        if (!dateVal || !montantVal || montantVal <= 0) {
+            alert("Veuillez renseigner une date valide et un montant supérieur à 0.");
+            return;
+        }
+
+        const supabase = getSupabase();
+        if (!supabase) return;
+
+        const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
+        const typeTransaction = isEncaissement ? 'recette' : 'dépense';
+
+        // 1. Création de la transaction parent
+        const payloadParent = {
+            date: dateVal,
+            type: typeTransaction,
+            category: catVal,
+            journal: 'BQ',
+            description: libelleVal || catVal,
+            amount: montantVal,
+            has_attachments: false
+        };
+
+        const { data: parentData, error: parentError } = await supabase
+            .from('transactions')
+            .insert([payloadParent])
+            .select();
+
+        if (parentError || !parentData || parentData.length === 0) {
+            alert("Erreur lors de la création de la transaction parent : " + (parentError ? parentError.message : "Données non renvoyées"));
+            return;
+        }
+
+        const realTransactionId = parentData[0].id;
+
+        // 2. Enregistrement dans ecritures_comptables avec l'ID valide
+        const ligneBanque = {
+            transaction_id: realTransactionId,
+            date: dateVal,
+            compte_code: '512000',
+            compte_libelle: '512000 - Banque / Compte Courant',
+            category: catVal,
+            journal: 'BQ',
+            description: (isEncaissement ? 'Encaissement : ' : 'Décaissement : ') + (libelleVal || catVal),
+            debit: isEncaissement ? montantVal : 0,
+            credit: isEncaissement ? 0 : montantVal
+        };
+
+        const { error: ecritureError } = await supabase
+            .from('ecritures_comptables')
+            .insert([ligneBanque]);
+
+        if (ecritureError) {
+            alert("Erreur lors de l'enregistrement de l'écriture bancaire : " + ecritureError.message);
+        } else {
+            if (libelleInput) libelleInput.value = '';
+            if (montantInput) montantInput.value = '';
+            await chargerJournalBanque();
+        }
+    }
+
     async function chargerTransactionsListe() {
         const tbody = document.getElementById('body-tableau-transactions');
         if (!tbody) return;
@@ -210,9 +285,6 @@
         }).join('');
     }
 
-    /**
-     * Supprime une transaction et ses écritures liées
-     */
     async function supprimerTransaction(id) {
         if (!confirm("Voulez-vous vraiment supprimer cette transaction ?")) return;
 
@@ -228,9 +300,6 @@
         await chargerTransactionsListe();
     }
 
-    /**
-     * Charge et affiche le journal de banque
-     */
     async function chargerJournalBanque() {
         await chargerTransactionsListe();
 
@@ -316,86 +385,6 @@
         }
     }
 
-    /**
-     * Saisie manuelle directe dans le Journal de Banque
-     */
-    async function ajouterPaiement(e) {
-        if (e) e.preventDefault();
-
-        const vueBanque = document.getElementById('vue-banque');
-        if (!vueBanque) return;
-
-        const dateInput = vueBanque.querySelector('input[type="date"]') || document.getElementById('pay-date');
-        const selects = vueBanque.querySelectorAll('select');
-        const sensSelect = selects[0] || document.getElementById('pay-type');
-        const catSelect = selects.length > 1 ? selects[1] : sensSelect;
-        const inputs = vueBanque.querySelectorAll('input');
-        const libelleInput = inputs.length > 1 ? inputs[1] : null;
-        const montantInput = inputs.length > 2 ? inputs[2] : null;
-
-        const dateVal = dateInput ? dateInput.value : '';
-        const sensVal = sensSelect ? sensSelect.value : 'Encaissement (Recette)';
-        const catVal = catSelect ? catSelect.value : 'Soins infirmiers';
-        const libelleVal = libelleInput ? libelleInput.value.trim() : '';
-        const montantVal = montantInput ? parseFloat(montantInput.value) : 0;
-
-        if (!dateVal || !montantVal || montantVal <= 0) {
-            alert("Veuillez renseigner une date valide et un montant supérieur à 0.");
-            return;
-        }
-
-        const supabase = getSupabase();
-        if (!supabase) return;
-
-        const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
-        const transactionId = crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now();
-        const typeTransaction = isEncaissement ? 'recette' : 'dépense';
-
-        // 1. Enregistrement préalable de la transaction parent
-        const payloadParent = {
-            id: transactionId,
-            date: dateVal,
-            type: typeTransaction,
-            category: catVal,
-            journal: 'BQ',
-            description: libelleVal || catVal,
-            amount: montantVal,
-            has_attachments: false
-        };
-
-        const resParent = await supabase.from('transactions').insert([payloadParent]);
-        if (resParent.error) {
-            alert("Erreur lors de la création de la transaction bancaire : " + resParent.error.message);
-            return;
-        }
-
-        // 2. Enregistrement de la ligne comptable
-        const ligneBanque = {
-            transaction_id: transactionId,
-            date: dateVal,
-            compte_code: '512000',
-            compte_libelle: '512000 - Banque / Compte Courant',
-            category: catVal,
-            journal: 'BQ',
-            description: (isEncaissement ? 'Encaissement : ' : 'Décaissement : ') + (libelleVal || catVal),
-            debit: isEncaissement ? montantVal : 0,
-            credit: isEncaissement ? 0 : montantVal
-        };
-
-        const { error } = await supabase.from('ecritures_comptables').insert([ligneBanque]);
-
-        if (error) {
-            alert("Erreur lors de l'enregistrement de l'écriture bancaire : " + error.message);
-        } else {
-            if (libelleInput) libelleInput.value = '';
-            if (montantInput) montantInput.value = '';
-            await chargerJournalBanque();
-        }
-    }
-
-    /**
-     * Supprime une ligne spécifique du Journal de Banque
-     */
     async function supprimerMouvementBanque(id, transactionId) {
         if (!confirm("Voulez-vous vraiment supprimer cet enregistrement ?")) return;
 
@@ -420,7 +409,6 @@
         }
     }
 
-    // Exposition globale des fonctions
     window.ajouterTransaction = ajouterTransaction;
     window.chargerTransactionsListe = chargerTransactionsListe;
     window.supprimerTransaction = supprimerTransaction;
@@ -429,7 +417,6 @@
     window.ajouterPaiement = ajouterPaiement;
     window.supprimerMouvementBanque = supprimerMouvementBanque;
 
-    // Initialisation
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(chargerJournalBanque, 200);
     } else {
