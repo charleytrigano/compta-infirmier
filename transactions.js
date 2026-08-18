@@ -144,15 +144,18 @@
         if (fileInput) fileInput.value = '';
 
         await chargerTransactionsListe();
+
+        // Notification globale pour mettre à jour le Grand Livre sans F5
         if (typeof window.chargerGrandLivre === 'function') {
             await window.chargerGrandLivre();
         }
+        window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
 
         alert("Transaction enregistrée avec succès !");
     }
 
     /**
-     * Saisie manuelle directe depuis l'onglet Journal de Banque (Partie Double : 512 + Compte Tiers/Produit)
+     * Saisie manuelle directe depuis l'onglet Journal de Banque (Partie Double : 512 + Compte Tiers)
      */
     async function ajouterPaiement(e) {
         if (e) e.preventDefault();
@@ -185,7 +188,7 @@
         const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
         const typeTransaction = isEncaissement ? 'recette' : 'dépense';
 
-        // Détermination du compte de contrepartie (si le libellé commence par un compte tiers comme 411Abadie)
+        // Détermination du compte de contrepartie (ex: 411Abadie)
         let compteContrepartie = getCompteCode(typeTransaction, catVal);
         let libelleContrepartie = catVal;
 
@@ -197,7 +200,7 @@
             }
         }
 
-        // 1. Création de la transaction parent dans Supabase
+        // 1. Création de la transaction parent
         const payloadParent = {
             date: dateVal,
             type: typeTransaction,
@@ -233,7 +236,7 @@
             credit: isEncaissement ? 0 : montantVal
         };
 
-        // 3. Écriture Contrepartie Tiers (ex: Crédit du compte 411Abadie)
+        // 3. Écriture Contrepartie Tiers (ex: 411Abadie au Crédit)
         const ligneContrepartie = {
             transaction_id: realTransactionId,
             date: dateVal,
@@ -256,11 +259,13 @@
             if (libelleInput) libelleInput.value = '';
             if (montantInput) montantInput.value = '';
             
-            // Rafraîchissement automatique du Journal de Banque et du Grand Livre
+            // Rafraîchissement synchrone des interfaces
             await chargerJournalBanque();
+            
             if (typeof window.chargerGrandLivre === 'function') {
                 await window.chargerGrandLivre();
             }
+            window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
 
             alert("Paiement enregistré avec succès en banque et sur le compte tiers !");
         }
@@ -334,9 +339,11 @@
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
         await chargerTransactionsListe();
+        
         if (typeof window.chargerGrandLivre === 'function') {
             await window.chargerGrandLivre();
         }
+        window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
     }
 
     async function chargerJournalBanque() {
@@ -445,9 +452,11 @@
                 await supabase.from('transactions').delete().eq('id', transactionId);
             }
             await chargerJournalBanque();
+            
             if (typeof window.chargerGrandLivre === 'function') {
                 await window.chargerGrandLivre();
             }
+            window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
         }
     }
 
