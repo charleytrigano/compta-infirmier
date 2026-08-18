@@ -148,7 +148,7 @@
     }
 
     /**
-     * Saisie manuelle directe depuis l'onglet Journal de Banque
+     * Saisie manuelle directe depuis l'onglet Journal de Banque (Partie Double : 512 + Compte Tiers)
      */
     async function ajouterPaiement(e) {
         if (e) e.preventDefault();
@@ -181,7 +181,19 @@
         const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
         const typeTransaction = isEncaissement ? 'recette' : 'dépense';
 
-        // 1. Création de la transaction parent
+        // Détermination du compte de contrepartie (si le libellé commence par un compte tiers comme 411Abadie)
+        let compteContrepartie = getCompteCode(typeTransaction, catVal);
+        let libelleContrepartie = catVal;
+
+        if (libelleVal) {
+            const matchCompte = libelleVal.match(/^([0-9]{3,6}[a-zA-Z0-9_-]*)/);
+            if (matchCompte) {
+                compteContrepartie = matchCompte[1];
+                libelleContrepartie = libelleVal;
+            }
+        }
+
+        // 1. Création de la transaction parent dans Supabase
         const payloadParent = {
             date: dateVal,
             type: typeTransaction,
@@ -204,7 +216,7 @@
 
         const realTransactionId = parentData[0].id;
 
-        // 2. Enregistrement dans ecritures_comptables avec l'ID valide
+        // 2. Écriture Banque (512000)
         const ligneBanque = {
             transaction_id: realTransactionId,
             date: dateVal,
@@ -217,16 +229,30 @@
             credit: isEncaissement ? 0 : montantVal
         };
 
+        // 3. Écriture Contrepartie Tiers (ex: Crédit du compte 411Abadie)
+        const ligneContrepartie = {
+            transaction_id: realTransactionId,
+            date: dateVal,
+            compte_code: compteContrepartie,
+            compte_libelle: `${compteContrepartie} - ${libelleContrepartie}`,
+            category: catVal,
+            journal: 'BQ',
+            description: (isEncaissement ? 'Règlement reçu : ' : 'Règlement émis : ') + (libelleVal || catVal),
+            debit: isEncaissement ? 0 : montantVal,
+            credit: isEncaissement ? montantVal : 0
+        };
+
         const { error: ecritureError } = await supabase
             .from('ecritures_comptables')
-            .insert([ligneBanque]);
+            .insert([ligneBanque, ligneContrepartie]);
 
         if (ecritureError) {
-            alert("Erreur lors de l'enregistrement de l'écriture bancaire : " + ecritureError.message);
+            alert("Erreur lors de l'enregistrement des écritures bancaires : " + ecritureError.message);
         } else {
             if (libelleInput) libelleInput.value = '';
             if (montantInput) montantInput.value = '';
             await chargerJournalBanque();
+            alert("Paiement enregistré avec succès en banque et sur le compte tiers !");
         }
     }
 
