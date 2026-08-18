@@ -144,11 +144,15 @@
         if (fileInput) fileInput.value = '';
 
         await chargerTransactionsListe();
+        if (typeof window.chargerGrandLivre === 'function') {
+            await window.chargerGrandLivre();
+        }
+
         alert("Transaction enregistrée avec succès !");
     }
 
     /**
-     * Saisie manuelle directe depuis l'onglet Journal de Banque (Partie Double : 512 + Compte Tiers)
+     * Saisie manuelle directe depuis l'onglet Journal de Banque (Partie Double : 512 + Compte Tiers/Produit)
      */
     async function ajouterPaiement(e) {
         if (e) e.preventDefault();
@@ -251,7 +255,13 @@
         } else {
             if (libelleInput) libelleInput.value = '';
             if (montantInput) montantInput.value = '';
+            
+            // Rafraîchissement automatique du Journal de Banque et du Grand Livre
             await chargerJournalBanque();
+            if (typeof window.chargerGrandLivre === 'function') {
+                await window.chargerGrandLivre();
+            }
+
             alert("Paiement enregistré avec succès en banque et sur le compte tiers !");
         }
     }
@@ -324,6 +334,9 @@
         localStorage.setItem('allTransactions', JSON.stringify(window.allTransactions));
 
         await chargerTransactionsListe();
+        if (typeof window.chargerGrandLivre === 'function') {
+            await window.chargerGrandLivre();
+        }
     }
 
     async function chargerJournalBanque() {
@@ -432,6 +445,9 @@
                 await supabase.from('transactions').delete().eq('id', transactionId);
             }
             await chargerJournalBanque();
+            if (typeof window.chargerGrandLivre === 'function') {
+                await window.chargerGrandLivre();
+            }
         }
     }
 
