@@ -9,9 +9,6 @@
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
     }
 
-    /**
-     * Valide et enregistre une écriture OD manuelle (Partie Double)
-     */
     async function enregistrerEcritureOD(e) {
         if (e) e.preventDefault();
 
@@ -39,11 +36,8 @@
             return;
         }
 
-        const transactionId = crypto.randomUUID ? crypto.randomUUID() : 'od_' + Date.now();
-
-        // 1. Enregistrement préalable de l'enregistrement parent dans la table transactions (satisfait la clé étrangère)
+        // 1. Insertion de la transaction parent et récupération de l'UUID attribué par Supabase
         const payloadParent = {
-            id: transactionId,
             date: dateVal,
             type: 'od',
             category: 'Opération Diverse',
@@ -53,15 +47,21 @@
             has_attachments: false
         };
 
-        const resParent = await supabase.from('transactions').insert([payloadParent]);
-        if (resParent.error) {
-            alert("Erreur lors de la création de la transaction OD : " + resParent.error.message);
+        const { data: parentData, error: parentError } = await supabase
+            .from('transactions')
+            .insert([payloadParent])
+            .select();
+
+        if (parentError || !parentData || parentData.length === 0) {
+            alert("Erreur lors de la création de la transaction OD : " + (parentError ? parentError.message : "Données non renvoyées"));
             return;
         }
 
-        // 2. Lignes d'écritures comptables Débit et Crédit
+        const realTransactionId = parentData[0].id;
+
+        // 2. Insertion des lignes Débit et Crédit liées
         const ligneDebit = {
-            transaction_id: transactionId,
+            transaction_id: realTransactionId,
             date: dateVal,
             compte_code: compteDebit,
             compte_libelle: `${compteDebit} - ${libelleCompteDebit}`,
@@ -73,7 +73,7 @@
         };
 
         const ligneCredit = {
-            transaction_id: transactionId,
+            transaction_id: realTransactionId,
             date: dateVal,
             compte_code: compteCredit,
             compte_libelle: `${compteCredit} - ${libelleCompteCredit}`,
@@ -84,25 +84,28 @@
             credit: montantVal
         };
 
-        const { error } = await supabase.from('ecritures_comptables').insert([ligneDebit, ligneCredit]);
+        const { error: ecritureError } = await supabase
+            .from('ecritures_comptables')
+            .insert([ligneDebit, ligneCredit]);
 
-        if (error) {
-            alert("Erreur lors de l'enregistrement des écritures OD : " + error.message);
+        if (ecritureError) {
+            alert("Erreur lors de l'enregistrement des écritures OD : " + ecritureError.message);
         } else {
-            alert("Écriture OD enregistrée avec succès !");
-            
             const descEl = document.getElementById('od-description');
             const montantEl = document.getElementById('od-montant');
             if (descEl) descEl.value = '';
             if (montantEl) montantEl.value = '';
             
+            // Actualisation du journal OD et du Grand Livre instantanément
             await chargerJournalOD();
+            if (typeof window.chargerGrandLivre === 'function') {
+                await window.chargerGrandLivre();
+            }
+
+            alert("Écriture OD enregistrée avec succès !");
         }
     }
 
-    /**
-     * Charge et affiche la liste des écritures OD enregistrées
-     */
     async function chargerJournalOD() {
         const tbody = document.getElementById('body-tableau-od');
         if (!tbody) return;
