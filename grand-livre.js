@@ -1,4 +1,4 @@
-// grand_livre.js - Injection directe sans dépendances complexes
+// grand_livre.js - Injection ciblée sans supprimer la barre d'onglets
 
 (function () {
     function getSupabase() {
@@ -10,14 +10,16 @@
     }
 
     async function chargerEtAfficherGrandLivre() {
-        // Ciblage des éléments potentiels
+        // Ciblage strict du conteneur de contenu uniquement
         let container = document.getElementById('grand-livre-container');
-        
+
         if (!container) {
+            // Recherche du bloc spécifique "Chargement du grand livre..."
             const elms = Array.from(document.querySelectorAll('div, section, p'));
             const loader = elms.find(el => el.textContent && el.textContent.includes('Chargement du grand livre...'));
             if (loader) {
-                container = loader.parentElement;
+                // On remplace directement l'élément de chargement sans remonter au parent global
+                container = loader;
             }
         }
 
@@ -107,13 +109,13 @@
             }).join('');
 
             const solde = totDebit - totCredit;
-            const soldeTxt = Math.abs(solde) < 0.01 ? 'Soldé' : (solde > 0 ? `Débiteur : ${formatEuro(solde)}` : `Créditeur : ${formatEuro(Math.abs(solde))}`);
+            const soldeTxt = Math.abs(solde) < 0.01 ? 'Solde Soldé : 0,00 €' : (solde > 0 ? `Solde Débiteur : ${formatEuro(solde)}` : `Solde Créditeur : ${formatEuro(Math.abs(solde))}`);
 
             html += `
-                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
-                    <div style="background: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-weight: 600;">
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="background: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-weight: 600; align-items: center;">
                         <span>📁 ${code} - ${c.libelle}</span>
-                        <span style="color: #2563eb; font-size: 0.85rem;">${soldeTxt}</span>
+                        <span style="color: #2563eb; font-size: 0.85rem; background: #eff6ff; padding: 4px 8px; border-radius: 4px;">${soldeTxt}</span>
                     </div>
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
@@ -129,7 +131,7 @@
                         <tbody>${rowsHtml}</tbody>
                         <tfoot>
                             <tr style="background: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0;">
-                                <td colspan="4" style="padding: 8px 12px; text-align: right;">Sous-total :</td>
+                                <td colspan="4" style="padding: 8px 12px; text-align: right;">Sous-total (${code}) :</td>
                                 <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${formatEuro(totDebit)}</td>
                                 <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${formatEuro(totCredit)}</td>
                             </tr>
