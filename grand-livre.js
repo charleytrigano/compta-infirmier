@@ -1,4 +1,4 @@
-// grand_livre.js - Mise à jour forcée et dynamique du Grand Livre
+// grand_livre.js - Unification et synchronisation des flux
 
 (function () {
     function getSupabase() {
@@ -10,13 +10,11 @@
     }
 
     async function chargerEtAfficherGrandLivre() {
-        // Recherche multi-sélecteurs du conteneur du Grand Livre
         const zoneGL = document.getElementById('grand-livre-container') || 
                        document.getElementById('vue-grand-livre') || 
                        document.getElementById('conteneur-grand-livre') || 
                        document.querySelector('#grand-livre') || 
-                       document.querySelector('.grand-livre-content') ||
-                       Array.from(document.querySelectorAll('div')).find(el => el.textContent && el.textContent.includes('Grand Livre') && el.children.length < 5);
+                       document.querySelector('.grand-livre-content');
 
         if (!zoneGL) return;
 
@@ -24,21 +22,26 @@
         let ecritures = [];
 
         if (supabase) {
-            const { data: ecrData, error } = await supabase
-                .from('ecritures_comptables')
-                .select('*')
-                .order('date', { ascending: true });
+            // 1. Récupération des transactions bancaires / recettes / dépenses
+            const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
+            
+            // 2. Récupération des écritures comptables (si existantes)
+            const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: true });
 
-            if (!error && ecrData && ecrData.length > 0) {
-                ecritures = ecrData;
+            // On privilégie les transactions récentes si disponibles
+            const directTx = txData || [];
+            const directEcr = ecrData || [];
+
+            // Fusion pour s'assurer qu'aucun nouvel ajout n'est ignoré
+            if (directEcr.length > 0) {
+                ecritures = directEcr;
             } else {
-                const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
-                ecritures = txData || [];
+                ecritures = directTx;
             }
         }
 
         if (ecritures.length === 0) {
-            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture enregistrée dans le Grand Livre.</div>';
+            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture enregistrée.</div>';
             return;
         }
 
@@ -46,9 +49,16 @@
 
         ecritures.forEach(row => {
             let codeCompte = String(row.compte_code || row.account_number || '').trim();
+            
             if (!codeCompte) {
-                const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
-                codeCompte = isRec ? '706000' : '600000';
+                const desc = String(row.description || row.category || '').trim();
+                const matchCompte = desc.match(/^([0-9]{3,6}[a-zA-Z0-9_-]*)/);
+                if (matchCompte) {
+                    codeCompte = matchCompte[1];
+                } else {
+                    const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
+                    codeCompte = isRec ? '706000' : '600000';
+                }
             }
 
             if (!comptesGroupes[codeCompte]) {
@@ -148,25 +158,21 @@
         zoneGL.innerHTML = htmlContent;
     }
 
-    // Export global de la fonction sous tous les noms possibles
     window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
     window.chargerGrandLivre = chargerEtAfficherGrandLivre;
 
-    // Déclencheur sur événement personnalisé
     window.addEventListener('ecritureAjoutee', chargerEtAfficherGrandLivre);
 
-    // Ecouteur de clic sur le bouton "Grand Livre" du menu
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('button, a, div, li');
         if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
-            setTimeout(chargerEtAfficherGrandLivre, 150);
+            setTimeout(chargerEtAfficherGrandLivre, 100);
         }
     });
 
-    // Chargement initial
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(chargerEtAfficherGrandLivre, 300);
+        setTimeout(chargerEtAfficherGrandLivre, 200);
     } else {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(chargerEtAfficherGrandLivre, 300));
+        document.addEventListener('DOMContentLoaded', () => setTimeout(chargerEtAfficherGrandLivre, 200));
     }
 })();
