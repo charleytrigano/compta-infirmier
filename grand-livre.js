@@ -1,4 +1,4 @@
-// grand_livre.js - Correction du blocage "Chargement du grand livre..."
+// grand_livre.js - Injection directe sans dépendances complexes
 
 (function () {
     function getSupabase() {
@@ -10,115 +10,91 @@
     }
 
     async function chargerEtAfficherGrandLivre() {
-        // Ciblage direct de l'élément parent qui contient "Chargement du grand livre..."
-        let zoneGL = document.getElementById('grand-livre-container') || 
-                       document.getElementById('vue-grand-livre') || 
-                       document.getElementById('conteneur-grand-livre');
-
-        if (!zoneGL) {
-            // Recherche par le texte affiché à l'écran sur la capture
-            const tousLesDivs = Array.from(document.querySelectorAll('div, section, main'));
-            zoneGL = tousLesDivs.find(el => el.textContent && el.textContent.includes('Chargement du grand livre...'));
+        // Ciblage des éléments potentiels
+        let container = document.getElementById('grand-livre-container');
+        
+        if (!container) {
+            const elms = Array.from(document.querySelectorAll('div, section, p'));
+            const loader = elms.find(el => el.textContent && el.textContent.includes('Chargement du grand livre...'));
+            if (loader) {
+                container = loader.parentElement;
+            }
         }
 
-        if (!zoneGL) return;
+        if (!container) return;
 
         const supabase = getSupabase();
         let ecritures = [];
 
         if (supabase) {
             try {
-                // Tente de récupérer les écritures comptables
-                const { data: ecrData } = await supabase
-                    .from('ecritures_comptables')
-                    .select('*')
-                    .order('date', { ascending: true });
-
+                const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: true });
                 if (ecrData && ecrData.length > 0) {
                     ecritures = ecrData;
                 } else {
-                    // Fallback sur la table transactions si ecritures_comptables est vide
-                    const { data: txData } = await supabase
-                        .from('transactions')
-                        .select('*')
-                        .order('date', { ascending: true });
+                    const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
                     ecritures = txData || [];
                 }
-            } catch (e) {
-                console.error("Erreur de chargement Supabase :", e);
+            } catch (err) {
+                console.error("Erreur Supabase GL:", err);
             }
         }
 
-        if (!ecritures || ecritures.length === 0) {
-            zoneGL.innerHTML = `
+        if (ecritures.length === 0) {
+            container.innerHTML = `
                 <div style="padding: 20px;">
-                    <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 10px; color: #1e293b;">Grand Livre</h3>
-                    <div style="text-align: center; padding: 30px; color: #94a3b8; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
-                        Aucune écriture enregistrée dans le Grand Livre.
-                    </div>
+                    <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin-bottom: 10px;">Grand Livre</h3>
+                    <p style="color: #64748b; background: #f8fafc; padding: 20px; border-radius: 6px; border: 1px solid #e2e8f0;">Aucune écriture comptable trouvée.</p>
                 </div>`;
             return;
         }
 
-        const comptesGroupes = {};
+        const comptes = {};
 
         ecritures.forEach(row => {
-            let codeCompte = String(row.compte_code || row.account_number || '').trim();
-            
-            if (!codeCompte) {
-                const desc = String(row.description || row.category || '').trim();
-                const matchCompte = desc.match(/^([0-9]{3,6}[a-zA-Z0-9_-]*)/);
-                if (matchCompte) {
-                    codeCompte = matchCompte[1];
-                } else {
-                    const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
-                    codeCompte = isRec ? '706000' : '600000';
-                }
+            let code = String(row.compte_code || row.account_number || '').trim();
+            if (!code) {
+                const desc = String(row.description || row.category || '');
+                const match = desc.match(/^([0-9]{3,6})/);
+                code = match ? match[1] : (row.type === 'recette' ? '706000' : '600000');
             }
 
-            if (!comptesGroupes[codeCompte]) {
-                comptesGroupes[codeCompte] = {
-                    code: codeCompte,
-                    libelle: row.compte_libelle || row.category || ('Compte ' + codeCompte),
+            if (!comptes[code]) {
+                comptes[code] = {
+                    code: code,
+                    libelle: row.compte_libelle || row.category || ('Compte ' + code),
                     lignes: []
                 };
             }
 
-            let debitVal = parseFloat(row.debit || 0);
-            let creditVal = parseFloat(row.credit || 0);
+            let debit = parseFloat(row.debit || 0);
+            let credit = parseFloat(row.credit || 0);
 
             if (!row.debit && !row.credit && row.amount) {
-                const amt = Math.abs(parseFloat(row.amount));
-                const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
-                if (isRec) creditVal = amt;
-                else debitVal = amt;
+                const val = Math.abs(parseFloat(row.amount));
+                if (row.type === 'recette') credit = val;
+                else debit = val;
             }
 
-            comptesGroupes[codeCompte].lignes.push({
+            comptes[code].lignes.push({
                 date: row.date || '-',
                 category: row.category || '-',
-                description: row.description || row.compte_libelle || '-',
-                debit: debitVal,
-                credit: creditVal
+                description: row.description || '-',
+                debit: debit,
+                credit: credit
             });
         });
 
-        let htmlContent = `
-            <div style="padding: 10px 0;">
-                <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 15px; color: #1e293b;">Grand Livre</h3>
-                <div style="display: flex; flex-direction: column; gap: 20px;">`;
+        let html = '<div style="padding: 10px 0;"><h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 15px; color: #1e293b;">Grand Livre</h3>';
 
-        const codesTries = Object.keys(comptesGroupes).sort();
+        Object.keys(comptes).sort().forEach(code => {
+            const c = comptes[code];
+            let totDebit = 0;
+            let totCredit = 0;
 
-        codesTries.forEach(code => {
-            const groupe = comptesGroupes[code];
-            let totalDebit = 0;
-            let totalCredit = 0;
-
-            let tableRows = groupe.lignes.map(l => {
-                totalDebit += l.debit;
-                totalCredit += l.credit;
-
+            const rowsHtml = c.lignes.map(l => {
+                totDebit += l.debit;
+                totCredit += l.credit;
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 8px 12px; color: #334155;">${l.date}</td>
@@ -127,71 +103,58 @@
                         <td style="padding: 8px 12px; color: #334155;">${l.description}</td>
                         <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${l.debit > 0 ? formatEuro(l.debit) : '-'}</td>
                         <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${l.credit > 0 ? formatEuro(l.credit) : '-'}</td>
-                    </tr>
-                `;
+                    </tr>`;
             }).join('');
 
-            const diff = totalDebit - totalCredit;
-            let soldeFormatted = '';
-            if (Math.abs(diff) < 0.001) {
-                soldeFormatted = 'Solde Soldé : 0,00 €';
-            } else if (diff > 0) {
-                soldeFormatted = `Solde Débiteur : ${formatEuro(diff)}`;
-            } else {
-                soldeFormatted = `Solde Créditeur : ${formatEuro(Math.abs(diff))}`;
-            }
+            const solde = totDebit - totCredit;
+            const soldeTxt = Math.abs(solde) < 0.01 ? 'Soldé' : (solde > 0 ? `Débiteur : ${formatEuro(solde)}` : `Créditeur : ${formatEuro(Math.abs(solde))}`);
 
-            htmlContent += `
-                <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <div style="background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b; display: flex; justify-content: space-between; align-items: center;">
-                        <span>📁 ${code} - ${groupe.libelle}</span>
-                        <span style="font-size: 0.85rem; background: #eff6ff; color: #2563eb; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${soldeFormatted}</span>
+            html += `
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+                    <div style="background: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-weight: 600;">
+                        <span>📁 ${code} - ${c.libelle}</span>
+                        <span style="color: #2563eb; font-size: 0.85rem;">${soldeTxt}</span>
                     </div>
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
-                            <tr style="border-bottom: 1px solid #cbd5e1; background-color: #f1f5f9; color: #475569;">
-                                <th style="padding: 8px 12px; text-align: left;">Date</th>
-                                <th style="padding: 8px 12px; text-align: left;">Compte</th>
-                                <th style="padding: 8px 12px; text-align: left;">Catégorie</th>
-                                <th style="padding: 8px 12px; text-align: left;">Description</th>
+                            <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+                                <th style="padding: 8px 12px;">Date</th>
+                                <th style="padding: 8px 12px;">Compte</th>
+                                <th style="padding: 8px 12px;">Catégorie</th>
+                                <th style="padding: 8px 12px;">Description</th>
                                 <th style="padding: 8px 12px; text-align: right;">Débit (€)</th>
                                 <th style="padding: 8px 12px; text-align: right;">Crédit (€)</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${tableRows}
-                        </tbody>
+                        <tbody>${rowsHtml}</tbody>
                         <tfoot>
-                            <tr style="background-color: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0;">
-                                <td colspan="4" style="padding: 8px 12px; text-align: right;">Sous-total (${code}) :</td>
-                                <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${formatEuro(totalDebit)}</td>
-                                <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${formatEuro(totalCredit)}</td>
+                            <tr style="background: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0;">
+                                <td colspan="4" style="padding: 8px 12px; text-align: right;">Sous-total :</td>
+                                <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${formatEuro(totDebit)}</td>
+                                <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${formatEuro(totCredit)}</td>
                             </tr>
                         </tfoot>
                     </table>
-                </div>
-            `;
+                </div>`;
         });
 
-        htmlContent += '</div></div>';
-        zoneGL.innerHTML = htmlContent;
+        html += '</div>';
+        container.innerHTML = html;
     }
 
-    window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
     window.chargerGrandLivre = chargerEtAfficherGrandLivre;
-
-    window.addEventListener('ecritureAjoutee', chargerEtAfficherGrandLivre);
+    window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
 
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('button, a, div, li');
         if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
-            setTimeout(chargerEtAfficherGrandLivre, 100);
+            setTimeout(chargerEtAfficherGrandLivre, 50);
         }
     });
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(chargerEtAfficherGrandLivre, 200);
+        setTimeout(chargerEtAfficherGrandLivre, 150);
     } else {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(chargerEtAfficherGrandLivre, 200));
+        document.addEventListener('DOMContentLoaded', () => setTimeout(chargerEtAfficherGrandLivre, 150));
     }
 })();
