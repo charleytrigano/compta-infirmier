@@ -163,7 +163,6 @@
         const supabase = getSupabase();
 
         if (supabase) {
-            // Exclut les OD pour ne garder que le flux Recette / Dépense courant
             const { data } = await supabase
                 .from('transactions')
                 .select('*')
@@ -245,7 +244,6 @@
         if (!supabase) return;
 
         try {
-            // Récupère uniquement les mouvements bancaires en excluant les OD
             let { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -351,7 +349,27 @@
 
         const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
         const transactionId = crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now();
+        const typeTransaction = isEncaissement ? 'recette' : 'dépense';
 
+        // 1. Enregistrement préalable de la transaction parent
+        const payloadParent = {
+            id: transactionId,
+            date: dateVal,
+            type: typeTransaction,
+            category: catVal,
+            journal: 'BQ',
+            description: libelleVal || catVal,
+            amount: montantVal,
+            has_attachments: false
+        };
+
+        const resParent = await supabase.from('transactions').insert([payloadParent]);
+        if (resParent.error) {
+            alert("Erreur lors de la création de la transaction bancaire : " + resParent.error.message);
+            return;
+        }
+
+        // 2. Enregistrement de la ligne comptable
         const ligneBanque = {
             transaction_id: transactionId,
             date: dateVal,
@@ -367,7 +385,7 @@
         const { error } = await supabase.from('ecritures_comptables').insert([ligneBanque]);
 
         if (error) {
-            alert("Erreur lors de l'enregistrement : " + error.message);
+            alert("Erreur lors de l'enregistrement de l'écriture bancaire : " + error.message);
         } else {
             if (libelleInput) libelleInput.value = '';
             if (montantInput) montantInput.value = '';
@@ -395,6 +413,9 @@
         if (error) {
             alert("Erreur lors de la suppression : " + error.message);
         } else {
+            if (transactionId && transactionId !== 'undefined' && transactionId !== '') {
+                await supabase.from('transactions').delete().eq('id', transactionId);
+            }
             await chargerJournalBanque();
         }
     }
