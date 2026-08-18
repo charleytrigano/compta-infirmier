@@ -1,4 +1,4 @@
-// grand_livre.js - Génération dynamique du Grand Livre depuis Supabase
+// grand_livre.js - Correction des calculs de solde et rendu du Grand Livre
 
 (function () {
     function getSupabase() {
@@ -16,7 +16,6 @@
                                     document.querySelector('#grand-livre') || 
                                     document.querySelector('.grand-livre-content');
         
-        // Fallback : recherche de la zone sous un titre "Grand Livre"
         let zoneGL = conteneurGrandLivre;
         if (!zoneGL) {
             const elTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'))
@@ -26,13 +25,10 @@
 
         if (!zoneGL) return;
 
-        zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #64748b;">Chargement du Grand Livre...</div>';
-
         const supabase = getSupabase();
         let ecritures = [];
 
         if (supabase) {
-            // 1. Essai de récupération dans la table dédiée aux écritures
             const { data: ecrData, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -41,7 +37,6 @@
             if (!error && ecrData && ecrData.length > 0) {
                 ecritures = ecrData;
             } else {
-                // 2. Fallback sur la table transactions si pas d'écritures
                 const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
                 ecritures = txData || [];
             }
@@ -52,13 +47,10 @@
             return;
         }
 
-        // Regroupement des écritures par numéro de compte
         const comptesGroupes = {};
 
         ecritures.forEach(row => {
             let codeCompte = String(row.compte_code || row.account_number || '').trim();
-            
-            // Attribution d'un compte par défaut si la valeur est absente
             if (!codeCompte) {
                 const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
                 codeCompte = isRec ? '706000' : '600000';
@@ -91,7 +83,6 @@
             });
         });
 
-        // Génération du HTML
         let htmlContent = '<div style="display: flex; flex-direction: column; gap: 20px;">';
         const codesTries = Object.keys(comptesGroupes).sort();
 
@@ -116,10 +107,16 @@
                 `;
             }).join('');
 
-            const solde = totalDebit - totalCredit;
-            const soldeFormatted = solde >= 0 
-                ? `Solde Débiteur : ${formatEuro(solde)}` 
-                : `Solde Créditeur : ${formatEuro(Math.abs(solde))}`;
+            // Calcul rigoureux du solde
+            const diff = totalDebit - totalCredit;
+            let soldeFormatted = '';
+            if (Math.abs(diff) < 0.001) {
+                soldeFormatted = 'Solde Soldé : 0,00 €';
+            } else if (diff > 0) {
+                soldeFormatted = `Solde Débiteur : ${formatEuro(diff)}`;
+            } else {
+                soldeFormatted = `Solde Créditeur : ${formatEuro(Math.abs(diff))}`;
+            }
 
             htmlContent += `
                 <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -157,16 +154,13 @@
         zoneGL.innerHTML = htmlContent;
     }
 
-    // Assignation aux deux nommages pour éviter toute incohérence d'appel
     window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
     window.chargerGrandLivre = chargerEtAfficherGrandLivre;
 
-    // Écouteur en temps réel pour l'événement personnalisé déclenché par transactions.js
     window.addEventListener('ecritureAjoutee', async () => {
         await chargerEtAfficherGrandLivre();
     });
 
-    // Ré-actualisation lors du clic sur l'onglet "Grand Livre"
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('button, a, div, li');
         if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
