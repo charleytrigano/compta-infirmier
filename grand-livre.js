@@ -1,4 +1,4 @@
-// grand_livre.js - Injection ciblée sans supprimer la barre d'onglets
+// grand-livre.js - Module d'affichage du Grand Livre
 
 (function () {
     function getSupabase() {
@@ -10,18 +10,7 @@
     }
 
     async function chargerEtAfficherGrandLivre() {
-        // Ciblage strict du conteneur de contenu uniquement
-        let container = document.getElementById('grand-livre-container');
-
-        if (!container) {
-            // Recherche du bloc spécifique "Chargement du grand livre..."
-            const elms = Array.from(document.querySelectorAll('div, section, p'));
-            const loader = elms.find(el => el.textContent && el.textContent.includes('Chargement du grand livre...'));
-            if (loader) {
-                // On remplace directement l'élément de chargement sans remonter au parent global
-                container = loader;
-            }
-        }
+        const container = document.getElementById('grandlivre-contenu');
 
         if (!container) return;
 
@@ -38,15 +27,16 @@
                     ecritures = txData || [];
                 }
             } catch (err) {
-                console.error("Erreur Supabase GL:", err);
+                console.error("Erreur Supabase Grand Livre:", err);
             }
         }
 
-        if (ecritures.length === 0) {
+        if (!ecritures || ecritures.length === 0) {
             container.innerHTML = `
                 <div style="padding: 20px;">
-                    <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin-bottom: 10px;">Grand Livre</h3>
-                    <p style="color: #64748b; background: #f8fafc; padding: 20px; border-radius: 6px; border: 1px solid #e2e8f0;">Aucune écriture comptable trouvée.</p>
+                    <p style="color: #64748b; background: #f8fafc; padding: 20px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
+                        Aucune écriture comptable enregistrée.
+                    </p>
                 </div>`;
             return;
         }
@@ -87,7 +77,7 @@
             });
         });
 
-        let html = '<div style="padding: 10px 0;"><h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 15px; color: #1e293b;">Grand Livre</h3>';
+        let html = '<div style="display: flex; flex-direction: column; gap: 20px; margin-top: 15px;">';
 
         Object.keys(comptes).sort().forEach(code => {
             const c = comptes[code];
@@ -112,7 +102,7 @@
             const soldeTxt = Math.abs(solde) < 0.01 ? 'Solde Soldé : 0,00 €' : (solde > 0 ? `Solde Débiteur : ${formatEuro(solde)}` : `Solde Créditeur : ${formatEuro(Math.abs(solde))}`);
 
             html += `
-                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <div style="background: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-weight: 600; align-items: center;">
                         <span>📁 ${code} - ${c.libelle}</span>
                         <span style="color: #2563eb; font-size: 0.85rem; background: #eff6ff; padding: 4px 8px; border-radius: 4px;">${soldeTxt}</span>
@@ -144,19 +134,7 @@
         container.innerHTML = html;
     }
 
-    window.chargerGrandLivre = chargerEtAfficherGrandLivre;
+    // Exportation globale des fonctions
+    window.afficherGrandLivre = chargerEtAfficherGrandLivre;
     window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
-
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest('button, a, div, li');
-        if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
-            setTimeout(chargerEtAfficherGrandLivre, 50);
-        }
-    });
-
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(chargerEtAfficherGrandLivre, 150);
-    } else {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(chargerEtAfficherGrandLivre, 150));
-    }
 })();
