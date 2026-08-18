@@ -190,6 +190,7 @@
             <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035</button>
             <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
             <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
+            <button class="nav-btn" onclick="switchTab('vue-balance', this)">⚖️ Balance des Comptes</button>
             <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
         </nav>
 
@@ -464,7 +465,15 @@
             </div>
         </section>
 
-        <!-- VUE 12 : PROFIL -->
+        <!-- VUE 12 : BALANCE DES COMPTES -->
+        <section id="vue-balance" class="view-section">
+            <h2>⚖️ Balance Générale des Comptes</h2>
+            <div id="balance-contenu">
+                <p style="color: #64748b;">Chargement de la balance...</p>
+            </div>
+        </section>
+
+        <!-- VUE 13 : PROFIL -->
         <section id="vue-profil" class="view-section">
             <div id="profil-container">
                 <p style="color: #64748b;">Chargement du profil...</p>
@@ -520,7 +529,7 @@
     <script src="config.js"></script>
 
     <script>
-        // Initialisation globale des tableaux si vide
+        // Initialisation globale
         window.transactions = window.transactions || [];
 
         // Gestionnaire d'onglets dynamique
@@ -547,6 +556,7 @@
             if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') window.afficherDeclaration2035();
             if (tabId === 'vue-journal' && typeof window.afficherJournal === 'function') window.afficherJournal();
             if (tabId === 'vue-grandlivre' && typeof window.chargerEtAfficherGrandLivre === 'function') window.chargerEtAfficherGrandLivre();
+            if (tabId === 'vue-balance' && typeof window.chargerEtAfficherBalance === 'function') window.chargerEtAfficherBalance();
             if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
         };
 
@@ -573,6 +583,7 @@
     <script src="export_comptable.js"></script>
     <script src="journal.js"></script>
     <script src="grand-livre.js"></script>
+    <script src="balance.js"></script>
     <script src="profil.js"></script>
 
 </body>
