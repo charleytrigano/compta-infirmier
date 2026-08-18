@@ -5,10 +5,18 @@
         return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
 
+    function formatEuro(amount) {
+        return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
+    }
+
     async function chargerEtAfficherGrandLivre() {
-        const conteneurGrandLivre = document.getElementById('grand-livre-container') || document.querySelector('#grand-livre') || document.querySelector('.grand-livre-content');
+        const conteneurGrandLivre = document.getElementById('grand-livre-container') || 
+                                    document.getElementById('vue-grand-livre') || 
+                                    document.getElementById('conteneur-grand-livre') || 
+                                    document.querySelector('#grand-livre') || 
+                                    document.querySelector('.grand-livre-content');
         
-        // Fallback : recherche du conteneur sous le titre "Grand Livre"
+        // Fallback : recherche de la zone sous un titre "Grand Livre"
         let zoneGL = conteneurGrandLivre;
         if (!zoneGL) {
             const elTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'))
@@ -24,6 +32,7 @@
         let ecritures = [];
 
         if (supabase) {
+            // 1. Essai de récupération dans la table dédiée aux écritures
             const { data: ecrData, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -32,13 +41,14 @@
             if (!error && ecrData && ecrData.length > 0) {
                 ecritures = ecrData;
             } else {
+                // 2. Fallback sur la table transactions si pas d'écritures
                 const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
                 ecritures = txData || [];
             }
         }
 
         if (ecritures.length === 0) {
-            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture trouvée.</div>';
+            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture trouvée dans le Grand Livre.</div>';
             return;
         }
 
@@ -46,12 +56,10 @@
         const comptesGroupes = {};
 
         ecritures.forEach(row => {
-            // Lecture unifiée du compte (priorité compte_code puis account_number)
             let codeCompte = String(row.compte_code || row.account_number || '').trim();
             
-            // Attribution par défaut si vide selon la nature de l'opération
+            // Attribution d'un compte par défaut si la valeur est absente
             if (!codeCompte) {
-                const amt = parseFloat(row.amount || row.debit || row.credit || 0);
                 const isRec = String(row.type || '').toLowerCase().includes('rec') || String(row.category || '').toLowerCase().includes('soins');
                 codeCompte = isRec ? '706000' : '600000';
             }
@@ -59,7 +67,7 @@
             if (!comptesGroupes[codeCompte]) {
                 comptesGroupes[codeCompte] = {
                     code: codeCompte,
-                    libelle: row.compte_libelle || row.category || 'Compte ' + codeCompte,
+                    libelle: row.compte_libelle || row.category || ('Compte ' + codeCompte),
                     lignes: []
                 };
             }
@@ -83,10 +91,8 @@
             });
         });
 
-        // Rendu HTML
+        // Génération du HTML
         let htmlContent = '<div style="display: flex; flex-direction: column; gap: 20px;">';
-
-        // Tri des comptes par numéro croissant
         const codesTries = Object.keys(comptesGroupes).sort();
 
         codesTries.forEach(code => {
@@ -104,19 +110,22 @@
                         <td style="padding: 8px 12px; font-weight: 600; color: #1e293b;">${code}</td>
                         <td style="padding: 8px 12px; color: #334155;">${l.category}</td>
                         <td style="padding: 8px 12px; color: #334155;">${l.description}</td>
-                        <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${l.debit > 0 ? l.debit.toFixed(2) + ' €' : '-'}</td>
-                        <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${l.credit > 0 ? l.credit.toFixed(2) + ' €' : '-'}</td>
+                        <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${l.debit > 0 ? formatEuro(l.debit) : '-'}</td>
+                        <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${l.credit > 0 ? formatEuro(l.credit) : '-'}</td>
                     </tr>
                 `;
             }).join('');
 
             const solde = totalDebit - totalCredit;
+            const soldeFormatted = solde >= 0 
+                ? `Solde Débiteur : ${formatEuro(solde)}` 
+                : `Solde Créditeur : ${formatEuro(Math.abs(solde))}`;
 
             htmlContent += `
-                <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                    <div style="background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b; display: flex; justify-content: space-between;">
+                <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b; display: flex; justify-content: space-between; align-items: center;">
                         <span>📁 ${code} - ${groupe.libelle}</span>
-                        <span>Solde : ${solde.toFixed(2)} €</span>
+                        <span style="font-size: 0.85rem; background: #eff6ff; color: #2563eb; padding: 4px 8px; border-radius: 4px;">${soldeFormatted}</span>
                     </div>
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
@@ -135,8 +144,8 @@
                         <tfoot>
                             <tr style="background-color: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0;">
                                 <td colspan="4" style="padding: 8px 12px; text-align: right;">Sous-total (${code}) :</td>
-                                <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${totalDebit.toFixed(2)} €</td>
-                                <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${totalCredit.toFixed(2)} €</td>
+                                <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${formatEuro(totalDebit)}</td>
+                                <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${formatEuro(totalCredit)}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -148,16 +157,22 @@
         zoneGL.innerHTML = htmlContent;
     }
 
-    // Ré-actualisation lors du clic sur l'onglet "Grand Livre"
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest('button, a, div');
-        if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
-            setTimeout(chargerEtAfficherGrandLivre, 150);
-            setTimeout(chargerEtAfficherGrandLivre, 400);
-        }
+    // Assignation aux deux nommages pour éviter toute incohérence d'appel
+    window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
+    window.chargerGrandLivre = chargerEtAfficherGrandLivre;
+
+    // Écouteur en temps réel pour l'événement personnalisé déclenché par transactions.js
+    window.addEventListener('ecritureAjoutee', async () => {
+        await chargerEtAfficherGrandLivre();
     });
 
-    window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
+    // Ré-actualisation lors du clic sur l'onglet "Grand Livre"
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button, a, div, li');
+        if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
+            setTimeout(chargerEtAfficherGrandLivre, 100);
+        }
+    });
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(chargerEtAfficherGrandLivre, 200);
