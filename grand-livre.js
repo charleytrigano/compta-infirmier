@@ -1,4 +1,4 @@
-// grand_livre.js - Unification et synchronisation des flux
+// grand_livre.js - Correction du blocage "Chargement du grand livre..."
 
 (function () {
     function getSupabase() {
@@ -10,11 +10,16 @@
     }
 
     async function chargerEtAfficherGrandLivre() {
-        const zoneGL = document.getElementById('grand-livre-container') || 
+        // Ciblage direct de l'élément parent qui contient "Chargement du grand livre..."
+        let zoneGL = document.getElementById('grand-livre-container') || 
                        document.getElementById('vue-grand-livre') || 
-                       document.getElementById('conteneur-grand-livre') || 
-                       document.querySelector('#grand-livre') || 
-                       document.querySelector('.grand-livre-content');
+                       document.getElementById('conteneur-grand-livre');
+
+        if (!zoneGL) {
+            // Recherche par le texte affiché à l'écran sur la capture
+            const tousLesDivs = Array.from(document.querySelectorAll('div, section, main'));
+            zoneGL = tousLesDivs.find(el => el.textContent && el.textContent.includes('Chargement du grand livre...'));
+        }
 
         if (!zoneGL) return;
 
@@ -22,26 +27,36 @@
         let ecritures = [];
 
         if (supabase) {
-            // 1. Récupération des transactions bancaires / recettes / dépenses
-            const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
-            
-            // 2. Récupération des écritures comptables (si existantes)
-            const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: true });
+            try {
+                // Tente de récupérer les écritures comptables
+                const { data: ecrData } = await supabase
+                    .from('ecritures_comptables')
+                    .select('*')
+                    .order('date', { ascending: true });
 
-            // On privilégie les transactions récentes si disponibles
-            const directTx = txData || [];
-            const directEcr = ecrData || [];
-
-            // Fusion pour s'assurer qu'aucun nouvel ajout n'est ignoré
-            if (directEcr.length > 0) {
-                ecritures = directEcr;
-            } else {
-                ecritures = directTx;
+                if (ecrData && ecrData.length > 0) {
+                    ecritures = ecrData;
+                } else {
+                    // Fallback sur la table transactions si ecritures_comptables est vide
+                    const { data: txData } = await supabase
+                        .from('transactions')
+                        .select('*')
+                        .order('date', { ascending: true });
+                    ecritures = txData || [];
+                }
+            } catch (e) {
+                console.error("Erreur de chargement Supabase :", e);
             }
         }
 
-        if (ecritures.length === 0) {
-            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture enregistrée.</div>';
+        if (!ecritures || ecritures.length === 0) {
+            zoneGL.innerHTML = `
+                <div style="padding: 20px;">
+                    <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 10px; color: #1e293b;">Grand Livre</h3>
+                    <div style="text-align: center; padding: 30px; color: #94a3b8; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                        Aucune écriture enregistrée dans le Grand Livre.
+                    </div>
+                </div>`;
             return;
         }
 
@@ -88,7 +103,11 @@
             });
         });
 
-        let htmlContent = '<div style="display: flex; flex-direction: column; gap: 20px;">';
+        let htmlContent = `
+            <div style="padding: 10px 0;">
+                <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 15px; color: #1e293b;">Grand Livre</h3>
+                <div style="display: flex; flex-direction: column; gap: 20px;">`;
+
         const codesTries = Object.keys(comptesGroupes).sort();
 
         codesTries.forEach(code => {
@@ -126,7 +145,7 @@
                 <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <div style="background-color: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b; display: flex; justify-content: space-between; align-items: center;">
                         <span>📁 ${code} - ${groupe.libelle}</span>
-                        <span style="font-size: 0.85rem; background: #eff6ff; color: #2563eb; padding: 4px 8px; border-radius: 4px;">${soldeFormatted}</span>
+                        <span style="font-size: 0.85rem; background: #eff6ff; color: #2563eb; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${soldeFormatted}</span>
                     </div>
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
@@ -154,7 +173,7 @@
             `;
         });
 
-        htmlContent += '</div>';
+        htmlContent += '</div></div>';
         zoneGL.innerHTML = htmlContent;
     }
 
