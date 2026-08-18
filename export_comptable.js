@@ -1,5 +1,5 @@
 /**
- * export_comptable.js - Module d'exportation, impression, sauvegarde et pièces justificatives
+ * export_comptable.js - Module d'exportation, impression, sauvegarde, pièces justificatives et clôture
  */
 
 // Récupération de l'ensemble des écritures (Banque + Contreparties)
@@ -255,6 +255,32 @@ function renderExportUI() {
         <button type="button" onclick="imprimerPageCourante()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
           🖨️ Imprimer la Vue Active
         </button>
+      </div>
+
+      <!-- Bloc Clôture d'exercice -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-red-700 flex items-center gap-2">
+          🔒 Clôture d'Exercice & Reports à Nouveau
+        </h3>
+        <p class="text-xs text-slate-600">
+          Cette action solde les comptes de charges/produits (classes 6 à 9) et calcule le solde reporté des comptes de bilan (classes 1 à 5) au 1er janvier de l'exercice suivant dans le Journal OD.
+        </p>
+        
+        <div class="flex flex-wrap items-center gap-4 pt-2">
+          <div class="flex items-center gap-2">
+            <label for="cloture-annee" class="text-xs font-semibold text-slate-700">Exercice à clôturer :</label>
+            <select id="cloture-annee" class="form-control text-xs w-28 h-9 border border-slate-300 rounded-lg px-2">
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+            </select>
+          </div>
+
+          <button type="button" 
+                  onclick="if(typeof window.cloturerEtGenererRAN === 'function'){ window.cloturerEtGenererRAN(document.getElementById('cloture-annee').value); } else { alert('Module exercice.js non chargé.'); }" 
+                  class="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+            🔒 Clôturer et générer les A-Nouveaux
+          </button>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
