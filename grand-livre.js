@@ -1,4 +1,4 @@
-// grand_livre.js - Correction des calculs de solde et rendu du Grand Livre
+// grand_livre.js - Mise à jour forcée et dynamique du Grand Livre
 
 (function () {
     function getSupabase() {
@@ -10,18 +10,13 @@
     }
 
     async function chargerEtAfficherGrandLivre() {
-        const conteneurGrandLivre = document.getElementById('grand-livre-container') || 
-                                    document.getElementById('vue-grand-livre') || 
-                                    document.getElementById('conteneur-grand-livre') || 
-                                    document.querySelector('#grand-livre') || 
-                                    document.querySelector('.grand-livre-content');
-        
-        let zoneGL = conteneurGrandLivre;
-        if (!zoneGL) {
-            const elTitre = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'))
-                .find(el => el.textContent && el.textContent.trim().toLowerCase() === 'grand livre');
-            if (elTitre) zoneGL = elTitre.closest('div.card, div.bg-white, section, main') || elTitre.parentElement;
-        }
+        // Recherche multi-sélecteurs du conteneur du Grand Livre
+        const zoneGL = document.getElementById('grand-livre-container') || 
+                       document.getElementById('vue-grand-livre') || 
+                       document.getElementById('conteneur-grand-livre') || 
+                       document.querySelector('#grand-livre') || 
+                       document.querySelector('.grand-livre-content') ||
+                       Array.from(document.querySelectorAll('div')).find(el => el.textContent && el.textContent.includes('Grand Livre') && el.children.length < 5);
 
         if (!zoneGL) return;
 
@@ -43,7 +38,7 @@
         }
 
         if (ecritures.length === 0) {
-            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture trouvée dans le Grand Livre.</div>';
+            zoneGL.innerHTML = '<div style="text-align: center; padding: 30px; color: #94a3b8;">Aucune écriture enregistrée dans le Grand Livre.</div>';
             return;
         }
 
@@ -107,7 +102,6 @@
                 `;
             }).join('');
 
-            // Calcul rigoureux du solde
             const diff = totalDebit - totalCredit;
             let soldeFormatted = '';
             if (Math.abs(diff) < 0.001) {
@@ -154,23 +148,25 @@
         zoneGL.innerHTML = htmlContent;
     }
 
+    // Export global de la fonction sous tous les noms possibles
     window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
     window.chargerGrandLivre = chargerEtAfficherGrandLivre;
 
-    window.addEventListener('ecritureAjoutee', async () => {
-        await chargerEtAfficherGrandLivre();
-    });
+    // Déclencheur sur événement personnalisé
+    window.addEventListener('ecritureAjoutee', chargerEtAfficherGrandLivre);
 
+    // Ecouteur de clic sur le bouton "Grand Livre" du menu
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('button, a, div, li');
         if (btn && btn.textContent && btn.textContent.trim().toLowerCase().includes('grand livre')) {
-            setTimeout(chargerEtAfficherGrandLivre, 100);
+            setTimeout(chargerEtAfficherGrandLivre, 150);
         }
     });
 
+    // Chargement initial
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(chargerEtAfficherGrandLivre, 200);
+        setTimeout(chargerEtAfficherGrandLivre, 300);
     } else {
-        document.addEventListener('DOMContentLoaded', chargerEtAfficherGrandLivre);
+        document.addEventListener('DOMContentLoaded', () => setTimeout(chargerEtAfficherGrandLivre, 300));
     }
 })();
