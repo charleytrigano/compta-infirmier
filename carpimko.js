@@ -1,9 +1,17 @@
 /**
- * carpimko.js - Module CARPIMKO avec saisie poste par poste, 
- * affichage détaillé des bases de calcul et mise à jour dynamique.
+ * urssaf.js - Module URSSAF pour Infirmier Libéral (PAMC)
+ * Gestion trimestrielle (T1, T2, T3, T4), plafonds Tranche A et Tranche B modifiables par année,
+ * et recalcul dynamique sans rechargement lourd du DOM.
  */
 
-window.anneeCarpimkoSelectionnee = new Date().getFullYear();
+window.anneeUrssafSelectionnee = new Date().getFullYear();
+
+// Plafonds par défaut ajustables
+const PLAFONDS_DEFAUT = {
+  2024: { pass: 46368, trB: 185472 },
+  2025: { pass: 47100, trB: 188400 },
+  2026: { pass: 47252, trB: 189008 }
+};
 
 function formatEuro(valeur) {
   return Number(valeur || 0).toLocaleString('fr-FR', {
@@ -14,106 +22,75 @@ function formatEuro(valeur) {
   });
 }
 
-function calculerCarpimko(statut = 'croisiere', bncN2 = 47252, bncN1 = 11813, conventionne = true) {
-  let baseProv = 0;
-  let compProv = 0;
-  let asvProv = 0;
-  let prevProv = 1022.00;
-  let regulN1 = 0;
+/**
+ * Calcul détaillé des cotisations URSSAF (Régime PAMC)
+ */
+function calculerUrssaf(bnc = 47252, passTrA = 47252, maxTrB = 189008, conventionne = true) {
+  // Tranchage du BNC
+  const partTrA = Math.min(Math.max(bnc, 0), passTrA);
+  const partTrB = Math.min(Math.max(bnc - passTrA, 0), maxTrB - passTrA);
+  const horsTranches = Math.max(bnc - maxTrB, 0);
 
-  let baseDetail = "";
-  let compDetail = "";
-  let asvDetail = "";
-  let prevDetail = "Forfait fixe obligatoire (Classe C)";
-  let regulDetail = "";
-
-  const PASS = 47252;
-
-  if (statut === 'annee1') {
-    baseProv = 840.00;
-    baseDetail = "Forfait début de 1ère année d'installation";
-
-    compProv = 1856.00;
-    compDetail = "Forfait début de 1ère année (19 points)";
-
-    asvProv = conventionne ? 224.00 : 600.00;
-    asvDetail = conventionne ? "Forfait fixe (60% pris en charge par l'Assurance Maladie)" : "Forfait fixe non conventionné";
-
-    regulN1 = 0.00;
-    regulDetail = "Aucune régularisation en 1ère année";
-
-  } else if (statut === 'annee2') {
-    baseProv = 1250.00;
-    baseDetail = "Forfait début de 2ème année d'installation";
-
-    compProv = 1856.00;
-    compDetail = "Forfait début de 2ème année (19 points)";
-
-    asvProv = conventionne ? 224.00 : 600.00;
-    asvDetail = conventionne ? "Forfait fixe (60% pris en charge par l'Assurance Maladie)" : "Forfait fixe non conventionné";
-
-    if (bncN1 <= 11775) {
-      regulN1 = bncN1 * 0.0873;
-    } else if (bncN1 <= PASS) {
-      regulN1 = (11775 * 0.0873) + (bncN1 - 11775) * 0.0873;
-    } else {
-      regulN1 = (11775 * 0.0873) + (bncN1 - 11775) * 0.0187;
-    }
-    regulDetail = `Ajustement calculé sur BNC N-1 réel (${formatEuro(bncN1)})`;
-
+  // 1. Maladie / Maternité (PAMC) - Prise en charge CPAM si conventionné
+  // Taux conventionné : 0,10 % sur TrA (CPAM prend en charge le reste), 9,80 % sur le surplus
+  let maladieProv = 0;
+  let maladieDetail = "";
+  if (conventionne) {
+    maladieProv = (partTrA * 0.0010) + (partTrB * 0.0980);
+    maladieDetail = `Tr A (0,10 % avec prise en charge CPAM) + Tr B (9,80 %)`;
   } else {
-    // CROISIÈRE (3ème année et +)
-    const baseT1 = Math.min(bncN2, PASS) * 0.0873;
-    const baseT2 = Math.max(0, bncN2 - PASS) * 0.0187;
-    baseProv = baseT1 + baseT2;
-
-    if (bncN2 <= PASS) {
-      baseDetail = `8,73 % sur BNC N-2 (${formatEuro(bncN2)})`;
-    } else {
-      baseDetail = `8,73 % sous 1 PASS (${formatEuro(PASS)}) + 1,87 % sur le surplus`;
-    }
-
-    if (bncN2 <= 24030) {
-      compProv = 2091.00;
-      compDetail = "Cotisation minimale forfaitaire (BNC N-2 ≤ 24 030 €)";
-    } else {
-      const surplusComp = Math.min(bncN2 - 24030, 150000) * 0.0870;
-      compProv = 2091.00 + surplusComp;
-      compDetail = `2 091,00 € + 8,70 % sur tranche [24 030 € - ${formatEuro(bncN2)}]`;
-    }
-
-    const partProp = conventionne ? (bncN1 * 0.004 * 0.40) : (bncN1 * 0.004);
-    asvProv = 224.00 + partProp;
-    asvDetail = conventionne 
-      ? `Forfait 224 € + 0,16 % part net BNC N-1 (${formatEuro(bncN1)})` 
-      : `Forfait 224 € + 0,40 % part net BNC N-1 (${formatEuro(bncN1)})`;
-
-    if (bncN1 <= 11775) {
-      regulN1 = bncN1 * 0.0873;
-    } else {
-      regulN1 = (11775 * 0.0873) + (bncN1 - 11775) * 0.0187;
-    }
-    regulDetail = `Régularisation définitive sur BNC N-1 (${formatEuro(bncN1)})`;
+    maladieProv = bnc * 0.065;
+    maladieDetail = `Taux plein non-conventionné (6,50 %)`;
   }
 
-  const totalProv = baseProv + compProv + asvProv + prevProv;
-  const totalExigibleReel = totalProv + regulN1;
+  // 2. Allocations Familiales (Taux progressif de 0 % à 3,10 % selon BNC / PASS)
+  let tauxAllocFam = 0;
+  const ratioPASS = bnc / passTrA;
+  if (ratioPASS <= 1.10) {
+    tauxAllocFam = 0;
+  } else if (ratioPASS <= 1.40) {
+    tauxAllocFam = ((ratioPASS - 1.10) / 0.30) * 0.0310;
+  } else {
+    tauxAllocFam = 0.0310;
+  }
+  const allocFamProv = bnc * tauxAllocFam;
+  const allocFamDetail = `Taux effectif de ${(tauxAllocFam * 100).toFixed(2)} % (selon barème BNC/PASS)`;
+
+  // 3. CSG / CRDS (Base = BNC + Cotisations obligatoires environ ~1,15 x BNC)
+  const assietteCSG = bnc * 1.15;
+  const csgDeductible = assietteCSG * 0.0680;
+  const csgNonDeductible = assietteCSG * 0.0240;
+  const crds = assietteCSG * 0.0050;
+  const totalCsgCrds = csgDeductible + csgNonDeductible + crds;
+  const csgDetail = `Base majorée (~115 % du BNC = ${formatEuro(assietteCSG)}) : CSG 9,2 % + CRDS 0,5 %`;
+
+  // 4. Formation Professionnelle (CFP) - Forfait 0,25 % du PASS
+  const cfpProv = passTrA * 0.0025;
+  const cfpDetail = `Forfait fixe 0,25 % du PASS Tranche A (${formatEuro(passTrA)})`;
+
+  // 5. Curateur / Contribution Additionnelle (si applicable)
+  const totalAnnuel = maladieProv + allocFamProv + totalCsgCrds + cfpProv;
+
+  // Découpage Trimestriel
+  const t1 = totalAnnuel / 4;
+  const t2 = totalAnnuel / 4;
+  const t3 = totalAnnuel / 4;
+  const t4 = totalAnnuel / 4;
 
   return {
-    statut,
-    baseProv: +baseProv.toFixed(2),
-    compProv: +compProv.toFixed(2),
-    asvProv: +asvProv.toFixed(2),
-    prevProv: +prevProv.toFixed(2),
-    totalProv: +totalProv.toFixed(2),
-    regulN1: +regulN1.toFixed(2),
-    totalExigibleReel: +totalExigibleReel.toFixed(2),
-    details: {
-      baseProv: baseDetail,
-      compProv: compDetail,
-      asvProv: asvDetail,
-      prevProv: prevDetail,
-      regulN1: regulDetail
+    tranches: { partTrA, partTrB, horsTranches },
+    postes: {
+      maladie: { montant: +maladieProv.toFixed(2), detail: maladieDetail },
+      allocFam: { montant: +allocFamProv.toFixed(2), detail: allocFamDetail },
+      csgCrds: { montant: +totalCsgCrds.toFixed(2), detail: csgDetail },
+      cfp: { montant: +cfpProv.toFixed(2), detail: cfpDetail }
+    },
+    totalAnnuel: +totalAnnuel.toFixed(2),
+    trimestres: {
+      t1: +t1.toFixed(2),
+      t2: +t2.toFixed(2),
+      t3: +t3.toFixed(2),
+      t4: +t4.toFixed(2)
     }
   };
 }
@@ -135,26 +112,26 @@ function obtenirAnneesDisponibles(transactions = []) {
   return Array.from(annees).sort((a, b) => b - a);
 }
 
-function obtenirConteneurCARPIMKO() {
-  let target = document.getElementById('carpimko') || 
-               document.getElementById('vue-carpimko') || 
-               document.getElementById('carpimko-content') || 
-               document.getElementById('carpimko-container') ||
-               document.querySelector('[data-tab="carpimko"]');
+function obtenirConteneurURSSAF() {
+  let target = document.getElementById('urssaf') || 
+               document.getElementById('vue-urssaf') || 
+               document.getElementById('urssaf-content') || 
+               document.getElementById('urssaf-container') ||
+               document.querySelector('[data-tab="urssaf"]');
 
   if (!target) {
     const main = document.querySelector('main') || document.querySelector('.content') || document.body;
     if (main) {
       target = document.createElement('div');
-      target.id = 'carpimko-container';
+      target.id = 'urssaf-container';
       main.appendChild(target);
     }
   }
   return target;
 }
 
-// Mise à jour ciblée du DOM pour les totaux et les détails explicatifs sans réinitialiser les <input>
-window.actualiserCalculsCarpimko = function() {
+// Mise à jour fluide ciblée sur les cellules texte uniquement
+window.actualiserCalculsUrssaf = function() {
   const parseFloatOrZero = (id) => {
     const el = document.getElementById(id);
     if (!el) return 0;
@@ -162,94 +139,118 @@ window.actualiserCalculsCarpimko = function() {
     return isNaN(val) ? 0 : val;
   };
 
-  const offBaseT1 = parseFloatOrZero('carp-off-base-t1');
-  const offBaseT2 = parseFloatOrZero('carp-off-base-t2');
-  const offComp = parseFloatOrZero('carp-off-comp');
-  const offAsv = parseFloatOrZero('carp-off-asv');
-  const offPrev = parseFloatOrZero('carp-off-prev');
-  const offRegul = parseFloatOrZero('carp-off-regul');
+  const bncVal = parseFloatOrZero('urs-input-bnc');
+  const passTrAVal = parseFloatOrZero('urs-input-pass-tra');
+  const maxTrBVal = parseFloatOrZero('urs-input-pass-trb');
+  const convVal = document.getElementById('urs-input-conv')?.checked ?? true;
 
-  const totalProvOfficiel = offBaseT1 + offBaseT2 + offComp + offAsv + offPrev;
-  const totalGeneralOfficiel = totalProvOfficiel + offRegul;
+  // Calcul réel des cotisations
+  const simu = calculerUrssaf(bncVal, passTrAVal, maxTrBVal, convVal);
 
-  const statutSelect = document.getElementById('carp-select-statut')?.value || 'croisiere';
-  const bncN2Val = parseFloatOrZero('carp-input-bnc-n2');
-  const bncN1Val = parseFloatOrZero('carp-input-bnc-n1');
-  const conventionneVal = document.getElementById('carp-input-conv')?.checked ?? true;
+  // Saisie de l'Appel Officiel par trimestre
+  const offT1 = parseFloatOrZero('urs-off-t1');
+  const offT2 = parseFloatOrZero('urs-off-t2');
+  const offT3 = parseFloatOrZero('urs-off-t3');
+  const offT4 = parseFloatOrZero('urs-off-t4');
+  const totalOffTrimestres = offT1 + offT2 + offT3 + offT4;
 
-  const simu = calculerCarpimko(statutSelect, bncN2Val, bncN1Val, conventionneVal);
-  const payeBanque = window.payeBanqueCarpimkoActuel || 0;
-  const baseCompare = payeBanque > 0 ? payeBanque : totalGeneralOfficiel;
-  const tropCotise = baseCompare - simu.totalExigibleReel;
+  // Saisie de l'Appel Officiel par poste
+  const offMaladie = parseFloatOrZero('urs-off-maladie');
+  const offAlloc = parseFloatOrZero('urs-off-alloc');
+  const offCsg = parseFloatOrZero('urs-off-csg');
+  const offCfp = parseFloatOrZero('urs-off-cfp');
+  const totalOffPostes = offMaladie + offAlloc + offCsg + offCfp;
 
-  // Injection des totaux officiels
-  const txtProvOff = document.getElementById('carp-txt-prov-off');
-  if (txtProvOff) txtProvOff.textContent = formatEuro(totalProvOfficiel);
+  const totalOfficielRetenu = totalOffTrimestres > 0 ? totalOffTrimestres : totalOffPostes;
 
-  const txtTotalOff = document.getElementById('carp-txt-total-off');
-  if (txtTotalOff) txtTotalOff.textContent = formatEuro(totalGeneralOfficiel);
+  const payeBanque = window.payeBanqueUrssafActuel || 0;
+  const baseCompare = payeBanque > 0 ? payeBanque : totalOfficielRetenu;
+  const tropCotise = baseCompare - simu.totalAnnuel;
 
-  // Injection des valeurs recalculées
-  const mapSimu = {
-    'carp-txt-base-simu': simu.baseProv,
-    'carp-txt-comp-simu': simu.compProv,
-    'carp-txt-asv-simu': simu.asvProv,
-    'carp-txt-prev-simu': simu.prevProv,
-    'carp-txt-prov-simu': simu.totalProv,
-    'carp-txt-regul-simu': simu.regulN1,
-    'carp-txt-total-simu': simu.totalExigibleReel
+  // Mise à jour de l'affichage des tranches BNC
+  const txtTrA = document.getElementById('urs-txt-part-tra');
+  if (txtTrA) txtTrA.textContent = formatEuro(simu.tranches.partTrA);
+  const txtTrB = document.getElementById('urs-txt-part-trb');
+  if (txtTrB) txtTrB.textContent = formatEuro(simu.tranches.partTrB);
+
+  // Mise à jour des totaux trimestriels
+  const txtTotOffTrim = document.getElementById('urs-txt-tot-off-trim');
+  if (txtTotOffTrim) txtTotOffTrim.textContent = formatEuro(totalOffTrimestres);
+
+  const txtTotSimuTrim = document.getElementById('urs-txt-tot-simu-trim');
+  if (txtTotSimuTrim) txtTotSimuTrim.textContent = formatEuro(simu.totalAnnuel);
+
+  const mapSimuTrim = {
+    'urs-simu-t1': simu.trimestres.t1,
+    'urs-simu-t2': simu.trimestres.t2,
+    'urs-simu-t3': simu.trimestres.t3,
+    'urs-simu-t4': simu.trimestres.t4
   };
-
-  for (const [id, val] of Object.entries(mapSimu)) {
+  for (const [id, val] of Object.entries(mapSimuTrim)) {
     const el = document.getElementById(id);
     if (el) el.textContent = formatEuro(val);
   }
 
-  // Injection des explications de calcul poste par poste
-  const mapDetails = {
-    'carp-detail-base': simu.details.baseProv,
-    'carp-detail-comp': simu.details.compProv,
-    'carp-detail-asv': simu.details.asvProv,
-    'carp-detail-prev': simu.details.prevProv,
-    'carp-detail-regul': simu.details.regulN1
+  // Mise à jour du tableau poste par poste
+  const mapSimuPostes = {
+    'urs-simu-maladie': simu.postes.maladie.montant,
+    'urs-simu-alloc': simu.postes.allocFam.montant,
+    'urs-simu-csg': simu.postes.csgCrds.montant,
+    'urs-simu-cfp': simu.postes.cfp.montant,
+    'urs-simu-tot-postes': simu.totalAnnuel
   };
+  for (const [id, val] of Object.entries(mapSimuPostes)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = formatEuro(val);
+  }
 
+  const txtTotOffPostes = document.getElementById('urs-txt-tot-off-postes');
+  if (txtTotOffPostes) txtTotOffPostes.textContent = formatEuro(totalOffPostes);
+
+  // Mise à jour des détails
+  const mapDetails = {
+    'urs-detail-maladie': simu.postes.maladie.detail,
+    'urs-detail-alloc': simu.postes.allocFam.detail,
+    'urs-detail-csg': simu.postes.csgCrds.detail,
+    'urs-detail-cfp': simu.postes.cfp.detail
+  };
   for (const [id, txt] of Object.entries(mapDetails)) {
     const el = document.getElementById(id);
     if (el) el.textContent = txt;
   }
 
-  // Mise à jour du bandeau supérieur
-  const banner = document.getElementById('carp-banner-trop-cotise');
-  const title = document.getElementById('carp-banner-title');
-  const desc = document.getElementById('carp-banner-desc');
-  const badge = document.getElementById('carp-banner-badge');
-  const anneeActive = window.anneeCarpimkoSelectionnee;
+  // Bandeau supérieur
+  const banner = document.getElementById('urs-banner-trop-cotise');
+  const title = document.getElementById('urs-banner-title');
+  const desc = document.getElementById('urs-banner-desc');
+  const badge = document.getElementById('urs-banner-badge');
+  const anneeActive = window.anneeUrssafSelectionnee;
 
   if (banner && title && desc && badge) {
     if (tropCotise >= 0) {
       banner.className = "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border";
-      title.innerHTML = "⚖️ Trop-Cotisé Décelé !";
-      desc.innerHTML = `Vous avez trop cotisé de <strong>${formatEuro(tropCotise)}</strong> selon vos revenus réels de ${anneeActive}.`;
+      title.innerHTML = "⚖️ Trop-Cotisé URSSAF Décelé !";
+      desc.innerHTML = `Vous avez trop versé de <strong>${formatEuro(tropCotise)}</strong> à l'URSSAF selon votre BNC réel de ${anneeActive}.`;
       badge.className = "text-lg font-black text-emerald-600";
       badge.textContent = `+${formatEuro(tropCotise)}`;
     } else {
       banner.className = "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-500 text-amber-900 border-l-4 p-4 rounded-r-xl shadow-sm border";
-      title.innerHTML = "⚖️ Complément de Cotisation";
-      desc.innerHTML = `Vos cotisations recalculées prévoient un complément de <strong>${formatEuro(Math.abs(tropCotise))}</strong> pour ${anneeActive}.`;
+      title.innerHTML = "⚖️ Régularisation URSSAF à Prévoir";
+      desc.innerHTML = `Vos cotisations recalculées prévoient un ajustement de <strong>${formatEuro(Math.abs(tropCotise))}</strong> pour ${anneeActive}.`;
       badge.className = "text-lg font-black text-amber-600";
       badge.textContent = formatEuro(tropCotise);
     }
   }
 };
 
-function renderCarpimkoUI(transactions = []) {
-  window.transactionsCarpimkoCache = transactions;
-  const container = obtenirConteneurCARPIMKO();
+function renderUrssafUI(transactions = []) {
+  window.transactionsUrssafCache = transactions;
+  const container = obtenirConteneurURSSAF();
   if (!container) return;
 
   const annees = obtenirAnneesDisponibles(transactions);
-  const anneeActive = window.anneeCarpimkoSelectionnee;
+  const anneeActive = window.anneeUrssafSelectionnee;
+  const plafondsAnnee = PLAFONDS_DEFAUT[anneeActive] || { pass: 47252, trB: 189008 };
 
   let payeBanque = 0;
   let nbPaiements = 0;
@@ -258,7 +259,7 @@ function renderCarpimkoUI(transactions = []) {
     const cat = (tx.category || tx.categorie || '').toLowerCase();
     const desc = (tx.description || tx.libelle || '').toLowerCase();
     
-    if (cat.includes('carpimko') || desc.includes('carpimko')) {
+    if (cat.includes('urssaf') || desc.includes('urssaf')) {
       const dateTx = new Date(tx.date);
       if (!isNaN(dateTx.getTime()) && dateTx.getFullYear() === parseInt(anneeActive, 10)) {
         payeBanque += Math.abs(parseFloat(tx.amount || tx.montant || tx.debit || 0));
@@ -267,7 +268,7 @@ function renderCarpimkoUI(transactions = []) {
     }
   });
 
-  window.payeBanqueCarpimkoActuel = payeBanque;
+  window.payeBanqueUrssafActuel = payeBanque;
 
   container.innerHTML = `
     <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
@@ -276,81 +277,144 @@ function renderCarpimkoUI(transactions = []) {
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-            🏥 Cotisations CARPIMKO (${anneeActive})
+            🏛️ Cotisations URSSAF (${anneeActive})
           </h2>
-          <p class="text-xs text-slate-500 mt-1">Calculateur dynamique avec détail des bases d'imposition</p>
+          <p class="text-xs text-slate-500 mt-1">Calculateur avec gestion trimestrielle et ajustement des plafonds Tr A & Tr B</p>
         </div>
 
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2">
-            <label for="select-annee-carpimko" class="text-xs font-semibold text-slate-700">Année :</label>
-            <select id="select-annee-carpimko" onchange="changerAnneeCarpimko(this.value)" class="form-select bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
+            <label for="select-annee-urssaf" class="text-xs font-semibold text-slate-700">Année :</label>
+            <select id="select-annee-urssaf" onchange="changerAnneeUrssaf(this.value)" class="form-select bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
               ${annees.map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
             </select>
           </div>
 
           <div class="bg-blue-50 text-blue-800 text-xs px-3 py-2 rounded-lg font-semibold border border-blue-200">
-            Banque : ${formatEuro(payeBanque)} (${nbPaiements} versement(s))
+            Prélèvements Banque : ${formatEuro(payeBanque)} (${nbPaiements} opération(s))
           </div>
         </div>
       </div>
 
       <!-- BANDEAU TROP-COTISÉ -->
-      <div id="carp-banner-trop-cotise" class="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border">
+      <div id="urs-banner-trop-cotise" class="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border">
         <div class="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 id="carp-banner-title" class="font-bold text-sm md:text-base">⚖️ Trop-Cotisé Décelé !</h3>
-            <p id="carp-banner-desc" class="text-xs mt-0.5 opacity-90"></p>
+            <h3 id="urs-banner-title" class="font-bold text-sm md:text-base">⚖️ Trop-Cotisé Décelé !</h3>
+            <p id="urs-banner-desc" class="text-xs mt-0.5 opacity-90"></p>
           </div>
           <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 text-right">
             <span class="text-[10px] text-slate-500 block uppercase font-bold">Écart / Trop-Cotisé</span>
-            <span id="carp-banner-badge" class="text-lg font-black text-emerald-600">--</span>
+            <span id="urs-banner-badge" class="text-lg font-black text-emerald-600">--</span>
           </div>
         </div>
       </div>
 
-      <!-- REVENUS ET REGIME -->
+      <!-- REVENUS ET CONFIGURATION DES TRANCHES MODIFIABLES -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
         <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
-          1. Sélection de votre Statut & Base de Revenus (${anneeActive})
+          1. Base de Calcul & Plafonds d'Imposition (${anneeActive})
         </h3>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Ancienneté / Régime :</label>
-            <select id="carp-select-statut" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" onchange="actualiserCalculsCarpimko()">
-              <option value="croisiere" selected>3ème Année et + (Régime de Croisière)</option>
-              <option value="annee1">1ère Année d'installation (Forfait début)</option>
-              <option value="annee2">2ème Année d'installation (Ajustement)</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Réel / Estime (€) :</label>
+            <input type="number" id="urs-input-bnc" value="47252" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsUrssaf()">
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">BNC N-2 (€) :</label>
-            <input type="number" id="carp-input-bnc-n2" value="47252" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="actualiserCalculsCarpimko()">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche A - 1 PASS (€) :</label>
+            <input type="number" id="urs-input-pass-tra" value="${plafondsAnnee.pass}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Réel N-1 (€) :</label>
-            <input type="number" id="carp-input-bnc-n1" value="11813" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="actualiserCalculsCarpimko()">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche B - 4 PASS (€) :</label>
+            <input type="number" id="urs-input-pass-trb" value="${plafondsAnnee.trB}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
           </div>
         </div>
 
-        <div class="flex items-center gap-2 pt-1">
-          <input type="checkbox" id="carp-input-conv" checked class="rounded text-blue-600" onchange="actualiserCalculsCarpimko()">
-          <label for="carp-input-conv" class="text-xs text-slate-600 font-medium">
-            Infirmier Libéral Conventionné (Prise en charge ASV de 60%)
-          </label>
+        <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="urs-input-conv" checked class="rounded text-blue-600" onchange="actualiserCalculsUrssaf()">
+            <label for="urs-input-conv" class="text-slate-600 font-medium">
+              Praticien Médical Conventionné PAMC (Tarif réduit Maladie sur Tr A)
+            </label>
+          </div>
+          <div class="text-slate-500">
+            Ventilation BNC : Tr A = <strong id="urs-txt-part-tra" class="text-slate-700">--</strong> | Tr B = <strong id="urs-txt-part-trb" class="text-slate-700">--</strong>
+          </div>
         </div>
       </div>
 
-      <!-- TABLEAU COMPARATIF AVEC BASE / FORMULE DE CALCUL -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-        <div class="flex justify-between items-center mb-3">
+      <!-- TABLEAU 1 : DÉTAIL PAR TRIMESTRE (T1, T2, T3, T4) -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
-            2. Appel Officiel CARPIMKO (${anneeActive}) vs Calcul Réel
+            2. Échéancier Trimestriel URSSAF (${anneeActive})
           </h3>
-          <span class="text-[11px] text-slate-400 italic">Bases de calcul mises à jour en temps réel</span>
+          <span class="text-[11px] text-slate-400 italic">Entrez vos montants prélevés par trimestre</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-bold border-b">
+                <th class="py-2 px-3">Trimestre</th>
+                <th class="py-2 px-3">Échéance</th>
+                <th class="py-2 px-3 text-right w-40">Appel Officiel (€)</th>
+                <th class="py-2 px-3 text-right text-blue-700 w-36">Recalculé (€)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="py-2 px-3 font-semibold">1er Trimestre (T1)</td>
+                <td class="py-2 px-3 text-slate-500">5 Février</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t1" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t1" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-3 font-semibold">2ème Trimestre (T2)</td>
+                <td class="py-2 px-3 text-slate-500">5 Mai</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t2" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t2" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-3 font-semibold">3ème Trimestre (T3)</td>
+                <td class="py-2 px-3 text-slate-500">5 Août (Ajustement)</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t3" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t3" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-3 font-semibold">4ème Trimestre (T4)</td>
+                <td class="py-2 px-3 text-slate-500">5 Novembre</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t4" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t4" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr class="bg-slate-800 text-white font-bold text-sm">
+                <td colspan="2" class="py-2.5 px-3">TOTAL ANNUEL TRIMESTRIEL DÛ</td>
+                <td id="urs-txt-tot-off-trim" class="py-2.5 px-3 text-right text-slate-100 font-extrabold">--</td>
+                <td id="urs-txt-tot-simu-trim" class="py-2.5 px-3 text-right text-emerald-400 font-extrabold">--</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TABLEAU 2 : DÉTAIL POSTE PAR POSTE (AVEC DÉTAIL DES FORMULES) -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
+            3. Ventilation Annuelle Poste par Poste
+          </h3>
+          <span class="text-[11px] text-slate-400 italic">Détail des taux et prises en charge</span>
         </div>
 
         <div class="overflow-x-auto">
@@ -364,66 +428,43 @@ function renderCarpimkoUI(transactions = []) {
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              <tr class="bg-slate-50/50 font-semibold">
-                <td colspan="4" class="py-1.5 px-3 text-slate-600">RÉGIME DE BASE PROVISIONNEL</td>
+              <tr>
+                <td class="py-2 px-3 font-semibold">Maladie - Maternité (PAMC)</td>
+                <td id="urs-detail-maladie" class="py-2 px-3 text-slate-500 italic">--</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-maladie" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-maladie" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr>
-                <td class="py-1.5 px-3 pl-6 text-slate-500">Tranche 1 (0 à 1 PASS - 8,73%)</td>
-                <td id="carp-detail-base" class="py-1.5 px-3 text-slate-500 italic" rowspan="2">--</td>
+                <td class="py-2 px-3 font-semibold">Allocations Familiales</td>
+                <td id="urs-detail-alloc" class="py-2 px-3 text-slate-500 italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-base-t1" value="4125.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="urs-off-alloc" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
-                <td id="carp-txt-base-simu" class="py-1.5 px-3 text-right font-bold text-blue-600" rowspan="2">--</td>
+                <td id="urs-simu-alloc" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr>
-                <td class="py-1.5 px-3 pl-6 text-slate-500">Tranche 2 (1 PASS à 5 PASS - 1,87%)</td>
+                <td class="py-2 px-3 font-semibold">CSG (9,2 %) / CRDS (0,5 %)</td>
+                <td id="urs-detail-csg" class="py-2 px-3 text-slate-500 italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-base-t2" value="884.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="urs-off-csg" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
+                <td id="urs-simu-csg" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
-              <tr class="bg-slate-50/50">
-                <td class="py-1.5 px-3 font-semibold">RÉGIME COMPLÉMENTAIRE</td>
-                <td id="carp-detail-comp" class="py-1.5 px-3 text-slate-500 italic">--</td>
+              <tr>
+                <td class="py-2 px-3 font-semibold">Formation Professionnelle (CFP)</td>
+                <td id="urs-detail-cfp" class="py-2 px-3 text-slate-500 italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-comp" value="2091.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="urs-off-cfp" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
-                <td id="carp-txt-comp-simu" class="py-1.5 px-3 text-right font-bold text-blue-600">--</td>
-              </tr>
-              <tr class="bg-slate-50/50">
-                <td class="py-1.5 px-3 font-semibold">AVANTAGE SOCIAL VIEILLESSE (ASV)</td>
-                <td id="carp-detail-asv" class="py-1.5 px-3 text-slate-500 italic">--</td>
-                <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-asv" value="243.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
-                </td>
-                <td id="carp-txt-asv-simu" class="py-1.5 px-3 text-right font-bold text-blue-600">--</td>
-              </tr>
-              <tr class="bg-slate-50/50">
-                <td class="py-1.5 px-3 font-semibold">RÉGIME INVALIDITÉ DÉCÈS</td>
-                <td id="carp-detail-prev" class="py-1.5 px-3 text-slate-500 italic">--</td>
-                <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-prev" value="1022.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
-                </td>
-                <td id="carp-txt-prev-simu" class="py-1.5 px-3 text-right font-bold text-blue-600">--</td>
-              </tr>
-              <tr class="font-bold bg-slate-100">
-                <td class="py-2 px-3">TOTAL PROVISIONNEL N</td>
-                <td class="py-2 px-3 text-slate-400 font-normal italic">Somme des régimes provisionnels</td>
-                <td id="carp-txt-prov-off" class="py-2 px-3 text-right text-slate-800 font-bold">--</td>
-                <td id="carp-txt-prov-simu" class="py-2 px-3 text-right text-blue-700 font-bold">--</td>
-              </tr>
-              <tr class="bg-amber-50 font-bold text-amber-900">
-                <td class="py-2 px-3">RÉGULARISATION N-1</td>
-                <td id="carp-detail-regul" class="py-2 px-3 text-amber-800 font-normal italic">--</td>
-                <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-regul" value="1248.86" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-amber-100/60 border border-amber-300 rounded font-bold text-xs focus:bg-white focus:ring-1 focus:ring-amber-500">
-                </td>
-                <td id="carp-txt-regul-simu" class="py-2 px-3 text-right text-amber-700">--</td>
+                <td id="urs-simu-cfp" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr class="bg-slate-800 text-white font-bold text-sm">
-                <td class="py-2.5 px-3">TOTAL GÉNÉRAL DÛ</td>
-                <td class="py-2.5 px-3 text-slate-300 font-normal italic text-xs">Total Provisionnel N + Régularisation N-1</td>
-                <td id="carp-txt-total-off" class="py-2.5 px-3 text-right font-extrabold text-slate-100">--</td>
-                <td id="carp-txt-total-simu" class="py-2.5 px-3 text-right text-emerald-400 font-extrabold">--</td>
+                <td class="py-2.5 px-3">TOTAL ANNUEL PAR POSTES</td>
+                <td class="py-2.5 px-3 text-slate-300 font-normal italic text-xs">Somme globale de l'année</td>
+                <td id="urs-txt-tot-off-postes" class="py-2.5 px-3 text-right text-slate-100 font-extrabold">--</td>
+                <td id="urs-simu-tot-postes" class="py-2.5 px-3 text-right text-emerald-400 font-extrabold">--</td>
               </tr>
             </tbody>
           </table>
@@ -433,20 +474,20 @@ function renderCarpimkoUI(transactions = []) {
     </div>
   `;
 
-  actualiserCalculsCarpimko();
+  actualiserCalculsUrssaf();
 }
 
-function changerAnneeCarpimko(nouvelleAnnee) {
-  window.anneeCarpimkoSelectionnee = parseInt(nouvelleAnnee, 10);
-  window.actualiserCarpimko();
+function changerAnneeUrssaf(nouvelleAnnee) {
+  window.anneeUrssafSelectionnee = parseInt(nouvelleAnnee, 10);
+  window.actualiserUrssaf();
 }
 
-window.actualiserCarpimko = function() {
-  const transactions = window.transactionsCarpimkoCache || window.listeTransactions || window.state?.transactions || [];
-  renderCarpimkoUI(transactions);
+window.actualiserUrssaf = function() {
+  const transactions = window.transactionsUrssafCache || window.listeTransactions || window.state?.transactions || [];
+  renderUrssafUI(transactions);
 };
 
-async function initCarpimkoModule() {
+async function initUrssafModule() {
   let transactions = window.listeTransactions || window.state?.transactions || [];
 
   if (transactions.length === 0 && window.supabaseClient) {
@@ -454,21 +495,21 @@ async function initCarpimkoModule() {
       const { data } = await window.supabaseClient.from('transactions').select('*');
       if (data) transactions = data;
     } catch (e) {
-      console.warn("Supabase non disponible, chargement secours.");
+      console.warn("Supabase non disponible pour URSSAF.");
     }
   }
 
-  renderCarpimkoUI(transactions);
+  renderUrssafUI(transactions);
 }
 
-window.initCarpimkoModule = initCarpimkoModule;
-window.initCarpimko = initCarpimkoModule;
-window.changerAnneeCarpimko = changerAnneeCarpimko;
+window.initUrssafModule = initUrssafModule;
+window.initUrssaf = initUrssafModule;
+window.changerAnneeUrssaf = changerAnneeUrssaf;
 
-document.addEventListener('DOMContentLoaded', initCarpimkoModule);
+document.addEventListener('DOMContentLoaded', initUrssafModule);
 
 document.addEventListener('click', (e) => {
-  if (e.target && e.target.innerText && e.target.innerText.includes('CARPIMKO')) {
-    setTimeout(initCarpimkoModule, 100);
+  if (e.target && e.target.innerText && e.target.innerText.includes('URSSAF')) {
+    setTimeout(initUrssafModule, 100);
   }
 });
