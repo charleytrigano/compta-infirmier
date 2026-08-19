@@ -1,32 +1,18 @@
 /**
- * urssaf.js - Module URSSAF complet avec injection automatique du modèle HTML et filtre par année
+ * urssaf.js - Module URSSAF pour Infirmier Libéral (PAMC)
+ * Gestion trimestrielle (T1, T2, T3, T4), plafonds Tranche A et Tranche B modifiables par année,
+ * et recalcul dynamique sans rechargement lourd du DOM.
  */
 
-// Variable globale pour stocker l'année sélectionnée
 window.anneeUrssafSelectionnee = new Date().getFullYear();
 
-// 1. Helper pour extraire de façon sécurisée le montant numérique d'une transaction
-function getMontantTransaction(tx) {
-  const val = tx.amount ?? tx.montant ?? tx.credit ?? 0;
-  if (typeof val === 'string') {
-    const cleaned = val.replace(',', '.').replace(/[^0-9.-]/g, '');
-    const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? 0 : parsed;
-  }
-  return typeof val === 'number' && !isNaN(val) ? val : 0;
-}
+// Plafonds par défaut ajustables
+const PLAFONDS_DEFAUT = {
+  2024: { pass: 46368, trB: 185472 },
+  2025: { pass: 47100, trB: 188400 },
+  2026: { pass: 47252, trB: 189008 }
+};
 
-// 2. Helper pour vérifier si une transaction est une recette
-function isTransactionRecette(tx) {
-  const typeStr = (tx.type || '').toLowerCase();
-  const catStr = (tx.category || tx.categorie || '').toLowerCase();
-  return typeStr === 'recette' || 
-         typeStr === 'credit' || 
-         catStr.includes('soins') || 
-         catStr.includes('honoraires');
-}
-
-// 3. Helper pour formater les montants en Euros (€)
 function formatEuro(valeur) {
   return Number(valeur || 0).toLocaleString('fr-FR', {
     style: 'currency',
@@ -37,63 +23,78 @@ function formatEuro(valeur) {
 }
 
 /**
- * Moteur de calcul des bases et cotisations URSSAF
+ * Calcul détaillé des cotisations URSSAF (Régime PAMC)
  */
-function calculerUrssaf(transactions = [], anneeFiltre = window.anneeUrssafSelectionnee) {
-  const basesTrimestrielles = [0, 0, 0, 0];
-  let totalRecettesAnnuelles = 0;
+function calculerUrssaf(bnc = 47252, passTrA = 47252, maxTrB = 189008, conventionne = true) {
+  // Tranchage du BNC
+  const partTrA = Math.min(Math.max(bnc, 0), passTrA);
+  const partTrB = Math.min(Math.max(bnc - passTrA, 0), maxTrB - passTrA);
+  const horsTranches = Math.max(bnc - maxTrB, 0);
 
-  transactions.forEach(tx => {
-    if (isTransactionRecette(tx)) {
-      const montant = getMontantTransaction(tx);
-      const dateTx = new Date(tx.date);
-      
-      if (!isNaN(dateTx.getTime())) {
-        const anneeTx = dateTx.getFullYear();
+  // 1. Maladie / Maternité (PAMC) - Prise en charge CPAM si conventionné
+  // Taux conventionné : 0,10 % sur TrA (CPAM prend en charge le reste), 9,80 % sur le surplus
+  let maladieProv = 0;
+  let maladieDetail = "";
+  if (conventionne) {
+    maladieProv = (partTrA * 0.0010) + (partTrB * 0.0980);
+    maladieDetail = `Tr A (0,10 % avec prise en charge CPAM) + Tr B (9,80 %)`;
+  } else {
+    maladieProv = bnc * 0.065;
+    maladieDetail = `Taux plein non-conventionné (6,50 %)`;
+  }
 
-        // Filtrage strict par année
-        if (anneeTx === parseInt(anneeFiltre, 10)) {
-          const mois = dateTx.getMonth(); // 0 à 11
-          const trimestreIndex = Math.floor(mois / 3);
+  // 2. Allocations Familiales (Taux progressif de 0 % à 3,10 % selon BNC / PASS)
+  let tauxAllocFam = 0;
+  const ratioPASS = bnc / passTrA;
+  if (ratioPASS <= 1.10) {
+    tauxAllocFam = 0;
+  } else if (ratioPASS <= 1.40) {
+    tauxAllocFam = ((ratioPASS - 1.10) / 0.30) * 0.0310;
+  } else {
+    tauxAllocFam = 0.0310;
+  }
+  const allocFamProv = bnc * tauxAllocFam;
+  const allocFamDetail = `Taux effectif de ${(tauxAllocFam * 100).toFixed(2)} % (selon barème BNC/PASS)`;
 
-          if (trimestreIndex >= 0 && trimestreIndex < 4) {
-            basesTrimestrielles[trimestreIndex] += montant;
-            totalRecettesAnnuelles += montant;
-          }
-        }
-      }
-    }
-  });
+  // 3. CSG / CRDS (Base = BNC + Cotisations obligatoires environ ~1,15 x BNC)
+  const assietteCSG = bnc * 1.15;
+  const csgDeductible = assietteCSG * 0.0680;
+  const csgNonDeductible = assietteCSG * 0.0240;
+  const crds = assietteCSG * 0.0050;
+  const totalCsgCrds = csgDeductible + csgNonDeductible + crds;
+  const csgDetail = `Base majorée (~115 % du BNC = ${formatEuro(assietteCSG)}) : CSG 9,2 % + CRDS 0,5 %`;
 
-  const acomptesTrimestriels = basesTrimestrielles.map(base => {
-    return base > 0 ? +(base * 0.15).toFixed(2) : 15.00;
-  });
+  // 4. Formation Professionnelle (CFP) - Forfait 0,25 % du PASS
+  const cfpProv = passTrA * 0.0025;
+  const cfpDetail = `Forfait fixe 0,25 % du PASS Tranche A (${formatEuro(passTrA)})`;
 
-  const maladie = +(totalRecettesAnnuelles * 0.001).toFixed(2);
-  const allocFamiliales = 0.00;
-  const csgCrds = 0.00;
-  const cfp = 60.00;
-  const totalCotisations = maladie + allocFamiliales + csgCrds + cfp;
-  const totalAcomptes = acomptesTrimestriels.reduce((a, b) => a + b, 0);
+  // 5. Curateur / Contribution Additionnelle (si applicable)
+  const totalAnnuel = maladieProv + allocFamProv + totalCsgCrds + cfpProv;
+
+  // Découpage Trimestriel
+  const t1 = totalAnnuel / 4;
+  const t2 = totalAnnuel / 4;
+  const t3 = totalAnnuel / 4;
+  const t4 = totalAnnuel / 4;
 
   return {
-    basesTrimestrielles,
-    totalRecettesAnnuelles,
-    acomptesTrimestriels,
-    totalAcomptes,
-    cotisations: {
-      maladie,
-      allocFamiliales,
-      csgCrds,
-      cfp,
-      total: totalCotisations
+    tranches: { partTrA, partTrB, horsTranches },
+    postes: {
+      maladie: { montant: +maladieProv.toFixed(2), detail: maladieDetail },
+      allocFam: { montant: +allocFamProv.toFixed(2), detail: allocFamDetail },
+      csgCrds: { montant: +totalCsgCrds.toFixed(2), detail: csgDetail },
+      cfp: { montant: +cfpProv.toFixed(2), detail: cfpDetail }
+    },
+    totalAnnuel: +totalAnnuel.toFixed(2),
+    trimestres: {
+      t1: +t1.toFixed(2),
+      t2: +t2.toFixed(2),
+      t3: +t3.toFixed(2),
+      t4: +t4.toFixed(2)
     }
   };
 }
 
-/**
- * Extrait la liste complète des années disponibles à partir des transactions
- */
 function obtenirAnneesDisponibles(transactions = []) {
   const annees = new Set();
   const anneeCourante = new Date().getFullYear();
@@ -111,225 +112,404 @@ function obtenirAnneesDisponibles(transactions = []) {
   return Array.from(annees).sort((a, b) => b - a);
 }
 
-/**
- * Changement manuel de l'année
- */
-function changerAnneeUrssaf(nouvelleAnnee) {
-  window.anneeUrssafSelectionnee = parseInt(nouvelleAnnee, 10);
-  if (window.transactionsUrssafCache) {
-    renderUrssafUI(window.transactionsUrssafCache);
+function obtenirConteneurURSSAF() {
+  let target = document.getElementById('urssaf') || 
+               document.getElementById('vue-urssaf') || 
+               document.getElementById('urssaf-content') || 
+               document.getElementById('urssaf-container') ||
+               document.querySelector('[data-tab="urssaf"]');
+
+  if (!target) {
+    const main = document.querySelector('main') || document.querySelector('.content') || document.body;
+    if (main) {
+      target = document.createElement('div');
+      target.id = 'urssaf-container';
+      main.appendChild(target);
+    }
   }
+  return target;
 }
 
-/**
- * Génère et injecte le composant HTML complet dans la page
- */
+// Mise à jour fluide ciblée sur les cellules texte uniquement
+window.actualiserCalculsUrssaf = function() {
+  const parseFloatOrZero = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const val = parseFloat(el.value);
+    return isNaN(val) ? 0 : val;
+  };
+
+  const bncVal = parseFloatOrZero('urs-input-bnc');
+  const passTrAVal = parseFloatOrZero('urs-input-pass-tra');
+  const maxTrBVal = parseFloatOrZero('urs-input-pass-trb');
+  const convVal = document.getElementById('urs-input-conv')?.checked ?? true;
+
+  // Calcul réel des cotisations
+  const simu = calculerUrssaf(bncVal, passTrAVal, maxTrBVal, convVal);
+
+  // Saisie de l'Appel Officiel par trimestre
+  const offT1 = parseFloatOrZero('urs-off-t1');
+  const offT2 = parseFloatOrZero('urs-off-t2');
+  const offT3 = parseFloatOrZero('urs-off-t3');
+  const offT4 = parseFloatOrZero('urs-off-t4');
+  const totalOffTrimestres = offT1 + offT2 + offT3 + offT4;
+
+  // Saisie de l'Appel Officiel par poste
+  const offMaladie = parseFloatOrZero('urs-off-maladie');
+  const offAlloc = parseFloatOrZero('urs-off-alloc');
+  const offCsg = parseFloatOrZero('urs-off-csg');
+  const offCfp = parseFloatOrZero('urs-off-cfp');
+  const totalOffPostes = offMaladie + offAlloc + offCsg + offCfp;
+
+  const totalOfficielRetenu = totalOffTrimestres > 0 ? totalOffTrimestres : totalOffPostes;
+
+  const payeBanque = window.payeBanqueUrssafActuel || 0;
+  const baseCompare = payeBanque > 0 ? payeBanque : totalOfficielRetenu;
+  const tropCotise = baseCompare - simu.totalAnnuel;
+
+  // Mise à jour de l'affichage des tranches BNC
+  const txtTrA = document.getElementById('urs-txt-part-tra');
+  if (txtTrA) txtTrA.textContent = formatEuro(simu.tranches.partTrA);
+  const txtTrB = document.getElementById('urs-txt-part-trb');
+  if (txtTrB) txtTrB.textContent = formatEuro(simu.tranches.partTrB);
+
+  // Mise à jour des totaux trimestriels
+  const txtTotOffTrim = document.getElementById('urs-txt-tot-off-trim');
+  if (txtTotOffTrim) txtTotOffTrim.textContent = formatEuro(totalOffTrimestres);
+
+  const txtTotSimuTrim = document.getElementById('urs-txt-tot-simu-trim');
+  if (txtTotSimuTrim) txtTotSimuTrim.textContent = formatEuro(simu.totalAnnuel);
+
+  const mapSimuTrim = {
+    'urs-simu-t1': simu.trimestres.t1,
+    'urs-simu-t2': simu.trimestres.t2,
+    'urs-simu-t3': simu.trimestres.t3,
+    'urs-simu-t4': simu.trimestres.t4
+  };
+  for (const [id, val] of Object.entries(mapSimuTrim)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = formatEuro(val);
+  }
+
+  // Mise à jour du tableau poste par poste
+  const mapSimuPostes = {
+    'urs-simu-maladie': simu.postes.maladie.montant,
+    'urs-simu-alloc': simu.postes.allocFam.montant,
+    'urs-simu-csg': simu.postes.csgCrds.montant,
+    'urs-simu-cfp': simu.postes.cfp.montant,
+    'urs-simu-tot-postes': simu.totalAnnuel
+  };
+  for (const [id, val] of Object.entries(mapSimuPostes)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = formatEuro(val);
+  }
+
+  const txtTotOffPostes = document.getElementById('urs-txt-tot-off-postes');
+  if (txtTotOffPostes) txtTotOffPostes.textContent = formatEuro(totalOffPostes);
+
+  // Mise à jour des détails
+  const mapDetails = {
+    'urs-detail-maladie': simu.postes.maladie.detail,
+    'urs-detail-alloc': simu.postes.allocFam.detail,
+    'urs-detail-csg': simu.postes.csgCrds.detail,
+    'urs-detail-cfp': simu.postes.cfp.detail
+  };
+  for (const [id, txt] of Object.entries(mapDetails)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  }
+
+  // Bandeau supérieur
+  const banner = document.getElementById('urs-banner-trop-cotise');
+  const title = document.getElementById('urs-banner-title');
+  const desc = document.getElementById('urs-banner-desc');
+  const badge = document.getElementById('urs-banner-badge');
+  const anneeActive = window.anneeUrssafSelectionnee;
+
+  if (banner && title && desc && badge) {
+    if (tropCotise >= 0) {
+      banner.className = "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border";
+      title.innerHTML = "⚖️ Trop-Cotisé URSSAF Décelé !";
+      desc.innerHTML = `Vous avez trop versé de <strong>${formatEuro(tropCotise)}</strong> à l'URSSAF selon votre BNC réel de ${anneeActive}.`;
+      badge.className = "text-lg font-black text-emerald-600";
+      badge.textContent = `+${formatEuro(tropCotise)}`;
+    } else {
+      banner.className = "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-500 text-amber-900 border-l-4 p-4 rounded-r-xl shadow-sm border";
+      title.innerHTML = "⚖️ Régularisation URSSAF à Prévoir";
+      desc.innerHTML = `Vos cotisations recalculées prévoient un ajustement de <strong>${formatEuro(Math.abs(tropCotise))}</strong> pour ${anneeActive}.`;
+      badge.className = "text-lg font-black text-amber-600";
+      badge.textContent = formatEuro(tropCotise);
+    }
+  }
+};
+
 function renderUrssafUI(transactions = []) {
   window.transactionsUrssafCache = transactions;
-
-  const container = document.getElementById('vue-urssaf') || 
-                    document.getElementById('urssaf-content') || 
-                    document.getElementById('tab-urssaf') || 
-                    document.getElementById('urssaf') || 
-                    document.querySelector('[data-tab="urssaf"]');
-
-  if (!container) {
-    console.error("Conteneur URSSAF introuvable dans le DOM.");
-    return;
-  }
+  const container = obtenirConteneurURSSAF();
+  if (!container) return;
 
   const annees = obtenirAnneesDisponibles(transactions);
   const anneeActive = window.anneeUrssafSelectionnee;
+  const plafondsAnnee = PLAFONDS_DEFAUT[anneeActive] || { pass: 47252, trB: 189008 };
 
-  // Filtrer les transactions pour l'inspecteur
-  const transactionsFiltrees = transactions.filter(tx => {
-    const d = new Date(tx.date);
-    return !isNaN(d.getTime()) && d.getFullYear() === parseInt(anneeActive, 10);
+  let payeBanque = 0;
+  let nbPaiements = 0;
+
+  transactions.forEach(tx => {
+    const cat = (tx.category || tx.categorie || '').toLowerCase();
+    const desc = (tx.description || tx.libelle || '').toLowerCase();
+    
+    if (cat.includes('urssaf') || desc.includes('urssaf')) {
+      const dateTx = new Date(tx.date);
+      if (!isNaN(dateTx.getTime()) && dateTx.getFullYear() === parseInt(anneeActive, 10)) {
+        payeBanque += Math.abs(parseFloat(tx.amount || tx.montant || tx.debit || 0));
+        nbPaiements++;
+      }
+    }
   });
 
-  const res = calculerUrssaf(transactions, anneeActive);
+  window.payeBanqueUrssafActuel = payeBanque;
 
-  // Construction du template HTML complet
   container.innerHTML = `
-    <div class="space-y-6 max-w-5xl mx-auto p-2 font-sans text-slate-800">
+    <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
 
-      <!-- Barres de contrôle : Sélecteur d'année -->
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
-        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-          🏛️ Cotisations & Déclarations URSSAF
-        </h2>
-        <div class="flex items-center gap-3">
-          <label for="select-annee-urssaf" class="text-sm font-semibold text-slate-700">Année d'exercice :</label>
-          <select id="select-annee-urssaf" onchange="changerAnneeUrssaf(this.value)" class="form-select bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
-            ${annees.map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
-          </select>
+      <!-- ENTÊTE ET FILTRE ANNÉE -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+            🏛️ Cotisations URSSAF (${anneeActive})
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">Calculateur avec gestion trimestrielle et ajustement des plafonds Tr A & Tr B</p>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <label for="select-annee-urssaf" class="text-xs font-semibold text-slate-700">Année :</label>
+            <select id="select-annee-urssaf" onchange="changerAnneeUrssaf(this.value)" class="form-select bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
+              ${annees.map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="bg-blue-50 text-blue-800 text-xs px-3 py-2 rounded-lg font-semibold border border-blue-200">
+            Prélèvements Banque : ${formatEuro(payeBanque)} (${nbPaiements} opération(s))
+          </div>
         </div>
       </div>
 
-      <!-- Section 1 : Bases trimestrielles -->
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 class="text-lg font-bold text-slate-800 mb-4">1. Recettes / Bases trimestrielles réalisées (${anneeActive})</h3>
+      <!-- BANDEAU TROP-COTISÉ -->
+      <div id="urs-banner-trop-cotise" class="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 id="urs-banner-title" class="font-bold text-sm md:text-base">⚖️ Trop-Cotisé Décelé !</h3>
+            <p id="urs-banner-desc" class="text-xs mt-0.5 opacity-90"></p>
+          </div>
+          <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 text-right">
+            <span class="text-[10px] text-slate-500 block uppercase font-bold">Écart / Trop-Cotisé</span>
+            <span id="urs-banner-badge" class="text-lg font-black text-emerald-600">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- REVENUS ET CONFIGURATION DES TRANCHES MODIFIABLES -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
+          1. Base de Calcul & Plafonds d'Imposition (${anneeActive})
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Réel / Estime (€) :</label>
+            <input type="number" id="urs-input-bnc" value="47252" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsUrssaf()">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche A - 1 PASS (€) :</label>
+            <input type="number" id="urs-input-pass-tra" value="${plafondsAnnee.pass}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche B - 4 PASS (€) :</label>
+            <input type="number" id="urs-input-pass-trb" value="${plafondsAnnee.trB}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="urs-input-conv" checked class="rounded text-blue-600" onchange="actualiserCalculsUrssaf()">
+            <label for="urs-input-conv" class="text-slate-600 font-medium">
+              Praticien Médical Conventionné PAMC (Tarif réduit Maladie sur Tr A)
+            </label>
+          </div>
+          <div class="text-slate-500">
+            Ventilation BNC : Tr A = <strong id="urs-txt-part-tra" class="text-slate-700">--</strong> | Tr B = <strong id="urs-txt-part-trb" class="text-slate-700">--</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABLEAU 1 : DÉTAIL PAR TRIMESTRE (T1, T2, T3, T4) -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
+            2. Échéancier Trimestriel URSSAF (${anneeActive})
+          </h3>
+          <span class="text-[11px] text-slate-400 italic">Entrez vos montants prélevés par trimestre</span>
+        </div>
+
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+          <table class="w-full text-xs text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                <th class="py-3 px-4">Période</th>
-                <th class="py-3 px-4 text-right">Base retenue (€)</th>
-                <th class="py-3 px-4 text-right">Acompte trimestriel estimé (€)</th>
+              <tr class="bg-slate-100 text-slate-700 font-bold border-b">
+                <th class="py-2 px-3">Trimestre</th>
+                <th class="py-2 px-3">Échéance</th>
+                <th class="py-2 px-3 text-right w-40">Appel Officiel (€)</th>
+                <th class="py-2 px-3 text-right text-blue-700 w-36">Recalculé (€)</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 text-sm">
+            <tbody class="divide-y divide-slate-100">
               <tr>
-                <td class="py-3 px-4 font-medium text-gray-700">1er Trimestre (Jan - Mar)</td>
-                <td class="py-3 px-4 text-right font-bold text-slate-800">${formatEuro(res.basesTrimestrielles[0])}</td>
-                <td class="py-3 px-4 text-right font-bold text-blue-600">${formatEuro(res.acomptesTrimestriels[0])}</td>
+                <td class="py-2 px-3 font-semibold">1er Trimestre (T1)</td>
+                <td class="py-2 px-3 text-slate-500">5 Février</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t1" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t1" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr>
-                <td class="py-3 px-4 font-medium text-gray-700">2ème Trimestre (Avr - Juin)</td>
-                <td class="py-3 px-4 text-right font-bold text-slate-800">${formatEuro(res.basesTrimestrielles[1])}</td>
-                <td class="py-3 px-4 text-right font-bold text-blue-600">${formatEuro(res.acomptesTrimestriels[1])}</td>
+                <td class="py-2 px-3 font-semibold">2ème Trimestre (T2)</td>
+                <td class="py-2 px-3 text-slate-500">5 Mai</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t2" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t2" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr>
-                <td class="py-3 px-4 font-medium text-gray-700">3ème Trimestre (Juil - Sept)</td>
-                <td class="py-3 px-4 text-right font-bold text-slate-800">${formatEuro(res.basesTrimestrielles[2])}</td>
-                <td class="py-3 px-4 text-right font-bold text-blue-600">${formatEuro(res.acomptesTrimestriels[2])}</td>
+                <td class="py-2 px-3 font-semibold">3ème Trimestre (T3)</td>
+                <td class="py-2 px-3 text-slate-500">5 Août (Ajustement)</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t3" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t3" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr>
-                <td class="py-3 px-4 font-medium text-gray-700">4ème Trimestre (Oct - Déc)</td>
-                <td class="py-3 px-4 text-right font-bold text-slate-800">${formatEuro(res.basesTrimestrielles[3])}</td>
-                <td class="py-3 px-4 text-right font-bold text-blue-600">${formatEuro(res.acomptesTrimestriels[3])}</td>
+                <td class="py-2 px-3 font-semibold">4ème Trimestre (T4)</td>
+                <td class="py-2 px-3 text-slate-500">5 Novembre</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-t4" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-t4" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
-              <tr class="bg-slate-50 font-bold border-t-2 border-slate-200">
-                <td class="py-3 px-4 text-slate-900 uppercase">TOTAL ANNUEL ${anneeActive}</td>
-                <td class="py-3 px-4 text-right text-slate-900 text-base">${formatEuro(res.totalRecettesAnnuelles)}</td>
-                <td class="py-3 px-4 text-right text-blue-700 text-base">${formatEuro(res.totalAcomptes)}</td>
+              <tr class="bg-slate-800 text-white font-bold text-sm">
+                <td colspan="2" class="py-2.5 px-3">TOTAL ANNUEL TRIMESTRIEL DÛ</td>
+                <td id="urs-txt-tot-off-trim" class="py-2.5 px-3 text-right text-slate-100 font-extrabold">--</td>
+                <td id="urs-txt-tot-simu-trim" class="py-2.5 px-3 text-right text-emerald-400 font-extrabold">--</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Section 2 : Cotisations dues -->
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 class="text-lg font-bold text-slate-800 mb-4">2. Détail estimatif des cotisations dues (${anneeActive})</h3>
-        <div class="space-y-3 text-sm">
-          <div class="flex justify-between py-2 border-b border-gray-100 text-gray-700">
-            <span>Assurance Maladie-Maternité :</span>
-            <span class="font-bold text-slate-900">${formatEuro(res.cotisations.maladie)}</span>
-          </div>
-          <div class="flex justify-between py-2 border-b border-gray-100 text-gray-700">
-            <span>Allocations Familiales :</span>
-            <span class="font-bold text-slate-900">${formatEuro(res.cotisations.allocFamiliales)}</span>
-          </div>
-          <div class="flex justify-between py-2 border-b border-gray-100 text-gray-700">
-            <span>CSG / CRDS :</span>
-            <span class="font-bold text-slate-900">${formatEuro(res.cotisations.csgCrds)}</span>
-          </div>
-          <div class="flex justify-between py-2 border-b border-gray-100 text-gray-700">
-            <span>Contribution Formation Professionnelle (CFP) :</span>
-            <span class="font-bold text-slate-900">${formatEuro(res.cotisations.cfp)}</span>
-          </div>
-          <div class="flex justify-between py-3 font-bold text-blue-900 text-base bg-blue-50/50 px-4 rounded-lg mt-2">
-            <span>ESTIMATION TOTAL ANNUEL URSSAF ${anneeActive} :</span>
-            <span>${formatEuro(res.cotisations.total)}</span>
-          </div>
+      <!-- TABLEAU 2 : DÉTAIL POSTE PAR POSTE (AVEC DÉTAIL DES FORMULES) -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
+            3. Ventilation Annuelle Poste par Poste
+          </h3>
+          <span class="text-[11px] text-slate-400 italic">Détail des taux et prises en charge</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-bold border-b">
+                <th class="py-2 px-3">Poste de Cotisation</th>
+                <th class="py-2 px-3">Base / Formule appliquée</th>
+                <th class="py-2 px-3 text-right w-36">Appel Officiel (€)</th>
+                <th class="py-2 px-3 text-right text-blue-700 w-32">Recalculé (€)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="py-2 px-3 font-semibold">Maladie - Maternité (PAMC)</td>
+                <td id="urs-detail-maladie" class="py-2 px-3 text-slate-500 italic">--</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-maladie" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-maladie" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-3 font-semibold">Allocations Familiales</td>
+                <td id="urs-detail-alloc" class="py-2 px-3 text-slate-500 italic">--</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-alloc" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-alloc" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-3 font-semibold">CSG (9,2 %) / CRDS (0,5 %)</td>
+                <td id="urs-detail-csg" class="py-2 px-3 text-slate-500 italic">--</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-csg" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-csg" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-3 font-semibold">Formation Professionnelle (CFP)</td>
+                <td id="urs-detail-cfp" class="py-2 px-3 text-slate-500 italic">--</td>
+                <td class="py-1 px-3 text-right">
+                  <input type="number" step="0.01" id="urs-off-cfp" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                </td>
+                <td id="urs-simu-cfp" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+              </tr>
+              <tr class="bg-slate-800 text-white font-bold text-sm">
+                <td class="py-2.5 px-3">TOTAL ANNUEL PAR POSTES</td>
+                <td class="py-2.5 px-3 text-slate-300 font-normal italic text-xs">Somme globale de l'année</td>
+                <td id="urs-txt-tot-off-postes" class="py-2.5 px-3 text-right text-slate-100 font-extrabold">--</td>
+                <td id="urs-simu-tot-postes" class="py-2.5 px-3 text-right text-emerald-400 font-extrabold">--</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Section 3 : Inspecteur de données Supabase -->
-      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-        <details class="group">
-          <summary class="flex items-center justify-between cursor-pointer font-semibold text-slate-700 text-sm select-none">
-            <span class="flex items-center gap-2">
-              🔍 Inspecter les données Supabase de l'année ${anneeActive} (${transactionsFiltrees.length} opération(s))
-            </span>
-            <span class="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-          </summary>
-          <div class="mt-4 overflow-x-auto bg-white rounded-lg border border-slate-200">
-            <table class="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr class="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold">
-                  <th class="py-2 px-3">Date</th>
-                  <th class="py-2 px-3">Type / Catégorie</th>
-                  <th class="py-2 px-3">Description</th>
-                  <th class="py-2 px-3 text-right">Montant</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                ${transactionsFiltrees.length === 0 ? `
-                  <tr><td colspan="4" class="text-center py-4 text-gray-500">Aucune transaction trouvée pour l'année ${anneeActive}</td></tr>
-                ` : transactionsFiltrees.map(tx => {
-                  const m = getMontantTransaction(tx);
-                  const isRec = isTransactionRecette(tx);
-                  const d = tx.date ? new Date(tx.date).toLocaleDateString('fr-FR') : '-';
-                  return `
-                    <tr class="${isRec ? 'bg-blue-50/30' : ''}">
-                      <td class="py-2 px-3 text-slate-600">${d}</td>
-                      <td class="py-2 px-3 text-slate-600">${tx.type || '-'} / ${tx.category || tx.categorie || '-'}</td>
-                      <td class="py-2 px-3 text-slate-600">${tx.description || tx.libelle || '-'}</td>
-                      <td class="py-2 px-3 text-right font-semibold ${isRec ? 'text-blue-700' : 'text-slate-900'}">
-                        ${formatEuro(m)}
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      </div>
     </div>
   `;
+
+  actualiserCalculsUrssaf();
 }
 
-/**
- * Point d'entrée pour l'initialisation du module URSSAF
- */
+function changerAnneeUrssaf(nouvelleAnnee) {
+  window.anneeUrssafSelectionnee = parseInt(nouvelleAnnee, 10);
+  window.actualiserUrssaf();
+}
+
+window.actualiserUrssaf = function() {
+  const transactions = window.transactionsUrssafCache || window.listeTransactions || window.state?.transactions || [];
+  renderUrssafUI(transactions);
+};
+
 async function initUrssafModule() {
-  try {
-    let transactions = [];
-    
-    // 1. Charger depuis Supabase si disponible
-    if (window.supabaseClient) {
-      const { data, error } = await window.supabaseClient
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: true });
+  let transactions = window.listeTransactions || window.state?.transactions || [];
 
-      if (!error && data) {
-        transactions = data;
-      }
+  if (transactions.length === 0 && window.supabaseClient) {
+    try {
+      const { data } = await window.supabaseClient.from('transactions').select('*');
+      if (data) transactions = data;
+    } catch (e) {
+      console.warn("Supabase non disponible pour URSSAF.");
     }
-
-    // 2. Fallback sur les variables globales ou le localStorage
-    if (transactions.length === 0 && window.listeTransactions) {
-      transactions = window.listeTransactions;
-    } else if (transactions.length === 0 && window.state && window.state.transactions) {
-      transactions = window.state.transactions;
-    } else if (transactions.length === 0) {
-      const localData = localStorage.getItem('transactions');
-      if (localData) {
-        transactions = JSON.parse(localData);
-      }
-    }
-
-    // 3. Injecter l'IHM et afficher les chiffres calculés
-    renderUrssafUI(transactions);
-  } catch (err) {
-    console.error("Erreur lors du chargement du module URSSAF :", err);
   }
+
+  renderUrssafUI(transactions);
 }
 
-// 4. Aliases de compatibilité et exposition globale
 window.initUrssafModule = initUrssafModule;
-window.afficherDeclarationURSSAF = initUrssafModule;
-window.renderUrssafUI = renderUrssafUI;
-window.calculerUrssaf = calculerUrssaf;
+window.initUrssaf = initUrssafModule;
 window.changerAnneeUrssaf = changerAnneeUrssaf;
 
-// Exécution automatique au chargement
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initUrssafModule);
-} else {
-  initUrssafModule();
-}
+document.addEventListener('DOMContentLoaded', initUrssafModule);
+
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.innerText && e.target.innerText.includes('URSSAF')) {
+    setTimeout(initUrssafModule, 100);
+  }
+});
