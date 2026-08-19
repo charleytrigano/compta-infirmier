@@ -1,6 +1,6 @@
 /**
- * carpimko.js - Module CARPIMKO avec saisie poste par poste de l'Appel Officiel
- * et mise à jour dynamique du DOM sans perte de position du curseur.
+ * carpimko.js - Module CARPIMKO avec saisie poste par poste, 
+ * affichage détaillé des bases de calcul et mise à jour dynamique.
  */
 
 window.anneeCarpimkoSelectionnee = new Date().getFullYear();
@@ -21,17 +21,37 @@ function calculerCarpimko(statut = 'croisiere', bncN2 = 47252, bncN1 = 11813, co
   let prevProv = 1022.00;
   let regulN1 = 0;
 
+  let baseDetail = "";
+  let compDetail = "";
+  let asvDetail = "";
+  let prevDetail = "Forfait fixe obligatoire (Classe C)";
+  let regulDetail = "";
+
+  const PASS = 47252;
+
   if (statut === 'annee1') {
     baseProv = 840.00;
+    baseDetail = "Forfait début de 1ère année d'installation";
+
     compProv = 1856.00;
+    compDetail = "Forfait début de 1ère année (19 points)";
+
     asvProv = conventionne ? 224.00 : 600.00;
+    asvDetail = conventionne ? "Forfait fixe (60% pris en charge par l'Assurance Maladie)" : "Forfait fixe non conventionné";
+
     regulN1 = 0.00;
+    regulDetail = "Aucune régularisation en 1ère année";
+
   } else if (statut === 'annee2') {
     baseProv = 1250.00;
+    baseDetail = "Forfait début de 2ème année d'installation";
+
     compProv = 1856.00;
+    compDetail = "Forfait début de 2ème année (19 points)";
+
     asvProv = conventionne ? 224.00 : 600.00;
-    
-    const PASS = 47252;
+    asvDetail = conventionne ? "Forfait fixe (60% pris en charge par l'Assurance Maladie)" : "Forfait fixe non conventionné";
+
     if (bncN1 <= 11775) {
       regulN1 = bncN1 * 0.0873;
     } else if (bncN1 <= PASS) {
@@ -39,22 +59,41 @@ function calculerCarpimko(statut = 'croisiere', bncN2 = 47252, bncN1 = 11813, co
     } else {
       regulN1 = (11775 * 0.0873) + (bncN1 - 11775) * 0.0187;
     }
+    regulDetail = `Ajustement calculé sur BNC N-1 réel (${formatEuro(bncN1)})`;
+
   } else {
-    const PASS = 47252;
+    // CROISIÈRE (3ème année et +)
+    const baseT1 = Math.min(bncN2, PASS) * 0.0873;
+    const baseT2 = Math.max(0, bncN2 - PASS) * 0.0187;
+    baseProv = baseT1 + baseT2;
+
     if (bncN2 <= PASS) {
-      baseProv = bncN2 * 0.0873;
+      baseDetail = `8,73 % sur BNC N-2 (${formatEuro(bncN2)})`;
     } else {
-      baseProv = (PASS * 0.0873) + (bncN2 - PASS) * 0.0187;
+      baseDetail = `8,73 % sous 1 PASS (${formatEuro(PASS)}) + 1,87 % sur le surplus`;
     }
 
-    compProv = bncN2 <= 24030 ? 2091.00 : 2091.00 + Math.min(bncN2 - 24030, 150000) * 0.0870;
-    asvProv = conventionne ? (224.00 + (bncN1 * 0.004 * 0.40)) : (224.00 + (bncN1 * 0.004));
+    if (bncN2 <= 24030) {
+      compProv = 2091.00;
+      compDetail = "Cotisation minimale forfaitaire (BNC N-2 ≤ 24 030 €)";
+    } else {
+      const surplusComp = Math.min(bncN2 - 24030, 150000) * 0.0870;
+      compProv = 2091.00 + surplusComp;
+      compDetail = `2 091,00 € + 8,70 % sur tranche [24 030 € - ${formatEuro(bncN2)}]`;
+    }
+
+    const partProp = conventionne ? (bncN1 * 0.004 * 0.40) : (bncN1 * 0.004);
+    asvProv = 224.00 + partProp;
+    asvDetail = conventionne 
+      ? `Forfait 224 € + 0,16 % part net BNC N-1 (${formatEuro(bncN1)})` 
+      : `Forfait 224 € + 0,40 % part net BNC N-1 (${formatEuro(bncN1)})`;
 
     if (bncN1 <= 11775) {
       regulN1 = bncN1 * 0.0873;
     } else {
       regulN1 = (11775 * 0.0873) + (bncN1 - 11775) * 0.0187;
     }
+    regulDetail = `Régularisation définitive sur BNC N-1 (${formatEuro(bncN1)})`;
   }
 
   const totalProv = baseProv + compProv + asvProv + prevProv;
@@ -68,7 +107,14 @@ function calculerCarpimko(statut = 'croisiere', bncN2 = 47252, bncN1 = 11813, co
     prevProv: +prevProv.toFixed(2),
     totalProv: +totalProv.toFixed(2),
     regulN1: +regulN1.toFixed(2),
-    totalExigibleReel: +totalExigibleReel.toFixed(2)
+    totalExigibleReel: +totalExigibleReel.toFixed(2),
+    details: {
+      baseProv: baseDetail,
+      compProv: compDetail,
+      asvProv: asvDetail,
+      prevProv: prevDetail,
+      regulN1: regulDetail
+    }
   };
 }
 
@@ -107,7 +153,7 @@ function obtenirConteneurCARPIMKO() {
   return target;
 }
 
-// Mise à jour ciblée des chiffres uniquement (ne détruit pas les champs <input>)
+// Mise à jour ciblée du DOM pour les totaux et les détails explicatifs sans réinitialiser les <input>
 window.actualiserCalculsCarpimko = function() {
   const parseFloatOrZero = (id) => {
     const el = document.getElementById(id);
@@ -157,6 +203,20 @@ window.actualiserCalculsCarpimko = function() {
   for (const [id, val] of Object.entries(mapSimu)) {
     const el = document.getElementById(id);
     if (el) el.textContent = formatEuro(val);
+  }
+
+  // Injection des explications de calcul poste par poste
+  const mapDetails = {
+    'carp-detail-base': simu.details.baseProv,
+    'carp-detail-comp': simu.details.compProv,
+    'carp-detail-asv': simu.details.asvProv,
+    'carp-detail-prev': simu.details.prevProv,
+    'carp-detail-regul': simu.details.regulN1
+  };
+
+  for (const [id, txt] of Object.entries(mapDetails)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
   }
 
   // Mise à jour du bandeau supérieur
@@ -210,7 +270,7 @@ function renderCarpimkoUI(transactions = []) {
   window.payeBanqueCarpimkoActuel = payeBanque;
 
   container.innerHTML = `
-    <div class="space-y-6 max-w-5xl mx-auto p-4 font-sans text-slate-800">
+    <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
 
       <!-- ENTÊTE ET FILTRE ANNÉE -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
@@ -218,7 +278,7 @@ function renderCarpimkoUI(transactions = []) {
           <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
             🏥 Cotisations CARPIMKO (${anneeActive})
           </h2>
-          <p class="text-xs text-slate-500 mt-1">Calculateur dynamique avec saisie fluide de l'appel officiel</p>
+          <p class="text-xs text-slate-500 mt-1">Calculateur dynamique avec détail des bases d'imposition</p>
         </div>
 
         <div class="flex items-center gap-4">
@@ -284,13 +344,13 @@ function renderCarpimkoUI(transactions = []) {
         </div>
       </div>
 
-      <!-- TABLEAU COMPARATIF -->
+      <!-- TABLEAU COMPARATIF AVEC BASE / FORMULE DE CALCUL -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
         <div class="flex justify-between items-center mb-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
             2. Appel Officiel CARPIMKO (${anneeActive}) vs Calcul Réel
           </h3>
-          <span class="text-[11px] text-slate-400 italic">Entrez vos montants poste par poste</span>
+          <span class="text-[11px] text-slate-400 italic">Bases de calcul mises à jour en temps réel</span>
         </div>
 
         <div class="overflow-x-auto">
@@ -298,62 +358,70 @@ function renderCarpimkoUI(transactions = []) {
             <thead>
               <tr class="bg-slate-100 text-slate-700 font-bold border-b">
                 <th class="py-2 px-3">Poste de Cotisation</th>
-                <th class="py-2 px-3 text-right w-44">Appel Officiel (€)</th>
-                <th class="py-2 px-3 text-right text-blue-700">Recalculé (€)</th>
+                <th class="py-2 px-3">Base / Formule appliquée</th>
+                <th class="py-2 px-3 text-right w-36">Appel Officiel (€)</th>
+                <th class="py-2 px-3 text-right text-blue-700 w-32">Recalculé (€)</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr class="bg-slate-50/50 font-semibold">
-                <td colspan="3" class="py-1.5 px-3 text-slate-600">RÉGIME DE BASE PROVISIONNEL</td>
+                <td colspan="4" class="py-1.5 px-3 text-slate-600">RÉGIME DE BASE PROVISIONNEL</td>
               </tr>
               <tr>
                 <td class="py-1.5 px-3 pl-6 text-slate-500">Tranche 1 (0 à 1 PASS - 8,73%)</td>
+                <td id="carp-detail-base" class="py-1.5 px-3 text-slate-500 italic" rowspan="2">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-base-t1" value="4125.00" oninput="actualiserCalculsCarpimko()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="carp-off-base-t1" value="4125.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
                 <td id="carp-txt-base-simu" class="py-1.5 px-3 text-right font-bold text-blue-600" rowspan="2">--</td>
               </tr>
               <tr>
                 <td class="py-1.5 px-3 pl-6 text-slate-500">Tranche 2 (1 PASS à 5 PASS - 1,87%)</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-base-t2" value="884.00" oninput="actualiserCalculsCarpimko()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="carp-off-base-t2" value="884.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
               </tr>
-              <tr class="bg-slate-50/50 font-semibold">
-                <td class="py-1.5 px-3">RÉGIME COMPLÉMENTAIRE</td>
+              <tr class="bg-slate-50/50">
+                <td class="py-1.5 px-3 font-semibold">RÉGIME COMPLÉMENTAIRE</td>
+                <td id="carp-detail-comp" class="py-1.5 px-3 text-slate-500 italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-comp" value="2091.00" oninput="actualiserCalculsCarpimko()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="carp-off-comp" value="2091.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
                 <td id="carp-txt-comp-simu" class="py-1.5 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
-              <tr class="bg-slate-50/50 font-semibold">
-                <td class="py-1.5 px-3">AVANTAGE SOCIAL VIEILLESSE (ASV)</td>
+              <tr class="bg-slate-50/50">
+                <td class="py-1.5 px-3 font-semibold">AVANTAGE SOCIAL VIEILLESSE (ASV)</td>
+                <td id="carp-detail-asv" class="py-1.5 px-3 text-slate-500 italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-asv" value="243.00" oninput="actualiserCalculsCarpimko()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="carp-off-asv" value="243.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
                 <td id="carp-txt-asv-simu" class="py-1.5 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
-              <tr class="bg-slate-50/50 font-semibold">
-                <td class="py-1.5 px-3">RÉGIME INVALIDITÉ DÉCÈS</td>
+              <tr class="bg-slate-50/50">
+                <td class="py-1.5 px-3 font-semibold">RÉGIME INVALIDITÉ DÉCÈS</td>
+                <td id="carp-detail-prev" class="py-1.5 px-3 text-slate-500 italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-prev" value="1022.00" oninput="actualiserCalculsCarpimko()" class="w-32 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
+                  <input type="number" step="0.01" id="carp-off-prev" value="1022.00" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-blue-500">
                 </td>
                 <td id="carp-txt-prev-simu" class="py-1.5 px-3 text-right font-bold text-blue-600">--</td>
               </tr>
               <tr class="font-bold bg-slate-100">
                 <td class="py-2 px-3">TOTAL PROVISIONNEL N</td>
+                <td class="py-2 px-3 text-slate-400 font-normal italic">Somme des régimes provisionnels</td>
                 <td id="carp-txt-prov-off" class="py-2 px-3 text-right text-slate-800 font-bold">--</td>
                 <td id="carp-txt-prov-simu" class="py-2 px-3 text-right text-blue-700 font-bold">--</td>
               </tr>
               <tr class="bg-amber-50 font-bold text-amber-900">
                 <td class="py-2 px-3">RÉGULARISATION N-1</td>
+                <td id="carp-detail-regul" class="py-2 px-3 text-amber-800 font-normal italic">--</td>
                 <td class="py-1 px-3 text-right">
-                  <input type="number" step="0.01" id="carp-off-regul" value="1248.86" oninput="actualiserCalculsCarpimko()" class="w-32 text-right p-1 bg-amber-100/60 border border-amber-300 rounded font-bold text-xs focus:bg-white focus:ring-1 focus:ring-amber-500">
+                  <input type="number" step="0.01" id="carp-off-regul" value="1248.86" oninput="actualiserCalculsCarpimko()" class="w-28 text-right p-1 bg-amber-100/60 border border-amber-300 rounded font-bold text-xs focus:bg-white focus:ring-1 focus:ring-amber-500">
                 </td>
                 <td id="carp-txt-regul-simu" class="py-2 px-3 text-right text-amber-700">--</td>
               </tr>
               <tr class="bg-slate-800 text-white font-bold text-sm">
                 <td class="py-2.5 px-3">TOTAL GÉNÉRAL DÛ</td>
+                <td class="py-2.5 px-3 text-slate-300 font-normal italic text-xs">Total Provisionnel N + Régularisation N-1</td>
                 <td id="carp-txt-total-off" class="py-2.5 px-3 text-right font-extrabold text-slate-100">--</td>
                 <td id="carp-txt-total-simu" class="py-2.5 px-3 text-right text-emerald-400 font-extrabold">--</td>
               </tr>
@@ -365,7 +433,6 @@ function renderCarpimkoUI(transactions = []) {
     </div>
   `;
 
-  // Première exécution pour appliquer les montants initiaux
   actualiserCalculsCarpimko();
 }
 
