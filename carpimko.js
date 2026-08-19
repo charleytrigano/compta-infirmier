@@ -1,7 +1,10 @@
 /**
- * carpimko.js - Module CARPIMKO avec gestion 1ère, 2ème année, croisière
- * et injection sécurisée dans l'interface web.
+ * carpimko.js - Module CARPIMKO avec gestion 1ère, 2ème année, croisière,
+ * filtre par année et injection sécurisée dans l'interface web.
  */
+
+// Variable globale pour stocker l'année sélectionnée
+window.anneeCarpimkoSelectionnee = new Date().getFullYear();
 
 const APPEL_OFFICIEL_CARPIMKO_2026 = {
   regimeBaseT1: 4125.00,
@@ -89,6 +92,30 @@ function calculerCarpimko(statut = 'croisiere', bncN2 = 47252, bncN1 = 11813, co
   };
 }
 
+// Extrait la liste des années uniques à partir des transactions
+function obtenirAnneesDisponibles(transactions = []) {
+  const annees = new Set();
+  const anneeCourante = new Date().getFullYear();
+  annees.add(anneeCourante);
+
+  transactions.forEach(tx => {
+    if (tx.date) {
+      const d = new Date(tx.date);
+      if (!isNaN(d.getTime())) {
+        annees.add(d.getFullYear());
+      }
+    }
+  });
+
+  return Array.from(annees).sort((a, b) => b - a);
+}
+
+// Changement d'année sélectionnée
+function changerAnneeCarpimko(nouvelleAnnee) {
+  window.anneeCarpimkoSelectionnee = parseInt(nouvelleAnnee, 10);
+  window.actualiserCarpimko();
+}
+
 // Recherche du conteneur HTML d'injection
 function obtenirConteneurCARPIMKO() {
   let target = document.getElementById('carpimko') || 
@@ -97,7 +124,6 @@ function obtenirConteneurCARPIMKO() {
                document.getElementById('carpimko-container') ||
                document.querySelector('[data-tab="carpimko"]');
 
-  // Si non trouvé, on cherche une section principale dans la page
   if (!target) {
     const main = document.querySelector('main') || document.querySelector('.content') || document.body;
     if (main) {
@@ -110,17 +136,27 @@ function obtenirConteneurCARPIMKO() {
 }
 
 function renderCarpimkoUI(transactions = []) {
+  window.transactionsCarpimkoCache = transactions;
   const container = obtenirConteneurCARPIMKO();
   if (!container) return;
 
+  const annees = obtenirAnneesDisponibles(transactions);
+  const anneeActive = window.anneeCarpimkoSelectionnee;
+
   let payeBanque = 0;
   let nbPaiements = 0;
+
+  // Calcul du payé banque filtré par année
   transactions.forEach(tx => {
     const cat = (tx.category || tx.categorie || '').toLowerCase();
     const desc = (tx.description || tx.libelle || '').toLowerCase();
+    
     if (cat.includes('carpimko') || desc.includes('carpimko')) {
-      payeBanque += Math.abs(parseFloat(tx.amount || tx.montant || tx.debit || 0));
-      nbPaiements++;
+      const dateTx = new Date(tx.date);
+      if (!isNaN(dateTx.getTime()) && dateTx.getFullYear() === parseInt(anneeActive, 10)) {
+        payeBanque += Math.abs(parseFloat(tx.amount || tx.montant || tx.debit || 0));
+        nbPaiements++;
+      }
     }
   });
 
@@ -137,16 +173,26 @@ function renderCarpimkoUI(transactions = []) {
   container.innerHTML = `
     <div class="space-y-6 max-w-5xl mx-auto p-4 font-sans text-slate-800">
 
-      <!-- ENTÊTE DE LA SECTION -->
+      <!-- ENTÊTE DE LA SECTION + FILTRE PAR ANNÉE -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-            🏥 Cotisations CARPIMKO (1ère, 2ème année & Croisière)
+            🏥 Cotisations CARPIMKO (${anneeActive})
           </h2>
           <p class="text-xs text-slate-500 mt-1">Calculateur dynamique adapté aux infirmiers libéraux</p>
         </div>
-        <div class="bg-blue-50 text-blue-800 text-xs px-3 py-1.5 rounded-lg font-semibold border border-blue-200">
-          Banque : ${formatEuro(payeBanque)} (${nbPaiements} versement(s))
+
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <label for="select-annee-carpimko" class="text-xs font-semibold text-slate-700">Année :</label>
+            <select id="select-annee-carpimko" onchange="changerAnneeCarpimko(this.value)" class="form-select bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
+              ${annees.map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="bg-blue-50 text-blue-800 text-xs px-3 py-2 rounded-lg font-semibold border border-blue-200">
+            Banque : ${formatEuro(payeBanque)} (${nbPaiements} versement(s))
+          </div>
         </div>
       </div>
 
@@ -159,8 +205,8 @@ function renderCarpimkoUI(transactions = []) {
             </h3>
             <p class="text-xs mt-0.5 opacity-90">
               ${tropCotise >= 0 
-                ? `Vous avez trop cotisé de <strong>${formatEuro(tropCotise)}</strong> selon les calculs réels de votre activité.` 
-                : `Vos cotisations recalculées prévoient un complément de <strong>${formatEuro(Math.abs(tropCotise))}</strong>.`}
+                ? `Vous avez trop cotisé de <strong>${formatEuro(tropCotise)}</strong> selon les calculs réels de votre activité pour ${anneeActive}.` 
+                : `Vos cotisations recalculées prévoient un complément de <strong>${formatEuro(Math.abs(tropCotise))}</strong> pour ${anneeActive}.`}
             </p>
           </div>
           <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 text-right">
@@ -175,7 +221,7 @@ function renderCarpimkoUI(transactions = []) {
       <!-- SÉLECTION D'ANCIENNETÉ ET REVENUS -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
         <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
-          1. Sélection de votre Statut & Base de Revenus
+          1. Sélection de votre Statut & Base de Revenus (${anneeActive})
         </h3>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -210,7 +256,7 @@ function renderCarpimkoUI(transactions = []) {
       <!-- TABLEAU COMPARATIF APPEL OFFICIEL VS RECALCULÉ -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
         <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-3">
-          2. Comparatif Appel Officiel CARPIMKO 2026 vs Calcul Réel
+          2. Comparatif Appel Officiel CARPIMKO vs Calcul Réel (${anneeActive})
         </h3>
 
         <div class="overflow-x-auto">
@@ -275,7 +321,7 @@ function renderCarpimkoUI(transactions = []) {
 }
 
 window.actualiserCarpimko = function() {
-  const transactions = window.listeTransactions || window.state?.transactions || [];
+  const transactions = window.transactionsCarpimkoCache || window.listeTransactions || window.state?.transactions || [];
   renderCarpimkoUI(transactions);
 };
 
@@ -294,9 +340,10 @@ async function initCarpimkoModule() {
   renderCarpimkoUI(transactions);
 }
 
-// Initialisation résiliente (s'assure de s'exécuter dès que le DOM est prêt ou qu'un onglet est cliqué)
+// Initialisation résiliente
 window.initCarpimkoModule = initCarpimkoModule;
 window.initCarpimko = initCarpimkoModule;
+window.changerAnneeCarpimko = changerAnneeCarpimko;
 
 document.addEventListener('DOMContentLoaded', initCarpimkoModule);
 
