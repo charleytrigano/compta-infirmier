@@ -1,11 +1,11 @@
 /**
- * balance.js - Correction définitive : suppression doublons, extraction universelle des données, filtre N/<=N
+ * balance.js - Correction définitive : Récupération Supabase multi-tables + Anti-doublon DOM + Filtres N/<=N
  */
 
 window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
 
 function formatEuro(valeur) {
-  if (!valeur || Math.abs(valeur) < 0.001) return '-';
+  if (valeur === null || valeur === undefined || Math.abs(valeur) < 0.001) return '-';
   return Number(valeur).toLocaleString('fr-FR', {
     style: 'currency',
     currency: 'EUR',
@@ -25,25 +25,25 @@ function extraireAnnee(dateVal) {
 }
 
 /**
- * Récupère les transactions de n'importe quel stockage global de l'application
+ * Récupère les données depuis Supabase ou la mémoire globale
  */
-function recupererToutesLesTransactions() {
-  if (Array.isArray(window.transactionsBalanceCache) && window.transactionsBalanceCache.length > 0) return window.transactionsBalanceCache;
-  if (Array.isArray(window.listeTransactions) && window.listeTransactions.length > 0) return window.listeTransactions;
-  if (Array.isArray(window.transactions) && window.transactions.length > 0) return window.transactions;
-  if (Array.isArray(window.state?.transactions) && window.state.transactions.length > 0) return window.state.transactions;
-  if (Array.isArray(window.appData?.transactions) && window.appData.transactions.length > 0) return window.appData.transactions;
-  
-  // Tentative de récupération dans le LocalStorage
-  try {
-    const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions');
-    if (local) {
-      const parsed = JSON.parse(local);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
+async function chargerTransactionsData() {
+  let list = window.listeTransactions || window.transactions || window.state?.transactions || window.appData?.transactions || [];
 
-  return [];
+  if ((!list || list.length === 0) && window.supabaseClient) {
+    const tablesATester = ['transactions', 'ecritures', 'journal', 'mouvements'];
+    for (const table of tablesATester) {
+      try {
+        const { data, error } = await window.supabaseClient.from(table).select('*');
+        if (!error && data && data.length > 0) {
+          list = data;
+          break;
+        }
+      } catch (e) {}
+    }
+  }
+
+  return list || [];
 }
 
 function obtenirAnneesDisponibles(transactions = []) {
@@ -52,7 +52,7 @@ function obtenirAnneesDisponibles(transactions = []) {
   annees.add(anneeCourante);
 
   transactions.forEach(tx => {
-    const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture;
+    const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture || tx.date_journal;
     const y = extraireAnnee(dateVal);
     if (y) annees.add(y);
   });
@@ -64,18 +64,21 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
   const comptes = {};
 
   transactions.forEach(tx => {
-    const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture;
+    const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture || tx.date_journal;
     const txAnnee = extraireAnnee(dateVal);
 
-    if (!txAnnee || txAnnee > anneeCible) return; // Ignore le futur
+    if (!txAnnee || txAnnee > anneeCible) return;
 
-    // Identification du compte
-    const numCompte = String(tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || '512000').trim();
-    const libelleCompte = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || 'Compte Général';
+    // Détection universelle du numéro et libellé de compte
+    const numCompte = String(
+      tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.code || '512000'
+    ).trim();
 
-    // Déduction des débits / crédits
-    let debit = parseFloat(tx.debit || 0);
-    let credit = parseFloat(tx.credit || 0);
+    const libelleCompte = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || tx.libelle || 'Compte Général';
+
+    // Détection universelle des montants Débit/Crédit
+    let debit = parseFloat(tx.debit || tx.montant_debit || 0);
+    let credit = parseFloat(tx.credit || tx.montant_credit || 0);
 
     if (debit === 0 && credit === 0 && tx.montant !== undefined) {
       const m = parseFloat(tx.montant || 0);
@@ -116,25 +119,25 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
   return { comptes: listeComptes, totaux };
 }
 
-function renderBalanceUI() {
-  const transactions = recupererToutesLesTransactions();
+async function renderBalanceUI() {
+  const transactions = await chargerTransactionsData();
   window.transactionsBalanceCache = transactions;
 
-  // Repérage du conteneur unique et suppression des réplications
-  const tousTitres = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'));
-  const titresBalance = tousTitres.filter(t => t.children.length === 0 && t.textContent.trim().includes('Balance Générale des Comptes'));
+  // 1. Détection de tous les blocs de balance existants dans la page
+  const tousLesTitres = Array.from(document.querySelectorAll('*')).filter(
+    el => el.children.length === 0 && el.textContent.includes('Balance Générale des Comptes')
+  );
 
-  if (titresBalance.length === 0) return;
+  if (tousLesTitres.length === 0) return;
 
-  // On prend la toute première occurrence et on supprime les doublons éventuels
-  const titrePrincipal = titresBalance[0];
-  const conteneurParent = titrePrincipal.closest('.bg-white') || titrePrincipal.parentElement;
+  // On prend le premier bloc parent
+  const conteneurCible = tousLesTitres[0].closest('.bg-white') || tousLesTitres[0].parentElement;
 
-  // Nettoyage des cartes en doublon si l'injecteur a tourné plusieurs fois
-  titresBalance.slice(1).forEach(t => {
-    const carteDoublon = t.closest('.bg-white') || t.parentElement;
-    if (carteDoublon && carteDoublon !== conteneurParent) {
-      carteDoublon.remove();
+  // Nettoyage de TOUS les blocs frères en doublon créés par d'anciens rendus
+  tousLesTitres.slice(1).forEach(t => {
+    const blocEnTrop = t.closest('.bg-white') || t.parentElement;
+    if (blocEnTrop && blocEnTrop !== conteneurCible) {
+      blocEnTrop.remove();
     }
   });
 
@@ -142,9 +145,11 @@ function renderBalanceUI() {
   const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
   const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
-  // Remplacement HTML propre sans dupliquer
-  conteneurParent.innerHTML = `
+  // Injection unique dans le conteneur principal
+  conteneurCible.innerHTML = `
     <div class="space-y-4">
+      
+      <!-- ENTÊTE DE BALANCE AVEC FILTRE -->
       <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
         <h2 class="text-base font-semibold text-slate-700 flex items-center gap-2">
           ⚖️ Balance Générale des Comptes
@@ -158,6 +163,7 @@ function renderBalanceUI() {
         </div>
       </div>
 
+      <!-- TABLEAU DE BALANCE -->
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-left border-collapse">
           <thead>
@@ -174,7 +180,7 @@ function renderBalanceUI() {
             ${comptes.length === 0 ? `
               <tr>
                 <td colspan="6" class="py-8 text-center text-slate-400 italic">
-                  Aucun mouvement trouvé pour l'exercice ${anneeActive}.
+                  Aucun mouvement enregistré pour l'exercice ${anneeActive}.
                 </td>
               </tr>
             ` : comptes.map(c => `
@@ -199,6 +205,7 @@ function renderBalanceUI() {
           </tfoot>
         </table>
       </div>
+
     </div>
   `;
 }
@@ -208,27 +215,16 @@ function changerAnneeBalance(nouvelleAnnee) {
   renderBalanceUI();
 }
 
-async function initBalanceModule() {
-  if (window.supabaseClient) {
-    try {
-      const { data } = await window.supabaseClient.from('transactions').select('*');
-      if (data && data.length > 0) {
-        window.transactionsBalanceCache = data;
-      }
-    } catch (e) {}
-  }
-  renderBalanceUI();
-}
-
-window.initBalanceModule = initBalanceModule;
-window.initBalance = initBalanceModule;
+window.initBalanceModule = renderBalanceUI;
+window.initBalance = renderBalanceUI;
 window.changerAnneeBalance = changerAnneeBalance;
 window.actualiserBalance = renderBalanceUI;
 
+// Déclencheur sur le clic sur le bouton "Balance des Comptes"
 document.addEventListener('click', (e) => {
   if (e.target && e.target.innerText && e.target.innerText.includes('Balance')) {
-    setTimeout(initBalanceModule, 80);
+    setTimeout(renderBalanceUI, 100);
   }
 });
 
-document.addEventListener('DOMContentLoaded', initBalanceModule);
+document.addEventListener('DOMContentLoaded', renderBalanceUI);
