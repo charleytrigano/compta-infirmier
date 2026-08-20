@@ -1,7 +1,7 @@
-// declaration2035.js - Rendu complet et calcul dynamique 2035 depuis ecritures_comptables
+// declaration2035.js - Rendu complet, filtre par année et calcul dynamique 2035 depuis ecritures_comptables
 
 (function () {
-    let anneeExercice = '2026';
+    window.annee2035Selectionnee = window.annee2035Selectionnee || new Date().getFullYear().toString();
 
     function getSupabase() {
         return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
@@ -27,27 +27,39 @@
         }
 
         try {
-            const dateDebut = `${anneeExercice}-01-01`;
-            const dateFin = `${anneeExercice}-12-31`;
-
-            // Récupération stricte de toutes les écritures de l'exercice
-            const { data, error } = await supabase
+            // 1. Récupération de toutes les écritures pour extraire les années disponibles
+            const { data: toutesEcritures, error: errToutes } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
-                .gte('date', dateDebut)
-                .lte('date', dateFin);
+                .order('date', { ascending: false });
 
-            if (error) {
-                console.error("Erreur Supabase 2035:", error);
+            if (errToutes) {
+                console.error("Erreur Supabase 2035:", errToutes);
                 return;
             }
+
+            // Extraction des années uniques
+            const anneesDispo = Array.from(new Set((toutesEcritures || []).map(e => {
+                return e.date ? new Date(e.date).getFullYear().toString() : null;
+            }).filter(Boolean))).sort((a, b) => b - a);
+
+            if (anneesDispo.length > 0 && !anneesDispo.includes(window.annee2035Selectionnee)) {
+                window.annee2035Selectionnee = anneesDispo[0];
+            }
+
+            const anneeActive = window.annee2035Selectionnee;
+
+            // 2. Filtrage des écritures pour l'année sélectionnée
+            const ecrituresAnnee = (toutesEcritures || []).filter(e => {
+                return e.date && new Date(e.date).getFullYear().toString() === anneeActive;
+            });
 
             let aaHonoraires = 0;
             let bwCarpimko = 0;
             let bxUrssaf = 0;
             let autresDepenses = 0;
 
-            (data || []).forEach(row => {
+            ecrituresAnnee.forEach(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
                 const code = String(row.compte_code || '').trim();
@@ -73,20 +85,36 @@
             const totalDepensesCH = bwCarpimko + bxUrssaf + autresDepenses;
             const beneficeCP = totalRecettesAG - totalDepensesCH;
 
+            // Génération des options du sélecteur d'année
+            const optionsAnnees = (anneesDispo.length > 0 ? anneesDispo : [anneeActive]).map(a => 
+                `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`
+            ).join('');
+
             container.innerHTML = `
                 <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 10px;">
+                    <!-- En-tête avec Filtre d'Année et Impression -->
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
                         <div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">
                                 📄 Déclaration des Bénéfices Non Commerciaux (2035)
                             </h2>
                             <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.875rem;">
-                                Régime de la déclaration contrôlée - Exercice ${anneeExercice}
+                                Régime de la déclaration contrôlée
                             </p>
                         </div>
-                        <button onclick="window.print()" style="background: #4f46e5; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                            🖨️ Imprimer la 2035
-                        </button>
+                        
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px;">
+                                <label for="select-annee-2035" style="font-size: 0.85rem; font-weight: 700; color: #475569;">Exercice :</label>
+                                <select id="select-annee-2035" onchange="window.changerAnnee2035(this.value)" style="background: white; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a; padding: 4px 8px; border-radius: 4px; cursor: pointer; outline: none;">
+                                    ${optionsAnnees}
+                                </select>
+                            </div>
+
+                            <button onclick="window.print()" style="background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                🖨️ Imprimer
+                            </button>
+                        </div>
                     </div>
 
                     <!-- I. RECETTES BRUTES -->
@@ -157,7 +185,7 @@
 
                     <!-- RÉSULTAT FISCAL -->
                     <div style="background: #f0fdf4; border: 2px solid #22c55e; color: #15803d; padding: 16px; border-radius: 8px; font-weight: 800; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
-                        <span>BÉNÉFICE FISCAL (Ligne 46 / Code CP)</span>
+                        <span>BÉNÉFICE FISCAL (${anneeActive}) - Ligne 46 / Code CP</span>
                         <span style="font-size: 1.25rem;">${formatEuro(beneficeCP)}</span>
                     </div>
                 </div>
@@ -167,6 +195,11 @@
             console.error("Erreur 2035:", err);
         }
     }
+
+    window.changerAnnee2035 = function(annee) {
+        window.annee2035Selectionnee = String(annee);
+        chargerDeclaration2035();
+    };
 
     window.chargerDeclaration2035 = chargerDeclaration2035;
 
