@@ -1,6 +1,6 @@
 /**
  * carpimko.js - Module CARPIMKO pour Infirmier Libéral
- * Calculs Retraite de Base, Retraite Complémentaire et Invalidation-Décès (RID).
+ * Inclus : Début d'activité (1ère et 2ème année) + Régime de croisière.
  */
 
 (function () {
@@ -22,23 +22,36 @@
     });
   }
 
-  function calculerCarpimko(bnc = 47252, pass = 47252) {
-    // 1. Régime de Base (Tranche 1: 8,23% jusqu'à 1 PASS, Tranche 2: 1,87% jusqu'à 5 PASS)
-    const tr1Base = Math.min(Math.max(bnc, 0), pass);
-    const tr2Base = Math.min(Math.max(bnc, 0), 5 * pass);
+  function calculerCarpimko(bncSaisi = 47252, pass = 47252, statut = 'croisiere') {
+    let assietteBase = bncSaisi;
+    let assietteComp = bncSaisi;
+
+    // Assiettes forfaitaires de début d'activité (règlementation CARPIMKO)
+    if (statut === 'annee1') {
+      assietteBase = pass * 0.19; // Forfait 1ère année
+      assietteComp = pass * 0.19;
+    } else if (statut === 'annee2') {
+      assietteBase = pass * 0.19; // Forfait 2ème année
+      assietteComp = pass * 0.19;
+    }
+
+    // 1. Régime de Base
+    const tr1Base = Math.min(Math.max(assietteBase, 0), pass);
+    const tr2Base = Math.min(Math.max(assietteBase, 0), 5 * pass);
     const cotisBase = (tr1Base * 0.0823) + (tr2Base * 0.0187);
 
-    // 2. Régime Complémentaire (Forfait + Proportionnel)
-    const cotisCompForfait = 1976.00; // Cotisation forfaitaire
-    const cotisCompProp = Math.min(Math.max(bnc - (0.85 * pass), 0), 5 * pass) * 0.0304;
+    // 2. Régime Complémentaire
+    const cotisCompForfait = 1976.00;
+    const cotisCompProp = Math.min(Math.max(assietteComp - (0.85 * pass), 0), 5 * pass) * 0.0304;
     const cotisComp = cotisCompForfait + cotisCompProp;
 
-    // 3. Régime Invalidation-Décès (RID) - Forfaitaire selon classe (Classe 1 par défaut)
+    // 3. RID (Invalidation-Décès)
     const cotisRID = 880.00;
 
     const totalAnnuel = cotisBase + cotisComp + cotisRID;
 
     return {
+      assietteRetenue: assietteBase,
       base: +cotisBase.toFixed(2),
       complementaire: +cotisComp.toFixed(2),
       rid: +cotisRID.toFixed(2),
@@ -66,11 +79,13 @@
   window.actualiserCalculsCarpimko = function() {
     const elBnc = document.getElementById('car-input-bnc');
     const elPass = document.getElementById('car-input-pass');
-    
+    const elStatut = document.getElementById('car-select-statut');
+
     const bncVal = elBnc ? parseFloat(elBnc.value) || 0 : 47252;
     const passVal = elPass ? parseFloat(elPass.value) || 0 : 47252;
+    const statutVal = elStatut ? elStatut.value : 'croisiere';
 
-    const simu = calculerCarpimko(bncVal, passVal);
+    const simu = calculerCarpimko(bncVal, passVal, statutVal);
 
     const mapIds = {
       'car-simu-base': simu.base,
@@ -83,6 +98,11 @@
     for (const [id, val] of Object.entries(mapIds)) {
       const el = document.getElementById(id);
       if (el) el.textContent = formatEuro(val);
+    }
+
+    const elAssietteTxt = document.getElementById('car-txt-assiette');
+    if (elAssietteTxt) {
+      elAssietteTxt.textContent = `Assiette de calcul retenue : ${formatEuro(simu.assietteRetenue)}`;
     }
   };
 
@@ -105,8 +125,16 @@
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">1. Assiette de Calcul</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">1. Situation & Assiette de Calcul</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Situation / Ancienneté :</label>
+              <select id="car-select-statut" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 font-bold text-slate-800" onchange="actualiserCalculsCarpimko()">
+                <option value="croisiere">Régime de Croisière (BNC Réel / Estimé)</option>
+                <option value="annee1">1ère Année d'Activité (Forfait)</option>
+                <option value="annee2">2ème Année d'Activité (Forfait)</option>
+              </select>
+            </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Estimé (€) :</label>
               <input type="number" id="car-input-bnc" value="47252" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsCarpimko()">
@@ -116,6 +144,7 @@
               <input type="number" id="car-input-pass" value="${passAnnee}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-semibold text-blue-700" oninput="actualiserCalculsCarpimko()">
             </div>
           </div>
+          <p id="car-txt-assiette" class="text-xs text-slate-500 font-medium italic pt-1">--</p>
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
