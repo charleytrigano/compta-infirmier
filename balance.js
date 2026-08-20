@@ -1,5 +1,5 @@
 /**
- * balance.js - Prise en charge des OD et des comptes Tiers (411)
+ * balance.js - Lecture directe de la table ecritures_comptables
  */
 
 (function () {
@@ -37,97 +37,48 @@
     return isNaN(d.getTime()) ? null : d.getFullYear();
   }
 
-  function determinerCompteEtLibelle(category, type, description) {
-    const catClean = (category || '').toLowerCase().trim();
-    const descClean = (description || '').trim();
-    const descLower = descClean.toLowerCase();
-
-    // 1. Détection des comptes 411 (Clients / Tiers) dans la description
-    if (descClean.startsWith('411') || descLower.includes('abadie') || descLower.includes('st-andre')) {
-      const nomClient = descClean.replace(/^411/, '').trim() || 'Patients';
-      return { num: '411000', libelle: `Clients / Patients - ${nomClient} (411000)` };
-    }
-
-    // 2. Détection d'un numéro de compte explicite dans la description (ex: 645, 606, etc.)
-    const matchCompte = descClean.match(/^([1-7]\d{5})/);
-    if (matchCompte) {
-      return { num: matchCompte[1], libelle: `Compte ${matchCompte[1]} - ${descClean}` };
-    }
-
-    // 3. Recettes et soins
-    if (type === 'recette' || catClean.includes('soin') || catClean.includes('honoraire')) {
-      return { num: '706000', libelle: 'Honoraires conventionnés (706000)' };
-    }
-
-    // 4. Mots-clés de charges (pour type depense ou od)
-    if (descLower.includes('urssaf') || catClean.includes('urssaf')) {
-      return { num: '645000', libelle: 'Charges sociales / URSSAF (645000)' };
-    }
-    if (descLower.includes('carpimko') || catClean.includes('carpimko')) {
-      return { num: '646000', libelle: 'Cotisations retraite CARPIMKO (646000)' };
-    }
-    if (descLower.includes('secu') || descLower.includes('sécu')) {
-      return { num: '645100', libelle: 'Cotisations Sécurité Sociale (645100)' };
-    }
-    if (descLower.includes('materiel') || descLower.includes('pharma') || catClean.includes('fournit')) {
-      return { num: '606000', libelle: 'Achats de fournitures / Petit matériel (606000)' };
-    }
-
-    // Par défaut pour les OD non classées
-    if (type === 'od') {
-      return { num: '471000', libelle: `Opération Diverse - ${description || category || 'Attente'} (471000)` };
-    }
-
-    return { num: '471000', libelle: `Compte d'attente (471000)` };
-  }
-
-  function recupererToutesLesTransactions() {
-    let txs = window.listeTransactions || window.transactions || [];
-    if (!Array.isArray(txs) || txs.length === 0) {
+  async function recupererToutesLesEcritures() {
+    // 1. Regarder en mémoire locale
+    let ecritures = window.listeEcritures || window.ecrituresComptables || [];
+    if (!Array.isArray(ecritures) || ecritures.length === 0) {
       try {
-        const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions');
-        if (local) txs = JSON.parse(local);
+        const local = localStorage.getItem('ecritures_comptables') || localStorage.getItem('ecritures');
+        if (local) ecritures = JSON.parse(local);
       } catch (e) {}
     }
-    return Array.isArray(txs) ? txs : [];
-  }
 
-  function calculerBalanceComptable(transactions = [], anneeCible = new Date().getFullYear()) {
-    const comptes = {};
-
-    function ajouterEcriture(num, libelle, debit, credit) {
-      if (!comptes[num]) {
-        comptes[num] = { num: num, libelle: libelle, debit: 0, credit: 0 };
-      }
-      comptes[num].debit += debit;
-      comptes[num].credit += credit;
+    // 2. Interroger directement Supabase (table ecritures_comptables)
+    if ((!ecritures || ecritures.length === 0) && window.supabaseClient) {
+      try {
+        const { data, error } = await window.supabaseClient.from('ecritures_comptables').select('*');
+        if (!error && data && data.length > 0) {
+          ecritures = data;
+          window.listeEcritures = data;
+        }
+      } catch (e) {}
     }
 
-    transactions.forEach(tx => {
-      const txAnnee = extraireAnnee(tx.date) || anneeCible;
+    return Array.isArray(ecritures) ? ecritures : [];
+  }
 
-      if (txAnnee === anneeCible) {
-        const m = parseMontant(tx.amount || tx.montant);
-        const type = (tx.type || '').toLowerCase();
-        const { num, libelle } = determinerCompteEtLibelle(tx.category, type, tx.description);
+  function calculerBalanceComptable(ecritures = [], anneeCible = new Date().getFullYear()) {
+    const comptes = {};
 
-        if (type === 'recette') {
-          // Si la description spécifie un compte 411, l'écriture se fait sur le 411
-          if (num === '411000') {
-            ajouterEcriture('411000', libelle, 0, m);
-            ajouterEcriture('512000', 'Banque (512000)', m, 0);
-          } else {
-            ajouterEcriture(num, libelle, 0, m);
-            ajouterEcriture('512000', 'Banque (512000)', m, 0);
-          }
-        } else if (type === 'depense') {
-          ajouterEcriture(num, libelle, m, 0);
-          ajouterEcriture('512000', 'Banque (512000)', 0, m);
-        } else if (type === 'od') {
-          // Traitement des Opérations Diverses
-          ajouterEcriture(num, libelle, m, 0);
-          ajouterEcriture('512000', 'Banque (512000)', 0, m);
+    ecritures.forEach(e => {
+      const eAnnee = extraireAnnee(e.date) || anneeCible;
+
+      if (eAnnee === anneeCible) {
+        const code = e.compte_code || '471000';
+        const libelle = e.compte_libelle || e.description || `Compte ${code}`;
+        const debit = parseMontant(e.debit);
+        const credit = parseMontant(e.credit);
+
+        if (!comptes[code]) {
+          comptes[code] = { num: code, libelle: libelle, debit: 0, credit: 0 };
         }
+
+        comptes[code].debit += debit;
+        comptes[code].credit += credit;
       }
     });
 
@@ -159,21 +110,10 @@
       conteneur = main;
     }
 
-    let transactions = recupererToutesLesTransactions();
-
-    if (transactions.length === 0 && window.supabaseClient) {
-      try {
-        const { data } = await window.supabaseClient.from('transactions').select('*');
-        if (data && data.length > 0) {
-          transactions = data;
-          window.listeTransactions = data;
-        }
-      } catch (e) {}
-    }
-
-    const annees = Array.from(new Set([new Date().getFullYear(), ...transactions.map(t => extraireAnnee(t.date)).filter(Boolean)])).sort((a,b)=>b-a);
+    const ecritures = await recupererToutesLesEcritures();
+    const annees = Array.from(new Set([new Date().getFullYear(), ...ecritures.map(e => extraireAnnee(e.date)).filter(Boolean)])).sort((a,b)=>b-a);
     const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
-    const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
+    const { comptes, totaux } = calculerBalanceComptable(ecritures, anneeActive);
 
     conteneur.innerHTML = `
       <div class="space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 max-w-6xl mx-auto my-4">
@@ -205,7 +145,7 @@
               ${comptes.length === 0 ? `
                 <tr>
                   <td colspan="6" class="py-8 text-center text-slate-400 italic">
-                    Aucune écriture enregistrée pour l'exercice ${anneeActive}.
+                    Aucune écriture enregistrée dans le Grand Livre pour l'exercice ${anneeActive}.
                   </td>
                 </tr>
               ` : comptes.map(c => `
