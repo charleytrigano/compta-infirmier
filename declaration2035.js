@@ -1,4 +1,4 @@
-// declaration2035.js - Rendu complet et calcul dynamique du Cerfa 2035
+// declaration2035.js - Rendu complet et calcul dynamique 2035 depuis ecritures_comptables
 
 (function () {
     let anneeExercice = '2026';
@@ -12,7 +12,6 @@
     }
 
     async function chargerDeclaration2035() {
-        // Identification de la zone d'affichage
         let container = document.getElementById('vue-2035');
         if (!container) {
             const candidates = Array.from(document.querySelectorAll('div, section, main'));
@@ -31,11 +30,10 @@
             const dateDebut = `${anneeExercice}-01-01`;
             const dateFin = `${anneeExercice}-12-31`;
 
-            // Récupération des données bancaires Supabase
+            // Récupération stricte de toutes les écritures de l'exercice
             const { data, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
-                .or('compte_code.eq.512000,compte_code.like.512%')
                 .gte('date', dateDebut)
                 .lte('date', dateFin);
 
@@ -52,17 +50,21 @@
             (data || []).forEach(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
-                const cat = (row.category || '').toLowerCase();
+                const code = String(row.compte_code || '').trim();
 
-                if (debit > 0) {
-                    aaHonoraires += debit;
-                } else if (credit > 0) {
-                    if (cat.includes('carpimko')) {
-                        bwCarpimko += credit;
-                    } else if (cat.includes('urssaf')) {
-                        bxUrssaf += credit;
+                // Recettes : Classe 7 (Honoraires)
+                if (code.startsWith('7')) {
+                    aaHonoraires += (credit - debit);
+                } 
+                // Charges : Classe 6
+                else if (code.startsWith('6')) {
+                    const montantCharge = debit - credit;
+                    if (code === '646100' || code.includes('CARPIMKO')) {
+                        bwCarpimko += montantCharge;
+                    } else if (code === '646200' || code.includes('URSSAF')) {
+                        bxUrssaf += montantCharge;
                     } else {
-                        autresDepenses += credit;
+                        autresDepenses += montantCharge;
                     }
                 }
             });
@@ -71,10 +73,8 @@
             const totalDepensesCH = bwCarpimko + bxUrssaf + autresDepenses;
             const beneficeCP = totalRecettesAG - totalDepensesCH;
 
-            // Generation complete de l'interface Cerfa 2035
             container.innerHTML = `
                 <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 10px;">
-                    <!-- En-tête avec bouton d'impression -->
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
                         <div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">
@@ -170,7 +170,6 @@
 
     window.chargerDeclaration2035 = chargerDeclaration2035;
 
-    // Déclenchement réactif au clic sur l'onglet 2035
     document.addEventListener('click', (e) => {
         const el = e.target.closest('button, a, div');
         if (el && el.textContent && el.textContent.trim().includes('2035')) {
