@@ -1,11 +1,10 @@
 /**
  * balance.js - Module Balance Générale des Comptes
- * Unifie l'ensemble des comptes comptables et élimine les duplications de cartes.
+ * Fix : Supression des duplications DOM + Aggrégation dynamique de TOUS les comptes comptables.
  */
 
 (function () {
   window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
-  let enCoursDeRendu = false;
 
   function parseMontant(val) {
     if (val === null || val === undefined) return 0;
@@ -39,20 +38,36 @@
     return isNaN(d.getTime()) ? null : d.getFullYear();
   }
 
-  function determinerCompteEtLibelle(tx) {
-    let num = tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.compte_comptable || tx.account || tx.code;
-    let libelle = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || tx.libelle || tx.poste || tx.nom_compte;
+  function determinerCompte(tx) {
+    let num = tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.compte_comptable || tx.account;
+    let libelle = tx.libelle_compte || tx.intitule || tx.label || tx.description || tx.libelle || tx.categorie;
 
     if (!num) {
-      const typeStr = String(tx.type || tx.nature || tx.categorie || '').toLowerCase();
-      const m = parseMontant(tx.montant || tx.amount || tx.credit || tx.debit);
-
-      if (typeStr.includes('recette') || typeStr.includes('honor') || typeStr.includes('retro') || m > 0) {
+      const cat = (tx.categorie || tx.category || '').toLowerCase();
+      if (cat.includes('honoraire') || cat.includes('recette') || cat.includes('411')) {
         num = '706000';
-        libelle = libelle || 'Honoraires / Prestations de services';
-      } else {
+        libelle = libelle || 'Prestations de services / Honoraires';
+      } else if (cat.includes('urssaf') || cat.includes('cotis')) {
+        num = '645000';
+        libelle = libelle || 'Charges sociales / URSSAF';
+      } else if (cat.includes('carpimko')) {
+        num = '646000';
+        libelle = libelle || 'Cotisations retraite CARPIMKO';
+      } else if (cat.includes('achat') || cat.includes('matériel') || cat.includes('fourniture')) {
         num = '606000';
-        libelle = libelle || 'Achats & Charges générales';
+        libelle = libelle || 'Achats & Produits pharmacie/médical';
+      } else if (cat.includes('frais') || cat.includes('banque')) {
+        num = '627000';
+        libelle = libelle || 'Services bancaires';
+      } else {
+        const m = parseMontant(tx.montant || tx.amount || tx.credit || tx.debit);
+        if (m > 0 || tx.credit > 0) {
+          num = '706000';
+          libelle = libelle || 'Prestations de services / Honoraires';
+        } else {
+          num = '606000';
+          libelle = libelle || 'Achats & Charges diverses';
+        }
       }
     }
 
@@ -66,40 +81,27 @@
     let txs = window.listeTransactions || window.transactions || window.state?.transactions || window.appData?.transactions || [];
     if (!Array.isArray(txs) || txs.length === 0) {
       try {
-        const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions') || localStorage.getItem('ecritures');
+        const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions');
         if (local) txs = JSON.parse(local);
       } catch (e) {}
     }
     return Array.isArray(txs) ? txs : [];
   }
 
-  function obtenirAnneesDisponibles(transactions = []) {
-    const annees = new Set();
-    annees.add(new Date().getFullYear());
-    transactions.forEach(tx => {
-      const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture || tx.date_journal;
-      const y = extraireAnnee(dateVal);
-      if (y) annees.add(y);
-    });
-    return Array.from(annees).sort((a, b) => b - a);
-  }
-
   function calculerBalanceComptable(transactions = [], anneeCible = new Date().getFullYear()) {
     const comptes = {};
 
     transactions.forEach(tx => {
-      const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture || tx.date_journal;
+      const dateVal = tx.date || tx.date_transaction || tx.created_at;
       const txAnnee = extraireAnnee(dateVal) || anneeCible;
 
-      if (txAnnee > anneeCible) return;
+      const { num, libelle } = determinerCompte(tx);
 
-      const { num, libelle } = determinerCompteEtLibelle(tx);
-
-      let debit = parseMontant(tx.debit || tx.montant_debit || tx.debit_eur);
-      let credit = parseMontant(tx.credit || tx.montant_credit || tx.credit_eur);
+      let debit = parseMontant(tx.debit || tx.montant_debit);
+      let credit = parseMontant(tx.credit || tx.montant_credit);
 
       if (debit === 0 && credit === 0) {
-        const m = parseMontant(tx.montant || tx.amount || tx.solde);
+        const m = parseMontant(tx.montant || tx.amount);
         if (m < 0) debit = Math.abs(m);
         else credit = m;
       }
@@ -136,49 +138,34 @@
   }
 
   async function afficherBalanceFinale() {
-    if (enCoursDeRendu) return;
-    enCoursDeRendu = true;
+    let conteneur = document.getElementById('vue-balance') || 
+                    document.getElementById('balance-container') ||
+                    document.getElementById('balance');
+
+    if (!conteneur) {
+      const main = document.querySelector('main') || document.querySelector('.content') || document.body;
+      conteneur = main;
+    }
 
     let transactions = recupererToutesLesTransactions();
 
     if (transactions.length === 0 && window.supabaseClient) {
-      const tables = ['transactions', 'ecritures', 'journal', 'mouvements'];
-      for (const t of tables) {
-        try {
-          const { data } = await window.supabaseClient.from(t).select('*');
-          if (data && data.length > 0) {
-            transactions = data;
-            window.listeTransactions = data;
-            break;
-          }
-        } catch (e) {}
-      }
+      try {
+        const { data } = await window.supabaseClient.from('transactions').select('*');
+        if (data && data.length > 0) {
+          transactions = data;
+          window.listeTransactions = data;
+        }
+      } catch (e) {}
     }
 
-    const tousTitres = Array.from(document.querySelectorAll('*')).filter(
-      el => el.children.length === 0 && el.textContent.includes('Balance Générale des Comptes')
-    );
-
-    if (tousTitres.length === 0) {
-      enCoursDeRendu = false;
-      return;
-    }
-
-    const conteneurActif = tousTitres[0].closest('.bg-white') || tousTitres[0].closest('.card') || tousTitres[0].parentElement;
-
-    tousTitres.forEach((t, index) => {
-      if (index > 0) {
-        const double = t.closest('.bg-white') || t.closest('.card') || t.parentElement;
-        if (double && double !== conteneurActif) double.remove();
-      }
-    });
-
-    const annees = obtenirAnneesDisponibles(transactions);
+    const annees = Array.from(new Set([new Date().getFullYear(), ...transactions.map(t => extraireAnnee(t.date)).filter(Boolean)])).sort((a,b)=>b-a);
     const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
     const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
-    conteneurActif.innerHTML = `
-      <div class="space-y-4" id="balance-unique-root">
+    // Vider complètement le conteneur avant réinjection pour éliminer la duplication
+    conteneur.innerHTML = `
+      <div class="space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 max-w-6xl mx-auto my-4">
         <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
           <h2 class="text-base font-semibold text-slate-700 flex items-center gap-2">
             ⚖️ Balance Générale des Comptes
@@ -213,7 +200,7 @@
               ` : comptes.map(c => `
                 <tr class="hover:bg-slate-50/50 transition">
                   <td class="py-3 px-4 font-bold text-slate-800">${c.num}</td>
-                  <td class="py-3 px-4 text-slate-600">${c.num} - ${c.libelle}</td>
+                  <td class="py-3 px-4 text-slate-600">${c.libelle}</td>
                   <td class="py-3 px-4 text-right font-medium text-red-600">${formatEuro(c.debit)}</td>
                   <td class="py-3 px-4 text-right font-medium text-emerald-600">${formatEuro(c.credit)}</td>
                   <td class="py-3 px-4 text-right font-bold text-blue-600">${formatEuro(c.soldeDebit)}</td>
@@ -234,8 +221,6 @@
         </div>
       </div>
     `;
-
-    setTimeout(() => { enCoursDeRendu = false; }, 150);
   }
 
   window.changerAnneeBalance = function(annee) {
