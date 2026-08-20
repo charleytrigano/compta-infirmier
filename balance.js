@@ -1,5 +1,5 @@
 /**
- * balance.js - Correction du mapping automatique par catégorie
+ * balance.js - Correction avec contrepartie Banque (512000) et détection élargie
  */
 
 (function () {
@@ -37,53 +37,46 @@
     return isNaN(d.getTime()) ? null : d.getFullYear();
   }
 
-  // Dictionnaire de correspondance Catégorie -> Compte PCG 2035
   function determinerCompteEtLibelle(category, type, description) {
-    const catClean = (category || '').toLowerCase().trim();
-    const descClean = (description || '').toLowerCase().trim();
+    const text = `${category || ''} ${description || ''}`.toLowerCase().trim();
 
-    if (type === 'recette' || catClean.includes('soins') || catClean.includes('honoraire') || catClean.includes('tiers')) {
+    if (type === 'recette' || text.includes('soin') || text.includes('honoraire') || text.includes('tiers') || text.includes('recette') || text.includes('abadie')) {
       return { num: '706000', libelle: 'Honoraires conventionnés (706000)' };
     }
 
-    // Mapping des dépenses
-    if (catClean.includes('urssaf') || descClean.includes('urssaf')) {
+    // Analyse approfondie des charges
+    if (text.includes('urssaf') || text.includes('cotis social')) {
       return { num: '645000', libelle: 'Charges sociales / URSSAF (645000)' };
     }
-    if (catClean.includes('carpimko') || descClean.includes('carpimko')) {
+    if (text.includes('carpimko') || text.includes('retraite')) {
       return { num: '646000', libelle: 'Cotisations retraite CARPIMKO (646000)' };
     }
-    if (catClean.includes('fourniture') || catClean.includes('materiel') || catClean.includes('pharmacie') || catClean.includes('soin')) {
+    if (text.includes('fournit') || text.includes('materiel') || text.includes('pharmacie') || text.includes('achat') || text.includes('medical') || text.includes('soin')) {
       return { num: '606000', libelle: 'Achats de fournitures / Petit matériel (606000)' };
     }
-    if (catClean.includes('loyer') || catClean.includes('location') || catClean.includes('bureau')) {
+    if (text.includes('loyer') || text.includes('locat') || text.includes('bureau') || text.includes('scm')) {
       return { num: '613000', libelle: 'Locations immobilières / Charges (613000)' };
     }
-    if (catClean.includes('assurance') || catClean.includes('rcp')) {
+    if (text.includes('assur') || text.includes('rcp') || text.includes('prevoyance')) {
       return { num: '616000', libelle: 'Assurances professionnelles (616000)' };
     }
-    if (catClean.includes('banque') || catClean.includes('frais banc')) {
-      return { num: '627000', libelle: 'Frais bancaires (627000)' };
+    if (text.includes('banq') || text.includes('frais b') || text.includes('agios') || text.includes('cotis carte')) {
+      return { num: '627000', libelle: 'Services bancaires (627000)' };
     }
-    if (catClean.includes('deplacement') || catClean.includes('carburant') || catClean.includes('auto') || catClean.includes('km')) {
-      return { num: '625100', libelle: 'Frais de déplacements / Carburant (625100)' };
+    if (text.includes('deplac') || text.includes('carburant') || text.includes('essence') || text.includes('auto') || text.includes('km') || text.includes('peage')) {
+      return { num: '625100', libelle: 'Frais de déplacements / Véhicule (625100)' };
     }
-    if (catClean.includes('compta') || catClean.includes('expert') || catClean.includes('honoraires divers')) {
-      return { num: '622600', libelle: 'Honoraires comptables et juridiques (622600)' };
+    if (text.includes('compta') || text.includes('expert') || text.includes('aga') || text.includes('angak')) {
+      return { num: '622600', libelle: 'Honoraires comptables et AGA (622600)' };
     }
-    if (catClean.includes('telephone') || catClean.includes('internet') || catClean.includes('frais postaux')) {
-      return { num: '626000', libelle: 'Frais postaux et télécommunications (626000)' };
+    if (text.includes('teleph') || text.includes('intern') || text.includes('orange') || text.includes('sfr') || text.includes('post')) {
+      return { num: '626000', libelle: 'Télécommunications et frais postaux (626000)' };
     }
-    if (catClean.includes('formation')) {
-      return { num: '618000', libelle: 'Documentation et formation (618000)' };
+    if (text.includes('prélèvement') || text.includes('virement') || text.includes('perso') || text.includes('apport')) {
+      return { num: '108000', libelle: 'Compte de l\'exploitant / Prélèvements (108000)' };
     }
 
-    // Par défaut si non catégorisé
-    if (type === 'depense') {
-      return { num: '606800', libelle: `Autres charges - ${category || 'Divers'} (606800)` };
-    }
-    
-    return { num: '471000', libelle: `Compte d'attente - ${category || 'Divers'} (471000)` };
+    return { num: '471000', libelle: `Compte d'attente - ${category || description || 'Opération Diverse'} (471000)` };
   }
 
   function recupererToutesLesTransactions() {
@@ -100,23 +93,30 @@
   function calculerBalanceComptable(transactions = [], anneeCible = new Date().getFullYear()) {
     const comptes = {};
 
+    function ajouterEcriture(num, libelle, debit, credit) {
+      if (!comptes[num]) {
+        comptes[num] = { num: num, libelle: libelle, debit: 0, credit: 0 };
+      }
+      comptes[num].debit += debit;
+      comptes[num].credit += credit;
+    }
+
     transactions.forEach(tx => {
       const txAnnee = extraireAnnee(tx.date) || anneeCible;
 
       if (txAnnee === anneeCible) {
         const m = parseMontant(tx.amount || tx.montant);
         const type = (tx.type || '').toLowerCase();
-        
         const { num, libelle } = determinerCompteEtLibelle(tx.category, type, tx.description);
 
-        if (!comptes[num]) {
-          comptes[num] = { num: num, libelle: libelle, debit: 0, credit: 0 };
-        }
-
         if (type === 'recette') {
-          comptes[num].credit += m;
+          // Recette : Crédit Compte de produit (706) + Débit Compte Banque (512)
+          ajouterEcriture(num, libelle, 0, m);
+          ajouterEcriture('512000', 'Banque (512000)', m, 0);
         } else {
-          comptes[num].debit += m;
+          // Dépense : Débit Compte de charge (6xx) + Crédit Compte Banque (512)
+          ajouterEcriture(num, libelle, m, 0);
+          ajouterEcriture('512000', 'Banque (512000)', 0, m);
         }
       }
     });
