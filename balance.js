@@ -1,9 +1,5 @@
 /**
- * balance.js - Correction finale :
- * 1. Supression stricte des tableaux répétés (nettoyage complet du conteneur).
- * 2. Parsing universel des montants (gestion des strings "1 250,00 €", nombres, null).
- * 3. Inspection automatique des clés Supabase (compte, debit, credit, montant, date).
- * 4. Application des règles comptables : Comptes 1-5 (<= Année) | Comptes 6-9 (== Année).
+ * balance.js - Correction définitive : suppression doublons DOM + détection automatique des comptes & montants Supabase
  */
 
 (function () {
@@ -13,7 +9,6 @@
     if (val === null || val === undefined) return 0;
     if (typeof val === 'number') return isNaN(val) ? 0 : val;
     if (typeof val === 'string') {
-      // Nettoyage des espaces insécables, '€', et conversion virgule -> point
       const propre = val.replace(/\s/g, '').replace('€', '').replace(',', '.').trim();
       const num = parseFloat(propre);
       return isNaN(num) ? 0 : num;
@@ -42,9 +37,38 @@
     return isNaN(d.getTime()) ? null : d.getFullYear();
   }
 
+  /**
+   * Extrait le bon numéro de compte et libellé depuis l'objet transaction
+   */
+  function identifierCompteEtLibelle(tx) {
+    // 1. Recherche du numéro de compte dans les propriétés possibles
+    let num = tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.compte_comptable || tx.account || tx.code;
+
+    // 2. Recherche du libellé dans les propriétés possibles
+    let libelle = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || tx.libelle || tx.poste || tx.nom_compte;
+
+    // Si le compte n'est pas explicite, on essaye de le déduire de la catégorie ou du type
+    if (!num) {
+      if (tx.type === 'recette' || tx.type === 'HONORAIRES' || (tx.montant && parseMontant(tx.montant) > 0)) {
+        num = '706000';
+        libelle = libelle || 'Prestations de services / Honoraires';
+      } else if (tx.type === 'depense' || (tx.montant && parseMontant(tx.montant) < 0)) {
+        num = '606000';
+        libelle = libelle || 'Achats & Charges diverses';
+      } else {
+        num = '512000';
+        libelle = libelle || 'Banque';
+      }
+    }
+
+    return {
+      num: String(num).trim(),
+      libelle: String(libelle || 'Compte Général').trim()
+    };
+  }
+
   function recupererToutesLesTransactions() {
     let txs = window.listeTransactions || window.transactions || window.state?.transactions || window.appData?.transactions || [];
-    
     if (!Array.isArray(txs) || txs.length === 0) {
       try {
         const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions') || localStorage.getItem('ecritures');
@@ -73,43 +97,34 @@
 
     transactions.forEach(tx => {
       const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture || tx.date_journal;
-      const txAnnee = extraireAnnee(dateVal);
+      const txAnnee = extraireAnnee(dateVal) || anneeCible;
 
-      // Si aucune date trouvée, on associe par défaut à l'année courante
-      const anneeFinale = txAnnee || anneeCible;
+      if (txAnnee > anneeCible) return;
 
-      if (anneeFinale > anneeCible) return;
+      const { num, libelle } = identifierCompteEtLibelle(tx);
 
-      // Numéro du compte
-      let numCompte = String(
-        tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.code || tx.account || '512000'
-      ).trim();
-
-      // Libellé du compte
-      let libelleCompte = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || tx.libelle || tx.account_label || 'Compte Général';
-
-      // Extraction des Débits et Crédits
+      // Extraction Débit / Crédit
       let debit = parseMontant(tx.debit || tx.montant_debit || tx.debit_eur);
       let credit = parseMontant(tx.credit || tx.montant_credit || tx.credit_eur);
 
       if (debit === 0 && credit === 0) {
-        const m = parseMontant(tx.montant || tx.amount || tx.solde);
+        const m = parseMontant(tx.montant || tx.amount || tx.solde || tx.valeur);
         if (m < 0) debit = Math.abs(m);
         else credit = m;
       }
 
-      const classe = numCompte.charAt(0);
+      const classe = num.charAt(0);
       const estCompteBilan = ['1', '2', '3', '4', '5'].includes(classe);
 
-      // Regle comptable : Bilan (1 à 5) <= anneeCible | Gestion (6 à 9) == anneeCible
-      const doitInclure = estCompteBilan ? (anneeFinale <= anneeCible) : (anneeFinale === anneeCible);
+      // Règle comptable : Bilan (1 à 5) <= année | Gestion (6 à 9) == année
+      const doitInclure = estCompteBilan ? (txAnnee <= anneeCible) : (txAnnee === anneeCible);
 
       if (doitInclure) {
-        if (!comptes[numCompte]) {
-          comptes[numCompte] = { num: numCompte, libelle: libelleCompte, debit: 0, credit: 0 };
+        if (!comptes[num]) {
+          comptes[num] = { num: num, libelle: libelle, debit: 0, credit: 0 };
         }
-        comptes[numCompte].debit += debit;
-        comptes[numCompte].credit += credit;
+        comptes[num].debit += debit;
+        comptes[num].credit += credit;
       }
     });
 
@@ -131,10 +146,9 @@
     return { comptes: listeComptes, totaux };
   }
 
-  async function afficherBalanceFinale() {
+  async function afficherBalanceUnifiee() {
     let transactions = recupererToutesLesTransactions();
 
-    // Re-tentative de lecture Supabase si localement vide
     if (transactions.length === 0 && window.supabaseClient) {
       const tables = ['transactions', 'ecritures', 'journal', 'mouvements'];
       for (const t of tables) {
@@ -149,22 +163,22 @@
       }
     }
 
-    // 1. Identification du conteneur parent racine
+    // 1. Recherche et nettoyage strict de la DOM pour supprimer les doublons
     const tousTitres = Array.from(document.querySelectorAll('*')).filter(
       el => el.children.length === 0 && el.textContent.includes('Balance Générale des Comptes')
     );
 
     if (tousTitres.length === 0) return;
 
-    // Récupération de la carte conteneur du premier titre trouvé
-    const conteneurRacine = tousTitres[0].closest('.bg-white') || tousTitres[0].closest('.card') || tousTitres[0].parentElement;
+    // Prendre la toute première carte HTML
+    const conteneurUnique = tousTitres[0].closest('.bg-white') || tousTitres[0].closest('.card') || tousTitres[0].parentElement;
 
-    // Suppression de TOUS les blocs frères en doublon sur la page
+    // Supprimer tous les autres blocs identiques créés en doublon
     tousTitres.forEach((t, index) => {
       if (index > 0) {
-        const blocDoublon = t.closest('.bg-white') || t.closest('.card') || t.parentElement;
-        if (blocDoublon && blocDoublon !== conteneurRacine) {
-          blocDoublon.remove();
+        const blocEnTrop = t.closest('.bg-white') || t.closest('.card') || t.parentElement;
+        if (blocEnTrop && blocEnTrop !== conteneurUnique) {
+          blocEnTrop.remove();
         }
       }
     });
@@ -173,8 +187,8 @@
     const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
     const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
-    // 2. Remplacement unique et complet du contenu
-    conteneurRacine.innerHTML = `
+    // 2. Injection unique et propre du tableau
+    conteneurUnique.innerHTML = `
       <div class="space-y-4">
         
         <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
@@ -206,7 +220,7 @@
               ${comptes.length === 0 ? `
                 <tr>
                   <td colspan="6" class="py-8 text-center text-slate-400 italic">
-                    Aucune écriture enregistrée pour l'exercice ${anneeActive}.
+                    Aucun compte mouvementé pour l'exercice ${anneeActive}.
                   </td>
                 </tr>
               ` : comptes.map(c => `
@@ -238,25 +252,24 @@
 
   window.changerAnneeBalance = function(annee) {
     window.anneeBalanceSelectionnee = parseInt(annee, 10);
-    afficherBalanceFinale();
+    afficherBalanceUnifiee();
   };
 
-  // Neutralisation des scripts concurrents
-  window.renderBalance = afficherBalanceFinale;
-  window.renderBalanceModule = afficherBalanceFinale;
-  window.afficherBalance = afficherBalanceFinale;
-  window.initBalanceModule = afficherBalanceFinale;
-  window.initBalance = afficherBalanceFinale;
+  window.renderBalance = afficherBalanceUnifiee;
+  window.renderBalanceModule = afficherBalanceUnifiee;
+  window.afficherBalance = afficherBalanceUnifiee;
+  window.initBalanceModule = afficherBalanceUnifiee;
+  window.initBalance = afficherBalanceUnifiee;
 
   document.addEventListener('click', (e) => {
     if (e.target && e.target.innerText && e.target.innerText.includes('Balance')) {
-      setTimeout(afficherBalanceFinale, 50);
+      setTimeout(afficherBalanceUnifiee, 50);
     }
   });
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', afficherBalanceFinale);
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    afficherBalanceUnifiee();
   } else {
-    afficherBalanceFinale();
+    document.addEventListener('DOMContentLoaded', afficherBalanceUnifiee);
   }
 })();
