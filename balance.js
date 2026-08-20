@@ -1,6 +1,5 @@
 /**
- * balance.js - Module Balance Générale des Comptes
- * Fix : Supression des duplications DOM + Aggrégation dynamique de TOUS les comptes comptables.
+ * balance.js - Correction du mapping automatique par catégorie
  */
 
 (function () {
@@ -8,11 +7,11 @@
 
   function parseMontant(val) {
     if (val === null || val === undefined) return 0;
-    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    if (typeof val === 'number') return isNaN(val) ? 0 : Math.abs(val);
     if (typeof val === 'string') {
       const propre = val.replace(/\s/g, '').replace('€', '').replace(',', '.').trim();
       const num = parseFloat(propre);
-      return isNaN(num) ? 0 : num;
+      return isNaN(num) ? 0 : Math.abs(num);
     }
     return 0;
   }
@@ -38,47 +37,57 @@
     return isNaN(d.getTime()) ? null : d.getFullYear();
   }
 
-  function determinerCompte(tx) {
-    let num = tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.compte_comptable || tx.account;
-    let libelle = tx.libelle_compte || tx.intitule || tx.label || tx.description || tx.libelle || tx.categorie;
+  // Dictionnaire de correspondance Catégorie -> Compte PCG 2035
+  function determinerCompteEtLibelle(category, type, description) {
+    const catClean = (category || '').toLowerCase().trim();
+    const descClean = (description || '').toLowerCase().trim();
 
-    if (!num) {
-      const cat = (tx.categorie || tx.category || '').toLowerCase();
-      if (cat.includes('honoraire') || cat.includes('recette') || cat.includes('411')) {
-        num = '706000';
-        libelle = libelle || 'Prestations de services / Honoraires';
-      } else if (cat.includes('urssaf') || cat.includes('cotis')) {
-        num = '645000';
-        libelle = libelle || 'Charges sociales / URSSAF';
-      } else if (cat.includes('carpimko')) {
-        num = '646000';
-        libelle = libelle || 'Cotisations retraite CARPIMKO';
-      } else if (cat.includes('achat') || cat.includes('matériel') || cat.includes('fourniture')) {
-        num = '606000';
-        libelle = libelle || 'Achats & Produits pharmacie/médical';
-      } else if (cat.includes('frais') || cat.includes('banque')) {
-        num = '627000';
-        libelle = libelle || 'Services bancaires';
-      } else {
-        const m = parseMontant(tx.montant || tx.amount || tx.credit || tx.debit);
-        if (m > 0 || tx.credit > 0) {
-          num = '706000';
-          libelle = libelle || 'Prestations de services / Honoraires';
-        } else {
-          num = '606000';
-          libelle = libelle || 'Achats & Charges diverses';
-        }
-      }
+    if (type === 'recette' || catClean.includes('soins') || catClean.includes('honoraire') || catClean.includes('tiers')) {
+      return { num: '706000', libelle: 'Honoraires conventionnés (706000)' };
     }
 
-    return {
-      num: String(num).trim(),
-      libelle: String(libelle || 'Compte Général').trim()
-    };
+    // Mapping des dépenses
+    if (catClean.includes('urssaf') || descClean.includes('urssaf')) {
+      return { num: '645000', libelle: 'Charges sociales / URSSAF (645000)' };
+    }
+    if (catClean.includes('carpimko') || descClean.includes('carpimko')) {
+      return { num: '646000', libelle: 'Cotisations retraite CARPIMKO (646000)' };
+    }
+    if (catClean.includes('fourniture') || catClean.includes('materiel') || catClean.includes('pharmacie') || catClean.includes('soin')) {
+      return { num: '606000', libelle: 'Achats de fournitures / Petit matériel (606000)' };
+    }
+    if (catClean.includes('loyer') || catClean.includes('location') || catClean.includes('bureau')) {
+      return { num: '613000', libelle: 'Locations immobilières / Charges (613000)' };
+    }
+    if (catClean.includes('assurance') || catClean.includes('rcp')) {
+      return { num: '616000', libelle: 'Assurances professionnelles (616000)' };
+    }
+    if (catClean.includes('banque') || catClean.includes('frais banc')) {
+      return { num: '627000', libelle: 'Frais bancaires (627000)' };
+    }
+    if (catClean.includes('deplacement') || catClean.includes('carburant') || catClean.includes('auto') || catClean.includes('km')) {
+      return { num: '625100', libelle: 'Frais de déplacements / Carburant (625100)' };
+    }
+    if (catClean.includes('compta') || catClean.includes('expert') || catClean.includes('honoraires divers')) {
+      return { num: '622600', libelle: 'Honoraires comptables et juridiques (622600)' };
+    }
+    if (catClean.includes('telephone') || catClean.includes('internet') || catClean.includes('frais postaux')) {
+      return { num: '626000', libelle: 'Frais postaux et télécommunications (626000)' };
+    }
+    if (catClean.includes('formation')) {
+      return { num: '618000', libelle: 'Documentation et formation (618000)' };
+    }
+
+    // Par défaut si non catégorisé
+    if (type === 'depense') {
+      return { num: '606800', libelle: `Autres charges - ${category || 'Divers'} (606800)` };
+    }
+    
+    return { num: '471000', libelle: `Compte d'attente - ${category || 'Divers'} (471000)` };
   }
 
   function recupererToutesLesTransactions() {
-    let txs = window.listeTransactions || window.transactions || window.state?.transactions || window.appData?.transactions || [];
+    let txs = window.listeTransactions || window.transactions || [];
     if (!Array.isArray(txs) || txs.length === 0) {
       try {
         const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions');
@@ -92,30 +101,23 @@
     const comptes = {};
 
     transactions.forEach(tx => {
-      const dateVal = tx.date || tx.date_transaction || tx.created_at;
-      const txAnnee = extraireAnnee(dateVal) || anneeCible;
+      const txAnnee = extraireAnnee(tx.date) || anneeCible;
 
-      const { num, libelle } = determinerCompte(tx);
+      if (txAnnee === anneeCible) {
+        const m = parseMontant(tx.amount || tx.montant);
+        const type = (tx.type || '').toLowerCase();
+        
+        const { num, libelle } = determinerCompteEtLibelle(tx.category, type, tx.description);
 
-      let debit = parseMontant(tx.debit || tx.montant_debit);
-      let credit = parseMontant(tx.credit || tx.montant_credit);
-
-      if (debit === 0 && credit === 0) {
-        const m = parseMontant(tx.montant || tx.amount);
-        if (m < 0) debit = Math.abs(m);
-        else credit = m;
-      }
-
-      const classe = num.charAt(0);
-      const estCompteBilan = ['1', '2', '3', '4', '5'].includes(classe);
-      const doitInclure = estCompteBilan ? (txAnnee <= anneeCible) : (txAnnee === anneeCible);
-
-      if (doitInclure) {
         if (!comptes[num]) {
           comptes[num] = { num: num, libelle: libelle, debit: 0, credit: 0 };
         }
-        comptes[num].debit += debit;
-        comptes[num].credit += credit;
+
+        if (type === 'recette') {
+          comptes[num].credit += m;
+        } else {
+          comptes[num].debit += m;
+        }
       }
     });
 
@@ -163,7 +165,6 @@
     const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
     const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
-    // Vider complètement le conteneur avant réinjection pour éliminer la duplication
     conteneur.innerHTML = `
       <div class="space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 max-w-6xl mx-auto my-4">
         <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
@@ -182,7 +183,7 @@
           <table class="w-full text-xs text-left border-collapse">
             <thead>
               <tr class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <th class="py-3 px-4 w-28">Numéro</th>
+                <th class="py-3 px-4 w-24">Numéro</th>
                 <th class="py-3 px-4">Intitulé du compte</th>
                 <th class="py-3 px-4 text-right text-red-600 font-semibold w-36">Total Débit (€)</th>
                 <th class="py-3 px-4 text-right text-emerald-600 font-semibold w-36">Total Crédit (€)</th>
