@@ -1,5 +1,5 @@
 /**
- * balance.js - Balance Générale des Comptes avec Filtrage par Année et À-Nouveau
+ * balance.js - Balance Générale avec filtre Année et règles de report (1-5 origine, 6-9 année)
  */
 
 window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
@@ -11,7 +11,7 @@ function formatEuro(valeur) {
     currency: 'EUR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).replace('€', '€');
+  });
 }
 
 function obtenirAnneesDisponibles(transactions = []) {
@@ -29,6 +29,11 @@ function obtenirAnneesDisponibles(transactions = []) {
   return Array.from(annees).sort((a, b) => b - a);
 }
 
+/**
+ * Calcul selon les règles comptables :
+ * - Classes 1 à 5 : cumul depuis l'origine jusqu'à l'année cible (<= anneeCible)
+ * - Classes 6 à 9 : uniquement l'année cible (== anneeCible)
+ */
 function calculerBalanceComptable(transactions = [], anneeCible = new Date().getFullYear()) {
   const comptes = {};
 
@@ -37,33 +42,30 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
     if (isNaN(dateTx.getTime())) return;
 
     const txAnnee = dateTx.getFullYear();
-    if (txAnnee > anneeCible) return; // On ignore les écritures des années futures
+    if (txAnnee > anneeCible) return; // Ignore le futur
 
-    const numCompte = tx.compte || tx.code_compte || tx.num_compte || '512000';
+    const numCompte = (tx.compte || tx.code_compte || tx.num_compte || '512000').toString();
     const libelleCompte = tx.libelle_compte || tx.intitule || tx.categorie || 'Compte Général';
     
     const debit = parseFloat(tx.debit || (tx.montant < 0 ? Math.abs(tx.montant) : 0) || 0);
     const credit = parseFloat(tx.credit || (tx.montant > 0 ? tx.montant : 0) || 0);
 
-    if (!comptes[numCompte]) {
-      comptes[numCompte] = {
-        num: numCompte,
-        libelle: libelleCompte,
-        debit: 0,
-        credit: 0
-      };
-    }
+    const classe = numCompte.charAt(0);
+    const estCompteBilan = ['1', '2', '3', '4', '5'].includes(classe);
 
-    const classe = numCompte.toString().charAt(0);
-
-    // Reprise des À-Nouveaux (exercices passés) uniquement pour les comptes de bilan (1 à 5)
-    if (txAnnee < anneeCible) {
-      if (['1', '2', '3', '4', '5'].includes(classe)) {
-        comptes[numCompte].debit += debit;
-        comptes[numCompte].credit += credit;
+    // Filtrage selon la classe du compte
+    if (estCompteBilan && txAnnee <= anneeCible) {
+      // Cumul depuis l'origine jusqu'à l'année sélectionnée
+      if (!comptes[numCompte]) {
+        comptes[numCompte] = { num: numCompte, libelle: libelleCompte, debit: 0, credit: 0 };
       }
-    } else if (txAnnee === anneeCible) {
-      // Mouvements de l'année en cours pour TOUS les comptes (1 à 7)
+      comptes[numCompte].debit += debit;
+      comptes[numCompte].credit += credit;
+    } else if (!estCompteBilan && txAnnee === anneeCible) {
+      // Uniquement l'année sélectionnée
+      if (!comptes[numCompte]) {
+        comptes[numCompte] = { num: numCompte, libelle: libelleCompte, debit: 0, credit: 0 };
+      }
       comptes[numCompte].debit += debit;
       comptes[numCompte].credit += credit;
     }
@@ -91,38 +93,49 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
   return { comptes: listeComptes, totaux };
 }
 
+/**
+ * Localise la carte exacte où se trouve le titre de la Balance dans l'application
+ */
+function ciblerConteneurBalance() {
+  const tousLesTitres = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'));
+  const titreBalance = tousLesTitres.find(el => 
+    el.children.length === 0 && el.textContent.includes('Balance Générale des Comptes')
+  );
+
+  if (titreBalance) {
+    const carte = titreBalance.closest('.bg-white') || titreBalance.closest('.card') || titreBalance.parentElement;
+    if (carte) return carte;
+  }
+
+  return document.getElementById('balance-container') || 
+         document.getElementById('balance') || 
+         document.getElementById('vue-balance') || 
+         document.querySelector('main') || document.body;
+}
+
 function renderBalanceUI(transactions = []) {
   window.transactionsBalanceCache = transactions;
 
-  // Recherche du conteneur cible
-  let container = document.getElementById('balance-container') || 
-                    document.getElementById('balance') || 
-                    document.getElementById('vue-balance');
-
-  if (!container) {
-    const main = document.querySelector('main') || document.querySelector('.content') || document.body;
-    container = document.createElement('div');
-    container.id = 'balance-container';
-    main.appendChild(container);
-  }
+  const container = ciblerConteneurBalance();
+  if (!container) return;
 
   const annees = obtenirAnneesDisponibles(transactions);
-  const anneeActive = window.anneeBalanceSelectionnee;
+  const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
   const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
   container.innerHTML = `
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-7xl mx-auto space-y-4">
+    <div class="space-y-4">
       
-      <!-- ENTÊTE AVEC FILTRE PAR ANNÉE -->
+      <!-- ENTÊTE AVEC SÉLECTEUR D'ANNÉE INSÉRÉ -->
       <div class="flex flex-wrap justify-between items-center gap-4 pb-2 border-b border-slate-100">
-        <h2 class="text-lg font-medium text-slate-700 flex items-center gap-2">
+        <h2 class="text-base font-semibold text-slate-700 flex items-center gap-2">
           ⚖️ Balance Générale des Comptes
         </h2>
 
-        <div class="flex items-center gap-3">
-          <label for="select-annee-balance" class="text-xs font-semibold text-slate-600">Exercice :</label>
-          <select id="select-annee-balance" onchange="changerAnneeBalance(this.value)" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
-            ${annees.map(a => `<option value="${a}" ${a === parseInt(anneeActive, 10) ? 'selected' : ''}>${a}</option>`).join('')}
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+          <label for="select-annee-balance" class="text-xs font-bold text-slate-600">Filtrer par Exercice :</label>
+          <select id="select-annee-balance" onchange="changerAnneeBalance(this.value)" class="bg-white border border-slate-300 text-slate-900 text-xs rounded font-bold px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+            ${annees.map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -132,7 +145,7 @@ function renderBalanceUI(transactions = []) {
         <table class="w-full text-xs text-left border-collapse">
           <thead>
             <tr class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-              <th class="py-3 px-4 w-28">Numéro</th>
+              <th class="py-3 px-4 w-32">Numéro</th>
               <th class="py-3 px-4">Intitulé du compte</th>
               <th class="py-3 px-4 text-right text-red-600 font-semibold w-36">Total Débit (€)</th>
               <th class="py-3 px-4 text-right text-emerald-600 font-semibold w-36">Total Crédit (€)</th>
@@ -144,7 +157,7 @@ function renderBalanceUI(transactions = []) {
             ${comptes.length === 0 ? `
               <tr>
                 <td colspan="6" class="py-8 text-center text-slate-400 italic">
-                  Aucun mouvement enregistré pour l'année ${anneeActive}.
+                  Aucun mouvement enregistré pour l'exercice ${anneeActive}.
                 </td>
               </tr>
             ` : comptes.map(c => `
