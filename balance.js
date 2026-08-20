@@ -1,5 +1,5 @@
 /**
- * balance.js - Correction avec contrepartie Banque (512000) et détection élargie
+ * balance.js - Prise en charge des OD et des comptes Tiers (411)
  */
 
 (function () {
@@ -38,45 +38,47 @@
   }
 
   function determinerCompteEtLibelle(category, type, description) {
-    const text = `${category || ''} ${description || ''}`.toLowerCase().trim();
+    const catClean = (category || '').toLowerCase().trim();
+    const descClean = (description || '').trim();
+    const descLower = descClean.toLowerCase();
 
-    if (type === 'recette' || text.includes('soin') || text.includes('honoraire') || text.includes('tiers') || text.includes('recette') || text.includes('abadie')) {
+    // 1. Détection des comptes 411 (Clients / Tiers) dans la description
+    if (descClean.startsWith('411') || descLower.includes('abadie') || descLower.includes('st-andre')) {
+      const nomClient = descClean.replace(/^411/, '').trim() || 'Patients';
+      return { num: '411000', libelle: `Clients / Patients - ${nomClient} (411000)` };
+    }
+
+    // 2. Détection d'un numéro de compte explicite dans la description (ex: 645, 606, etc.)
+    const matchCompte = descClean.match(/^([1-7]\d{5})/);
+    if (matchCompte) {
+      return { num: matchCompte[1], libelle: `Compte ${matchCompte[1]} - ${descClean}` };
+    }
+
+    // 3. Recettes et soins
+    if (type === 'recette' || catClean.includes('soin') || catClean.includes('honoraire')) {
       return { num: '706000', libelle: 'Honoraires conventionnés (706000)' };
     }
 
-    // Analyse approfondie des charges
-    if (text.includes('urssaf') || text.includes('cotis social')) {
+    // 4. Mots-clés de charges (pour type depense ou od)
+    if (descLower.includes('urssaf') || catClean.includes('urssaf')) {
       return { num: '645000', libelle: 'Charges sociales / URSSAF (645000)' };
     }
-    if (text.includes('carpimko') || text.includes('retraite')) {
+    if (descLower.includes('carpimko') || catClean.includes('carpimko')) {
       return { num: '646000', libelle: 'Cotisations retraite CARPIMKO (646000)' };
     }
-    if (text.includes('fournit') || text.includes('materiel') || text.includes('pharmacie') || text.includes('achat') || text.includes('medical') || text.includes('soin')) {
+    if (descLower.includes('secu') || descLower.includes('sécu')) {
+      return { num: '645100', libelle: 'Cotisations Sécurité Sociale (645100)' };
+    }
+    if (descLower.includes('materiel') || descLower.includes('pharma') || catClean.includes('fournit')) {
       return { num: '606000', libelle: 'Achats de fournitures / Petit matériel (606000)' };
     }
-    if (text.includes('loyer') || text.includes('locat') || text.includes('bureau') || text.includes('scm')) {
-      return { num: '613000', libelle: 'Locations immobilières / Charges (613000)' };
-    }
-    if (text.includes('assur') || text.includes('rcp') || text.includes('prevoyance')) {
-      return { num: '616000', libelle: 'Assurances professionnelles (616000)' };
-    }
-    if (text.includes('banq') || text.includes('frais b') || text.includes('agios') || text.includes('cotis carte')) {
-      return { num: '627000', libelle: 'Services bancaires (627000)' };
-    }
-    if (text.includes('deplac') || text.includes('carburant') || text.includes('essence') || text.includes('auto') || text.includes('km') || text.includes('peage')) {
-      return { num: '625100', libelle: 'Frais de déplacements / Véhicule (625100)' };
-    }
-    if (text.includes('compta') || text.includes('expert') || text.includes('aga') || text.includes('angak')) {
-      return { num: '622600', libelle: 'Honoraires comptables et AGA (622600)' };
-    }
-    if (text.includes('teleph') || text.includes('intern') || text.includes('orange') || text.includes('sfr') || text.includes('post')) {
-      return { num: '626000', libelle: 'Télécommunications et frais postaux (626000)' };
-    }
-    if (text.includes('prélèvement') || text.includes('virement') || text.includes('perso') || text.includes('apport')) {
-      return { num: '108000', libelle: 'Compte de l\'exploitant / Prélèvements (108000)' };
+
+    // Par défaut pour les OD non classées
+    if (type === 'od') {
+      return { num: '471000', libelle: `Opération Diverse - ${description || category || 'Attente'} (471000)` };
     }
 
-    return { num: '471000', libelle: `Compte d'attente - ${category || description || 'Opération Diverse'} (471000)` };
+    return { num: '471000', libelle: `Compte d'attente (471000)` };
   }
 
   function recupererToutesLesTransactions() {
@@ -110,11 +112,19 @@
         const { num, libelle } = determinerCompteEtLibelle(tx.category, type, tx.description);
 
         if (type === 'recette') {
-          // Recette : Crédit Compte de produit (706) + Débit Compte Banque (512)
-          ajouterEcriture(num, libelle, 0, m);
-          ajouterEcriture('512000', 'Banque (512000)', m, 0);
-        } else {
-          // Dépense : Débit Compte de charge (6xx) + Crédit Compte Banque (512)
+          // Si la description spécifie un compte 411, l'écriture se fait sur le 411
+          if (num === '411000') {
+            ajouterEcriture('411000', libelle, 0, m);
+            ajouterEcriture('512000', 'Banque (512000)', m, 0);
+          } else {
+            ajouterEcriture(num, libelle, 0, m);
+            ajouterEcriture('512000', 'Banque (512000)', m, 0);
+          }
+        } else if (type === 'depense') {
+          ajouterEcriture(num, libelle, m, 0);
+          ajouterEcriture('512000', 'Banque (512000)', 0, m);
+        } else if (type === 'od') {
+          // Traitement des Opérations Diverses
           ajouterEcriture(num, libelle, m, 0);
           ajouterEcriture('512000', 'Banque (512000)', 0, m);
         }
