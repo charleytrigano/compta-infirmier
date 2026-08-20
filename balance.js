@@ -1,5 +1,5 @@
 /**
- * balance.js - Correction définitive : Récupération Supabase multi-tables + Anti-doublon DOM + Filtres N/<=N
+ * balance.js - Correction définitive : Nettoyage strict du DOM + Récupération Supabase + Règle comptable 1-5 (origine) et 6-9 (année)
  */
 
 window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
@@ -25,16 +25,16 @@ function extraireAnnee(dateVal) {
 }
 
 /**
- * Récupère les données depuis Supabase ou la mémoire globale
+ * Récupération exhaustive des transactions (Supabase + Variables globales)
  */
 async function chargerTransactionsData() {
   let list = window.listeTransactions || window.transactions || window.state?.transactions || window.appData?.transactions || [];
 
   if ((!list || list.length === 0) && window.supabaseClient) {
-    const tablesATester = ['transactions', 'ecritures', 'journal', 'mouvements'];
-    for (const table of tablesATester) {
+    const tables = ['transactions', 'ecritures', 'journal', 'mouvements'];
+    for (const t of tables) {
       try {
-        const { data, error } = await window.supabaseClient.from(table).select('*');
+        const { data, error } = await window.supabaseClient.from(t).select('*');
         if (!error && data && data.length > 0) {
           list = data;
           break;
@@ -69,14 +69,14 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
 
     if (!txAnnee || txAnnee > anneeCible) return;
 
-    // Détection universelle du numéro et libellé de compte
+    // Récupération souple du numéro et du libellé
     const numCompte = String(
       tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || tx.code || '512000'
     ).trim();
 
     const libelleCompte = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || tx.libelle || 'Compte Général';
 
-    // Détection universelle des montants Débit/Crédit
+    // Récupération souple Débit / Crédit / Montant
     let debit = parseFloat(tx.debit || tx.montant_debit || 0);
     let credit = parseFloat(tx.credit || tx.montant_credit || 0);
 
@@ -89,7 +89,7 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
     const classe = numCompte.charAt(0);
     const estCompteBilan = ['1', '2', '3', '4', '5'].includes(classe);
 
-    // Règle comptable : Bilan (1 à 5) <= année | Gestion (6 à 9) == année
+    // Règle comptable : Bilan (1 à 5) <= année cible | Gestion (6 à 9) == année cible
     const doitInclure = estCompteBilan ? (txAnnee <= anneeCible) : (txAnnee === anneeCible);
 
     if (doitInclure) {
@@ -119,37 +119,26 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
   return { comptes: listeComptes, totaux };
 }
 
-async function renderBalanceUI() {
+async function exécuterRenduBalance() {
   const transactions = await chargerTransactionsData();
-  window.transactionsBalanceCache = transactions;
+  
+  // 1. Détection du conteneur parent principal
+  const zoneOnglet = document.getElementById('view-balance') || 
+                     document.getElementById('balance-container') || 
+                     document.getElementById('content') || 
+                     document.querySelector('main');
 
-  // 1. Détection de tous les blocs de balance existants dans la page
-  const tousLesTitres = Array.from(document.querySelectorAll('*')).filter(
-    el => el.children.length === 0 && el.textContent.includes('Balance Générale des Comptes')
-  );
-
-  if (tousLesTitres.length === 0) return;
-
-  // On prend le premier bloc parent
-  const conteneurCible = tousLesTitres[0].closest('.bg-white') || tousLesTitres[0].parentElement;
-
-  // Nettoyage de TOUS les blocs frères en doublon créés par d'anciens rendus
-  tousLesTitres.slice(1).forEach(t => {
-    const blocEnTrop = t.closest('.bg-white') || t.parentElement;
-    if (blocEnTrop && blocEnTrop !== conteneurCible) {
-      blocEnTrop.remove();
-    }
-  });
+  if (!zoneOnglet) return;
 
   const annees = obtenirAnneesDisponibles(transactions);
   const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
   const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
-  // Injection unique dans le conteneur principal
-  conteneurCible.innerHTML = `
-    <div class="space-y-4">
+  // 2. VIDAGE COMPLET pour empêcher la duplication
+  zoneOnglet.innerHTML = `
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-7xl mx-auto space-y-4 my-4">
       
-      <!-- ENTÊTE DE BALANCE AVEC FILTRE -->
+      <!-- ENTÊTE AVEC FILTRE SÉLECTEUR D'EXERCICE -->
       <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
         <h2 class="text-base font-semibold text-slate-700 flex items-center gap-2">
           ⚖️ Balance Générale des Comptes
@@ -163,7 +152,7 @@ async function renderBalanceUI() {
         </div>
       </div>
 
-      <!-- TABLEAU DE BALANCE -->
+      <!-- TABLEAU UNIQUE -->
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-left border-collapse">
           <thead>
@@ -212,19 +201,24 @@ async function renderBalanceUI() {
 
 function changerAnneeBalance(nouvelleAnnee) {
   window.anneeBalanceSelectionnee = parseInt(nouvelleAnnee, 10);
-  renderBalanceUI();
+  exécuterRenduBalance();
 }
 
-window.initBalanceModule = renderBalanceUI;
-window.initBalance = renderBalanceUI;
+// Surcharge des méthodes globales de l'app pour neutraliser les rendus en doublon
+window.renderBalance = exécuterRenduBalance;
+window.renderBalanceModule = exécuterRenduBalance;
+window.afficherBalance = exécuterRenduBalance;
+window.initBalanceModule = exécuterRenduBalance;
+window.initBalance = exécuterRenduBalance;
 window.changerAnneeBalance = changerAnneeBalance;
-window.actualiserBalance = renderBalanceUI;
+window.actualiserBalance = exécuterRenduBalance;
 
-// Déclencheur sur le clic sur le bouton "Balance des Comptes"
+// Déclenchement au clic sur le bouton d'onglet
 document.addEventListener('click', (e) => {
-  if (e.target && e.target.innerText && e.target.innerText.includes('Balance')) {
-    setTimeout(renderBalanceUI, 100);
+  const target = e.target;
+  if (target && target.innerText && target.innerText.includes('Balance')) {
+    setTimeout(exécuterRenduBalance, 50);
   }
 });
 
-document.addEventListener('DOMContentLoaded', renderBalanceUI);
+document.addEventListener('DOMContentLoaded', exécuterRenduBalance);
