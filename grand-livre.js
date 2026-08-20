@@ -1,4 +1,4 @@
-// grand-livre.js - Module d'affichage du Grand Livre
+// grand-livre.js - Module d'affichage du Grand Livre basé uniquement sur ecritures_comptables
 
 (function () {
     function getSupabase() {
@@ -11,7 +11,6 @@
 
     async function chargerEtAfficherGrandLivre() {
         const container = document.getElementById('grandlivre-contenu');
-
         if (!container) return;
 
         const supabase = getSupabase();
@@ -19,12 +18,13 @@
 
         if (supabase) {
             try {
-                const { data: ecrData } = await supabase.from('ecritures_comptables').select('*').order('date', { ascending: true });
-                if (ecrData && ecrData.length > 0) {
+                const { data: ecrData, error } = await supabase
+                    .from('ecritures_comptables')
+                    .select('*')
+                    .order('date', { ascending: true });
+                
+                if (!error && ecrData) {
                     ecritures = ecrData;
-                } else {
-                    const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
-                    ecritures = txData || [];
                 }
             } catch (err) {
                 console.error("Erreur Supabase Grand Livre:", err);
@@ -44,33 +44,22 @@
         const comptes = {};
 
         ecritures.forEach(row => {
-            let code = String(row.compte_code || row.account_number || '').trim();
-            if (!code) {
-                const desc = String(row.description || row.category || '');
-                const match = desc.match(/^([0-9]{3,6})/);
-                code = match ? match[1] : (row.type === 'recette' ? '706000' : '600000');
-            }
+            const code = String(row.compte_code || '471000').trim();
 
             if (!comptes[code]) {
                 comptes[code] = {
                     code: code,
-                    libelle: row.compte_libelle || row.category || ('Compte ' + code),
+                    libelle: row.compte_libelle || ('Compte ' + code),
                     lignes: []
                 };
             }
 
-            let debit = parseFloat(row.debit || 0);
-            let credit = parseFloat(row.credit || 0);
-
-            if (!row.debit && !row.credit && row.amount) {
-                const val = Math.abs(parseFloat(row.amount));
-                if (row.type === 'recette') credit = val;
-                else debit = val;
-            }
+            const debit = parseFloat(row.debit || 0);
+            const credit = parseFloat(row.credit || 0);
 
             comptes[code].lignes.push({
                 date: row.date || '-',
-                category: row.category || '-',
+                journal: row.journal || 'OD',
                 description: row.description || '-',
                 debit: debit,
                 credit: credit
@@ -91,7 +80,7 @@
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 8px 12px; color: #334155;">${l.date}</td>
                         <td style="padding: 8px 12px; font-weight: 600; color: #1e293b;">${code}</td>
-                        <td style="padding: 8px 12px; color: #334155;">${l.category}</td>
+                        <td style="padding: 8px 12px; color: #334155;">${l.journal}</td>
                         <td style="padding: 8px 12px; color: #334155;">${l.description}</td>
                         <td style="padding: 8px 12px; text-align: right; color: #dc2626;">${l.debit > 0 ? formatEuro(l.debit) : '-'}</td>
                         <td style="padding: 8px 12px; text-align: right; color: #16a34a;">${l.credit > 0 ? formatEuro(l.credit) : '-'}</td>
@@ -112,7 +101,7 @@
                             <tr style="background: #f1f5f9; color: #475569; text-align: left;">
                                 <th style="padding: 8px 12px;">Date</th>
                                 <th style="padding: 8px 12px;">Compte</th>
-                                <th style="padding: 8px 12px;">Catégorie</th>
+                                <th style="padding: 8px 12px;">Journal</th>
                                 <th style="padding: 8px 12px;">Description</th>
                                 <th style="padding: 8px 12px; text-align: right;">Débit (€)</th>
                                 <th style="padding: 8px 12px; text-align: right;">Crédit (€)</th>
@@ -134,7 +123,6 @@
         container.innerHTML = html;
     }
 
-    // Exportation globale des fonctions
     window.afficherGrandLivre = chargerEtAfficherGrandLivre;
     window.chargerEtAfficherGrandLivre = chargerEtAfficherGrandLivre;
 })();
