@@ -1,4 +1,4 @@
-// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)"
+// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" basée sur ecritures_comptables
 
 (function () {
     function getSupabase() {
@@ -11,7 +11,7 @@
     }
 
     // ==========================================
-    // 1. VUE TRANSACTIONS (Historique des opérations)
+    // 1. VUE TRANSACTIONS (Historique condensé des opérations)
     // ==========================================
     async function chargerHistoriqueTransactions() {
         const vueTrans = document.getElementById('vue-transactions') || document.querySelector('[data-view="transactions"]');
@@ -37,7 +37,7 @@
             }
 
             if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune transaction enregistrée.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune écriture enregistrée.</td></tr>`;
                 return;
             }
 
@@ -50,14 +50,14 @@
                 const credit = parseFloat(row.credit || 0);
 
                 if (!transactionsMap.has(key)) {
-                    const isRecette = debit > 0 || (row.description && row.description.toLowerCase().includes('encaissement'));
+                    const isRecette = credit > 0 || (row.compte_code && row.compte_code.startsWith('7'));
                     transactionsMap.set(key, {
                         id: row.id,
                         transaction_id: row.transaction_id,
                         date: row.date,
                         type: isRecette ? 'Recette' : 'Dépense',
-                        categorie: row.category || 'Soins infirmiers',
-                        description: row.description ? row.description.replace(/^(Encaissement : |Décaissement : |Règlement soins : )/, '') : '-',
+                        categorie: row.compte_libelle || row.category || row.compte_code || 'Général',
+                        description: row.description || '-',
                         montant: debit || credit
                     });
                 }
@@ -95,7 +95,7 @@
     }
 
     async function supprimerTransaction(id, transactionId) {
-        if (!confirm("Voulez-vous supprimer cette transaction ?")) return;
+        if (!confirm("Voulez-vous supprimer cette écriture comptable ?")) return;
 
         const supabase = getSupabase();
         if (!supabase) return;
@@ -117,7 +117,7 @@
     }
 
     // ==========================================
-    // 2. VUE JOURNAL GENERAL (Lignes comptables)
+    // 2. VUE JOURNAL GENERAL (Lignes comptables détaillées)
     // ==========================================
     async function chargerJournalGeneral() {
         const vueJournal = document.getElementById('vue-journal') || document.querySelector('[data-view="journal"]') || document.querySelector('[id*="journal"]');
@@ -150,14 +150,14 @@
             const html = data.map(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
-                const categorie = row.category || row.compte_code || '-';
-                const description = row.description || row.compte_libelle || '-';
+                const compteCode = row.compte_code || '-';
+                const compteLibelle = row.compte_libelle || row.description || '-';
 
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
-                        <td style="padding: 10px; color: #475569;">${categorie}</td>
-                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${description}</td>
+                        <td style="padding: 10px; color: #475569; font-weight: 600;">${compteCode}</td>
+                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${compteLibelle}</td>
                         <td style="padding: 10px; color: #dc2626; text-align: right; font-weight: 500;">${formatEuro(debit)}</td>
                         <td style="padding: 10px; color: #16a34a; text-align: right; font-weight: 500;">${formatEuro(credit)}</td>
                         <td style="padding: 10px; text-align: center;">
@@ -181,7 +181,6 @@
     window.chargerJournalGeneral = chargerJournalGeneral;
     window.chargerJournal = chargerJournalGeneral;
 
-    // Écouteur global sur le changement d'onglet
     document.addEventListener('click', (e) => {
         const el = e.target.closest('button, a, div');
         if (!el || !el.textContent) return;
@@ -194,7 +193,6 @@
         }
     });
 
-    // Chargement initial
     function init() {
         setTimeout(chargerHistoriqueTransactions, 150);
         setTimeout(chargerJournalGeneral, 250);
