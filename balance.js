@@ -1,5 +1,5 @@
 /**
- * balance.js - Correction anti-doublon, détection automatique des champs et filtre exercice.
+ * balance.js - Correction définitive : suppression doublons, extraction universelle des données, filtre N/<=N
  */
 
 window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
@@ -14,7 +14,6 @@ function formatEuro(valeur) {
   });
 }
 
-// Extraction robuste de l'année (chaîne YYYY-MM-DD ou objet Date)
 function extraireAnnee(dateVal) {
   if (!dateVal) return null;
   if (typeof dateVal === 'string' && dateVal.length >= 4) {
@@ -23,6 +22,28 @@ function extraireAnnee(dateVal) {
   }
   const d = new Date(dateVal);
   return isNaN(d.getTime()) ? null : d.getFullYear();
+}
+
+/**
+ * Récupère les transactions de n'importe quel stockage global de l'application
+ */
+function recupererToutesLesTransactions() {
+  if (Array.isArray(window.transactionsBalanceCache) && window.transactionsBalanceCache.length > 0) return window.transactionsBalanceCache;
+  if (Array.isArray(window.listeTransactions) && window.listeTransactions.length > 0) return window.listeTransactions;
+  if (Array.isArray(window.transactions) && window.transactions.length > 0) return window.transactions;
+  if (Array.isArray(window.state?.transactions) && window.state.transactions.length > 0) return window.state.transactions;
+  if (Array.isArray(window.appData?.transactions) && window.appData.transactions.length > 0) return window.appData.transactions;
+  
+  // Tentative de récupération dans le LocalStorage
+  try {
+    const local = localStorage.getItem('transactions') || localStorage.getItem('compta_transactions');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+
+  return [];
 }
 
 function obtenirAnneesDisponibles(transactions = []) {
@@ -45,15 +66,14 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
   transactions.forEach(tx => {
     const dateVal = tx.date || tx.date_transaction || tx.created_at || tx.date_ecriture;
     const txAnnee = extraireAnnee(dateVal);
-    
-    // Si pas de date ou écriture dans le futur, on passe
-    if (!txAnnee || txAnnee > anneeCible) return;
 
-    // Détection souple du compte et du libellé
+    if (!txAnnee || txAnnee > anneeCible) return; // Ignore le futur
+
+    // Identification du compte
     const numCompte = String(tx.compte || tx.code_compte || tx.num_compte || tx.compte_num || '512000').trim();
     const libelleCompte = tx.libelle_compte || tx.intitule || tx.categorie || tx.label || tx.description || 'Compte Général';
 
-    // Détection souple Débit / Crédit / Montant
+    // Déduction des débits / crédits
     let debit = parseFloat(tx.debit || 0);
     let credit = parseFloat(tx.credit || 0);
 
@@ -66,7 +86,7 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
     const classe = numCompte.charAt(0);
     const estCompteBilan = ['1', '2', '3', '4', '5'].includes(classe);
 
-    // Règle : Bilan (1 à 5) <= année | Gestion (6 à 9) == année
+    // Règle comptable : Bilan (1 à 5) <= année | Gestion (6 à 9) == année
     const doitInclure = estCompteBilan ? (txAnnee <= anneeCible) : (txAnnee === anneeCible);
 
     if (doitInclure) {
@@ -96,36 +116,35 @@ function calculerBalanceComptable(transactions = [], anneeCible = new Date().get
   return { comptes: listeComptes, totaux };
 }
 
-function viderEtObtenirConteneur() {
-  // Cibler la carte contenant le titre de la Balance
-  const tousTitres = Array.from(document.querySelectorAll('h1, h2, h3, h4, div'));
-  const titre = tousTitres.find(t => t.children.length === 0 && t.textContent.trim().includes('Balance Générale des Comptes'));
-  
-  if (titre) {
-    const carte = titre.closest('.bg-white') || titre.parentElement;
-    if (carte) return carte;
-  }
-
-  return document.getElementById('balance-container') || 
-         document.getElementById('balance') || 
-         document.getElementById('vue-balance');
-}
-
-function renderBalanceUI(transactions = []) {
+function renderBalanceUI() {
+  const transactions = recupererToutesLesTransactions();
   window.transactionsBalanceCache = transactions;
 
-  const container = viderEtObtenirConteneur();
-  if (!container) return;
+  // Repérage du conteneur unique et suppression des réplications
+  const tousTitres = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span'));
+  const titresBalance = tousTitres.filter(t => t.children.length === 0 && t.textContent.trim().includes('Balance Générale des Comptes'));
+
+  if (titresBalance.length === 0) return;
+
+  // On prend la toute première occurrence et on supprime les doublons éventuels
+  const titrePrincipal = titresBalance[0];
+  const conteneurParent = titrePrincipal.closest('.bg-white') || titrePrincipal.parentElement;
+
+  // Nettoyage des cartes en doublon si l'injecteur a tourné plusieurs fois
+  titresBalance.slice(1).forEach(t => {
+    const carteDoublon = t.closest('.bg-white') || t.parentElement;
+    if (carteDoublon && carteDoublon !== conteneurParent) {
+      carteDoublon.remove();
+    }
+  });
 
   const annees = obtenirAnneesDisponibles(transactions);
   const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
   const { comptes, totaux } = calculerBalanceComptable(transactions, anneeActive);
 
-  // Remplacement complet du contenu pour éviter toute duplication
-  container.innerHTML = `
+  // Remplacement HTML propre sans dupliquer
+  conteneurParent.innerHTML = `
     <div class="space-y-4">
-      
-      <!-- ENTÊTE AVEC FILTRE SÉLECTIONNEUR D'EXERCICE -->
       <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
         <h2 class="text-base font-semibold text-slate-700 flex items-center gap-2">
           ⚖️ Balance Générale des Comptes
@@ -139,7 +158,6 @@ function renderBalanceUI(transactions = []) {
         </div>
       </div>
 
-      <!-- TABLEAU DES COMPTES -->
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-left border-collapse">
           <thead>
@@ -156,7 +174,7 @@ function renderBalanceUI(transactions = []) {
             ${comptes.length === 0 ? `
               <tr>
                 <td colspan="6" class="py-8 text-center text-slate-400 italic">
-                  Aucun mouvement enregistré pour l'exercice ${anneeActive}.
+                  Aucun mouvement trouvé pour l'exercice ${anneeActive}.
                 </td>
               </tr>
             ` : comptes.map(c => `
@@ -181,50 +199,36 @@ function renderBalanceUI(transactions = []) {
           </tfoot>
         </table>
       </div>
-
     </div>
   `;
 }
 
 function changerAnneeBalance(nouvelleAnnee) {
   window.anneeBalanceSelectionnee = parseInt(nouvelleAnnee, 10);
-  window.actualiserBalance();
+  renderBalanceUI();
 }
 
-window.actualiserBalance = function() {
-  const transactions = window.transactionsBalanceCache || 
-                     window.listeTransactions || 
-                     window.state?.transactions || 
-                     window.appData?.transactions || [];
-  renderBalanceUI(transactions);
-};
-
 async function initBalanceModule() {
-  let transactions = window.listeTransactions || window.state?.transactions || window.appData?.transactions || [];
-
-  if ((!transactions || transactions.length === 0) && window.supabaseClient) {
+  if (window.supabaseClient) {
     try {
       const { data } = await window.supabaseClient.from('transactions').select('*');
-      if (data && data.length > 0) transactions = data;
-    } catch (e) {
-      console.warn("Supabase non disponible.");
-    }
+      if (data && data.length > 0) {
+        window.transactionsBalanceCache = data;
+      }
+    } catch (e) {}
   }
-
-  renderBalanceUI(transactions);
+  renderBalanceUI();
 }
 
 window.initBalanceModule = initBalanceModule;
 window.initBalance = initBalanceModule;
 window.changerAnneeBalance = changerAnneeBalance;
+window.actualiserBalance = renderBalanceUI;
 
-if (!window.balanceListenerActive) {
-  document.addEventListener('click', (e) => {
-    if (e.target && e.target.innerText && e.target.innerText.includes('Balance')) {
-      setTimeout(initBalanceModule, 50);
-    }
-  });
-  window.balanceListenerActive = true;
-}
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.innerText && e.target.innerText.includes('Balance')) {
+    setTimeout(initBalanceModule, 80);
+  }
+});
 
 document.addEventListener('DOMContentLoaded', initBalanceModule);
