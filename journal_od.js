@@ -1,4 +1,4 @@
-// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs, modification et suppression
+// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs, modification et suppression[cite: 9]
 
 (function () {
     function getSupabase() {
@@ -65,13 +65,11 @@
             return;
         }
 
-        // Upload du fichier si présent
         let fileData = null;
         if (fileInput && fileInput.files && fileInput.files[0]) {
             fileData = await uploaderJustificatif(fileInput.files[0]);
         }
 
-        // 1. Insertion de la transaction parent
         const payloadParent = {
             date: dateVal,
             type: 'od',
@@ -96,7 +94,6 @@
 
         const realTransactionId = parentData[0].id;
 
-        // 2. Insertion des lignes Débit et Crédit liées
         const ligneDebit = {
             transaction_id: realTransactionId,
             date: dateVal,
@@ -222,11 +219,9 @@
 
         try {
             if (transactionId) {
-                // Suppression en cascade via la transaction parent
                 await supabase.from('ecritures_comptables').delete().eq('transaction_id', transactionId);
                 await supabase.from('transactions').delete().eq('id', transactionId);
             } else {
-                // Suppression simple de l'écriture si pas de transaction parent
                 await supabase.from('ecritures_comptables').delete().eq('id', ecritureId);
             }
 
@@ -251,10 +246,23 @@
                 return;
             }
 
-            document.getElementById('edit-id').value = data.id;
-            document.getElementById('edit-date').value = data.date || '';
-            document.getElementById('edit-description').value = data.description || '';
-            document.getElementById('edit-montant').value = data.debit || data.credit || 0;
+            const editId = document.getElementById('edit-id');
+            const editTransId = document.getElementById('edit-transaction-id');
+            const editDate = document.getElementById('edit-date');
+            const editDesc = document.getElementById('edit-description');
+            const editMontant = document.getElementById('edit-montant');
+            const editType = document.getElementById('edit-type');
+            const editCat = document.getElementById('edit-categorie');
+            const editFile = document.getElementById('edit-file');
+
+            if (editId) editId.value = data.id;
+            if (editTransId) editTransId.value = data.transaction_id || '';
+            if (editDate) editDate.value = data.date || '';
+            if (editDesc) editDesc.value = data.description || '';
+            if (editMontant) editMontant.value = data.debit || data.credit || 0;
+            if (editCat) editCat.value = data.compte_libelle || data.category || '';
+            if (editType) editType.value = (parseFloat(data.credit) > 0) ? 'Recette' : 'Dépense';
+            if (editFile) editFile.value = '';
 
             const modal = document.getElementById('modal-modifier');
             if (modal) modal.style.display = 'flex';
