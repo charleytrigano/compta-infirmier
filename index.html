@@ -391,6 +391,7 @@
                         <th style="text-align: right;">Débit</th>
                         <th style="text-align: right;">Crédit</th>
                         <th style="text-align: center;">Justificatif</th>
+                        <th style="text-align: center;">Action</th>
                     </tr>
                 </thead>
                 <tbody id="body-tableau-od"></tbody>
@@ -504,42 +505,50 @@
     <div id="modal-modifier" class="modal-overlay">
         <div class="modal-content">
             <h3 style="margin-top:0;">✏️ Modifier l'opération</h3>
-            <input type="hidden" id="edit-id">
+            <form id="form-modifier-operation" onsubmit="window.enregistrerModificationOD(event)">
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="edit-transaction-id">
 
-            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
-                <div class="form-group">
-                    <label for="edit-date" class="text-xs font-semibold text-slate-600">Date</label>
-                    <input type="date" id="edit-date" class="form-control">
+                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
+                    <div class="form-group">
+                        <label for="edit-date" class="text-xs font-semibold text-slate-600">Date</label>
+                        <input type="date" id="edit-date" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-type" class="text-xs font-semibold text-slate-600">Type</label>
+                        <select id="edit-type" class="form-control">
+                            <option value="Recette">Recette</option>
+                            <option value="Dépense">Dépense</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-categorie" class="text-xs font-semibold text-slate-600">Catégorie</label>
+                        <input type="text" id="edit-categorie" class="form-control">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-description" class="text-xs font-semibold text-slate-600">Description</label>
+                        <input type="text" id="edit-description" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-montant" class="text-xs font-semibold text-slate-600">Montant (€)</label>
+                        <input type="number" step="0.01" id="edit-montant" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-file" class="text-xs font-semibold text-slate-600">📷 Scan / Justificatif (optionnel)</label>
+                        <input type="file" id="edit-file" accept="image/*,application/pdf" class="form-control text-xs">
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="edit-type" class="text-xs font-semibold text-slate-600">Type</label>
-                    <select id="edit-type" class="form-control">
-                        <option value="Recette">Recette</option>
-                        <option value="Dépense">Dépense</option>
-                    </select>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-primary h-[38px]" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
+                    <button type="submit" class="btn-primary h-[38px]">Enregistrer</button>
                 </div>
-
-                <div class="form-group">
-                    <label for="edit-categorie" class="text-xs font-semibold text-slate-600">Catégorie</label>
-                    <input type="text" id="edit-categorie" class="form-control">
-                </div>
-
-                <div class="form-group">
-                    <label for="edit-description" class="text-xs font-semibold text-slate-600">Description</label>
-                    <input type="text" id="edit-description" class="form-control">
-                </div>
-
-                <div class="form-group">
-                    <label for="edit-montant" class="text-xs font-semibold text-slate-600">Montant (€)</label>
-                    <input type="number" step="0.01" id="edit-montant" class="form-control">
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" class="btn-primary h-[38px]" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
-                <button type="button" class="btn-primary h-[38px]" onclick="window.sauvegarderModification()">Enregistrer</button>
-            </div>
+            </form>
         </div>
     </div>
 
