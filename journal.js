@@ -1,7 +1,6 @@
-// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" basée sur ecritures_comptables
+// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" avec affichage des scans
 
 (function () {
-    // Variable d'année globale par défaut (année en cours)
     window.anneeJournalSelectionnee = window.anneeJournalSelectionnee || new Date().getFullYear().toString();
 
     function getSupabase() {
@@ -14,7 +13,6 @@
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
     }
 
-    // Helper pour générer l'élément HTML du sélecteur d'année
     function injecterSelecteurAnnee(annees, idConteneur, idSelect) {
         let conteneur = document.getElementById(idConteneur);
         if (!conteneur) return;
@@ -33,22 +31,17 @@
         `;
     }
 
-    // Noms des mois en français
     const MOIS_NOMS = [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
 
-    // ==========================================
-    // 1. VUE TRANSACTIONS (Historique condensé des opérations)
-    // ==========================================
     async function chargerHistoriqueTransactions() {
         const vueTrans = document.getElementById('vue-transactions') || document.querySelector('[data-view="transactions"]');
         const tbody = document.getElementById('body-tableau-transactions') || (vueTrans ? vueTrans.querySelector('tbody') : null);
 
         if (!tbody) return;
 
-        // Préparation de l'emplacement du filtre
         if (!document.getElementById('filtre-annee-trans-container') && tbody.parentElement) {
             const divFiltre = document.createElement('div');
             divFiltre.id = 'filtre-annee-trans-container';
@@ -57,7 +50,7 @@
 
         const supabase = getSupabase();
         if (!supabase) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : Client Supabase non connecté.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : Client Supabase non connecté.</td></tr>`;
             return;
         }
 
@@ -68,16 +61,29 @@
                 .order('date', { ascending: false });
 
             if (error) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${error.message}</td></tr>`;
                 return;
             }
 
             if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune écriture enregistrée.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune écriture enregistrée.</td></tr>`;
                 return;
             }
 
-            // Gestion des années disponibles
+            // Charger les justificatifs depuis transactions
+            const transIds = Array.from(new Set(data.map(e => e.transaction_id).filter(Boolean)));
+            let transMap = new Map();
+            if (transIds.length > 0) {
+                const { data: transData } = await supabase
+                    .from('transactions')
+                    .select('id, justificatif_url, file_path')
+                    .in('id', transIds);
+
+                if (transData) {
+                    transData.forEach(t => transMap.set(t.id, t));
+                }
+            }
+
             const anneesDispo = Array.from(new Set(data.map(e => e.date ? new Date(e.date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => b - a);
             if (anneesDispo.length > 0 && !anneesDispo.includes(window.anneeJournalSelectionnee)) {
                 window.anneeJournalSelectionnee = anneesDispo[0];
@@ -85,15 +91,13 @@
 
             injecterSelecteurAnnee(anneesDispo.length > 0 ? anneesDispo : [window.anneeJournalSelectionnee], 'filtre-annee-trans-container', 'select-annee-trans');
 
-            // Filtrage des données par année
             const dataFiltree = data.filter(e => e.date && new Date(e.date).getFullYear().toString() === window.anneeJournalSelectionnee);
 
             if (dataFiltree.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune transaction pour l'année ${window.anneeJournalSelectionnee}.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune transaction pour l'année ${window.anneeJournalSelectionnee}.</td></tr>`;
                 return;
             }
 
-            // Regroupement par transaction_id
             const transactionsMap = new Map();
 
             dataFiltree.forEach(row => {
@@ -103,6 +107,7 @@
 
                 if (!transactionsMap.has(key)) {
                     const isRecette = credit > 0 || (row.compte_code && row.compte_code.startsWith('7'));
+                    const trans = transMap.get(row.transaction_id);
                     transactionsMap.set(key, {
                         id: row.id,
                         transaction_id: row.transaction_id,
@@ -110,7 +115,8 @@
                         type: isRecette ? 'Recette' : 'Dépense',
                         categorie: row.compte_libelle || row.category || row.compte_code || 'Général',
                         description: row.description || '-',
-                        montant: debit || credit
+                        montant: debit || credit,
+                        justificatifUrl: trans ? trans.justificatif_url : null
                     });
                 }
             });
@@ -123,6 +129,10 @@
                     ? `<span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">Recette</span>`
                     : `<span style="background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">Dépense</span>`;
 
+                const justifLink = t.justificatifUrl
+                    ? `<a href="${t.justificatifUrl}" target="_blank" style="color: #2563eb; text-decoration: none;">📎 Scan</a>`
+                    : `<span style="color: #cbd5e1;">-</span>`;
+
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; color: #334155;">${t.date || '-'}</td>
@@ -132,6 +142,7 @@
                         <td style="padding: 10px; text-align: right; font-weight: 600; color: ${isRecette ? '#16a34a' : '#dc2626'};">
                             ${formatEuro(t.montant)}
                         </td>
+                        <td style="padding: 10px; text-align: center;">${justifLink}</td>
                         <td style="padding: 10px; text-align: center;">
                             <button onclick="window.supprimerTransaction('${t.id}', '${t.transaction_id}')" style="background: none; border: none; color: #ef4444; cursor: pointer;" title="Supprimer">🗑️</button>
                         </td>
@@ -142,7 +153,7 @@
             tbody.innerHTML = html;
 
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${err.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${err.message}</td></tr>`;
         }
     }
 
@@ -168,16 +179,12 @@
         }
     }
 
-    // ==========================================
-    // 2. VUE JOURNAL GENERAL (Lignes comptables détaillées + Totaux)
-    // ==========================================
     async function chargerJournalGeneral() {
         const vueJournal = document.getElementById('vue-journal') || document.querySelector('[data-view="journal"]') || document.querySelector('[id*="journal"]');
         const tbody = document.getElementById('body-tableau-journal') || (vueJournal ? vueJournal.querySelector('tbody') : null);
 
         if (!tbody) return;
 
-        // Préparation de l'emplacement du filtre
         if (!document.getElementById('filtre-annee-journal-container') && tbody.parentElement) {
             const divFiltre = document.createElement('div');
             divFiltre.id = 'filtre-annee-journal-container';
@@ -206,7 +213,6 @@
                 return;
             }
 
-            // Gestion des années disponibles
             const anneesDispo = Array.from(new Set(data.map(e => e.date ? new Date(e.date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => b - a);
             if (anneesDispo.length > 0 && !anneesDispo.includes(window.anneeJournalSelectionnee)) {
                 window.anneeJournalSelectionnee = anneesDispo[0];
@@ -214,7 +220,6 @@
 
             injecterSelecteurAnnee(anneesDispo.length > 0 ? anneesDispo : [window.anneeJournalSelectionnee], 'filtre-annee-journal-container', 'select-annee-journ');
 
-            // Filtrage des données par année
             const dataFiltree = data.filter(e => e.date && new Date(e.date).getFullYear().toString() === window.anneeJournalSelectionnee);
 
             if (dataFiltree.length === 0) {
@@ -222,7 +227,6 @@
                 return;
             }
 
-            // Regroupement par Mois (Clé: "YYYY-MM")
             const ecrituresParMois = new Map();
 
             dataFiltree.forEach(row => {
@@ -244,7 +248,6 @@
             let totalGeneralDebit = 0;
             let totalGeneralCredit = 0;
 
-            // Parcours des mois triés (du plus récent au plus ancien)
             const moisClesTries = Array.from(ecrituresParMois.keys()).sort().reverse();
 
             moisClesTries.forEach(key => {
@@ -252,7 +255,6 @@
                 let totalMoisDebit = 0;
                 let totalMoisCredit = 0;
 
-                // En-tête du mois
                 html += `
                     <tr style="background: #f1f5f9; font-weight: 700;">
                         <td colspan="6" style="padding: 10px 12px; color: #1e293b; font-size: 0.95rem; border-top: 2px solid #cbd5e1;">
@@ -261,7 +263,6 @@
                     </tr>
                 `;
 
-                // Lignes d'écritures du mois
                 groupe.rows.forEach(row => {
                     const debit = parseFloat(row.debit || 0);
                     const credit = parseFloat(row.credit || 0);
@@ -291,7 +292,6 @@
                 const soldeMois = totalMoisCredit - totalMoisDebit;
                 const couleurSoldeMois = soldeMois >= 0 ? '#16a34a' : '#dc2626';
 
-                // Sous-total du mois
                 html += `
                     <tr style="background: #f8fafc; font-weight: 700; border-bottom: 2px solid #e2e8f0;">
                         <td colspan="3" style="padding: 10px; text-align: right; color: #475569;">
@@ -305,9 +305,7 @@
             });
 
             const soldeGeneral = totalGeneralCredit - totalGeneralDebit;
-            const couleurSoldeGeneral = soldeGeneral >= 0 ? '#15803d' : '#b91c1c';
 
-            // Ligne du Total Général de l'année
             html += `
                 <tr style="background: #1e293b; color: white; font-weight: 800; font-size: 0.95rem;">
                     <td colspan="3" style="padding: 12px; text-align: right; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -326,14 +324,12 @@
         }
     }
 
-    // Fonction globale pour réagir au changement d'année dans le menu déroulant
     window.changerAnneeJournal = function (annee) {
         window.anneeJournalSelectionnee = String(annee);
         chargerHistoriqueTransactions();
         chargerJournalGeneral();
     };
 
-    // Expositions globales
     window.chargerHistoriqueTransactions = chargerHistoriqueTransactions;
     window.chargerTransactions = chargerHistoriqueTransactions;
     window.supprimerTransaction = supprimerTransaction;
