@@ -305,6 +305,11 @@
                     <input type="number" step="0.01" id="pay-montant" class="form-control" placeholder="0.00" required>
                 </div>
 
+                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
+                    <label for="pay-justificatif" class="text-xs font-semibold text-slate-600 truncate">📷 Scan / Justificatif</label>
+                    <input type="file" id="pay-justificatif" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
+                </div>
+
                 <button type="submit" class="btn-primary h-[38px] whitespace-nowrap px-4 font-semibold text-sm self-end" style="background-color: #059669;">
                     💳 Valider le paiement
                 </button>
@@ -320,6 +325,7 @@
                         <th>Description</th>
                         <th style="color:#dc2626;">Débit (-)</th>
                         <th style="color:#16a34a;">Crédit (+)</th>
+                        <th>Justificatif</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -364,6 +370,10 @@
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Montant (€) *</label>
                         <input type="number" step="0.01" id="od-montant" class="form-control" placeholder="0.00" required>
                     </div>
+                    <div class="w-48">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">📷 Scan / Justificatif</label>
+                        <input type="file" id="od-file" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
+                    </div>
                     <button type="submit" class="btn-primary h-[38px] whitespace-nowrap">
                         + Valider l'OD
                     </button>
@@ -380,6 +390,7 @@
                         <th>Description</th>
                         <th style="text-align: right;">Débit</th>
                         <th style="text-align: right;">Crédit</th>
+                        <th style="text-align: center;">Justificatif</th>
                     </tr>
                 </thead>
                 <tbody id="body-tableau-od"></tbody>
@@ -420,7 +431,7 @@
             <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; background: #ffffff; margin-top: 15px;">
                 <h3 style="margin-top: 0; color: #1e293b; font-size: 1.1rem; font-weight: 700;">🔒 Sécurité & Exportation Globale</h3>
                 <p style="color: #475569; font-size: 0.9rem; margin-bottom: 20px;">
-                    Téléchargez une sauvegarde instantanée de l'ensemble de vos 7 tables Supabase (écritures, plan comptable, déclarations, documents, profils...) directement sur votre appareil.
+                    Téléchargez une sauvegarde instantanée de l'ensemble de vos tables Supabase directement sur votre appareil.
                 </p>
                 <button onclick="window.exporterSauvegardeGlobale()" class="btn-primary" style="background-color: #0f172a; padding: 10px 20px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;">
                     📦 Télécharger la Sauvegarde Globale (Supabase)
@@ -536,7 +547,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
 
-    <!-- EXPORTATION ROBUSTE DES 7 TABLES SUPABASE -->
+    <!-- EXPORTATION ROBUSTE DES TABLES SUPABASE -->
     <script>
         window.exporterSauvegardeGlobale = async function() {
             const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
@@ -549,7 +560,6 @@
             const tables = [
                 'attachments',
                 'declarations',
-                'documents',
                 'ecritures_comptables',
                 'plan_comptable',
                 'profile',
@@ -561,7 +571,6 @@
                 tables: {}
             };
 
-            // Traitement séquentiel avec isolation des erreurs table par table
             for (const table of tables) {
                 try {
                     const { data, error } = await supabase.from(table).select('*');
@@ -588,10 +597,8 @@
             URL.revokeObjectURL(url);
         };
 
-        // Initialisation globale
         window.transactions = window.transactions || [];
 
-        // Gestionnaire d'onglets dynamique
         window.switchTab = function(tabId, btnElement) {
             var sections = document.querySelectorAll('.view-section');
             sections.forEach(function(sec) { sec.classList.remove('active'); });
@@ -604,7 +611,6 @@
 
             if (btnElement) { btnElement.classList.add('active'); }
 
-            // Déclencheurs spécifiques aux modules
             if (tabId === 'vue-od' && typeof window.chargerJournalOD === 'function') window.chargerJournalOD();
             if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') window.afficherPlanComptable();
             if (tabId === 'vue-urssaf' && typeof window.afficherDeclarationURSSAF === 'function') window.afficherDeclarationURSSAF();
@@ -624,7 +630,6 @@
             if (modal) modal.style.display = 'none';
         };
 
-        // Chargement initial
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
         });
