@@ -416,9 +416,17 @@
 
         <!-- VUE 7 : SAUVEGARDE & EXPERT -->
         <section id="vue-export" class="view-section">
-            <div id="export-container">
-                <p style="color: #64748b;">Chargement du module d'exportation...</p>
+            <h2>📁 Sauvegarde & Exportation des Données</h2>
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; background: #ffffff; margin-top: 15px;">
+                <h3 style="margin-top: 0; color: #1e293b; font-size: 1.1rem; font-weight: 700;">🔒 Sécurité & Exportation Globale</h3>
+                <p style="color: #475569; font-size: 0.9rem; margin-bottom: 20px;">
+                    Téléchargez une sauvegarde instantanée de l'ensemble de vos tables Supabase (écritures, plan comptable, déclarations, documents, profils...) directement sur votre appareil.
+                </p>
+                <button onclick="window.exporterSauvegardeGlobale()" class="btn-primary" style="background-color: #0f172a; padding: 10px 20px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;">
+                    📦 Télécharger la Sauvegarde Globale (Supabase)
+                </button>
             </div>
+            <div id="export-container" style="margin-top: 20px;"></div>
         </section>
 
         <!-- VUE 8 : BILAN & COMPTE D'EXPLOITATION -->
@@ -528,7 +536,60 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
 
+    <!-- FONCTION D'EXPORTATION GLOBALE DE TOUTES LES TABLES SUPABASE -->
     <script>
+        window.exporterSauvegardeGlobale = async function() {
+            const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
+            
+            if (!supabase) {
+                alert("Erreur : Connexion à Supabase non disponible.");
+                return;
+            }
+
+            // Les 7 tables identifiées sur ton projet Supabase
+            const tables = [
+                'attachments',
+                'declarations',
+                'documents',
+                'ecritures_comptables',
+                'plan_comptable',
+                'profile',
+                'transactions'
+            ];
+
+            const sauvegarde = {
+                date_export: new Date().toISOString(),
+                tables: {}
+            };
+
+            try {
+                // Récupération simultanée de l'intégralité des 7 tables
+                await Promise.all(tables.map(async (table) => {
+                    const { data, error } = await supabase.from(table).select('*');
+                    if (error) {
+                        console.warn(`Impossible d'exporter la table ${table}:`, error.message);
+                        sauvegarde.tables[table] = [];
+                    } else {
+                        sauvegarde.tables[table] = data || [];
+                    }
+                }));
+
+                const blob = new Blob([JSON.stringify(sauvegarde, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sauvegarde_comptable_complete_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+            } catch (err) {
+                console.error("Erreur lors de l'exportation globale :", err);
+                alert("Erreur lors de la génération de la sauvegarde globale.");
+            }
+        };
+
         // Initialisation globale
         window.transactions = window.transactions || [];
 
@@ -573,6 +634,7 @@
 
     <!-- SCRIPTS APPLICATIFS MODULES -->
     <script src="transactions.js"></script>
+    <script src="exercice.js"></script>
     <script src="journal_od.js"></script>
     <script src="bilan.js"></script>
     <script src="declaration2035.js"></script>
@@ -585,12 +647,6 @@
     <script src="grand-livre.js"></script>
     <script src="balance.js"></script>
     <script src="profil.js"></script>
-
-    <!-- SCRIPTS APPLICATIFS MODULES -->
-    <script src="transactions.js"></script>
-    <script src="exercice.js"></script> <!-- Ajouté ici -->
-    <script src="journal_od.js"></script>
-    ...
 
 </body>
 </html>
