@@ -420,7 +420,7 @@
             <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; background: #ffffff; margin-top: 15px;">
                 <h3 style="margin-top: 0; color: #1e293b; font-size: 1.1rem; font-weight: 700;">🔒 Sécurité & Exportation Globale</h3>
                 <p style="color: #475569; font-size: 0.9rem; margin-bottom: 20px;">
-                    Téléchargez une sauvegarde instantanée de l'ensemble de vos tables Supabase (écritures, plan comptable, déclarations, documents, profils...) directement sur votre appareil.
+                    Téléchargez une sauvegarde instantanée de l'ensemble de vos 7 tables Supabase (écritures, plan comptable, déclarations, documents, profils...) directement sur votre appareil.
                 </p>
                 <button onclick="window.exporterSauvegardeGlobale()" class="btn-primary" style="background-color: #0f172a; padding: 10px 20px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;">
                     📦 Télécharger la Sauvegarde Globale (Supabase)
@@ -536,7 +536,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
 
-    <!-- FONCTION D'EXPORTATION GLOBALE DE TOUTES LES TABLES SUPABASE -->
+    <!-- EXPORTATION ROBUSTE DES 7 TABLES SUPABASE -->
     <script>
         window.exporterSauvegardeGlobale = async function() {
             const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
@@ -546,7 +546,6 @@
                 return;
             }
 
-            // Les 7 tables identifiées sur ton projet Supabase
             const tables = [
                 'attachments',
                 'declarations',
@@ -562,32 +561,31 @@
                 tables: {}
             };
 
-            try {
-                // Récupération simultanée de l'intégralité des 7 tables
-                await Promise.all(tables.map(async (table) => {
+            // Traitement séquentiel avec isolation des erreurs table par table
+            for (const table of tables) {
+                try {
                     const { data, error } = await supabase.from(table).select('*');
                     if (error) {
-                        console.warn(`Impossible d'exporter la table ${table}:`, error.message);
+                        console.warn(`Erreur lors de la récupération de la table ${table}:`, error.message);
                         sauvegarde.tables[table] = [];
                     } else {
                         sauvegarde.tables[table] = data || [];
                     }
-                }));
-
-                const blob = new Blob([JSON.stringify(sauvegarde, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `sauvegarde_comptable_complete_${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-            } catch (err) {
-                console.error("Erreur lors de l'exportation globale :", err);
-                alert("Erreur lors de la génération de la sauvegarde globale.");
+                } catch (err) {
+                    console.error(`Exception sur la table ${table}:`, err);
+                    sauvegarde.tables[table] = [];
+                }
             }
+
+            const blob = new Blob([JSON.stringify(sauvegarde, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sauvegarde_compta_complete_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         };
 
         // Initialisation globale
