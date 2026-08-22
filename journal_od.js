@@ -1,4 +1,4 @@
-// journal_od.js - Gestion du Journal d'Opérations Diverses (OD)
+// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs
 
 (function () {
     function getSupabase() {
@@ -7,6 +7,34 @@
 
     function formatEuro(amount) {
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
+    }
+
+    async function uploaderJustificatif(file) {
+        const supabase = getSupabase();
+        if (!supabase || !file) return null;
+
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('justificatifs')
+            .upload(filePath, file);
+
+        if (uploadError) {
+            console.error("Erreur d'upload :", uploadError.message);
+            alert("Erreur lors de l'envoi du justificatif : " + uploadError.message);
+            return null;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+            .from('justificatifs')
+            .getPublicUrl(filePath);
+
+        return {
+            filePath: filePath,
+            publicUrl: publicUrlData ? publicUrlData.publicUrl : null
+        };
     }
 
     async function enregistrerEcritureOD(e) {
@@ -19,6 +47,7 @@
         const libelleCompteCredit = document.getElementById('od-libelle-credit')?.value.trim() || `Compte ${compteCredit}`;
         const libelleVal = document.getElementById('od-description')?.value.trim();
         const montantVal = parseFloat(document.getElementById('od-montant')?.value);
+        const fileInput = document.getElementById('od-file') || document.getElementById('od-scan');
 
         if (!dateVal || !compteDebit || !compteCredit || isNaN(montantVal) || montantVal <= 0) {
             alert("Veuillez remplir correctement la date, les deux comptes et un montant valide supérieur à 0.");
@@ -36,7 +65,13 @@
             return;
         }
 
-        // 1. Insertion de la transaction parent et récupération de l'UUID attribué par Supabase
+        // Upload du fichier si présent
+        let fileData = null;
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+            fileData = await uploaderJustificatif(fileInput.files[0]);
+        }
+
+        // 1. Insertion de la transaction parent
         const payloadParent = {
             date: dateVal,
             type: 'od',
@@ -44,7 +79,9 @@
             journal: 'OD',
             description: libelleVal || 'Écriture OD',
             amount: montantVal,
-            has_attachments: false
+            has_attachments: !!fileData,
+            file_path: fileData ? fileData.filePath : null,
+            justificatif_url: fileData ? fileData.publicUrl : null
         };
 
         const { data: parentData, error: parentError } = await supabase
@@ -95,8 +132,8 @@
             const montantEl = document.getElementById('od-montant');
             if (descEl) descEl.value = '';
             if (montantEl) montantEl.value = '';
+            if (fileInput) fileInput.value = '';
             
-            // Actualisation du journal OD et du Grand Livre instantanément
             await chargerJournalOD();
             if (typeof window.chargerGrandLivre === 'function') {
                 await window.chargerGrandLivre();
@@ -114,7 +151,8 @@
         if (!supabase) return;
 
         try {
-            const { data, error } = await supabase
+            // Récupération des écritures avec jointure éventuelle sur transactions
+            const { data: ecritures, error } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
                 .eq('category', 'Opération Diverse')
@@ -125,14 +163,34 @@
                 return;
             }
 
-            if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune écriture d'opération diverse enregistrée.</td></tr>`;
+            if (!ecritures || ecritures.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune écriture d'opération diverse enregistrée.</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = data.map(row => {
+            // Récupération des URLs de justificatifs depuis transactions
+            const transIds = Array.from(new Set(ecritures.map(e => e.transaction_id).filter(Boolean)));
+            let transMap = new Map();
+            if (transIds.length > 0) {
+                const { data: transData } = await supabase
+                    .from('transactions')
+                    .select('id, justificatif_url, file_path')
+                    .in('id', transIds);
+
+                if (transData) {
+                    transData.forEach(t => transMap.set(t.id, t));
+                }
+            }
+
+            tbody.innerHTML = ecritures.map(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
+                const trans = transMap.get(row.transaction_id);
+                const justifUrl = trans ? trans.justificatif_url : null;
+
+                const justifBtn = justifUrl
+                    ? `<a href="${justifUrl}" target="_blank" style="color: #2563eb; text-decoration: none;" title="Voir le justificatif">📎 Scan</a>`
+                    : `<span style="color: #cbd5e1;">-</span>`;
 
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
@@ -142,6 +200,7 @@
                         <td style="padding: 10px; color: #1e293b;">${row.description || '-'}</td>
                         <td style="padding: 10px; color: #2563eb; font-weight: 600; text-align: right;">${debit > 0 ? formatEuro(debit) : '-'}</td>
                         <td style="padding: 10px; color: #dc2626; font-weight: 600; text-align: right;">${credit > 0 ? formatEuro(credit) : '-'}</td>
+                        <td style="padding: 10px; text-align: center;">${justifBtn}</td>
                     </tr>
                 `;
             }).join('');
