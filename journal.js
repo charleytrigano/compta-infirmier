@@ -1,6 +1,9 @@
 // journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" basée sur ecritures_comptables
 
 (function () {
+    // Variable d'année globale par défaut (année en cours)
+    window.anneeJournalSelectionnee = window.anneeJournalSelectionnee || new Date().getFullYear().toString();
+
     function getSupabase() {
         return window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     }
@@ -8,6 +11,25 @@
     function formatEuro(amount) {
         if (!amount || amount === 0) return '-';
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+    }
+
+    // Helper pour générer l'élément HTML du sélecteur d'année
+    function injecterSelecteurAnnee(annees, idConteneur, idSelect) {
+        let conteneur = document.getElementById(idConteneur);
+        if (!conteneur) return;
+
+        const options = annees.map(a => 
+            `<option value="${a}" ${a === window.anneeJournalSelectionnee ? 'selected' : ''}>${a}</option>`
+        ).join('');
+
+        conteneur.innerHTML = `
+            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 12px; background: #f8fafc; padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <label for="${idSelect}" style="font-size: 0.85rem; font-weight: 700; color: #475569;">Exercice :</label>
+                <select id="${idSelect}" onchange="window.changerAnneeJournal(this.value)" style="background: white; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a; padding: 3px 8px; border-radius: 4px; cursor: pointer; outline: none;">
+                    ${options}
+                </select>
+            </div>
+        `;
     }
 
     // ==========================================
@@ -18,6 +40,13 @@
         const tbody = document.getElementById('body-tableau-transactions') || (vueTrans ? vueTrans.querySelector('tbody') : null);
 
         if (!tbody) return;
+
+        // Préparation de l'emplacement du filtre
+        if (!document.getElementById('filtre-annee-trans-container') && tbody.parentElement) {
+            const divFiltre = document.createElement('div');
+            divFiltre.id = 'filtre-annee-trans-container';
+            tbody.parentElement.parentElement.insertBefore(divFiltre, tbody.parentElement);
+        }
 
         const supabase = getSupabase();
         if (!supabase) {
@@ -41,10 +70,26 @@
                 return;
             }
 
+            // Gestion des années disponibles
+            const anneesDispo = Array.from(new Set(data.map(e => e.date ? new Date(e.date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => b - a);
+            if (anneesDispo.length > 0 && !anneesDispo.includes(window.anneeJournalSelectionnee)) {
+                window.anneeJournalSelectionnee = anneesDispo[0];
+            }
+
+            injecterSelecteurAnnee(anneesDispo.length > 0 ? anneesDispo : [window.anneeJournalSelectionnee], 'filtre-annee-trans-container', 'select-annee-trans');
+
+            // Filtrage des données par année
+            const dataFiltree = data.filter(e => e.date && new Date(e.date).getFullYear().toString() === window.anneeJournalSelectionnee);
+
+            if (dataFiltree.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune transaction pour l'année ${window.anneeJournalSelectionnee}.</td></tr>`;
+                return;
+            }
+
             // Regroupement par transaction_id
             const transactionsMap = new Map();
 
-            data.forEach(row => {
+            dataFiltree.forEach(row => {
                 const key = row.transaction_id || row.id;
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
@@ -125,6 +170,13 @@
 
         if (!tbody) return;
 
+        // Préparation de l'emplacement du filtre
+        if (!document.getElementById('filtre-annee-journal-container') && tbody.parentElement) {
+            const divFiltre = document.createElement('div');
+            divFiltre.id = 'filtre-annee-journal-container';
+            tbody.parentElement.parentElement.insertBefore(divFiltre, tbody.parentElement);
+        }
+
         const supabase = getSupabase();
         if (!supabase) {
             tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : Client Supabase non initialisé.</td></tr>`;
@@ -147,7 +199,23 @@
                 return;
             }
 
-            const html = data.map(row => {
+            // Gestion des années disponibles
+            const anneesDispo = Array.from(new Set(data.map(e => e.date ? new Date(e.date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => b - a);
+            if (anneesDispo.length > 0 && !anneesDispo.includes(window.anneeJournalSelectionnee)) {
+                window.anneeJournalSelectionnee = anneesDispo[0];
+            }
+
+            injecterSelecteurAnnee(anneesDispo.length > 0 ? anneesDispo : [window.anneeJournalSelectionnee], 'filtre-annee-journal-container', 'select-annee-journ');
+
+            // Filtrage des données par année
+            const dataFiltree = data.filter(e => e.date && new Date(e.date).getFullYear().toString() === window.anneeJournalSelectionnee);
+
+            if (dataFiltree.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Aucune écriture pour l'année ${window.anneeJournalSelectionnee}.</td></tr>`;
+                return;
+            }
+
+            const html = dataFiltree.map(row => {
                 const debit = parseFloat(row.debit || 0);
                 const credit = parseFloat(row.credit || 0);
                 const compteCode = row.compte_code || '-';
@@ -173,6 +241,13 @@
             tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 15px;">Erreur : ${err.message}</td></tr>`;
         }
     }
+
+    // Fonction globale pour réagir au changement d'année dans le menu déroulant
+    window.changerAnneeJournal = function (annee) {
+        window.anneeJournalSelectionnee = String(annee);
+        chargerHistoriqueTransactions();
+        chargerJournalGeneral();
+    };
 
     // Expositions globales
     window.chargerHistoriqueTransactions = chargerHistoriqueTransactions;
