@@ -9,7 +9,8 @@
     }
 
     function formatEuro(amount) {
-        if (!amount || amount === 0) return '-';
+        if (amount === undefined || amount === null || isNaN(amount)) return '-';
+        if (amount === 0) return '0,00 €';
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
     }
 
@@ -31,6 +32,12 @@
             </div>
         `;
     }
+
+    // Noms des mois en français
+    const MOIS_NOMS = [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
 
     // ==========================================
     // 1. VUE TRANSACTIONS (Historique condensé des opérations)
@@ -162,7 +169,7 @@
     }
 
     // ==========================================
-    // 2. VUE JOURNAL GENERAL (Lignes comptables détaillées)
+    // 2. VUE JOURNAL GENERAL (Lignes comptables détaillées + Totaux)
     // ==========================================
     async function chargerJournalGeneral() {
         const vueJournal = document.getElementById('vue-journal') || document.querySelector('[data-view="journal"]') || document.querySelector('[id*="journal"]');
@@ -215,25 +222,102 @@
                 return;
             }
 
-            const html = dataFiltree.map(row => {
-                const debit = parseFloat(row.debit || 0);
-                const credit = parseFloat(row.credit || 0);
-                const compteCode = row.compte_code || '-';
-                const compteLibelle = row.compte_libelle || row.description || '-';
+            // Regroupement par Mois (Clé: "YYYY-MM")
+            const ecrituresParMois = new Map();
 
-                return `
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
-                        <td style="padding: 10px; color: #475569; font-weight: 600;">${compteCode}</td>
-                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${compteLibelle}</td>
-                        <td style="padding: 10px; color: #dc2626; text-align: right; font-weight: 500;">${formatEuro(debit)}</td>
-                        <td style="padding: 10px; color: #16a34a; text-align: right; font-weight: 500;">${formatEuro(credit)}</td>
-                        <td style="padding: 10px; text-align: center;">
-                            <span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">Validé</span>
+            dataFiltree.forEach(row => {
+                const dateObj = new Date(row.date);
+                const moisIndex = dateObj.getMonth();
+                const key = `${dateObj.getFullYear()}-${String(moisIndex + 1).padStart(2, '0')}`;
+
+                if (!ecrituresParMois.has(key)) {
+                    ecrituresParMois.set(key, {
+                        moisIndex: moisIndex,
+                        nomMois: MOIS_NOMS[moisIndex],
+                        rows: []
+                    });
+                }
+                ecrituresParMois.get(key).rows.push(row);
+            });
+
+            let html = '';
+            let totalGeneralDebit = 0;
+            let totalGeneralCredit = 0;
+
+            // Parcours des mois triés (du plus récent au plus ancien)
+            const moisClesTries = Array.from(ecrituresParMois.keys()).sort().reverse();
+
+            moisClesTries.forEach(key => {
+                const groupe = ecrituresParMois.get(key);
+                let totalMoisDebit = 0;
+                let totalMoisCredit = 0;
+
+                // En-tête du mois
+                html += `
+                    <tr style="background: #f1f5f9; font-weight: 700;">
+                        <td colspan="6" style="padding: 10px 12px; color: #1e293b; font-size: 0.95rem; border-top: 2px solid #cbd5e1;">
+                            📅 ${groupe.nomMois} ${window.anneeJournalSelectionnee}
                         </td>
                     </tr>
                 `;
-            }).join('');
+
+                // Lignes d'écritures du mois
+                groupe.rows.forEach(row => {
+                    const debit = parseFloat(row.debit || 0);
+                    const credit = parseFloat(row.credit || 0);
+                    const compteCode = row.compte_code || '-';
+                    const compteLibelle = row.compte_libelle || row.description || '-';
+
+                    totalMoisDebit += debit;
+                    totalMoisCredit += credit;
+
+                    html += `
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
+                            <td style="padding: 10px; color: #475569; font-weight: 600;">${compteCode}</td>
+                            <td style="padding: 10px; color: #1e293b; font-weight: 500;">${compteLibelle}</td>
+                            <td style="padding: 10px; color: #dc2626; text-align: right; font-weight: 500;">${formatEuro(debit)}</td>
+                            <td style="padding: 10px; color: #16a34a; text-align: right; font-weight: 500;">${formatEuro(credit)}</td>
+                            <td style="padding: 10px; text-align: center;">
+                                <span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">Validé</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                totalGeneralDebit += totalMoisDebit;
+                totalGeneralCredit += totalMoisCredit;
+
+                const soldeMois = totalMoisCredit - totalMoisDebit;
+                const couleurSoldeMois = soldeMois >= 0 ? '#16a34a' : '#dc2626';
+
+                // Sous-total du mois
+                html += `
+                    <tr style="background: #f8fafc; font-weight: 700; border-bottom: 2px solid #e2e8f0;">
+                        <td colspan="3" style="padding: 10px; text-align: right; color: #475569;">
+                            Total ${groupe.nomMois} (Solde : <span style="color: ${couleurSoldeMois}">${formatEuro(soldeMois)}</span>) :
+                        </td>
+                        <td style="padding: 10px; text-align: right; color: #b91c1c;">${formatEuro(totalMoisDebit)}</td>
+                        <td style="padding: 10px; text-align: right; color: #15803d;">${formatEuro(totalMoisCredit)}</td>
+                        <td></td>
+                    </tr>
+                `;
+            });
+
+            const soldeGeneral = totalGeneralCredit - totalGeneralDebit;
+            const couleurSoldeGeneral = soldeGeneral >= 0 ? '#15803d' : '#b91c1c';
+
+            // Ligne du Total Général de l'année
+            html += `
+                <tr style="background: #1e293b; color: white; font-weight: 800; font-size: 0.95rem;">
+                    <td colspan="3" style="padding: 12px; text-align: right; text-transform: uppercase; letter-spacing: 0.5px;">
+                        TOTAL GÉNÉRAL ${window.anneeJournalSelectionnee} (Solde : <span style="color: ${soldeGeneral >= 0 ? '#4ade80' : '#f87171'}">${formatEuro(soldeGeneral)}</span>) :
+                    </td>
+                    <td style="padding: 12px; text-align: right; color: #fca5a5;">${formatEuro(totalGeneralDebit)}</td>
+                    <td style="padding: 12px; text-align: right; color: #86efac;">${formatEuro(totalGeneralCredit)}</td>
+                    <td style="padding: 12px; text-align: center; color: #94a3b8; font-size: 0.8rem;">ANNÉE ${window.anneeJournalSelectionnee}</td>
+                </tr>
+            `;
 
             tbody.innerHTML = html;
 
