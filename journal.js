@@ -1,4 +1,4 @@
-// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" avec affichage des scans
+// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" avec affichage des scans, modification et suppression
 
 (function () {
     window.anneeJournalSelectionnee = window.anneeJournalSelectionnee || new Date().getFullYear().toString();
@@ -133,6 +133,8 @@
                     ? `<a href="${t.justificatifUrl}" target="_blank" style="color: #2563eb; text-decoration: none;">📎 Scan</a>`
                     : `<span style="color: #cbd5e1;">-</span>`;
 
+                const transIdStr = t.transaction_id ? `'${t.transaction_id}'` : 'null';
+
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; color: #334155;">${t.date || '-'}</td>
@@ -143,8 +145,9 @@
                             ${formatEuro(t.montant)}
                         </td>
                         <td style="padding: 10px; text-align: center;">${justifLink}</td>
-                        <td style="padding: 10px; text-align: center;">
-                            <button onclick="window.supprimerTransaction('${t.id}', '${t.transaction_id}')" style="background: none; border: none; color: #ef4444; cursor: pointer;" title="Supprimer">🗑️</button>
+                        <td style="padding: 10px; text-align: center; white-space: nowrap;">
+                            <button onclick="window.modifierTransaction('${t.id}', ${transIdStr})" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; margin-right: 6px;" title="Modifier">✏️</button>
+                            <button onclick="window.supprimerTransaction('${t.id}', ${transIdStr})" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.1rem;" title="Supprimer">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -157,6 +160,49 @@
         }
     }
 
+    async function modifierTransaction(id, transactionId) {
+        const supabase = getSupabase();
+        if (!supabase) return;
+
+        try {
+            // Si c'est une OD, tenter d'utiliser la modale OD si elle existe
+            if (typeof window.ouvrirModalModifierOD === 'function') {
+                const { data: testOd } = await supabase.from('ecritures_comptables').select('category').eq('id', id).single();
+                if (testOd && testOd.category === 'Opération Diverse') {
+                    window.ouvrirModalModifierOD(id);
+                    return;
+                }
+            }
+
+            // Sinon récupération standard pour la modale globale
+            const { data, error } = await supabase.from('ecritures_comptables').select('*').eq('id', id).single();
+            if (error || !data) {
+                alert("Impossible de charger la transaction à modifier.");
+                return;
+            }
+
+            const editId = document.getElementById('edit-id');
+            const editDate = document.getElementById('edit-date');
+            const editDesc = document.getElementById('edit-description');
+            const editMontant = document.getElementById('edit-montant');
+
+            if (editId) editId.value = data.id;
+            if (editDate) editDate.value = data.date || '';
+            if (editDesc) editDesc.value = data.description || '';
+            if (editMontant) editMontant.value = data.debit || data.credit || 0;
+
+            const modal = document.getElementById('modal-modifier');
+            if (modal) {
+                modal.style.display = 'flex';
+            } else {
+                alert("La fenêtre de modification (modal-modifier) est introuvable dans le HTML.");
+            }
+
+        } catch (err) {
+            console.error("Erreur lors de la modification :", err);
+        }
+    }
+
     async function supprimerTransaction(id, transactionId) {
         if (!confirm("Voulez-vous supprimer cette écriture comptable ?")) return;
 
@@ -164,8 +210,10 @@
         if (!supabase) return;
 
         let query = supabase.from('ecritures_comptables').delete();
-        if (transactionId && transactionId !== 'undefined' && transactionId !== '') {
+        if (transactionId && transactionId !== 'undefined' && transactionId !== 'null' && transactionId !== '') {
             query = query.eq('transaction_id', transactionId);
+            // Suppression facultative dans la table parent 'transactions'
+            await supabase.from('transactions').delete().eq('id', transactionId);
         } else {
             query = query.eq('id', id);
         }
@@ -332,6 +380,7 @@
 
     window.chargerHistoriqueTransactions = chargerHistoriqueTransactions;
     window.chargerTransactions = chargerHistoriqueTransactions;
+    window.modifierTransaction = modifierTransaction;
     window.supprimerTransaction = supprimerTransaction;
     window.chargerJournalGeneral = chargerJournalGeneral;
     window.chargerJournal = chargerJournalGeneral;
