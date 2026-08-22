@@ -1,4 +1,4 @@
-// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" avec affichage des scans, modification et suppression
+// journal.js - Gestion unifiée des vues "Transactions" et "Journal (Écritures)" avec affichage des scans, modification et suppression[cite: 8]
 
 (function () {
     window.anneeJournalSelectionnee = window.anneeJournalSelectionnee || new Date().getFullYear().toString();
@@ -165,7 +165,6 @@
         if (!supabase) return;
 
         try {
-            // Si c'est une OD, tenter d'utiliser la modale OD si elle existe
             if (typeof window.ouvrirModalModifierOD === 'function') {
                 const { data: testOd } = await supabase.from('ecritures_comptables').select('category').eq('id', id).single();
                 if (testOd && testOd.category === 'Opération Diverse') {
@@ -174,7 +173,6 @@
                 }
             }
 
-            // Sinon récupération standard pour la modale globale
             const { data, error } = await supabase.from('ecritures_comptables').select('*').eq('id', id).single();
             if (error || !data) {
                 alert("Impossible de charger la transaction à modifier.");
@@ -182,14 +180,22 @@
             }
 
             const editId = document.getElementById('edit-id');
+            const editTransId = document.getElementById('edit-transaction-id');
             const editDate = document.getElementById('edit-date');
             const editDesc = document.getElementById('edit-description');
             const editMontant = document.getElementById('edit-montant');
+            const editType = document.getElementById('edit-type');
+            const editCat = document.getElementById('edit-categorie');
+            const editFile = document.getElementById('edit-file');
 
-            if (editId) editId.value = data.id;
+            if (editId) editId.value = data.id || '';
+            if (editTransId) editTransId.value = transactionId || data.transaction_id || '';
             if (editDate) editDate.value = data.date || '';
             if (editDesc) editDesc.value = data.description || '';
             if (editMontant) editMontant.value = data.debit || data.credit || 0;
+            if (editCat) editCat.value = data.compte_libelle || data.category || '';
+            if (editType) editType.value = (parseFloat(data.credit) > 0) ? 'Recette' : 'Dépense';
+            if (editFile) editFile.value = '';
 
             const modal = document.getElementById('modal-modifier');
             if (modal) {
@@ -203,6 +209,100 @@
         }
     }
 
+    async function enregistrerModificationOD(e) {
+        if (e) e.preventDefault();
+
+        const supabase = getSupabase();
+        if (!supabase) return;
+
+        const id = document.getElementById('edit-id')?.value;
+        const transactionId = document.getElementById('edit-transaction-id')?.value;
+        const dateVal = document.getElementById('edit-date')?.value;
+        const descVal = document.getElementById('edit-description')?.value;
+        const montantVal = parseFloat(document.getElementById('edit-montant')?.value);
+        const typeVal = document.getElementById('edit-type')?.value;
+        const catVal = document.getElementById('edit-categorie')?.value;
+        const fileInput = document.getElementById('edit-file');
+
+        if (!id || !dateVal || isNaN(montantVal)) {
+            alert("Veuillez remplir correctement la date et le montant.");
+            return;
+        }
+
+        try {
+            let fileData = null;
+
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('justificatifs')
+                    .upload(fileName, file);
+
+                if (uploadError) {
+                    alert("Erreur d'upload du scan : " + uploadError.message);
+                    return;
+                }
+
+                const { data: publicUrlData } = supabase.storage
+                    .from('justificatifs')
+                    .getPublicUrl(fileName);
+
+                fileData = {
+                    filePath: fileName,
+                    publicUrl: publicUrlData ? publicUrlData.publicUrl : null
+                };
+            }
+
+            const isRecette = typeVal === 'Recette';
+            const payloadEcriture = {
+                date: dateVal,
+                description: descVal,
+                debit: isRecette ? 0 : montantVal,
+                credit: isRecette ? montantVal : 0,
+                compte_libelle: catVal
+            };
+
+            await supabase.from('ecritures_comptables').update(payloadEcriture).eq('id', id);
+
+            if (transactionId && transactionId !== 'null' && transactionId !== 'undefined' && transactionId !== '') {
+                const payloadTransaction = {
+                    date: dateVal,
+                    description: descVal,
+                    amount: montantVal,
+                    category: catVal
+                };
+
+                if (fileData) {
+                    payloadTransaction.has_attachments = true;
+                    payloadTransaction.file_path = fileData.filePath;
+                    payloadTransaction.justificatif_url = fileData.publicUrl;
+                }
+
+                await supabase.from('transactions').update(payloadTransaction).eq('id', transactionId);
+            }
+
+            if (typeof window.fermerModal === 'function') {
+                window.fermerModal();
+            } else {
+                const modal = document.getElementById('modal-modifier');
+                if (modal) modal.style.display = 'none';
+            }
+
+            alert("Opération mise à jour avec succès !");
+
+            if (typeof window.chargerHistoriqueTransactions === 'function') await window.chargerHistoriqueTransactions();
+            if (typeof window.chargerJournalGeneral === 'function') await window.chargerJournalGeneral();
+            if (typeof window.chargerJournalOD === 'function') await window.chargerJournalOD();
+
+        } catch (err) {
+            console.error("Erreur lors de la sauvegarde :", err);
+            alert("Erreur lors de l'enregistrement.");
+        }
+    }
+
     async function supprimerTransaction(id, transactionId) {
         if (!confirm("Voulez-vous supprimer cette écriture comptable ?")) return;
 
@@ -212,7 +312,6 @@
         let query = supabase.from('ecritures_comptables').delete();
         if (transactionId && transactionId !== 'undefined' && transactionId !== 'null' && transactionId !== '') {
             query = query.eq('transaction_id', transactionId);
-            // Suppression facultative dans la table parent 'transactions'
             await supabase.from('transactions').delete().eq('id', transactionId);
         } else {
             query = query.eq('id', id);
@@ -381,6 +480,8 @@
     window.chargerHistoriqueTransactions = chargerHistoriqueTransactions;
     window.chargerTransactions = chargerHistoriqueTransactions;
     window.modifierTransaction = modifierTransaction;
+    window.enregistrerModificationOD = enregistrerModificationOD;
+    window.sauvegarderModification = enregistrerModificationOD;
     window.supprimerTransaction = supprimerTransaction;
     window.chargerJournalGeneral = chargerJournalGeneral;
     window.chargerJournal = chargerJournalGeneral;
