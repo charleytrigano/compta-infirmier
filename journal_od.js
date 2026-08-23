@@ -1,4 +1,4 @@
-// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs, modification et suppression[cite: 9]
+// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs, modification, suppression et Plan Comptable
 
 (function () {
     function getSupabase() {
@@ -7,6 +7,140 @@
 
     function formatEuro(amount) {
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
+    }
+
+    // Plan comptable BNC / Libéral de référence
+    const PLAN_COMPTABLE_LIST = [
+        { code: '108000', libelle: '108000 - Compte de l\'exploitant (Prélèvements / Apports)' },
+        { code: '401000', libelle: '401000 - Fournisseurs' },
+        { code: '411000', libelle: '411000 - Clients / Patients / Tiers Payant' },
+        { code: '512000', libelle: '512000 - Banque / Compte Courant' },
+        { code: '606000', libelle: '606000 - Achats de fournitures & petit matériel' },
+        { code: '613200', libelle: '613200 - Loyer et charges locatives' },
+        { code: '616000', libelle: '616000 - Assurances professionnelles (RCP, etc.)' },
+        { code: '625100', libelle: '625100 - Voyages et déplacements' },
+        { code: '625600', libelle: '625600 - Missions et formations (DPC...)' },
+        { code: '627000', libelle: '627000 - Services bancaires et frais de carte' },
+        { code: '628000', libelle: '628000 - Diverses prestations de services' },
+        { code: '646100', libelle: '646100 - Cotisations sociales URSSAF' },
+        { code: '646200', libelle: '646200 - Cotisations sociales CARPIMKO' },
+        { code: '658000', libelle: '658000 - Charges diverses de gestion courante' },
+        { code: '706000', libelle: '706000 - Prestations de soins / Recettes honoraires' },
+        { code: '758000', libelle: '758000 - Produits divers de gestion courante' }
+    ];
+
+    // --- BOÎTE DE DIALOGUE INTERACTIVE DU PLAN COMPTABLE ---
+    let cibleCompteCodeId = null;
+    let cibleCompteLibelleId = null;
+
+    function ouvrirModalPlanComptable(targetCodeInputId, targetLibelleInputId) {
+        cibleCompteCodeId = targetCodeInputId;
+        cibleCompteLibelleId = targetLibelleInputId;
+
+        let modal = document.getElementById('modal-plan-comptable');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'modal-plan-comptable';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                background: rgba(15, 23, 42, 0.6); display: flex; align-items: center;
+                justify-content: center; z-index: 9999; backdrop-filter: blur(4px);
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: #ffffff; border-radius: 12px; width: 90%; max-width: 550px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); font-family: system-ui, sans-serif;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="margin: 0; font-size: 1.25rem; color: #0f172a;">📖 Plan Comptable</h3>
+                        <button onclick="fermerModalPlanComptable()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+                    </div>
+                    <input type="text" id="recherche-plan-comptable" placeholder="Rechercher un numéro ou libellé..." style="width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 14px; font-size: 0.95rem; box-sizing: border-box;">
+                    <div id="liste-plan-comptable" style="max-height: 320px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;"></div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('recherche-plan-comptable').addEventListener('input', (e) => {
+                afficherListePlanComptable(e.target.value);
+            });
+        }
+
+        modal.style.display = 'flex';
+        document.getElementById('recherche-plan-comptable').value = '';
+        afficherListePlanComptable('');
+    }
+
+    function fermerModalPlanComptable() {
+        const modal = document.getElementById('modal-plan-comptable');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function afficherListePlanComptable(filtre) {
+        const conteneur = document.getElementById('liste-plan-comptable');
+        if (!conteneur) return;
+
+        const term = (filtre || '').toLowerCase();
+        const filtrés = PLAN_COMPTABLE_LIST.filter(c => 
+            c.code.toLowerCase().includes(term) || c.libelle.toLowerCase().includes(term)
+        );
+
+        if (filtrés.length === 0) {
+            conteneur.innerHTML = `<div style="padding: 16px; text-align: center; color: #94a3b8;">Aucun compte trouvé.</div>`;
+            return;
+        }
+
+        conteneur.innerHTML = filtrés.map(item => `
+            <div onclick="selectionnerCompteComptable('${item.code}', '${item.libelle.replace(/'/g, "\\'")}')" 
+                 style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;"
+                 onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                <span style="font-weight: 600; color: #1e293b;">${item.libelle}</span>
+                <span style="font-size: 0.85rem; color: #2563eb; font-weight: 500;">Choisir ➔</span>
+            </div>
+        `).join('');
+    }
+
+    function selectionnerCompteComptable(code, libelle) {
+        if (cibleCompteCodeId) {
+            const elCode = document.getElementById(cibleCompteCodeId);
+            if (elCode) elCode.value = code;
+        }
+        if (cibleCompteLibelleId) {
+            const elLib = document.getElementById(cibleCompteLibelleId);
+            if (elLib) elLib.value = libelle;
+        }
+        fermerModalPlanComptable();
+    }
+
+    // --- INJECTION AUTOMATIQUE DES BOUTONS LOUPE DANS LES CHAMPS DÉBIT / CRÉDIT ---
+    function injecterBoutonsLoupeOD() {
+        const champDebit = document.getElementById('od-compte-debit');
+        const champCredit = document.getElementById('od-compte-credit');
+
+        const ajouterLoupe = (inputEl, codeId, libelleId, btnId) => {
+            if (!inputEl || document.getElementById(btnId)) return;
+
+            const parent = inputEl.parentElement;
+            if (!parent) return;
+
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'display: flex; align-items: center; width: 100%; gap: 6px;';
+
+            inputEl.parentNode.insertBefore(wrapper, inputEl);
+            wrapper.appendChild(inputEl);
+            inputEl.style.flex = '1';
+
+            const btnLoupe = document.createElement('button');
+            btnLoupe.id = btnId;
+            btnLoupe.type = 'button';
+            btnLoupe.innerHTML = '🔍';
+            btnLoupe.title = 'Rechercher un compte dans le Plan Comptable';
+            btnLoupe.style.cssText = 'padding: 8px 10px; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 0.9rem; line-height: 1;';
+
+            btnLoupe.onclick = () => ouvrirModalPlanComptable(codeId, libelleId);
+            wrapper.appendChild(btnLoupe);
+        };
+
+        ajouterLoupe(champDebit, 'od-compte-debit', 'od-libelle-debit', 'btn-loupe-debit');
+        ajouterLoupe(champCredit, 'od-compte-credit', 'od-libelle-credit', 'btn-loupe-credit');
     }
 
     async function uploaderJustificatif(file) {
@@ -141,6 +275,8 @@
     }
 
     async function chargerJournalOD() {
+        injecterBoutonsLoupeOD();
+
         const tbody = document.getElementById('body-tableau-od');
         if (!tbody) return;
 
@@ -277,11 +413,21 @@
     window.supprimerEcritureOD = supprimerEcritureOD;
     window.ouvrirModalModifierOD = ouvrirModalModifierOD;
 
+    // Fonctions du Plan Comptable exposées globalement
+    window.ouvrirModalPlanComptable = ouvrirModalPlanComptable;
+    window.fermerModalPlanComptable = fermerModalPlanComptable;
+    window.selectionnerCompteComptable = selectionnerCompteComptable;
+
+    const initOD = () => {
+        setTimeout(() => {
+            chargerJournalOD();
+            injecterBoutonsLoupeOD();
+        }, 200);
+    };
+
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(chargerJournalOD, 200);
+        initOD();
     } else {
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(chargerJournalOD, 200);
-        });
+        document.addEventListener('DOMContentLoaded', initOD);
     }
 })();
