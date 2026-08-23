@@ -146,9 +146,56 @@ function selectionnerCompteComptable(code, libelle) {
     }
     if (cibleCompteLibelleId) {
         const elLib = document.getElementById(cibleCompteLibelleId);
-        if (elLib) elLib.value = libelle;
+        if (elLib) {
+            elLib.value = libelle;
+        }
     }
     fermerModalPlanComptable();
+}
+
+// --- INJECTION AUTOMATIQUE DU BOUTON LOUPE ET DES CHAMPS DANS L'INTERFACE ---
+function injecterBoutonLoupeHTML() {
+    const vueBanque = document.getElementById('vue-banque') || document.querySelector('.journal-banque') || document.body;
+    const inputs = vueBanque.querySelectorAll('input[type="text"]');
+    
+    // Cibler le champ de libellé (souvent le 1er champ text de la zone)
+    let libelleInput = document.getElementById('pay-description') || document.getElementById('pay-libelle');
+    if (!libelleInput && inputs.length > 0) {
+        libelleInput = inputs[0];
+    }
+
+    if (!libelleInput || document.getElementById('btn-plan-comptable')) return;
+
+    const parent = libelleInput.parentElement;
+    if (!parent) return;
+
+    // Conteneur flexible pour le champ + le bouton loupe
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: flex; align-items: center; width: 100%; gap: 6px;';
+
+    libelleInput.parentNode.insertBefore(wrapper, libelleInput);
+    wrapper.appendChild(libelleInput);
+    libelleInput.style.flex = '1';
+
+    // Création du bouton 🔍
+    const btnLoupe = document.createElement('button');
+    btnLoupe.id = 'btn-plan-comptable';
+    btnLoupe.type = 'button';
+    btnLoupe.innerHTML = '🔍';
+    btnLoupe.title = 'Consulter le Plan Comptable';
+    btnLoupe.style.cssText = 'padding: 8px 12px; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 0.95rem; line-height: 1;';
+    
+    // Champs cachés
+    let inputCode = document.getElementById('pay-compte-code');
+    if (!inputCode) {
+        inputCode = document.createElement('input');
+        inputCode.type = 'hidden';
+        inputCode.id = 'pay-compte-code';
+        wrapper.appendChild(inputCode);
+    }
+
+    btnLoupe.onclick = () => window.ouvrirModalPlanComptable('pay-compte-code', libelleInput.id || 'pay-description');
+    wrapper.appendChild(btnLoupe);
 }
 
 /**
@@ -254,7 +301,7 @@ async function ajouterTransaction() {
 }
 
 /**
- * Enregistrement d'un paiement depuis le Journal de Banque avec contrepartie personnalisée
+ * Enregistrement d'un paiement depuis le Journal de Banque avec prise en compte du compte sélectionné
  */
 async function ajouterPaiement(e) {
     if (e) e.preventDefault();
@@ -262,16 +309,15 @@ async function ajouterPaiement(e) {
     const vueBanque = document.getElementById('vue-banque') || document.querySelector('.journal-banque') || document.body;
 
     const dateInput = document.getElementById('pay-date') || vueBanque.querySelector('input[type="date"]');
-    const sensSelect = document.getElementById('pay-type') || vueBanque.querySelector('select[name="type"]');
-    const catSelect = document.getElementById('pay-categorie') || vueBanque.querySelector('select[name="categorie"]');
+    const selects = vueBanque.querySelectorAll('select');
+    const sensSelect = document.getElementById('pay-type') || selects[0];
+    const catSelect = selects.length > 1 ? selects[1] : sensSelect;
     
-    // Champs de contrepartie du plan comptable (si présents)
-    const compteCodeInput = document.getElementById('pay-compte-code');
-    const compteLibelleInput = document.getElementById('pay-compte-libelle');
-
-    const libelleInput = document.getElementById('pay-description') || document.getElementById('pay-libelle');
-    const montantInput = document.getElementById('pay-montant');
+    const inputs = vueBanque.querySelectorAll('input[type="text"]');
+    const libelleInput = document.getElementById('pay-description') || (inputs.length > 0 ? inputs[0] : null);
+    const montantInput = document.getElementById('pay-montant') || vueBanque.querySelector('input[type="number"]');
     const fileInput = document.getElementById('pay-justificatif') || document.getElementById('pay-file') || vueBanque.querySelector('input[type="file"]');
+    const compteCodeInput = document.getElementById('pay-compte-code');
 
     const dateVal = dateInput ? dateInput.value : '';
     const sensVal = sensSelect ? sensSelect.value : 'Encaissement (Recette)';
@@ -298,13 +344,15 @@ async function ajouterPaiement(e) {
     const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
     const typeTransaction = isEncaissement ? 'recette' : 'dépense';
 
-    // Récupération de la contrepartie choisie ou déduite
-    let compteContrepartieCode = compteCodeInput ? compteCodeInput.value.trim() : '';
-    let compteContrepartieLibelle = compteLibelleInput ? compteLibelleInput.value.trim() : '';
-
-    if (!compteContrepartieCode) {
-        compteContrepartieCode = getCompteCode(typeTransaction, catVal);
-        compteContrepartieLibelle = `${compteContrepartieCode} - ${catVal}`;
+    // Extraction ou affectation du compte de contrepartie
+    let compteContrepartie = compteCodeInput && compteCodeInput.value ? compteCodeInput.value.trim() : '';
+    
+    if (!compteContrepartie) {
+        compteContrepartie = getCompteCode(typeTransaction, catVal);
+        if (libelleVal) {
+            const matchCompte = libelleVal.match(/^([0-9]{3,6})/);
+            if (matchCompte) compteContrepartie = matchCompte[1];
+        }
     }
 
     // 1. Transaction parent
@@ -345,12 +393,12 @@ async function ajouterPaiement(e) {
         credit: isEncaissement ? 0 : montantVal
     };
 
-    // 3. Écriture Contrepartie choisie du plan comptable
+    // 3. Écriture Contrepartie
     const ligneContrepartie = {
         transaction_id: realTransactionId,
         date: dateVal,
-        compte_code: compteContrepartieCode,
-        compte_libelle: compteContrepartieLibelle,
+        compte_code: compteContrepartie,
+        compte_libelle: `${compteContrepartie} - ${libelleVal || catVal}`,
         category: catVal,
         journal: 'BQ',
         description: (isEncaissement ? 'Règlement reçu : ' : 'Règlement émis : ') + (libelleVal || catVal),
@@ -369,7 +417,6 @@ async function ajouterPaiement(e) {
         if (montantInput) montantInput.value = '';
         if (fileInput) fileInput.value = '';
         if (compteCodeInput) compteCodeInput.value = '';
-        if (compteLibelleInput) compteLibelleInput.value = '';
         
         await chargerJournalBanque();
         if (typeof window.chargerGrandLivre === 'function') {
@@ -377,7 +424,7 @@ async function ajouterPaiement(e) {
         }
         window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
 
-        alert("Paiement bancaire enregistré avec succès !");
+        alert("Paiement enregistré avec succès !");
     }
 }
 
@@ -457,6 +504,7 @@ async function supprimerTransaction(id) {
 
 async function chargerJournalBanque() {
     await chargerTransactionsListe();
+    injecterBoutonLoupeHTML();
 
     const vueBanque = document.getElementById('vue-banque') || document.querySelector('.journal-banque') || document.body;
     const tbody = document.getElementById('body-tableau-banque') || vueBanque.querySelector('tbody');
@@ -600,10 +648,15 @@ window.ouvrirModalPlanComptable = ouvrirModalPlanComptable;
 window.fermerModalPlanComptable = fermerModalPlanComptable;
 window.selectionnerCompteComptable = selectionnerCompteComptable;
 
+const initialiserJournal = () => {
+    setTimeout(() => {
+        chargerJournalBanque();
+        injecterBoutonLoupeHTML();
+    }, 200);
+};
+
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(chargerJournalBanque, 200);
+    initialiserJournal();
 } else {
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(chargerJournalBanque, 200);
-    });
+    document.addEventListener('DOMContentLoaded', initialiserJournal);
 }
