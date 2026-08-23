@@ -1,4 +1,4 @@
-// declaration2035.js - Rendu complet, filtre par année, calcul dynamique et export officiel Cerfa 2035 PDF
+// declaration2035.js - Rendu complet, filtre par année et dessin dynamique sur le Cerfa 2035 PDF
 
 (function () {
     window.annee2035Selectionnee = window.annee2035Selectionnee || new Date().getFullYear().toString();
@@ -11,7 +11,7 @@
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
     }
 
-    // --- GENERATION ET PRE-REMPLISSAGE DU CERFA 2035 PDF ---
+    // --- GENERATION ET REMPLISSAGE VISUEL SUR LE CERFA 2035 PDF ---
     async function genererEtTelechargerCerfa2035(annee, totalRecettes, totalDepenses, benefice) {
         if (typeof window.PDFLib === 'undefined') {
             alert("La bibliothèque PDF-Lib n'est pas chargée. Veuillez vérifier son inclusion dans votre HTML.");
@@ -19,48 +19,55 @@
         }
 
         try {
-            // Téléchargement du fichier modèle Cerfa
             const urlPdfModele = './cerfa_2035.pdf';
             const res = await fetch(urlPdfModele);
             if (!res.ok) {
-                throw new Error("Impossible de trouver le fichier 'cerfa 2035-sd_4981.pdf' à la racine du projet.");
+                throw new Error("Impossible de trouver le fichier 'cerfa_2035.pdf' à la racine du projet.");
             }
             const existingPdfBytes = await res.arrayBuffer();
 
-            const { PDFDocument } = window.PDFLib;
+            const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
             const pdfDoc = await PDFDocument.load(existingPdfBytes);
-            const form = pdfDoc.getForm();
+            
+            const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            const pages = pdfDoc.getPages();
+            const page1 = pages[0];
 
-            const mapperChamp = (nomChamp, valeur) => {
-                try {
-                    const field = form.getTextField(nomChamp);
-                    if (field) field.setText(String(valeur));
-                } catch (e) {}
-            };
-
-            // Informations du profil enregistrées
+            // Récupération des infos profil
             const profilNom = localStorage.getItem('user_fullname') || '';
             const profilSiret = localStorage.getItem('user_siret') || '';
             const profilAdresse = localStorage.getItem('user_address') || '';
 
-            mapperChamp('Nom et Prénom', profilNom);
-            mapperChamp('N° SIRET', profilSiret);
-            mapperChamp('Adresse du déclarant', profilAdresse);
-            mapperChamp('Période du', `01/01/${annee}`);
-            mapperChamp('AU', `31/12/${annee}`);
+            // Dessin des informations sur la page 1 (Coordonnées ajustées pour la 2035)
+            const couleurTexte = rgb(0, 0.2, 0.6); // Bleu foncé pour imiter un remplissage propre
 
-            // Injection des montants comptables calculés
+            // Identification
+            if (profilNom) page1.drawText(profilNom, { x: 50, y: 705, size: 10, font, color: couleurTexte });
+            if (profilAdresse) page1.drawText(profilAdresse, { x: 50, y: 665, size: 9, font: fontRegular, color: couleurTexte });
+            if (profilSiret) page1.drawText(profilSiret, { x: 105, y: 602, size: 10, font, color: couleurTexte });
+
+            // Période (Exercice)
+            page1.drawText(`01/01/${annee}`, { x: 420, y: 470, size: 9, font, color: couleurTexte });
+            page1.drawText(`31/12/${annee}`, { x: 505, y: 470, size: 9, font, color: couleurTexte });
+
+            // Résultats
             if (benefice >= 0) {
-                mapperChamp('Bénéfice', benefice.toFixed(2));
+                page1.drawText(benefice.toFixed(2) + ' €', { x: 520, y: 442, size: 10, font, color: couleurTexte });
             } else {
-                mapperChamp('Déficit', Math.abs(benefice).toFixed(2));
+                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 615, y: 442, size: 10, font, color: couleurTexte });
             }
 
-            // Cocher la case "Oui" pour comptabilité informatisée
-            try {
-                const checkboxOui = form.getCheckBox('Oui');
-                if (checkboxOui) checkboxOui.check();
-            } catch (e) {}
+            // Si le document possède une page 2 (détail des recettes / dépenses)
+            if (pages.length > 1) {
+                const page2 = pages[1];
+                // AA - Honoraires
+                page2.drawText(totalRecettes.toFixed(2) + ' €', { x: 480, y: 680, size: 9, font, color: couleurTexte });
+                // AG - Total Recettes
+                page2.drawText(totalRecettes.toFixed(2) + ' €', { x: 480, y: 580, size: 9, font, color: couleurTexte });
+                // CH - Total Dépenses
+                page2.drawText(totalDepenses.toFixed(2) + ' €', { x: 480, y: 220, size: 9, font, color: couleurTexte });
+            }
 
             const pdfBytes = await pdfDoc.save();
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -71,7 +78,7 @@
 
         } catch (err) {
             console.error("Erreur génération Cerfa 2035 :", err);
-            alert("Erreur lors de la génération : " + err.message);
+            alert("Erreur lors de la génération du PDF : " + err.message);
         }
     }
 
@@ -91,7 +98,6 @@
         }
 
         try {
-            // 1. Récupération des écritures
             const { data: toutesEcritures, error: errToutes } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -102,7 +108,6 @@
                 return;
             }
 
-            // Extraction des années disponibles
             const anneesDispo = Array.from(new Set((toutesEcritures || []).map(e => {
                 return e.date ? new Date(e.date).getFullYear().toString() : null;
             }).filter(Boolean))).sort((a, b) => b - a);
@@ -113,7 +118,6 @@
 
             const anneeActive = window.annee2035Selectionnee;
 
-            // 2. Filtrage des écritures pour l'année active
             const ecrituresAnnee = (toutesEcritures || []).filter(e => {
                 return e.date && new Date(e.date).getFullYear().toString() === anneeActive;
             });
@@ -146,7 +150,6 @@
             const totalDepensesCH = bwCarpimko + bxUrssaf + autresDepenses;
             const beneficeCP = totalRecettesAG - totalDepensesCH;
 
-            // Déclaration de la fonction d'export globale pour cette session
             window.exporterCerfaActuel = () => {
                 genererEtTelechargerCerfa2035(anneeActive, totalRecettesAG, totalDepensesCH, beneficeCP);
             };
@@ -157,7 +160,6 @@
 
             container.innerHTML = `
                 <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 10px;">
-                    <!-- En-tête avec Sélection, Impression et Génération Cerfa PDF -->
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
                         <div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">
@@ -186,7 +188,6 @@
                         </div>
                     </div>
 
-                    <!-- I. RECETTES BRUTES -->
                     <div style="margin-bottom: 24px;">
                         <h3 style="color: #16a34a; font-size: 1rem; font-weight: 700; margin-bottom: 12px;">I. RECETTES BRUTES</h3>
                         <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 0.9rem;">
@@ -219,7 +220,6 @@
                         </div>
                     </div>
 
-                    <!-- II. DÉPENSES PROFESSIONNELLES -->
                     <div style="margin-bottom: 24px;">
                         <h3 style="color: #dc2626; font-size: 1rem; font-weight: 700; margin-bottom: 12px;">II. DÉPENSES PROFESSIONNELLES</h3>
                         <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 0.9rem;">
@@ -252,7 +252,6 @@
                         </div>
                     </div>
 
-                    <!-- RÉSULTAT FISCAL -->
                     <div style="background: #f0fdf4; border: 2px solid #22c55e; color: #15803d; padding: 16px; border-radius: 8px; font-weight: 800; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
                         <span>BÉNÉFICE FISCAL (${anneeActive}) - Ligne 46 / Code CP</span>
                         <span style="font-size: 1.25rem;">${formatEuro(beneficeCP)}</span>
