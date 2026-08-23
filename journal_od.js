@@ -1,4 +1,4 @@
-// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs, modification, suppression, Plan Comptable et Export Cerfa 2035
+// journal_od.js - Gestion du Journal d'Opérations Diverses (OD) avec justificatifs, modification, suppression et Plan Comptable
 
 (function () {
     function getSupabase() {
@@ -143,126 +143,6 @@
         ajouterLoupe(champCredit, 'od-compte-credit', 'od-libelle-credit', 'btn-loupe-credit');
     }
 
-    // --- GENERATION ET PRE-REMPLISSAGE DU CERFA 2035 ---
-    async function genererEtTelechargerCerfa2035(annee = new Date().getFullYear() - 1) {
-        if (typeof window.PDFLib === 'undefined') {
-            alert("La bibliothèque PDF-Lib n'est pas chargée dans la page. Veuillez inclure le script pdf-lib.js.");
-            return;
-        }
-
-        const supabase = getSupabase();
-        if (!supabase) {
-            alert("Erreur de connexion à la base de données.");
-            return;
-        }
-
-        try {
-            const dateDebut = `${annee}-01-01`;
-            const dateFin = `${annee}-12-31`;
-
-            const { data: ecritures, error } = await supabase
-                .from('ecritures_comptables')
-                .select('*')
-                .gte('date', dateDebut)
-                .lte('date', dateFin);
-
-            if (error) {
-                alert("Erreur lors de la récupération des données : " + error.message);
-                return;
-            }
-
-            let totalRecettes = 0;
-            let totalDepenses = 0;
-
-            (ecritures || []).forEach(e => {
-                const code = String(e.compte_code || '');
-                const credit = parseFloat(e.credit || 0);
-                const debit = parseFloat(e.debit || 0);
-
-                if (code.startsWith('7')) {
-                    totalRecettes += (credit - debit);
-                } else if (code.startsWith('6')) {
-                    totalDepenses += (debit - credit);
-                }
-            });
-
-            const beneficeOuDeficit = totalRecettes - totalDepenses;
-
-            const urlPdfModele = './cerfa 2035-sd_4981.pdf';
-            const existingPdfBytes = await fetch(urlPdfModele).then(res => res.arrayBuffer());
-
-            const { PDFDocument } = window.PDFLib;
-            const pdfDoc = await PDFDocument.load(existingPdfBytes);
-            const form = pdfDoc.getForm();
-
-            const mapperChamp = (nomChamp, valeur) => {
-                try {
-                    const field = form.getTextField(nomChamp);
-                    if (field) field.setText(String(valeur));
-                } catch (e) {}
-            };
-
-            const profilNom = localStorage.getItem('user_fullname') || '';
-            const profilSiret = localStorage.getItem('user_siret') || '';
-            const profilAdresse = localStorage.getItem('user_address') || '';
-
-            mapperChamp('Nom et Prénom', profilNom);
-            mapperChamp('N° SIRET', profilSiret);
-            mapperChamp('Adresse du déclarant', profilAdresse);
-            mapperChamp('Période du', `01/01/${annee}`);
-            mapperChamp('AU', `31/12/${annee}`);
-
-            if (beneficeOuDeficit >= 0) {
-                mapperChamp('Bénéfice', beneficeOuDeficit.toFixed(2));
-            } else {
-                mapperChamp('Déficit', Math.abs(beneficeOuDeficit).toFixed(2));
-            }
-
-            try {
-                const checkboxOui = form.getCheckBox('Oui');
-                if (checkboxOui) checkboxOui.check();
-            } catch (e) {}
-
-            const pdfBytes = await pdfDoc.save();
-            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `Cerfa_2035_${annee}_Rempli.pdf`;
-            link.click();
-
-            alert(`Le Cerfa 2035 pour l'année ${annee} a été généré avec succès !`);
-
-        } catch (err) {
-            console.error("Erreur génération Cerfa 2035 :", err);
-            alert("Impossible de générer le Cerfa 2035. Vérifiez que le fichier 'cerfa 2035-sd_4981.pdf' est présent.");
-        }
-    }
-
-    // --- INJECTION BOUTON EXPORT CERFA 2035 ---
-    function injecterBoutonCerfa() {
-        const tbody = document.getElementById('body-tableau-od');
-        if (!tbody || document.getElementById('btn-export-cerfa-2035')) return;
-
-        const table = tbody.closest('table');
-        if (!table || !table.parentNode) return;
-
-        const containerBtn = document.createElement('div');
-        containerBtn.style.cssText = 'display: flex; justify-content: flex-end; margin-bottom: 12px;';
-
-        const btnCerfa = document.createElement('button');
-        btnCerfa.id = 'btn-export-cerfa-2035';
-        btnCerfa.type = 'button';
-        btnCerfa.innerHTML = '📄 Exporter Cerfa 2035 (PDF)';
-        btnCerfa.style.cssText = 'padding: 10px 16px; background: #059669; color: #ffffff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: background 0.2s;';
-        
-        btnCerfa.onmouseover = () => btnCerfa.style.background = '#047857';
-        btnCerfa.onmouseout = () => btnCerfa.style.background = '#059669';
-        btnCerfa.onclick = () => genererEtTelechargerCerfa2035();
-
-        containerBtn.appendChild(btnCerfa);
-        table.parentNode.insertBefore(containerBtn, table);
-    }
-
     async function uploaderJustificatif(file) {
         const supabase = getSupabase();
         if (!supabase || !file) return null;
@@ -396,7 +276,6 @@
 
     async function chargerJournalOD() {
         injecterBoutonsLoupeOD();
-        injecterBoutonCerfa();
 
         const tbody = document.getElementById('body-tableau-od');
         if (!tbody) return;
@@ -534,17 +413,15 @@
     window.supprimerEcritureOD = supprimerEcritureOD;
     window.ouvrirModalModifierOD = ouvrirModalModifierOD;
 
-    // Fonctions du Plan Comptable et du Cerfa 2035 exposées globalement
+    // Fonctions du Plan Comptable exposées globalement
     window.ouvrirModalPlanComptable = ouvrirModalPlanComptable;
     window.fermerModalPlanComptable = fermerModalPlanComptable;
     window.selectionnerCompteComptable = selectionnerCompteComptable;
-    window.genererEtTelechargerCerfa2035 = genererEtTelechargerCerfa2035;
 
     const initOD = () => {
         setTimeout(() => {
             chargerJournalOD();
             injecterBoutonsLoupeOD();
-            injecterBoutonCerfa();
         }, 200);
     };
 
