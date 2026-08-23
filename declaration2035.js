@@ -1,4 +1,4 @@
-// declaration2035.js - Rendu complet, filtre par année et dessin dynamique sur le Cerfa 2035 PDF
+// declaration2035.js - Rendu complet, filtre par année, profil Supabase et dessin dynamique sur le Cerfa 2035 PDF
 
 (function () {
     window.annee2035Selectionnee = window.annee2035Selectionnee || new Date().getFullYear().toString();
@@ -12,7 +12,7 @@
     }
 
     // --- GENERATION ET REMPLISSAGE VISUEL SUR LE CERFA 2035 PDF ---
-    async function genererEtTelechargerCerfa2035(annee, totalRecettes, totalDepenses, benefice) {
+    async function genererEtTelechargerCerfa2035(annee, totalRecettes, totalDepenses, benefice, profilInfo) {
         if (typeof window.PDFLib === 'undefined') {
             alert("La bibliothèque PDF-Lib n'est pas chargée. Veuillez vérifier son inclusion dans votre HTML.");
             return;
@@ -36,30 +36,35 @@
 
             const couleurBleue = rgb(0, 0.2, 0.6); // Couleur d'écriture bleue
 
-            // Récupération des infos du profil
-            const profilNom = localStorage.getItem('user_fullname') || '';
-            const profilSiret = localStorage.getItem('user_siret') || '';
-            const profilAdresse = localStorage.getItem('user_address') || '';
+            // Extraire les infos de profil (Priorité Supabase puis LocalStorage)
+            const nomPrenom = profilInfo.nom || localStorage.getItem('user_fullname') || '';
+            const adresse = profilInfo.adresse || localStorage.getItem('user_address') || '';
+            const siret = profilInfo.siret || localStorage.getItem('user_siret') || '';
+            const email = profilInfo.email || localStorage.getItem('user_email') || '';
+            const tel = profilInfo.tel || localStorage.getItem('user_phone') || '';
+            const activite = profilInfo.activite || localStorage.getItem('user_activity') || '';
 
-            // --- EN-TÊTE PAGE 1 ---
-            // Nom et Prénom
-            if (profilNom) page1.drawText(profilNom, { x: 45, y: 725, size: 9, font: fontBold, color: couleurBleue });
-            // Adresse
-            if (profilAdresse) page1.drawText(profilAdresse, { x: 45, y: 685, size: 8, font: fontRegular, color: couleurBleue });
-            // N° SIRET
-            if (profilSiret) page1.drawText(profilSiret, { x: 110, y: 602, size: 9, font: fontBold, color: couleurBleue });
+            // --- EN-TÊTE PAGE 1 (Haut du document) ---
+            if (nomPrenom) page1.drawText(nomPrenom, { x: 45, y: 752, size: 9, font: fontBold, color: couleurBleue });
+            if (adresse) page1.drawText(adresse, { x: 45, y: 720, size: 8, font: fontRegular, color: couleurBleue });
+            if (siret) page1.drawText(siret, { x: 90, y: 645, size: 9, font: fontBold, color: couleurBleue });
+            if (email) page1.drawText(email, { x: 100, y: 628, size: 8, font: fontRegular, color: couleurBleue });
+            if (tel) page1.drawText(tel, { x: 110, y: 611, size: 8, font: fontRegular, color: couleurBleue });
 
-            // --- PÉRIODE DE L'EXERCICE ---
-            page1.drawText(`01/01/${annee}`, { x: 375, y: 442, size: 9, font: fontBold, color: couleurBleue });
-            page1.drawText(`31/12/${annee}`, { x: 460, y: 442, size: 9, font: fontBold, color: couleurBleue });
+            // Nature de l'activité
+            if (activite) page1.drawText(activite, { x: 130, y: 508, size: 8, font: fontRegular, color: couleurBleue });
+
+            // --- PÉRIODE DE L'EXERCICE (Rehaussé au-dessus de la zone "Renseignements") ---
+            page1.drawText(`01/01/${annee}`, { x: 375, y: 478, size: 9, font: fontBold, color: couleurBleue });
+            page1.drawText(`31/12/${annee}`, { x: 460, y: 478, size: 9, font: fontBold, color: couleurBleue });
 
             // --- RÉCAPITULATION DES ÉLÉMENTS D'IMPOSITION (Cadre 1 - Bénéfice / Déficit) ---
             if (benefice >= 0) {
-                // Case Bénéfice
-                page1.drawText(benefice.toFixed(2) + ' €', { x: 525, y: 412, size: 9, font: fontBold, color: couleurBleue });
+                // Case Bénéfice (Alignée dans la ligne de 1- Résultat fiscal)
+                page1.drawText(benefice.toFixed(2) + ' €', { x: 520, y: 442, size: 9, font: fontBold, color: couleurBleue });
             } else {
                 // Case Déficit
-                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 715, y: 412, size: 9, font: fontBold, color: couleurBleue });
+                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 710, y: 442, size: 9, font: fontBold, color: couleurBleue });
             }
 
             const pdfBytes = await pdfDoc.save();
@@ -91,7 +96,23 @@
         }
 
         try {
-            // 1. Récupération des écritures
+            // 1. Récupération des informations de profil depuis Supabase
+            let profilInfo = { nom: '', adresse: '', siret: '', email: '', tel: '', activite: '' };
+            const { data: userProfil } = await supabase
+                .from('profil')
+                .select('*')
+                .maybeSingle();
+
+            if (userProfil) {
+                profilInfo.nom = `${userProfil.prenom || ''} ${userProfil.nom || ''}`.trim() || userProfil.nom_complet || userProfil.raison_sociale || '';
+                profilInfo.adresse = `${userProfil.adresse || ''} ${userProfil.code_postal || ''} ${userProfil.ville || ''}`.trim();
+                profilInfo.siret = userProfil.siret || userProfil.siren || '';
+                profilInfo.email = userProfil.email || '';
+                profilInfo.tel = userProfil.telephone || userProfil.tel || '';
+                profilInfo.activite = userProfil.activite || userProfil.profession || '';
+            }
+
+            // 2. Récupération des écritures
             const { data: toutesEcritures, error: errToutes } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -113,7 +134,7 @@
 
             const anneeActive = window.annee2035Selectionnee;
 
-            // 2. Filtrage des écritures pour l'année active
+            // 3. Filtrage des écritures pour l'année active
             const ecrituresAnnee = (toutesEcritures || []).filter(e => {
                 return e.date && new Date(e.date).getFullYear().toString() === anneeActive;
             });
@@ -148,7 +169,7 @@
 
             // Déclaration de la fonction d'export globale pour cette session
             window.exporterCerfaActuel = () => {
-                genererEtTelechargerCerfa2035(anneeActive, totalRecettesAG, totalDepensesCH, beneficeCP);
+                genererEtTelechargerCerfa2035(anneeActive, totalRecettesAG, totalDepensesCH, beneficeCP, profilInfo);
             };
 
             const optionsAnnees = (anneesDispo.length > 0 ? anneesDispo : [anneeActive]).map(a => 
