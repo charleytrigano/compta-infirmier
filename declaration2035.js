@@ -1,4 +1,4 @@
-// declaration2035.js - Rendu complet, filtre par année et calcul dynamique 2035 depuis ecritures_comptables
+// declaration2035.js - Rendu complet, filtre par année, calcul dynamique et export officiel Cerfa 2035 PDF
 
 (function () {
     window.annee2035Selectionnee = window.annee2035Selectionnee || new Date().getFullYear().toString();
@@ -9,6 +9,70 @@
 
     function formatEuro(amount) {
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount || 0);
+    }
+
+    // --- GENERATION ET PRE-REMPLISSAGE DU CERFA 2035 PDF ---
+    async function genererEtTelechargerCerfa2035(annee, totalRecettes, totalDepenses, benefice) {
+        if (typeof window.PDFLib === 'undefined') {
+            alert("La bibliothèque PDF-Lib n'est pas chargée. Veuillez vérifier son inclusion dans votre HTML.");
+            return;
+        }
+
+        try {
+            // Téléchargement du fichier modèle Cerfa
+            const urlPdfModele = './cerfa 2035-sd_4981.pdf';
+            const res = await fetch(urlPdfModele);
+            if (!res.ok) {
+                throw new Error("Impossible de trouver le fichier 'cerfa 2035-sd_4981.pdf' à la racine du projet.");
+            }
+            const existingPdfBytes = await res.arrayBuffer();
+
+            const { PDFDocument } = window.PDFLib;
+            const pdfDoc = await PDFDocument.load(existingPdfBytes);
+            const form = pdfDoc.getForm();
+
+            const mapperChamp = (nomChamp, valeur) => {
+                try {
+                    const field = form.getTextField(nomChamp);
+                    if (field) field.setText(String(valeur));
+                } catch (e) {}
+            };
+
+            // Informations du profil enregistrées
+            const profilNom = localStorage.getItem('user_fullname') || '';
+            const profilSiret = localStorage.getItem('user_siret') || '';
+            const profilAdresse = localStorage.getItem('user_address') || '';
+
+            mapperChamp('Nom et Prénom', profilNom);
+            mapperChamp('N° SIRET', profilSiret);
+            mapperChamp('Adresse du déclarant', profilAdresse);
+            mapperChamp('Période du', `01/01/${annee}`);
+            mapperChamp('AU', `31/12/${annee}`);
+
+            // Injection des montants comptables calculés
+            if (benefice >= 0) {
+                mapperChamp('Bénéfice', benefice.toFixed(2));
+            } else {
+                mapperChamp('Déficit', Math.abs(benefice).toFixed(2));
+            }
+
+            // Cocher la case "Oui" pour comptabilité informatisée
+            try {
+                const checkboxOui = form.getCheckBox('Oui');
+                if (checkboxOui) checkboxOui.check();
+            } catch (e) {}
+
+            const pdfBytes = await pdfDoc.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Cerfa_2035_${annee}_Rempli.pdf`;
+            link.click();
+
+        } catch (err) {
+            console.error("Erreur génération Cerfa 2035 :", err);
+            alert("Erreur lors de la génération : " + err.message);
+        }
     }
 
     async function chargerDeclaration2035() {
@@ -27,7 +91,7 @@
         }
 
         try {
-            // 1. Récupération de toutes les écritures pour extraire les années disponibles
+            // 1. Récupération des écritures
             const { data: toutesEcritures, error: errToutes } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -38,7 +102,7 @@
                 return;
             }
 
-            // Extraction des années uniques
+            // Extraction des années disponibles
             const anneesDispo = Array.from(new Set((toutesEcritures || []).map(e => {
                 return e.date ? new Date(e.date).getFullYear().toString() : null;
             }).filter(Boolean))).sort((a, b) => b - a);
@@ -49,7 +113,7 @@
 
             const anneeActive = window.annee2035Selectionnee;
 
-            // 2. Filtrage des écritures pour l'année sélectionnée
+            // 2. Filtrage des écritures pour l'année active
             const ecrituresAnnee = (toutesEcritures || []).filter(e => {
                 return e.date && new Date(e.date).getFullYear().toString() === anneeActive;
             });
@@ -64,12 +128,9 @@
                 const credit = parseFloat(row.credit || 0);
                 const code = String(row.compte_code || '').trim();
 
-                // Recettes : Classe 7 (Honoraires)
                 if (code.startsWith('7')) {
                     aaHonoraires += (credit - debit);
-                } 
-                // Charges : Classe 6
-                else if (code.startsWith('6')) {
+                } else if (code.startsWith('6')) {
                     const montantCharge = debit - credit;
                     if (code === '646100' || code.includes('CARPIMKO')) {
                         bwCarpimko += montantCharge;
@@ -85,14 +146,18 @@
             const totalDepensesCH = bwCarpimko + bxUrssaf + autresDepenses;
             const beneficeCP = totalRecettesAG - totalDepensesCH;
 
-            // Génération des options du sélecteur d'année
+            // Déclaration de la fonction d'export globale pour cette session
+            window.exporterCerfaActuel = () => {
+                genererEtTelechargerCerfa2035(anneeActive, totalRecettesAG, totalDepensesCH, beneficeCP);
+            };
+
             const optionsAnnees = (anneesDispo.length > 0 ? anneesDispo : [anneeActive]).map(a => 
                 `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`
             ).join('');
 
             container.innerHTML = `
                 <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 10px;">
-                    <!-- En-tête avec Filtre d'Année et Impression -->
+                    <!-- En-tête avec Sélection, Impression et Génération Cerfa PDF -->
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
                         <div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">
@@ -103,13 +168,17 @@
                             </p>
                         </div>
                         
-                        <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                             <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px;">
                                 <label for="select-annee-2035" style="font-size: 0.85rem; font-weight: 700; color: #475569;">Exercice :</label>
                                 <select id="select-annee-2035" onchange="window.changerAnnee2035(this.value)" style="background: white; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a; padding: 4px 8px; border-radius: 4px; cursor: pointer; outline: none;">
                                     ${optionsAnnees}
                                 </select>
                             </div>
+
+                            <button onclick="window.exporterCerfaActuel()" style="background: #059669; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                📄 Exporter Cerfa 2035 (PDF)
+                            </button>
 
                             <button onclick="window.print()" style="background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                                 🖨️ Imprimer
