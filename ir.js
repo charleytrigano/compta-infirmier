@@ -26,21 +26,18 @@ function calculerIR(caOuBnc = 45000, situation = 'celibataire', enfants = 0, reg
 
   // 1. Détermination de la base imposable selon le régime fiscal
   if (regimeFisc === 'micro_vl') {
-    // Micro-Entreprise avec Option Versement Libératoire (2,2 % du CA HT pour BNC)
     impotVersementLiberatoire = caOuBnc * 0.022;
-    reventeBNCImposable = 0; // Exonéré du barème progressif (libéré par le virement forfaitaire)
+    reventeBNCImposable = 0;
   } else if (regimeFisc === 'micro') {
-    // Micro-BNC Classique : Abattement forfaitaire de 34% (minimum 305 €)
     const abattement = Math.max(305, caOuBnc * 0.34);
     reventeBNCImposable = Math.max(0, caOuBnc - abattement);
   } else {
-    // Régime Réel (Déclaration 2035)
     reventeBNCImposable = caOuBnc;
   }
 
   const revenuNetGlobal = reventeBNCImposable + revenusAutres;
 
-  // 2. Calcul du nombre de parts fiscales (Quotient Familial)
+  // 2. Calcul du nombre de parts fiscales
   let nbParts = 1;
   if (situation === 'marie' || situation === 'pacs') {
     nbParts = 2;
@@ -54,7 +51,7 @@ function calculerIR(caOuBnc = 45000, situation = 'celibataire', enfants = 0, reg
     nbParts += 0.5;
   }
 
-  // 3. Application du quotient familial & barème progressif
+  // 3. Barème progressif
   const revenuParPart = revenuNetGlobal / nbParts;
   let impotParPart = 0;
   let detailTranches = [];
@@ -81,7 +78,6 @@ function calculerIR(caOuBnc = 45000, situation = 'celibataire', enfants = 0, reg
   const impotBaremeTotal = Math.round(impotParPart * nbParts);
   const impotTotalDu = impotBaremeTotal + Math.round(impotVersementLiberatoire);
 
-  // Taux Moyen et Taux Marginal d'Imposition (TMI)
   const tmi = detailTranches.length > 0 ? detailTranches[detailTranches.length - 1].taux : 0;
   const totalRevenuFoyer = caOuBnc + revenusAutres;
   const tauxMoyen = totalRevenuFoyer > 0 ? ((impotTotalDu / totalRevenuFoyer) * 100).toFixed(2) : 0;
@@ -101,18 +97,8 @@ function calculerIR(caOuBnc = 45000, situation = 'celibataire', enfants = 0, reg
   };
 }
 
-function renderIRUI() {
-  const container = document.getElementById('ir-container');
-  if (!container) return;
-
-  const bncInput = parseFloat(document.getElementById('ir-input-bnc')?.value) || 45000;
-  const regimeSelect = document.getElementById('ir-select-regime')?.value || 'reel';
-  const situationSelect = document.getElementById('ir-select-situation')?.value || 'celibataire';
-  const enfantsInput = parseInt(document.getElementById('ir-input-enfants')?.value) || 0;
-  const autresRevInput = parseFloat(document.getElementById('ir-input-autres')?.value) || 0;
-
-  const res = calculerIR(bncInput, situationSelect, enfantsInput, regimeSelect, autresRevInput);
-
+// Génération de la structure HTML fixe (une seule fois)
+function initialiserStructureHTML(container) {
   container.innerHTML = `
     <div class="space-y-6 max-w-5xl mx-auto p-4 font-sans text-slate-800">
 
@@ -124,8 +110,8 @@ function renderIRUI() {
           </h2>
           <p class="text-xs text-slate-500 mt-1">Comparateur Régime Réel, Micro-BNC et Versement Libératoire</p>
         </div>
-        <div class="bg-blue-50 text-blue-800 text-xs px-3 py-1.5 rounded-lg font-semibold border border-blue-200">
-          Base Imposable au Barème : ${formatEuroIR(res.revenuNetGlobal)}
+        <div id="ir-badge-base" class="bg-blue-50 text-blue-800 text-xs px-3 py-1.5 rounded-lg font-semibold border border-blue-200">
+          Base Imposable au Barème : 0,00 €
         </div>
       </div>
 
@@ -133,16 +119,16 @@ function renderIRUI() {
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
           <span class="text-xs text-slate-500 uppercase font-bold">Impôt Total Dû</span>
-          <p class="text-2xl font-black text-blue-600 mt-1">${formatEuroIR(res.impotTotalDu)}</p>
-          ${res.impotVersementLiberatoire > 0 ? `<span class="text-[10px] text-emerald-600 font-medium">(dont ${formatEuroIR(res.impotVersementLiberatoire)} de V.L.)</span>` : ''}
+          <p id="ir-res-impot-total" class="text-2xl font-black text-blue-600 mt-1">0,00 €</p>
+          <span id="ir-res-vl-detail" class="text-[10px] text-emerald-600 font-medium hidden"></span>
         </div>
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
           <span class="text-xs text-slate-500 uppercase font-bold">Taux Marginal (TMI)</span>
-          <p class="text-2xl font-black text-amber-600 mt-1">${res.tmi}%</p>
+          <p id="ir-res-tmi" class="text-2xl font-black text-amber-600 mt-1">0%</p>
         </div>
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
           <span class="text-xs text-slate-500 uppercase font-bold">Pression Fiscale Effective</span>
-          <p class="text-2xl font-black text-emerald-600 mt-1">${res.tauxMoyen}%</p>
+          <p id="ir-res-pression" class="text-2xl font-black text-emerald-600 mt-1">0.00%</p>
         </div>
       </div>
 
@@ -154,42 +140,42 @@ function renderIRUI() {
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">
-              ${regimeSelect.startsWith('micro') ? 'Chiffre d\'Affaires / Recettes (€) :' : 'BNC / Bénéfice Annuel (€) :'}
+            <label id="ir-label-bnc" class="block text-xs font-semibold text-slate-700 mb-1">
+              BNC / Bénéfice Annuel (€) :
             </label>
-            <input type="number" id="ir-input-bnc" value="${bncInput}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="window.actualiserIR()">
+            <input type="number" id="ir-input-bnc" value="45000" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="window.actualiserIR()">
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Régime Fiscal :</label>
             <select id="ir-select-regime" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" onchange="window.actualiserIR()">
-              <option value="reel" ${res.regimeFisc === 'reel' ? 'selected' : ''}>Déclaration 2035 (Régime Réel)</option>
-              <option value="micro" ${res.regimeFisc === 'micro' ? 'selected' : ''}>Micro-BNC Standard (Abattement 34%)</option>
-              <option value="micro_vl" ${res.regimeFisc === 'micro_vl' ? 'selected' : ''}>Micro-Entreprise (Versement Libératoire 2,2%)</option>
+              <option value="reel">Déclaration 2035 (Régime Réel)</option>
+              <option value="micro">Micro-BNC Standard (Abattement 34%)</option>
+              <option value="micro_vl">Micro-Entreprise (Versement Libératoire 2,2%)</option>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Situation Familiale :</label>
             <select id="ir-select-situation" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" onchange="window.actualiserIR()">
-              <option value="celibataire" ${situationSelect === 'celibataire' ? 'selected' : ''}>Célibataire / Divorcé(e)</option>
-              <option value="marie" ${situationSelect === 'marie' ? 'selected' : ''}>Marié(e) / PACS</option>
-              <option value="parent_isole" ${situationSelect === 'parent_isole' ? 'selected' : ''}>Parent Isolé</option>
+              <option value="celibataire">Célibataire / Divorcé(e)</option>
+              <option value="marie">Marié(e) / PACS</option>
+              <option value="parent_isole">Parent Isolé</option>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre d'enfants à charge :</label>
-            <input type="number" min="0" id="ir-input-enfants" value="${enfantsInput}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="window.actualiserIR()">
+            <input type="number" min="0" id="ir-input-enfants" value="0" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="window.actualiserIR()">
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Autres revenus net du foyer (€) :</label>
-            <input type="number" id="ir-input-autres" value="${autresRevInput}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="window.actualiserIR()">
+            <input type="number" id="ir-input-autres" value="0" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white" oninput="window.actualiserIR()">
           </div>
 
           <div class="flex items-center pt-4 text-xs font-bold text-slate-600">
-            <span>Parts fiscales : <strong class="text-blue-600 text-sm">${res.nbParts} part(s)</strong></span>
+            <span>Parts fiscales : <strong id="ir-res-parts" class="text-blue-600 text-sm">1 part(s)</strong></span>
           </div>
         </div>
       </div>
@@ -200,11 +186,9 @@ function renderIRUI() {
           2. Détail du Calcul de l'Impôt
         </h3>
 
-        ${res.regimeFisc === 'micro_vl' ? `
-          <div class="p-3 mb-4 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
-            <strong>Option Versement Libératoire activée :</strong> L'impôt sur l'activité professionnelle est réglé directement au taux forfaitaire de <strong>2,2 %</strong> de votre Chiffre d'Affaires (${formatEuroIR(res.impotVersementLiberatoire)}).
-          </div>
-        ` : ''}
+        <div id="ir-banner-vl" class="p-3 mb-4 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 hidden">
+          <strong>Option Versement Libératoire activée :</strong> L'impôt sur l'activité professionnelle est réglé directement au taux forfaitaire de <strong>2,2 %</strong> de votre Chiffre d'Affaires (<span id="ir-banner-vl-montant">0,00 €</span>).
+        </div>
 
         <div class="overflow-x-auto">
           <table class="w-full text-xs text-left border-collapse">
@@ -216,35 +200,7 @@ function renderIRUI() {
                 <th class="py-2 px-3 text-right">Impôt Barème</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
-              ${res.detailTranches.length > 0 ? res.detailTranches.map(t => `
-                <tr>
-                  <td class="py-2 px-3 font-medium">De ${formatEuroIR(t.min)} à ${t.max === Infinity ? 'au-delà' : formatEuroIR(t.max)}</td>
-                  <td class="py-2 px-3 text-center font-bold ${t.taux > 0 ? 'text-amber-600' : 'text-slate-400'}">${t.taux}%</td>
-                  <td class="py-2 px-3 text-right">${formatEuroIR(t.assietteParPart)}</td>
-                  <td class="py-2 px-3 text-right font-bold text-blue-700">${formatEuroIR(t.impotTotal)}</td>
-                </tr>
-              `).join('') : `
-                <tr>
-                  <td colspan="4" class="py-3 text-center text-slate-500 italic">
-                    ${res.regimeFisc === 'micro_vl' && autresRevInput === 0 
-                      ? 'Aucun revenu soumis au barème progressif (activité couverte par le Versement Libératoire).' 
-                      : 'Revenu imposable inférieur au seuil de la première tranche (0 %).'}
-                  </td>
-                </tr>
-              `}
-              
-              ${res.impotVersementLiberatoire > 0 ? `
-                <tr class="bg-emerald-50 text-emerald-900 font-semibold border-t">
-                  <td colspan="3" class="py-2 px-3">Versement Libératoire Micro-Entreprise (2,2 % sur ${formatEuroIR(caOuBnc)})</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-700">${formatEuroIR(res.impotVersementLiberatoire)}</td>
-                </tr>
-              ` : ''}
-
-              <tr class="bg-slate-800 text-white font-bold text-sm">
-                <td colspan="3" class="py-2.5 px-3">TOTAL IMPÔT SUR LE REVENU DÛ</td>
-                <td class="py-2.5 px-3 text-right text-emerald-400">${formatEuroIR(res.impotTotalDu)}</td>
-              </tr>
+            <tbody id="ir-table-tranches" class="divide-y divide-slate-100">
             </tbody>
           </table>
         </div>
@@ -254,12 +210,103 @@ function renderIRUI() {
   `;
 }
 
-window.actualiserIR = function() {
-  renderIRUI();
-};
+// Mise à jour uniquement des données recalculées sans réinjecter l'HTML des champs
+function actualiserIR() {
+  const container = document.getElementById('ir-container');
+  if (!container) return;
+
+  // Initialisation du DOM au premier passage
+  if (!document.getElementById('ir-input-bnc')) {
+    initialiserStructureHTML(container);
+  }
+
+  const bncInput = parseFloat(document.getElementById('ir-input-bnc')?.value) || 0;
+  const regimeSelect = document.getElementById('ir-select-regime')?.value || 'reel';
+  const situationSelect = document.getElementById('ir-select-situation')?.value || 'celibataire';
+  const enfantsInput = parseInt(document.getElementById('ir-input-enfants')?.value) || 0;
+  const autresRevInput = parseFloat(document.getElementById('ir-input-autres')?.value) || 0;
+
+  const res = calculerIR(bncInput, situationSelect, enfantsInput, regimeSelect, autresRevInput);
+
+  // Mise à jour du libellé de l'input
+  const labelBnc = document.getElementById('ir-label-bnc');
+  if (labelBnc) {
+    labelBnc.textContent = regimeSelect.startsWith('micro') ? "Chiffre d'Affaires / Recettes (€) :" : "BNC / Bénéfice Annuel (€) :";
+  }
+
+  // Mise à jour des cartes
+  document.getElementById('ir-badge-base').textContent = `Base Imposable au Barème : ${formatEuroIR(res.revenuNetGlobal)}`;
+  document.getElementById('ir-res-impot-total').textContent = formatEuroIR(res.impotTotalDu);
+  
+  const vlDetail = document.getElementById('ir-res-vl-detail');
+  if (res.impotVersementLiberatoire > 0) {
+    vlDetail.textContent = `(dont ${formatEuroIR(res.impotVersementLiberatoire)} de V.L.)`;
+    vlDetail.classList.remove('hidden');
+  } else {
+    vlDetail.classList.add('hidden');
+  }
+
+  document.getElementById('ir-res-tmi').textContent = `${res.tmi}%`;
+  document.getElementById('ir-res-pression').textContent = `${res.tauxMoyen}%`;
+  document.getElementById('ir-res-parts').textContent = `${res.nbParts} part(s)`;
+
+  // Bannière VL
+  const bannerVl = document.getElementById('ir-banner-vl');
+  if (res.regimeFisc === 'micro_vl') {
+    document.getElementById('ir-banner-vl-montant').textContent = formatEuroIR(res.impotVersementLiberatoire);
+    bannerVl.classList.remove('hidden');
+  } else {
+    bannerVl.classList.add('hidden');
+  }
+
+  // Mise à jour du tableau des tranches
+  const tbody = document.getElementById('ir-table-tranches');
+  let htmlTranches = '';
+
+  if (res.detailTranches.length > 0) {
+    htmlTranches = res.detailTranches.map(t => `
+      <tr>
+        <td class="py-2 px-3 font-medium">De ${formatEuroIR(t.min)} à ${t.max === Infinity ? 'au-delà' : formatEuroIR(t.max)}</td>
+        <td class="py-2 px-3 text-center font-bold ${t.taux > 0 ? 'text-amber-600' : 'text-slate-400'}">${t.taux}%</td>
+        <td class="py-2 px-3 text-right">${formatEuroIR(t.assietteParPart)}</td>
+        <td class="py-2 px-3 text-right font-bold text-blue-700">${formatEuroIR(t.impotTotal)}</td>
+      </tr>
+    `).join('');
+  } else {
+    htmlTranches = `
+      <tr>
+        <td colspan="4" class="py-3 text-center text-slate-500 italic">
+          ${res.regimeFisc === 'micro_vl' && autresRevInput === 0 
+            ? 'Aucun revenu soumis au barème progressif (activité couverte par le Versement Libératoire).' 
+            : 'Revenu imposable inférieur au seuil de la première tranche (0 %).'}
+        </td>
+      </tr>
+    `;
+  }
+
+  if (res.impotVersementLiberatoire > 0) {
+    htmlTranches += `
+      <tr class="bg-emerald-50 text-emerald-900 font-semibold border-t">
+        <td colspan="3" class="py-2 px-3">Versement Libératoire Micro-Entreprise (2,2 % sur ${formatEuroIR(bncInput)})</td>
+        <td class="py-2 px-3 text-right font-bold text-emerald-700">${formatEuroIR(res.impotVersementLiberatoire)}</td>
+      </tr>
+    `;
+  }
+
+  htmlTranches += `
+    <tr class="bg-slate-800 text-white font-bold text-sm">
+      <td colspan="3" class="py-2.5 px-3">TOTAL IMPÔT SUR LE REVENU DÛ</td>
+      <td class="py-2.5 px-3 text-right text-emerald-400">${formatEuroIR(res.impotTotalDu)}</td>
+    </tr>
+  `;
+
+  tbody.innerHTML = htmlTranches;
+}
+
+window.actualiserIR = actualiserIR;
 
 window.initIRModule = function() {
-  renderIRUI();
+  actualiserIR();
 };
 
 document.addEventListener('DOMContentLoaded', window.initIRModule);
