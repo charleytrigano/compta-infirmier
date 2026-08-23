@@ -29,44 +29,37 @@
             const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
             const pdfDoc = await PDFDocument.load(existingPdfBytes);
             
-            const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
             const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
             const pages = pdfDoc.getPages();
             const page1 = pages[0];
 
-            // Récupération des infos profil
+            const couleurBleue = rgb(0, 0.2, 0.6); // Couleur d'écriture bleue
+
+            // Récupération des infos du profil
             const profilNom = localStorage.getItem('user_fullname') || '';
             const profilSiret = localStorage.getItem('user_siret') || '';
             const profilAdresse = localStorage.getItem('user_address') || '';
 
-            // Dessin des informations sur la page 1 (Coordonnées ajustées pour la 2035)
-            const couleurTexte = rgb(0, 0.2, 0.6); // Bleu foncé pour imiter un remplissage propre
+            // --- EN-TÊTE PAGE 1 ---
+            // Nom et Prénom
+            if (profilNom) page1.drawText(profilNom, { x: 45, y: 725, size: 9, font: fontBold, color: couleurBleue });
+            // Adresse
+            if (profilAdresse) page1.drawText(profilAdresse, { x: 45, y: 685, size: 8, font: fontRegular, color: couleurBleue });
+            // N° SIRET
+            if (profilSiret) page1.drawText(profilSiret, { x: 110, y: 602, size: 9, font: fontBold, color: couleurBleue });
 
-            // Identification
-            if (profilNom) page1.drawText(profilNom, { x: 50, y: 705, size: 10, font, color: couleurTexte });
-            if (profilAdresse) page1.drawText(profilAdresse, { x: 50, y: 665, size: 9, font: fontRegular, color: couleurTexte });
-            if (profilSiret) page1.drawText(profilSiret, { x: 105, y: 602, size: 10, font, color: couleurTexte });
+            // --- PÉRIODE DE L'EXERCICE ---
+            page1.drawText(`01/01/${annee}`, { x: 410, y: 393, size: 9, font: fontBold, color: couleurBleue });
+            page1.drawText(`31/12/${annee}`, { x: 505, y: 393, size: 9, font: fontBold, color: couleurBleue });
 
-            // Période (Exercice)
-            page1.drawText(`01/01/${annee}`, { x: 420, y: 470, size: 9, font, color: couleurTexte });
-            page1.drawText(`31/12/${annee}`, { x: 505, y: 470, size: 9, font, color: couleurTexte });
-
-            // Résultats
+            // --- RÉCAPITULATION DES ÉLÉMENTS D'IMPOSITION (Cadre 1 - Bénéfice / Déficit) ---
             if (benefice >= 0) {
-                page1.drawText(benefice.toFixed(2) + ' €', { x: 520, y: 442, size: 10, font, color: couleurTexte });
+                // Case Bénéfice
+                page1.drawText(benefice.toFixed(2) + ' €', { x: 525, y: 350, size: 9, font: fontBold, color: couleurBleue });
             } else {
-                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 615, y: 442, size: 10, font, color: couleurTexte });
-            }
-
-            // Si le document possède une page 2 (détail des recettes / dépenses)
-            if (pages.length > 1) {
-                const page2 = pages[1];
-                // AA - Honoraires
-                page2.drawText(totalRecettes.toFixed(2) + ' €', { x: 480, y: 680, size: 9, font, color: couleurTexte });
-                // AG - Total Recettes
-                page2.drawText(totalRecettes.toFixed(2) + ' €', { x: 480, y: 580, size: 9, font, color: couleurTexte });
-                // CH - Total Dépenses
-                page2.drawText(totalDepenses.toFixed(2) + ' €', { x: 480, y: 220, size: 9, font, color: couleurTexte });
+                // Case Déficit
+                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 715, y: 350, size: 9, font: fontBold, color: couleurBleue });
             }
 
             const pdfBytes = await pdfDoc.save();
@@ -98,6 +91,7 @@
         }
 
         try {
+            // 1. Récupération des écritures
             const { data: toutesEcritures, error: errToutes } = await supabase
                 .from('ecritures_comptables')
                 .select('*')
@@ -108,6 +102,7 @@
                 return;
             }
 
+            // Extraction des années disponibles
             const anneesDispo = Array.from(new Set((toutesEcritures || []).map(e => {
                 return e.date ? new Date(e.date).getFullYear().toString() : null;
             }).filter(Boolean))).sort((a, b) => b - a);
@@ -118,6 +113,7 @@
 
             const anneeActive = window.annee2035Selectionnee;
 
+            // 2. Filtrage des écritures pour l'année active
             const ecrituresAnnee = (toutesEcritures || []).filter(e => {
                 return e.date && new Date(e.date).getFullYear().toString() === anneeActive;
             });
@@ -150,6 +146,7 @@
             const totalDepensesCH = bwCarpimko + bxUrssaf + autresDepenses;
             const beneficeCP = totalRecettesAG - totalDepensesCH;
 
+            // Déclaration de la fonction d'export globale pour cette session
             window.exporterCerfaActuel = () => {
                 genererEtTelechargerCerfa2035(anneeActive, totalRecettesAG, totalDepensesCH, beneficeCP);
             };
@@ -160,6 +157,7 @@
 
             container.innerHTML = `
                 <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 10px;">
+                    <!-- En-tête avec Sélection, Impression et Génération Cerfa PDF -->
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
                         <div>
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">
@@ -188,6 +186,7 @@
                         </div>
                     </div>
 
+                    <!-- I. RECETTES BRUTES -->
                     <div style="margin-bottom: 24px;">
                         <h3 style="color: #16a34a; font-size: 1rem; font-weight: 700; margin-bottom: 12px;">I. RECETTES BRUTES</h3>
                         <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 0.9rem;">
@@ -220,6 +219,7 @@
                         </div>
                     </div>
 
+                    <!-- II. DÉPENSES PROFESSIONNELLES -->
                     <div style="margin-bottom: 24px;">
                         <h3 style="color: #dc2626; font-size: 1rem; font-weight: 700; margin-bottom: 12px;">II. DÉPENSES PROFESSIONNELLES</h3>
                         <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 0.9rem;">
@@ -252,6 +252,7 @@
                         </div>
                     </div>
 
+                    <!-- RÉSULTAT FISCAL -->
                     <div style="background: #f0fdf4; border: 2px solid #22c55e; color: #15803d; padding: 16px; border-radius: 8px; font-weight: 800; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
                         <span>BÉNÉFICE FISCAL (${anneeActive}) - Ligne 46 / Code CP</span>
                         <span style="font-size: 1.25rem;">${formatEuro(beneficeCP)}</span>
