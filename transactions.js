@@ -89,6 +89,7 @@ async function ajouterTransaction() {
             journal: codeJournal,
             description: descValeur,
             amount: montantVal,
+            justificatif_url: justificatifUrl,
             file_path: justificatifUrl,
             has_attachments: Boolean(justificatifUrl)
         };
@@ -165,8 +166,9 @@ async function ajouterPaiement(e) {
     const catSelect = selects.length > 1 ? selects[1] : sensSelect;
     
     const inputs = vueBanque.querySelectorAll('input');
-    const libelleInput = inputs.length > 1 ? inputs[1] : null;
-    const montantInput = inputs.length > 2 ? inputs[2] : null;
+    const libelleInput = document.getElementById('pay-description') || (inputs.length > 1 ? inputs[1] : null);
+    const montantInput = document.getElementById('pay-montant') || (inputs.length > 2 ? inputs[2] : null);
+    const fileInput = document.getElementById('pay-justificatif') || document.getElementById('pay-file') || vueBanque.querySelector('input[type="file"]');
 
     const dateVal = dateInput ? dateInput.value : '';
     const sensVal = sensSelect ? sensSelect.value : 'Encaissement (Recette)';
@@ -183,6 +185,11 @@ async function ajouterPaiement(e) {
     if (!supabase) {
         alert("Supabase n'est pas initialisé correctement.");
         return;
+    }
+
+    let justificatifUrl = null;
+    if (fileInput && fileInput.files.length > 0) {
+        justificatifUrl = await uploaderJustificatif(fileInput);
     }
 
     const isEncaissement = sensVal.toLowerCase().includes('encaissement') || sensVal.toLowerCase().includes('recette');
@@ -208,7 +215,9 @@ async function ajouterPaiement(e) {
         journal: 'BQ',
         description: libelleVal || catVal,
         amount: montantVal,
-        has_attachments: false
+        justificatif_url: justificatifUrl,
+        file_path: justificatifUrl,
+        has_attachments: Boolean(justificatifUrl)
     };
 
     const { data: parentData, error: parentError } = await supabase
@@ -258,6 +267,7 @@ async function ajouterPaiement(e) {
     } else {
         if (libelleInput) libelleInput.value = '';
         if (montantInput) montantInput.value = '';
+        if (fileInput) fileInput.value = '';
         
         await chargerJournalBanque();
         if (typeof window.chargerGrandLivre === 'function') {
@@ -301,7 +311,7 @@ async function chargerTransactionsListe() {
         const estRecette = (tx.type || '').toLowerCase() === 'recette';
         const valMontant = tx.amount !== undefined ? tx.amount : tx.montant;
         const montantFormatted = Math.abs(parseFloat(valMontant) || 0).toFixed(2);
-        const fileUrl = tx.file_path || tx.justificatif_url;
+        const fileUrl = tx.justificatif_url || tx.file_path;
 
         const docLink = fileUrl 
             ? `<a href="${fileUrl}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:underline;">📎 Voir</a>` 
@@ -315,9 +325,9 @@ async function chargerTransactionsListe() {
                 <td>${tx.description || ''}</td>
                 <td style="font-weight: bold; color: ${estRecette ? '#16a34a' : '#dc2626'};">${montantFormatted} €</td>
                 <td style="text-align: center;">${docLink}</td>
-                <td>
-                    <button class="btn-edit-tx" onclick="window.ouvrirModalModification('${tx.id}')">Modifier</button>
-                    <button class="btn-delete-tx" onclick="window.supprimerTransaction('${tx.id}')">Supprimer</button>
+                <td style="text-align: center; white-space: nowrap;">
+                    <button onclick="window.ouvrirModalModificationBanque('${tx.id}')" style="background:none; border:none; cursor:pointer; font-size:1.1rem; margin-right:6px;" title="Modifier">✏️</button>
+                    <button onclick="window.supprimerTransaction('${tx.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:1.1rem;" title="Supprimer">🗑️</button>
                 </td>
             </tr>
         `;
@@ -356,26 +366,14 @@ async function chargerJournalBanque() {
     if (!supabase) return;
 
     try {
-        let { data, error } = await supabase
-            .from('ecritures_comptables')
+        const { data: transactions, error } = await supabase
+            .from('transactions')
             .select('*')
-            .or('compte_code.eq.512000,compte_code.like.512%')
             .neq('category', 'Opération Diverse')
             .order('date', { ascending: false });
 
-        if (error || !data || data.length === 0) {
-            const resTrans = await supabase
-                .from('transactions')
-                .select('*')
-                .neq('category', 'Opération Diverse')
-                .order('date', { ascending: false });
-            if (!resTrans.error && resTrans.data && resTrans.data.length > 0) {
-                data = resTrans.data;
-            }
-        }
-
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Aucun mouvement bancaire enregistré.</td></tr>`;
+        if (error || !transactions || transactions.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Aucun mouvement bancaire enregistré.</td></tr>`;
             if (soldeEl) soldeEl.textContent = "0,00 €";
             return;
         }
@@ -383,13 +381,9 @@ async function chargerJournalBanque() {
         let totalDebit = 0;
         let totalCredit = 0;
 
-        const html = data.map(row => {
-            const debit = parseFloat(row.debit || 0);
-            const credit = parseFloat(row.credit || 0);
-            
-            const isEncaissement = debit > 0 || (row.sens && row.sens.toLowerCase().includes('encaissement'));
-            const valMontant = row.amount !== undefined ? row.amount : row.montant;
-            const montant = isEncaissement ? (debit || parseFloat(valMontant || 0)) : (credit || parseFloat(valMontant || 0));
+        const html = transactions.map(row => {
+            const isEncaissement = (row.type || '').toLowerCase() === 'recette' || (row.type || '').toLowerCase() === 'income';
+            const montant = parseFloat(row.amount || row.montant || 0);
 
             if (isEncaissement) {
                 totalDebit += montant;
@@ -402,6 +396,11 @@ async function chargerJournalBanque() {
                 ? `<span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">${sensLabel}</span>`
                 : `<span style="background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">${sensLabel}</span>`;
 
+            const fileUrl = row.justificatif_url || row.file_path;
+            const docLink = fileUrl 
+                ? `<a href="${fileUrl}" target="_blank" style="color: #2563eb; font-weight: 600; text-decoration: underline;">📎 Scan</a>` 
+                : `<span style="color: #cbd5e1;">-</span>`;
+
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
@@ -410,8 +409,10 @@ async function chargerJournalBanque() {
                     <td style="padding: 10px; color: #1e293b; font-weight: 500;">${row.description || row.libelle || '-'}</td>
                     <td style="padding: 10px; color: #dc2626; font-weight: 600; text-align: right;">${!isEncaissement ? formatEuro(montant) : '-'}</td>
                     <td style="padding: 10px; color: #16a34a; font-weight: 600; text-align: right;">${isEncaissement ? formatEuro(montant) : '-'}</td>
-                    <td style="padding: 10px; text-align: center;">
-                        <button onclick="window.supprimerMouvementBanque('${row.id}', '${row.transaction_id || ''}')" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.9rem;" title="Supprimer">🗑️</button>
+                    <td style="padding: 10px; text-align: center;">${docLink}</td>
+                    <td style="padding: 10px; text-align: center; white-space: nowrap;">
+                        <button onclick="window.ouvrirModalModificationBanque('${row.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; margin-right: 6px;" title="Modifier l'opération et le scan">✏️</button>
+                        <button onclick="window.supprimerMouvementBanque('${row.id}', '${row.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.1rem;" title="Supprimer">🗑️</button>
                     </td>
                 </tr>
             `;
@@ -428,32 +429,59 @@ async function chargerJournalBanque() {
     }
 }
 
+async function ouvrirModalModificationBanque(transactionId) {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+        const { data, error } = await supabase.from('transactions').select('*').eq('id', transactionId).single();
+        if (error || !data) {
+            alert("Impossible de charger l'opération.");
+            return;
+        }
+
+        const editId = document.getElementById('edit-id');
+        const editTransId = document.getElementById('edit-transaction-id');
+        const editDate = document.getElementById('edit-date');
+        const editDesc = document.getElementById('edit-description');
+        const editMontant = document.getElementById('edit-montant');
+        const editType = document.getElementById('edit-type');
+        const editCat = document.getElementById('edit-categorie');
+        const editFile = document.getElementById('edit-file');
+
+        if (editId) editId.value = '';
+        if (editTransId) editTransId.value = data.id;
+        if (editDate) editDate.value = data.date || '';
+        if (editDesc) editDesc.value = data.description || '';
+        if (editMontant) editMontant.value = data.amount || data.montant || 0;
+        if (editCat) editCat.value = data.category || data.categorie || '';
+        if (editType) editType.value = (data.type || '').toLowerCase() === 'recette' ? 'Recette' : 'Dépense';
+        if (editFile) editFile.value = '';
+
+        const modal = document.getElementById('modal-modifier');
+        if (modal) modal.style.display = 'flex';
+
+    } catch (err) {
+        console.error("Erreur ouverture modal banque :", err);
+    }
+}
+
 async function supprimerMouvementBanque(id, transactionId) {
     if (!confirm("Voulez-vous vraiment supprimer cet enregistrement ?")) return;
 
     const supabase = getSupabase();
     if (!supabase) return;
 
-    let query = supabase.from('ecritures_comptables').delete();
-    if (transactionId && transactionId !== 'undefined' && transactionId !== '') {
-        query = query.eq('transaction_id', transactionId);
-    } else {
-        query = query.eq('id', id);
-    }
+    const realTxId = transactionId || id;
 
-    const { error } = await query;
-    if (error) {
-        alert("Erreur lors de la suppression : " + error.message);
-    } else {
-        if (transactionId && transactionId !== 'undefined' && transactionId !== '') {
-            await supabase.from('transactions').delete().eq('id', transactionId);
-        }
-        await chargerJournalBanque();
-        if (typeof window.chargerGrandLivre === 'function') {
-            await window.chargerGrandLivre();
-        }
-        window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
+    await supabase.from('ecritures_comptables').delete().eq('transaction_id', realTxId);
+    await supabase.from('transactions').delete().eq('id', realTxId);
+
+    await chargerJournalBanque();
+    if (typeof window.chargerGrandLivre === 'function') {
+        await window.chargerGrandLivre();
     }
+    window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
 }
 
 // Exports globaux
@@ -465,6 +493,7 @@ window.chargerJournalBanque = chargerJournalBanque;
 window.chargerTransactions = chargerJournalBanque;
 window.ajouterPaiement = ajouterPaiement;
 window.supprimerMouvementBanque = supprimerMouvementBanque;
+window.ouvrirModalModificationBanque = ouvrirModalModificationBanque;
 
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(chargerJournalBanque, 200);
