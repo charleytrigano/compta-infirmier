@@ -50,16 +50,16 @@
             if (profilSiret) page1.drawText(profilSiret, { x: 110, y: 602, size: 9, font: fontBold, color: couleurBleue });
 
             // --- PÉRIODE DE L'EXERCICE ---
-            page1.drawText(`01/01/${annee}`, { x: 410, y: 393, size: 9, font: fontBold, color: couleurBleue });
-            page1.drawText(`31/12/${annee}`, { x: 505, y: 393, size: 9, font: fontBold, color: couleurBleue });
+            page1.drawText(`01/01/${annee}`, { x: 375, y: 442, size: 9, font: fontBold, color: couleurBleue });
+            page1.drawText(`31/12/${annee}`, { x: 460, y: 442, size: 9, font: fontBold, color: couleurBleue });
 
             // --- RÉCAPITULATION DES ÉLÉMENTS D'IMPOSITION (Cadre 1 - Bénéfice / Déficit) ---
             if (benefice >= 0) {
                 // Case Bénéfice
-                page1.drawText(benefice.toFixed(2) + ' €', { x: 525, y: 350, size: 9, font: fontBold, color: couleurBleue });
+                page1.drawText(benefice.toFixed(2) + ' €', { x: 525, y: 412, size: 9, font: fontBold, color: couleurBleue });
             } else {
                 // Case Déficit
-                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 715, y: 350, size: 9, font: fontBold, color: couleurBleue });
+                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 715, y: 412, size: 9, font: fontBold, color: couleurBleue });
             }
 
             const pdfBytes = await pdfDoc.save();
