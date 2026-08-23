@@ -20,7 +20,7 @@
 
         try {
             // Téléchargement du fichier modèle Cerfa
-            const urlPdfModele = './cerfa 2035-sd_4981.pdf';
+            const urlPdfModele = './cerfa_2035.pdf';
             const res = await fetch(urlPdfModele);
             if (!res.ok) {
                 throw new Error("Impossible de trouver le fichier 'cerfa 2035-sd_4981.pdf' à la racine du projet.");
