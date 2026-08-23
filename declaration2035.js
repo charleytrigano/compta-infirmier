@@ -1,4 +1,4 @@
-// declaration2035.js - Rendu complet, filtre par année, profil Supabase et dessin dynamique sur le Cerfa 2035 PDF
+// declaration2035.js - Rendu complet, filtre par année, profil Supabase + Auth et dessin dynamique sur le Cerfa 2035 PDF
 
 (function () {
     window.annee2035Selectionnee = window.annee2035Selectionnee || new Date().getFullYear().toString();
@@ -36,35 +36,35 @@
 
             const couleurBleue = rgb(0, 0.2, 0.6); // Couleur d'écriture bleue
 
-            // Extraire les infos de profil (Priorité Supabase puis LocalStorage)
-            const nomPrenom = profilInfo.nom || localStorage.getItem('user_fullname') || '';
-            const adresse = profilInfo.adresse || localStorage.getItem('user_address') || '';
-            const siret = profilInfo.siret || localStorage.getItem('user_siret') || '';
+            // Extraire les infos de profil (Priorité Supabase -> LocalStorage)
+            const nomPrenom = profilInfo.nom || localStorage.getItem('user_fullname') || localStorage.getItem('nom_complet') || '';
+            const adresse = profilInfo.adresse || localStorage.getItem('user_address') || localStorage.getItem('adresse') || '';
+            const siret = profilInfo.siret || localStorage.getItem('user_siret') || localStorage.getItem('siret') || '';
             const email = profilInfo.email || localStorage.getItem('user_email') || '';
             const tel = profilInfo.tel || localStorage.getItem('user_phone') || '';
             const activite = profilInfo.activite || localStorage.getItem('user_activity') || '';
 
-            // --- EN-TÊTE PAGE 1 (Haut du document) ---
-            if (nomPrenom) page1.drawText(nomPrenom, { x: 45, y: 752, size: 9, font: fontBold, color: couleurBleue });
-            if (adresse) page1.drawText(adresse, { x: 45, y: 720, size: 8, font: fontRegular, color: couleurBleue });
-            if (siret) page1.drawText(siret, { x: 90, y: 645, size: 9, font: fontBold, color: couleurBleue });
-            if (email) page1.drawText(email, { x: 100, y: 628, size: 8, font: fontRegular, color: couleurBleue });
-            if (tel) page1.drawText(tel, { x: 110, y: 611, size: 8, font: fontRegular, color: couleurBleue });
+            // --- EN-TÊTE PAGE 1 (Zone supérieure) ---
+            if (nomPrenom) page1.drawText(nomPrenom, { x: 45, y: 720, size: 9, font: fontBold, color: couleurBleue });
+            if (adresse) page1.drawText(adresse, { x: 45, y: 680, size: 8, font: fontRegular, color: couleurBleue });
+            if (siret) page1.drawText(siret, { x: 90, y: 602, size: 9, font: fontBold, color: couleurBleue });
+            if (email) page1.drawText(email, { x: 100, y: 585, size: 8, font: fontRegular, color: couleurBleue });
+            if (tel) page1.drawText(tel, { x: 110, y: 568, size: 8, font: fontRegular, color: couleurBleue });
 
             // Nature de l'activité
-            if (activite) page1.drawText(activite, { x: 130, y: 508, size: 8, font: fontRegular, color: couleurBleue });
+            if (activite) page1.drawText(activite, { x: 130, y: 470, size: 8, font: fontRegular, color: couleurBleue });
 
-            // --- PÉRIODE DE L'EXERCICE (Rehaussé au-dessus de la zone "Renseignements") ---
-            page1.drawText(`01/01/${annee}`, { x: 375, y: 478, size: 9, font: fontBold, color: couleurBleue });
-            page1.drawText(`31/12/${annee}`, { x: 460, y: 478, size: 9, font: fontBold, color: couleurBleue });
+            // --- PÉRIODE DE L'EXERCICE (Ligne "RENSEIGNEMENTS RELATIFS A L'ANNEE...") ---
+            page1.drawText(`01/01/${annee}`, { x: 410, y: 393, size: 9, font: fontBold, color: couleurBleue });
+            page1.drawText(`31/12/${annee}`, { x: 505, y: 393, size: 9, font: fontBold, color: couleurBleue });
 
             // --- RÉCAPITULATION DES ÉLÉMENTS D'IMPOSITION (Cadre 1 - Bénéfice / Déficit) ---
             if (benefice >= 0) {
-                // Case Bénéfice (Alignée dans la ligne de 1- Résultat fiscal)
-                page1.drawText(benefice.toFixed(2) + ' €', { x: 520, y: 442, size: 9, font: fontBold, color: couleurBleue });
+                // Case Bénéfice (Alignée dans la ligne Bénéfice du Cadre 1)
+                page1.drawText(benefice.toFixed(2) + ' €', { x: 525, y: 350, size: 9, font: fontBold, color: couleurBleue });
             } else {
                 // Case Déficit
-                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 710, y: 442, size: 9, font: fontBold, color: couleurBleue });
+                page1.drawText(Math.abs(benefice).toFixed(2) + ' €', { x: 715, y: 350, size: 9, font: fontBold, color: couleurBleue });
             }
 
             const pdfBytes = await pdfDoc.save();
@@ -96,20 +96,39 @@
         }
 
         try {
-            // 1. Récupération des informations de profil depuis Supabase
+            // 1. Récupération des informations de profil depuis Supabase (Session + Tables possibles)
             let profilInfo = { nom: '', adresse: '', siret: '', email: '', tel: '', activite: '' };
+
+            // A. Session Auth Supabase
+            const { data: authData } = await supabase.auth.getUser();
+            const user = authData?.user;
+            if (user) {
+                profilInfo.email = user.email || '';
+                const meta = user.user_metadata || {};
+                profilInfo.nom = meta.full_name || meta.nom_complet || `${meta.prenom || ''} ${meta.nom || ''}`.trim();
+                profilInfo.siret = meta.siret || '';
+                profilInfo.adresse = meta.adresse || '';
+                profilInfo.tel = meta.telephone || meta.phone || '';
+                profilInfo.activite = meta.activite || meta.profession || '';
+            }
+
+            // B. Table DB 'profil' ou 'profiles'
             const { data: userProfil } = await supabase
                 .from('profil')
                 .select('*')
                 .maybeSingle();
 
             if (userProfil) {
-                profilInfo.nom = `${userProfil.prenom || ''} ${userProfil.nom || ''}`.trim() || userProfil.nom_complet || userProfil.raison_sociale || '';
-                profilInfo.adresse = `${userProfil.adresse || ''} ${userProfil.code_postal || ''} ${userProfil.ville || ''}`.trim();
-                profilInfo.siret = userProfil.siret || userProfil.siren || '';
-                profilInfo.email = userProfil.email || '';
-                profilInfo.tel = userProfil.telephone || userProfil.tel || '';
-                profilInfo.activite = userProfil.activite || userProfil.profession || '';
+                const nomDb = `${userProfil.prenom || ''} ${userProfil.nom || ''}`.trim() || userProfil.nom_complet || userProfil.raison_sociale;
+                if (nomDb) profilInfo.nom = nomDb;
+                
+                const adrDb = `${userProfil.adresse || ''} ${userProfil.code_postal || ''} ${userProfil.ville || ''}`.trim();
+                if (adrDb) profilInfo.adresse = adrDb;
+                
+                if (userProfil.siret || userProfil.siren) profilInfo.siret = userProfil.siret || userProfil.siren;
+                if (userProfil.email) profilInfo.email = userProfil.email;
+                if (userProfil.telephone || userProfil.tel) profilInfo.tel = userProfil.telephone || userProfil.tel;
+                if (userProfil.activite || userProfil.profession) profilInfo.activite = userProfil.activite || userProfil.profession;
             }
 
             // 2. Récupération des écritures
