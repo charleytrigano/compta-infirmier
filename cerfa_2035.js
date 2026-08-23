@@ -1,5 +1,6 @@
 // cerfa_2035.js - Génération et pré-remplissage automatique du Cerfa 2035-SD (2025)
 
+
 async function genererEtTelechargerCerfa2035(annee = new Date().getFullYear() - 1) {
     const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
     if (!supabase) {
