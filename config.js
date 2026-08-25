@@ -52,3 +52,19 @@ try {
 } catch (error) {
     console.error("❌ Erreur lors de l'initialisation de Supabase :", error);
 }
+
+// ==========================================
+// UTILITAIRE PARTAGÉ : ÉCHAPPEMENT HTML
+// ==========================================
+// Empêche qu'un texte saisi par l'utilisateur (description, libellé...)
+// contenant des caractères HTML ne casse l'affichage ou n'exécute du code
+// lorsqu'il est réinjecté via innerHTML / template strings.
+window.escapeHtml = function (value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
