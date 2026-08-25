@@ -1,0 +1,35 @@
+name: Executer Sauvegarde
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v3
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Installer les dépendances Supabase
+        run: npm install @supabase/supabase-js
+
+      - name: Lancer la sauvegarde
+        run: node backup.js
+        env:
+          # À configurer dans GitHub : Settings > Secrets and variables > Actions.
+          # Utilisez de préférence une clé "service_role" (accès complet, contourne
+          # les règles RLS) plutôt que la clé publique "anon", et NE LA COMMITEZ JAMAIS
+          # dans le code (contrairement à la clé anon, qui est faite pour être publique).
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Telecharger le dossier de sauvegarde
+        uses: actions/upload-artifact@v3
+        with:
+          name: Sauvegarde_Comptabilite
+          path: Sauvegarde_Comptabilite/
