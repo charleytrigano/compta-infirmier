@@ -622,17 +622,26 @@
 
             if (btnElement) { btnElement.classList.add('active'); }
 
+            // NOTE : les noms de fonctions appelés ci-dessous doivent correspondre
+            // EXACTEMENT à ce que chaque module expose sur `window` (voir la fin de
+            // chaque fichier .js). Plusieurs onglets (URSSAF, Bilan, 2035, Journal,
+            // Balance) appelaient auparavant des noms de fonctions qui n'existaient
+            // nulle part : ces onglets ne se rafraîchissaient donc JAMAIS lors du
+            // changement d'onglet et affichaient des données obsolètes tant que la
+            // page n'était pas rechargée entièrement.
+            if (tabId === 'vue-transactions' && typeof window.chargerHistoriqueTransactions === 'function') window.chargerHistoriqueTransactions();
+            if (tabId === 'vue-banque' && typeof window.chargerJournalBanque === 'function') window.chargerJournalBanque();
             if (tabId === 'vue-od' && typeof window.chargerJournalOD === 'function') window.chargerJournalOD();
             if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') window.afficherPlanComptable();
-            if (tabId === 'vue-urssaf' && typeof window.afficherDeclarationURSSAF === 'function') window.afficherDeclarationURSSAF();
+            if (tabId === 'vue-urssaf' && typeof window.initUrssafModule === 'function') window.initUrssafModule();
             if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
             if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
             if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
-            if (tabId === 'vue-bilan' && typeof window.afficherBilanEtCE === 'function') window.afficherBilanEtCE();
-            if (tabId === 'vue-2035' && typeof window.afficherDeclaration2035 === 'function') window.afficherDeclaration2035();
-            if (tabId === 'vue-journal' && typeof window.afficherJournal === 'function') window.afficherJournal();
+            if (tabId === 'vue-bilan' && typeof window.chargerBilanEtCE === 'function') window.chargerBilanEtCE();
+            if (tabId === 'vue-2035' && typeof window.chargerDeclaration2035 === 'function') window.chargerDeclaration2035();
+            if (tabId === 'vue-journal' && typeof window.chargerJournalGeneral === 'function') window.chargerJournalGeneral();
             if (tabId === 'vue-grandlivre' && typeof window.chargerEtAfficherGrandLivre === 'function') window.chargerEtAfficherGrandLivre();
-            if (tabId === 'vue-balance' && typeof window.chargerEtAfficherBalance === 'function') window.chargerEtAfficherBalance();
+            if (tabId === 'vue-balance' && typeof window.initBalanceModule === 'function') window.initBalanceModule();
             if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
         };
 
