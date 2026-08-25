@@ -171,10 +171,10 @@
 
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #64748b;">${row.id || idx + 1}</td>
-                        <td style="padding: 10px; font-weight: 700; color: #1e293b;">${code}</td>
-                        <td style="padding: 10px; color: #334155;">${label}</td>
-                        <td style="padding: 10px;"><span style="background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem;">${type}</span></td>
+                        <td style="padding: 10px; color: #64748b;">${escapeHtml(row.id || idx + 1)}</td>
+                        <td style="padding: 10px; font-weight: 700; color: #1e293b;">${escapeHtml(code)}</td>
+                        <td style="padding: 10px; color: #334155;">${escapeHtml(label)}</td>
+                        <td style="padding: 10px;"><span style="background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem;">${escapeHtml(type)}</span></td>
                     </tr>
                 `;
             }).join('');

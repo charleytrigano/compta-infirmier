@@ -130,17 +130,17 @@
                     : `<span style="background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">Dépense</span>`;
 
                 const justifLink = t.justificatifUrl
-                    ? `<a href="${t.justificatifUrl}" target="_blank" style="color: #2563eb; text-decoration: none;">📎 Scan</a>`
+                    ? `<a href="${escapeHtml(t.justificatifUrl)}" target="_blank" style="color: #2563eb; text-decoration: none;">📎 Scan</a>`
                     : `<span style="color: #cbd5e1;">-</span>`;
 
                 const transIdStr = t.transaction_id ? `'${t.transaction_id}'` : 'null';
 
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155;">${t.date || '-'}</td>
+                        <td style="padding: 10px; color: #334155;">${escapeHtml(t.date || '-')}</td>
                         <td style="padding: 10px;">${typeBadge}</td>
-                        <td style="padding: 10px; color: #475569;">${t.categorie}</td>
-                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${t.description}</td>
+                        <td style="padding: 10px; color: #475569;">${escapeHtml(t.categorie)}</td>
+                        <td style="padding: 10px; color: #1e293b; font-weight: 500;">${escapeHtml(t.description)}</td>
                         <td style="padding: 10px; text-align: right; font-weight: 600; color: ${isRecette ? '#16a34a' : '#dc2626'};">
                             ${formatEuro(t.montant)}
                         </td>
@@ -421,9 +421,9 @@
 
                     html += `
                         <tr style="border-bottom: 1px solid #f1f5f9;">
-                            <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
-                            <td style="padding: 10px; color: #475569; font-weight: 600;">${compteCode}</td>
-                            <td style="padding: 10px; color: #1e293b; font-weight: 500;">${compteLibelle}</td>
+                            <td style="padding: 10px; color: #334155;">${escapeHtml(row.date || '-')}</td>
+                            <td style="padding: 10px; color: #475569; font-weight: 600;">${escapeHtml(compteCode)}</td>
+                            <td style="padding: 10px; color: #1e293b; font-weight: 500;">${escapeHtml(compteLibelle)}</td>
                             <td style="padding: 10px; color: #dc2626; text-align: right; font-weight: 500;">${formatEuro(debit)}</td>
                             <td style="padding: 10px; color: #16a34a; text-align: right; font-weight: 500;">${formatEuro(credit)}</td>
                             <td style="padding: 10px; text-align: center;">

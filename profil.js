@@ -22,7 +22,16 @@ async function chargerProfilSupabase() {
   return null;
 }
 
-async function exporterSauvegardeGlobale() {
+// IMPORTANT : ne PAS déclarer ici une fonction globale nommée `exporterSauvegardeGlobale`.
+// index.html définit déjà `window.exporterSauvegardeGlobale`, une version complète qui
+// exporte 6 tables Supabase dont `ecritures_comptables` (le grand livre lui-même).
+// Tous les scripts partagent la même portée globale : un `function exporterSauvegardeGlobale()`
+// déclaré ici écraserait silencieusement cette version complète par une version qui
+// n'exportait que 'profile' et 'transactions' — SANS les écritures comptables. C'était
+// un bug réel : le bouton de sauvegarde de l'onglet "Sauvegarde & Expert" perdait la
+// comptabilité. On se contente ici d'un habillage visuel (état du bouton) qui délègue
+// à l'unique fonction globale complète.
+async function lancerExportGlobalDepuisProfil() {
   const btn = document.getElementById('btn-export-global');
   if (btn) {
     btn.disabled = true;
@@ -30,32 +39,11 @@ async function exporterSauvegardeGlobale() {
   }
 
   try {
-    const backupData = {
-      date_export: new Date().toISOString(),
-      tables: {}
-    };
-
-    if (window.supabaseClient) {
-      const tables = ['profile', 'transactions'];
-      for (const table of tables) {
-        const { data, error } = await window.supabaseClient.from(table).select('*');
-        if (!error && data) {
-          backupData.tables[table] = data;
-        }
-      }
+    if (typeof window.exporterSauvegardeGlobale === 'function') {
+      await window.exporterSauvegardeGlobale();
     } else {
-      backupData.tables['profile'] = [JSON.parse(localStorage.getItem('profil_praticien') || '{}')];
+      alert("⚠️ Erreur : fonction d'exportation indisponible.");
     }
-
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `Sauvegarde_Compta_Supabase_${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-
-    alert("✅ Sauvegarde globale exportée avec succès !");
   } catch (err) {
     console.error("Erreur lors de la sauvegarde :", err);
     alert("⚠️ Erreur lors de la génération de la sauvegarde.");
@@ -88,10 +76,10 @@ async function renderProfilUI() {
           </div>
           <div>
             <h2 class="text-lg font-bold text-slate-800">
-              ${profileData.prenom || profileData.nom ? `${profileData.prenom || ''} ${profileData.nom || ''}` : 'Profil Praticien'}
+              ${profileData.prenom || profileData.nom ? escapeHtml(`${profileData.prenom || ''} ${profileData.nom || ''}`) : 'Profil Praticien'}
             </h2>
             <p class="text-xs text-slate-500">
-              ${profileData.email || 'Email non renseigné'}
+              ${escapeHtml(profileData.email || 'Email non renseigné')}
             </p>
           </div>
         </div>
@@ -114,19 +102,19 @@ async function renderProfilUI() {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Nom :</label>
-              <input type="text" id="prof-nom" value="${profileData.nom || ''}" placeholder="Ex: DAMIANO" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-nom" value="${escapeHtml(profileData.nom || '')}" placeholder="Ex: DAMIANO" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Prénom :</label>
-              <input type="text" id="prof-prenom" value="${profileData.prenom || ''}" placeholder="Ex: Nolwenn" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-prenom" value="${escapeHtml(profileData.prenom || '')}" placeholder="Ex: Nolwenn" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Email :</label>
-              <input type="email" id="prof-email" value="${profileData.email || ''}" placeholder="ex: exemple@gmail.com" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="email" id="prof-email" value="${escapeHtml(profileData.email || '')}" placeholder="ex: exemple@gmail.com" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Téléphone :</label>
-              <input type="text" id="prof-telephone" value="${profileData.telephone || ''}" placeholder="Ex: 06 10 09 92 07" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-telephone" value="${escapeHtml(profileData.telephone || '')}" placeholder="Ex: 06 10 09 92 07" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
@@ -139,15 +127,15 @@ async function renderProfilUI() {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-3">
               <label class="block text-xs font-semibold text-slate-700 mb-1">Adresse :</label>
-              <input type="text" id="prof-adresse" value="${profileData.adresse || ''}" placeholder="Ex: 12 Rue des Infirmiers" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-adresse" value="${escapeHtml(profileData.adresse || '')}" placeholder="Ex: 12 Rue des Infirmiers" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Code Postal :</label>
-              <input type="text" id="prof-code-postal" value="${profileData.code_postal || ''}" placeholder="Ex: 06000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-code-postal" value="${escapeHtml(profileData.code_postal || '')}" placeholder="Ex: 06000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div class="md:col-span-2">
               <label class="block text-xs font-semibold text-slate-700 mb-1">Ville :</label>
-              <input type="text" id="prof-ville" value="${profileData.ville || ''}" placeholder="Ex: Nice" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-ville" value="${escapeHtml(profileData.ville || '')}" placeholder="Ex: Nice" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
@@ -160,19 +148,19 @@ async function renderProfilUI() {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">SIRET :</label>
-              <input type="text" id="prof-siret" value="${profileData.siret || ''}" placeholder="Ex: 123 456 789 00012" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-siret" value="${escapeHtml(profileData.siret || '')}" placeholder="Ex: 123 456 789 00012" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">N° RPPS :</label>
-              <input type="text" id="prof-rpps" value="${profileData.rpps || ''}" placeholder="Ex: 10101234567" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-rpps" value="${escapeHtml(profileData.rpps || '')}" placeholder="Ex: 10101234567" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">N° ADELI :</label>
-              <input type="text" id="prof-adeli" value="${profileData.adeli || ''}" placeholder="Ex: 066900000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-adeli" value="${escapeHtml(profileData.adeli || '')}" placeholder="Ex: 066900000" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">N° URSSAF :</label>
-              <input type="text" id="prof-num-urssaf" value="${profileData.num_urssaf || ''}" placeholder="Ex: 060123456789" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="prof-num-urssaf" value="${escapeHtml(profileData.num_urssaf || '')}" placeholder="Ex: 060123456789" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
@@ -186,19 +174,19 @@ async function renderProfilUI() {
             <div class="space-y-3">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Cabinet :</label>
-                <input type="text" id="prof-comptable-cabinet" value="${profileData.comptable_cabinet || ''}" placeholder="Ex: Cabinet ABC" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="prof-comptable-cabinet" value="${escapeHtml(profileData.comptable_cabinet || '')}" placeholder="Ex: Cabinet ABC" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Adresse :</label>
-                <input type="text" id="prof-comptable-adresse" value="${profileData.comptable_adresse || ''}" placeholder="Ex: 5 Av. des Comptes" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="prof-comptable-adresse" value="${escapeHtml(profileData.comptable_adresse || '')}" placeholder="Ex: 5 Av. des Comptes" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Téléphone :</label>
-                <input type="text" id="prof-comptable-tel" value="${profileData.comptable_tel || ''}" placeholder="Ex: 04 93 00 00 00" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="prof-comptable-tel" value="${escapeHtml(profileData.comptable_tel || '')}" placeholder="Ex: 04 93 00 00 00" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Email :</label>
-                <input type="email" id="prof-comptable-email" value="${profileData.comptable_email || ''}" placeholder="Ex: contact@comptable.fr" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <input type="email" id="prof-comptable-email" value="${escapeHtml(profileData.comptable_email || '')}" placeholder="Ex: contact@comptable.fr" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               </div>
             </div>
           </div>
@@ -211,11 +199,11 @@ async function renderProfilUI() {
               <div class="space-y-3">
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Début d'exercice :</label>
-                  <input type="date" id="prof-exercice-debut" value="${profileData.exercice_debut || '2026-01-01'}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                  <input type="date" id="prof-exercice-debut" value="${escapeHtml(profileData.exercice_debut || '2026-01-01')}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Fin d'exercice :</label>
-                  <input type="date" id="prof-exercice-fin" value="${profileData.exercice_fin || '2026-12-31'}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                  <input type="date" id="prof-exercice-fin" value="${escapeHtml(profileData.exercice_fin || '2026-12-31')}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
                 </div>
               </div>
             </div>
@@ -237,7 +225,7 @@ async function renderProfilUI() {
             Téléchargez une sauvegarde instantanée de l'ensemble de vos données Supabase ('profile' et 'transactions') sur votre appareil.
           </p>
           <div>
-            <button type="button" id="btn-export-global" onclick="exporterSauvegardeGlobale()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <button type="button" id="btn-export-global" onclick="lancerExportGlobalDepuisProfil()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
               📦 Télécharger la Sauvegarde Globale (Supabase)
             </button>
           </div>

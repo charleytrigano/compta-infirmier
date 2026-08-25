@@ -320,17 +320,17 @@
                 const justifUrl = trans ? trans.justificatif_url : null;
 
                 const justifBtn = justifUrl
-                    ? `<a href="${justifUrl}" target="_blank" style="color: #2563eb; text-decoration: none;" title="Voir le justificatif">📎 Scan</a>`
+                    ? `<a href="${escapeHtml(justifUrl)}" target="_blank" style="color: #2563eb; text-decoration: none;" title="Voir le justificatif">📎 Scan</a>`
                     : `<span style="color: #cbd5e1;">-</span>`;
 
                 const transIdStr = row.transaction_id ? `'${row.transaction_id}'` : 'null';
 
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155;">${row.date || '-'}</td>
-                        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${row.compte_code}</td>
-                        <td style="padding: 10px; color: #475569;">${row.compte_libelle || '-'}</td>
-                        <td style="padding: 10px; color: #1e293b;">${row.description || '-'}</td>
+                        <td style="padding: 10px; color: #334155;">${escapeHtml(row.date || '-')}</td>
+                        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${escapeHtml(row.compte_code)}</td>
+                        <td style="padding: 10px; color: #475569;">${escapeHtml(row.compte_libelle || '-')}</td>
+                        <td style="padding: 10px; color: #1e293b;">${escapeHtml(row.description || '-')}</td>
                         <td style="padding: 10px; color: #2563eb; font-weight: 600; text-align: right;">${debit > 0 ? formatEuro(debit) : '-'}</td>
                         <td style="padding: 10px; color: #dc2626; font-weight: 600; text-align: right;">${credit > 0 ? formatEuro(credit) : '-'}</td>
                         <td style="padding: 10px; text-align: center;">${justifBtn}</td>
@@ -354,11 +354,18 @@
         if (!supabase) return;
 
         try {
+            let resultat;
             if (transactionId) {
-                await supabase.from('ecritures_comptables').delete().eq('transaction_id', transactionId);
-                await supabase.from('transactions').delete().eq('id', transactionId);
+                const resEcr = await supabase.from('ecritures_comptables').delete().eq('transaction_id', transactionId);
+                const resTx = await supabase.from('transactions').delete().eq('id', transactionId);
+                resultat = resEcr.error ? resEcr : resTx;
             } else {
-                await supabase.from('ecritures_comptables').delete().eq('id', ecritureId);
+                resultat = await supabase.from('ecritures_comptables').delete().eq('id', ecritureId);
+            }
+
+            if (resultat && resultat.error) {
+                alert("Erreur lors de la suppression : " + resultat.error.message);
+                return;
             }
 
             alert("Écriture OD supprimée avec succès !");

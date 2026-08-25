@@ -78,7 +78,7 @@ async function executerSauvegarde() {
       console.log('  ✅ Table "transactions" exportée en JSON');
     }
   } else {
-    console.log('  ℹ️ Configurez vos clés Supabase dans le script pour l'export automatique des données.');
+    console.log("  ℹ️ Configurez vos clés Supabase (variables d'environnement SUPABASE_URL / SUPABASE_KEY) pour l'export automatique des données.");
   }
 
   console.log(`\n🎉 Sauvegarde terminée dans : ${DOSSIER_DESTINATION}`);
