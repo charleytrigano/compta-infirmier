@@ -35,27 +35,115 @@ async function genererFichierJSON() {
   downloadAnchor.remove();
 }
 
-async function importerFichierJSON(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+// Tables gérées par la sauvegarde globale — doit rester synchronisé avec
+// window.exporterSauvegardeGlobale (index.html) et TABLES_SUPABASE (backup.js).
+const TABLES_RESTAURABLES = ['attachments', 'declarations', 'ecritures_comptables', 'plan_comptable', 'profile', 'transactions'];
 
-  const reader = new FileReader();
-  reader.onload = async function(e) {
+// Déduit la table visée à partir du nom de fichier, pour les fichiers individuels
+// produits par la sauvegarde automatique GitHub (ex: "transactions_backup.json").
+function deviserTableDepuisNomFichier(nomFichier) {
+  const nomTable = String(nomFichier || '').replace(/\.json$/i, '').replace(/_backup$/i, '');
+  return TABLES_RESTAURABLES.includes(nomTable) ? nomTable : null;
+}
+
+async function restaurerTable(nomTable, lignes) {
+  if (!Array.isArray(lignes) || lignes.length === 0) {
+    return { table: nomTable, statut: 'vide' };
+  }
+  if (!window.supabaseClient) {
+    return { table: nomTable, statut: 'hors-ligne' };
+  }
+  try {
+    const { error } = await window.supabaseClient.from(nomTable).upsert(lignes);
+    if (error) {
+      console.error(`Erreur restauration table "${nomTable}" :`, error.message);
+      return { table: nomTable, statut: 'erreur', message: error.message };
+    }
+    if (nomTable === 'ecritures_comptables') {
+      localStorage.setItem('ecritures_comptables', JSON.stringify(lignes));
+    }
+    return { table: nomTable, statut: 'ok', count: lignes.length };
+  } catch (err) {
+    console.error(`Exception restauration table "${nomTable}" :`, err);
+    return { table: nomTable, statut: 'erreur', message: err.message };
+  }
+}
+
+// Accepte trois formats de fichier, au choix (on peut aussi en sélectionner plusieurs
+// à la fois) :
+//  1. Le fichier de "📦 Télécharger la Sauvegarde Globale (Supabase)" ci-dessus :
+//     { date_export, tables: { profile: [...], transactions: [...], ... } }
+//  2. L'ancien export "⬇️ Exporter la Sauvegarde Globale (.JSON)" de ce bloc :
+//     { ecritures: [...], paiements: [...] }
+//  3. Les fichiers individuels de la sauvegarde automatique GitHub Actions
+//     (profile_backup.json, transactions_backup.json, etc. — un tableau JSON brut,
+//     la table étant déduite du nom de fichier). On peut sélectionner plusieurs de
+//     ces fichiers en une seule fois.
+async function importerFichierJSON(event) {
+  const fichiers = Array.from(event.target.files || []);
+  if (fichiers.length === 0) return;
+
+  const confirmation = confirm(
+    "⚠️ Cette action va écrire le contenu du/des fichier(s) sélectionné(s) dans votre base Supabase " +
+    "(les lignes ayant le même identifiant seront écrasées).\n\nContinuer la restauration ?"
+  );
+  if (!confirmation) {
+    event.target.value = '';
+    return;
+  }
+
+  const resultats = [];
+
+  for (const fichier of fichiers) {
+    let contenu;
     try {
-      const donnees = JSON.parse(e.target.result);
-      if (donnees.ecritures) {
-        localStorage.setItem('ecritures_comptables', JSON.stringify(donnees.ecritures));
-        if (window.supabaseClient) {
-          await window.supabaseClient.from('ecritures_comptables').upsert(donnees.ecritures);
+      contenu = JSON.parse(await fichier.text());
+    } catch (err) {
+      resultats.push({ table: fichier.name, statut: 'erreur', message: 'fichier JSON invalide' });
+      continue;
+    }
+
+    if (contenu && contenu.tables && typeof contenu.tables === 'object') {
+      // Format 1 : Sauvegarde Globale (Supabase)
+      for (const nomTable of TABLES_RESTAURABLES) {
+        if (Array.isArray(contenu.tables[nomTable]) && contenu.tables[nomTable].length > 0) {
+          resultats.push(await restaurerTable(nomTable, contenu.tables[nomTable]));
         }
       }
-      alert("✅ Sauvegarde restaurée avec succès !");
-      location.reload();
-    } catch (err) {
-      alert("❌ Erreur lors de la lecture du fichier de sauvegarde.");
+    } else if (contenu && Array.isArray(contenu.ecritures)) {
+      // Format 2 : ancien export de ce bloc
+      if (Array.isArray(contenu.paiements)) {
+        localStorage.setItem('paiements', JSON.stringify(contenu.paiements));
+      }
+      resultats.push(await restaurerTable('ecritures_comptables', contenu.ecritures));
+    } else if (Array.isArray(contenu)) {
+      // Format 3 : fichier individuel de la sauvegarde automatique GitHub
+      const nomTable = deviserTableDepuisNomFichier(fichier.name);
+      if (nomTable) {
+        resultats.push(await restaurerTable(nomTable, contenu));
+      } else {
+        resultats.push({ table: fichier.name, statut: 'nom-inconnu' });
+      }
+    } else {
+      resultats.push({ table: fichier.name, statut: 'format-inconnu' });
     }
-  };
-  reader.readAsText(file);
+  }
+
+  const libelles = resultats.map(r => {
+    if (r.statut === 'ok') return `✅ ${r.table} : ${r.count} ligne(s) restaurée(s)`;
+    if (r.statut === 'vide') return `ℹ️ ${r.table} : fichier vide, rien à restaurer`;
+    if (r.statut === 'hors-ligne') return `⚠️ ${r.table} : Supabase indisponible`;
+    if (r.statut === 'nom-inconnu') return `⚠️ ${r.table} : nom de fichier non reconnu (renommez-le en "<table>_backup.json")`;
+    if (r.statut === 'format-inconnu') return `⚠️ ${r.table} : format de fichier non reconnu`;
+    return `❌ ${r.table} : ${r.message || 'échec'}`;
+  });
+
+  alert(libelles.join('\n') || "Aucune donnée restaurée.");
+  event.target.value = '';
+
+  if (resultats.some(r => r.statut === 'ok')) {
+    location.reload();
+  }
 }
 
 // Génération du CSV avec Partie Double (Compte + Contrepartie + Débit / Crédit)
@@ -307,8 +395,11 @@ function renderExportUI() {
             </button>
 
             <div class="border-t border-slate-200 pt-3 mt-2">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Restaurer depuis un fichier JSON :</label>
-              <input type="file" accept=".json" onchange="importerFichierJSON(event)" class="text-xs w-full text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Restaurer une sauvegarde :</label>
+              <p class="text-[11px] text-slate-500 mb-2 leading-snug">
+                Sélectionne le fichier de la "Sauvegarde Globale (Supabase)" ci-dessus, l'export JSON de ce bloc, ou les fichiers individuels de la sauvegarde automatique GitHub (ex : profile_backup.json, transactions_backup.json — plusieurs fichiers à la fois possible).
+              </p>
+              <input type="file" accept=".json" multiple onchange="importerFichierJSON(event)" class="text-xs w-full text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
             </div>
           </div>
         </div>
