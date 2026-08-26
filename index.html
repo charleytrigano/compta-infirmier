@@ -218,6 +218,7 @@
             <button class="nav-btn" onclick="switchTab('vue-od', this)">📝 Journal OD</button>
             <button class="nav-btn" onclick="switchTab('vue-plan', this)">📊 Plan Comptable</button>
             <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
+            <button class="nav-btn" onclick="switchTab('vue-bareme-urssaf', this)">⚙️ Barème URSSAF</button>
             <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
             <button class="nav-btn" onclick="switchTab('vue-ir', this)">🧮 Calcul IR</button>
             <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
@@ -447,6 +448,13 @@
             </div>
         </section>
 
+        <!-- VUE 4bis : BAREME URSSAF (plafonds Tranche A/B/C et taux, modifiables) -->
+        <section id="vue-bareme-urssaf" class="view-section">
+            <div id="bareme-urssaf-container">
+                <p style="color: #64748b;">Chargement du barème URSSAF...</p>
+            </div>
+        </section>
+
         <!-- VUE 5 : CARPIMKO -->
         <section id="vue-carpimko" class="view-section">
             <div id="carpimko-container">
@@ -668,6 +676,7 @@
             if (tabId === 'vue-od' && typeof window.chargerJournalOD === 'function') window.chargerJournalOD();
             if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') window.afficherPlanComptable();
             if (tabId === 'vue-urssaf' && typeof window.initUrssafModule === 'function') window.initUrssafModule();
+            if (tabId === 'vue-bareme-urssaf' && typeof window.initBaremeUrssafModule === 'function') window.initBaremeUrssafModule();
             if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
             if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
             if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
@@ -696,6 +705,7 @@
     <script src="bilan.js"></script>
     <script src="declaration2035.js"></script>
     <script src="plan_comptable.js"></script>
+    <script src="bareme_urssaf.js"></script>
     <script src="urssaf.js"></script>
     <script src="carpimko.js"></script>
     <script src="ir.js"></script>

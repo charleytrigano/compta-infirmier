@@ -1,17 +1,18 @@
 /**
  * urssaf.js - Module URSSAF pour Infirmier Libéral (PAMC)
  * Gestion trimestrielle (T1, T2, T3, T4) et ajustement des plafonds PASS.
+ *
+ * Les plafonds Tranche A / Tranche B et tous les taux (Maladie A/B/C,
+ * non-conventionné, CSG-CRDS, Allocations Familiales, CFP) ne sont plus
+ * codés en dur ici : ils viennent de la table Supabase `bareme_urssaf`,
+ * consultable et modifiable depuis l'écran "⚙️ Barème URSSAF" (voir
+ * bareme_urssaf.js). Ça permet de mettre à jour le barème chaque année sans
+ * toucher au code.
  */
 
 (function () {
   window.anneeUrssafSelectionnee = window.anneeUrssafSelectionnee || new Date().getFullYear();
-
-  var PLAFONDS_URSSAF = window.PLAFONDS_URSSAF || {
-    2024: { pass: 46368, trB: 185472 },
-    2025: { pass: 47100, trB: 188400 },
-    2026: { pass: 47252, trB: 189008 }
-  };
-  window.PLAFONDS_URSSAF = PLAFONDS_URSSAF;
+  window.baremeUrssafActif = window.baremeUrssafActif || null; // barème (plafonds + taux) de l'année en cours d'affichage
 
   function formatEuro(valeur) {
     return Number(valeur || 0).toLocaleString('fr-FR', {
@@ -22,47 +23,56 @@
     });
   }
 
-  function calculerUrssaf(bnc = 47252, passTrA = 47252, maxTrB = 189008, conventionne = true) {
+  // bareme = ligne renvoyée par window.obtenirBaremeUrssaf() : plafonds Tranche A/B
+  // et tous les taux de l'année (voir bareme_urssaf.js pour le détail des champs).
+  function calculerUrssaf(bnc, bareme, passTrA, maxTrB, conventionne) {
+    bnc = bnc || 0;
+    passTrA = passTrA || bareme.plafond_tranche_a;
+    maxTrB = maxTrB || bareme.plafond_tranche_b;
+
     const partTrA = Math.min(Math.max(bnc, 0), passTrA);
-    const partTrB = Math.min(Math.max(bnc - passTrA, 0), maxTrB - passTrA);
-    const horsTranches = Math.max(bnc - maxTrB, 0);
+    const partTrB = Math.min(Math.max(bnc - passTrA, 0), Math.max(maxTrB - passTrA, 0));
+    const partTrC = Math.max(bnc - maxTrB, 0);
 
     let maladieProv = 0;
     let maladieDetail = "";
     if (conventionne) {
-      maladieProv = (partTrA * 0.0010) + (partTrB * 0.0980);
-      maladieDetail = `Tr A (0,10 % avec prise en charge CPAM) + Tr B (9,80 %)`;
+      maladieProv = (partTrA * bareme.taux_maladie_tranche_a / 100)
+                  + (partTrB * bareme.taux_maladie_tranche_b / 100)
+                  + (partTrC * bareme.taux_maladie_tranche_c / 100);
+      maladieDetail = `Tr A (${bareme.taux_maladie_tranche_a} %) + Tr B (${bareme.taux_maladie_tranche_b} %) + Tr C au-delà (${bareme.taux_maladie_tranche_c} %)`;
     } else {
-      maladieProv = bnc * 0.065;
-      maladieDetail = `Taux plein non-conventionné (6,50 %)`;
+      maladieProv = bnc * bareme.taux_maladie_non_conventionne / 100;
+      maladieDetail = `Taux plein non-conventionné (${bareme.taux_maladie_non_conventionne} %)`;
     }
 
     let tauxAllocFam = 0;
-    const ratioPASS = bnc / passTrA;
+    const ratioPASS = passTrA > 0 ? bnc / passTrA : 0;
+    const tauxMaxAlloc = bareme.taux_alloc_fam_max / 100;
     if (ratioPASS <= 1.10) {
       tauxAllocFam = 0;
     } else if (ratioPASS <= 1.40) {
-      tauxAllocFam = ((ratioPASS - 1.10) / 0.30) * 0.0310;
+      tauxAllocFam = ((ratioPASS - 1.10) / 0.30) * tauxMaxAlloc;
     } else {
-      tauxAllocFam = 0.0310;
+      tauxAllocFam = tauxMaxAlloc;
     }
     const allocFamProv = bnc * tauxAllocFam;
-    const allocFamDetail = `Taux effectif de ${(tauxAllocFam * 100).toFixed(2)} % (selon barème BNC/PASS)`;
+    const allocFamDetail = `Taux effectif de ${(tauxAllocFam * 100).toFixed(2)} % (plafond ${bareme.taux_alloc_fam_max} %, selon barème BNC/PASS)`;
 
     const assietteCSG = bnc * 1.15;
-    const csgDeductible = assietteCSG * 0.0680;
-    const csgNonDeductible = assietteCSG * 0.0240;
-    const crds = assietteCSG * 0.0050;
+    const csgDeductible = assietteCSG * bareme.taux_csg_deductible / 100;
+    const csgNonDeductible = assietteCSG * bareme.taux_csg_non_deductible / 100;
+    const crds = assietteCSG * bareme.taux_crds / 100;
     const totalCsgCrds = csgDeductible + csgNonDeductible + crds;
-    const csgDetail = `Base majorée (~115 % du BNC = ${formatEuro(assietteCSG)}) : CSG 9,2 % + CRDS 0,5 %`;
+    const csgDetail = `Base majorée (~115 % du BNC = ${formatEuro(assietteCSG)}) : CSG ${(bareme.taux_csg_deductible + bareme.taux_csg_non_deductible).toFixed(2)} % + CRDS ${bareme.taux_crds} %`;
 
-    const cfpProv = passTrA * 0.0025;
-    const cfpDetail = `Forfait fixe 0,25 % du PASS Tranche A (${formatEuro(passTrA)})`;
+    const cfpProv = bareme.cfp_montant_annuel;
+    const cfpDetail = `Forfait annuel fixé par le barème ${bareme.annee}`;
 
     const totalAnnuel = maladieProv + allocFamProv + totalCsgCrds + cfpProv;
 
     return {
-      tranches: { partTrA, partTrB, horsTranches },
+      tranches: { partTrA, partTrB, partTrC },
       postes: {
         maladie: { montant: +maladieProv.toFixed(2), detail: maladieDetail },
         allocFam: { montant: +allocFamProv.toFixed(2), detail: allocFamDetail },
@@ -92,8 +102,8 @@
   }
 
   function obtenirConteneurURSSAF() {
-    let target = document.getElementById('urssaf') || 
-                 document.getElementById('vue-urssaf') || 
+    let target = document.getElementById('urssaf') ||
+                 document.getElementById('vue-urssaf') ||
                  document.getElementById('urssaf-container');
 
     if (!target) {
@@ -108,6 +118,8 @@
   }
 
   window.actualiserCalculsUrssaf = function() {
+    if (!window.baremeUrssafActif) return; // barème pas encore chargé
+
     const parseFloatOrZero = (id) => {
       const el = document.getElementById(id);
       if (!el) return 0;
@@ -120,7 +132,7 @@
     const maxTrBVal = parseFloatOrZero('urs-input-pass-trb');
     const convVal = document.getElementById('urs-input-conv')?.checked ?? true;
 
-    const simu = calculerUrssaf(bncVal, passTrAVal, maxTrBVal, convVal);
+    const simu = calculerUrssaf(bncVal, window.baremeUrssafActif, passTrAVal, maxTrBVal, convVal);
 
     const offT1 = parseFloatOrZero('urs-off-t1');
     const offT2 = parseFloatOrZero('urs-off-t2');
@@ -142,6 +154,7 @@
     const mapText = {
       'urs-txt-part-tra': formatEuro(simu.tranches.partTrA),
       'urs-txt-part-trb': formatEuro(simu.tranches.partTrB),
+      'urs-txt-part-trc': formatEuro(simu.tranches.partTrC),
       'urs-txt-tot-off-trim': formatEuro(totalOffTrimestres),
       'urs-txt-tot-simu-trim': formatEuro(simu.totalAnnuel),
       'urs-simu-t1': formatEuro(simu.trimestres.t1),
@@ -188,14 +201,20 @@
     }
   };
 
-  function renderUrssafUI(transactions = []) {
+  async function renderUrssafUI(transactions = []) {
     window.transactionsUrssafCache = transactions;
     const container = obtenirConteneurURSSAF();
     if (!container) return;
 
     const annees = obtenirAnneesDisponibles(transactions);
     const anneeActive = window.anneeUrssafSelectionnee;
-    const plafondsAnnee = PLAFONDS_URSSAF[anneeActive] || { pass: 47252, trB: 189008 };
+
+    container.innerHTML = `<p style="color:#64748b;padding:16px;">Chargement du barème URSSAF ${anneeActive}...</p>`;
+
+    const bareme = window.obtenirBaremeUrssaf
+      ? await window.obtenirBaremeUrssaf(anneeActive)
+      : { annee: anneeActive, pass: 48060, plafond_tranche_a: 48060, plafond_tranche_b: 192240, taux_maladie_tranche_a: 0.10, taux_maladie_tranche_b: 0.10, taux_maladie_tranche_c: 0.10, taux_maladie_non_conventionne: 8.50, taux_csg_deductible: 6.80, taux_csg_non_deductible: 2.40, taux_crds: 0.50, taux_alloc_fam_max: 3.10, cfp_montant_annuel: 137 };
+    window.baremeUrssafActif = bareme;
 
     let payeBanque = 0;
     let nbPaiements = 0;
@@ -203,7 +222,7 @@
     transactions.forEach(tx => {
       const cat = (tx.category || tx.categorie || '').toLowerCase();
       const desc = (tx.description || tx.libelle || '').toLowerCase();
-      
+
       if (cat.includes('urssaf') || desc.includes('urssaf')) {
         const dateTx = new Date(tx.date);
         if (!isNaN(dateTx.getTime()) && dateTx.getFullYear() === parseInt(anneeActive, 10)) {
@@ -215,6 +234,8 @@
 
     window.payeBanqueUrssafActuel = payeBanque;
 
+    const baremeVientDeAnneeDifferente = parseInt(bareme.annee, 10) !== parseInt(anneeActive, 10);
+
     container.innerHTML = `
       <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
@@ -222,7 +243,7 @@
             <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
               🏛️ Cotisations URSSAF (${anneeActive})
             </h2>
-            <p class="text-xs text-slate-500 mt-1">Calculateur avec gestion trimestrielle et ajustement des plafonds Tr A & Tr B</p>
+            <p class="text-xs text-slate-500 mt-1">Calculateur avec gestion trimestrielle et ajustement des plafonds Tr A, Tr B et Tr C. Barème modifiable dans l'onglet <strong>⚙️ Barème URSSAF</strong>.</p>
           </div>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
@@ -236,6 +257,13 @@
             </div>
           </div>
         </div>
+
+        ${baremeVientDeAnneeDifferente ? `
+        <div class="bg-amber-50 border border-amber-300 text-amber-900 text-xs p-3 rounded-lg">
+          ⚠️ Aucun barème n'existe pour ${anneeActive} : les plafonds et taux de <strong>${bareme.annee}</strong> sont utilisés par défaut. Ajoutez l'année ${anneeActive} dans <strong>⚙️ Barème URSSAF</strong> pour des chiffres exacts.
+        </div>` : ''}
+        ${bareme.notes ? `
+        <div class="bg-slate-50 border border-slate-200 text-slate-600 text-xs p-3 rounded-lg italic">📌 ${bareme.notes}</div>` : ''}
 
         <div id="urs-banner-trop-cotise" class="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border">
           <div class="flex items-center justify-between flex-wrap gap-3">
@@ -255,15 +283,15 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Réel / Estimé (€) :</label>
-              <input type="number" id="urs-input-bnc" value="47252" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsUrssaf()">
+              <input type="number" id="urs-input-bnc" value="${bareme.pass}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsUrssaf()">
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche A - 1 PASS (€) :</label>
-              <input type="number" id="urs-input-pass-tra" value="${plafondsAnnee.pass}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche A (€) :</label>
+              <input type="number" id="urs-input-pass-tra" value="${bareme.plafond_tranche_a}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche B - 4 PASS (€) :</label>
-              <input type="number" id="urs-input-pass-trb" value="${plafondsAnnee.trB}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche B (€) :</label>
+              <input type="number" id="urs-input-pass-trb" value="${bareme.plafond_tranche_b}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-blue-700 font-semibold" oninput="actualiserCalculsUrssaf()">
             </div>
           </div>
           <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
@@ -272,7 +300,7 @@
               <label for="urs-input-conv" class="text-slate-600 font-medium">Praticien Médical Conventionné PAMC</label>
             </div>
             <div class="text-slate-500">
-              Ventilation BNC : Tr A = <strong id="urs-txt-part-tra" class="text-slate-700">--</strong> | Tr B = <strong id="urs-txt-part-trb" class="text-slate-700">--</strong>
+              Ventilation BNC : Tr A = <strong id="urs-txt-part-tra" class="text-slate-700">--</strong> | Tr B = <strong id="urs-txt-part-trb" class="text-slate-700">--</strong> | Tr C (au-delà) = <strong id="urs-txt-part-trc" class="text-slate-700">--</strong>
             </div>
           </div>
         </div>
@@ -350,7 +378,7 @@
                   <td id="urs-simu-alloc" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
                 </tr>
                 <tr>
-                  <td class="py-2 px-3 font-semibold">CSG (9,2 %) / CRDS (0,5 %)</td>
+                  <td class="py-2 px-3 font-semibold">CSG / CRDS</td>
                   <td id="urs-detail-csg" class="py-2 px-3 text-slate-500 italic">--</td>
                   <td class="py-1 px-3 text-right"><input type="number" step="0.01" id="urs-off-csg" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs"></td>
                   <td id="urs-simu-csg" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
