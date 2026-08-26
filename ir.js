@@ -494,6 +494,9 @@
   }
 
   window.actualiserIR = actualiserIR;
+  // Exposé pour d'autres modules (statistiques.js) qui ont besoin de calculer
+  // un impôt estimé sans dupliquer le barème progressif.
+  window.calculerIR = calculerIR;
 
   window.initIRModule = function () {
     renderIRUI();

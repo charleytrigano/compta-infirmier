@@ -225,6 +225,7 @@
             <button class="nav-btn" onclick="switchTab('vue-bareme-ir', this)">⚙️ Barème IR</button>
             <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
             <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
+            <button class="nav-btn" onclick="switchTab('vue-stats', this)">📊 Statistiques</button>
             <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035 / 2042</button>
             <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
             <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
@@ -507,6 +508,13 @@
             <div id="conteneur-bilan"></div>
         </section>
 
+        <!-- VUE 8bis : STATISTIQUES & PREVISIONNEL -->
+        <section id="vue-stats" class="view-section">
+            <div id="stats-container">
+                <p style="color: #64748b;">Chargement des statistiques...</p>
+            </div>
+        </section>
+
         <!-- VUE 9 : DÉCLARATION 2035 -->
         <section id="vue-2035" class="view-section">
             <div id="conteneur-2035">
@@ -699,6 +707,7 @@
             if (tabId === 'vue-bareme-ir' && typeof window.initBaremeIRModule === 'function') window.initBaremeIRModule();
             if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
             if (tabId === 'vue-bilan' && typeof window.chargerBilanEtCE === 'function') window.chargerBilanEtCE();
+            if (tabId === 'vue-stats' && typeof window.initStatsModule === 'function') window.initStatsModule();
             if (tabId === 'vue-2035' && typeof window.chargerDeclaration2035 === 'function') window.chargerDeclaration2035();
             if (tabId === 'vue-journal' && typeof window.chargerJournalGeneral === 'function') window.chargerJournalGeneral();
             if (tabId === 'vue-grandlivre' && typeof window.chargerEtAfficherGrandLivre === 'function') window.chargerEtAfficherGrandLivre();
@@ -729,6 +738,7 @@
     <script src="carpimko.js"></script>
     <script src="bareme_ir.js"></script>
     <script src="ir.js"></script>
+    <script src="statistiques.js"></script>
     <script src="export_comptable.js"></script>
     <script src="journal.js"></script>
     <script src="grand-livre.js"></script>
