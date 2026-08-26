@@ -1,3 +1,4 @@
+
 /**
  * urssaf.js - Module URSSAF pour Infirmier Libéral (PAMC)
  * Gestion trimestrielle (T1, T2, T3, T4) et ajustement des plafonds PASS.
@@ -9,11 +10,11 @@
  * bareme_urssaf.js). Ça permet de mettre à jour le barème chaque année sans
  * toucher au code.
  */
-
+ 
 (function () {
   window.anneeUrssafSelectionnee = window.anneeUrssafSelectionnee || new Date().getFullYear();
   window.baremeUrssafActif = window.baremeUrssafActif || null; // barème (plafonds + taux) de l'année en cours d'affichage
-
+ 
   function formatEuro(valeur) {
     return Number(valeur || 0).toLocaleString('fr-FR', {
       style: 'currency',
@@ -22,18 +23,18 @@
       maximumFractionDigits: 2
     });
   }
-
+ 
   // bareme = ligne renvoyée par window.obtenirBaremeUrssaf() : plafonds Tranche A/B
   // et tous les taux de l'année (voir bareme_urssaf.js pour le détail des champs).
   function calculerUrssaf(bnc, bareme, passTrA, maxTrB, conventionne) {
     bnc = bnc || 0;
     passTrA = passTrA || bareme.plafond_tranche_a;
     maxTrB = maxTrB || bareme.plafond_tranche_b;
-
+ 
     const partTrA = Math.min(Math.max(bnc, 0), passTrA);
     const partTrB = Math.min(Math.max(bnc - passTrA, 0), Math.max(maxTrB - passTrA, 0));
     const partTrC = Math.max(bnc - maxTrB, 0);
-
+ 
     let maladieProv = 0;
     let maladieDetail = "";
     if (conventionne) {
@@ -45,7 +46,7 @@
       maladieProv = bnc * bareme.taux_maladie_non_conventionne / 100;
       maladieDetail = `Taux plein non-conventionné (${bareme.taux_maladie_non_conventionne} %)`;
     }
-
+ 
     let tauxAllocFam = 0;
     const ratioPASS = passTrA > 0 ? bnc / passTrA : 0;
     const tauxMaxAlloc = bareme.taux_alloc_fam_max / 100;
@@ -58,19 +59,19 @@
     }
     const allocFamProv = bnc * tauxAllocFam;
     const allocFamDetail = `Taux effectif de ${(tauxAllocFam * 100).toFixed(2)} % (plafond ${bareme.taux_alloc_fam_max} %, selon barème BNC/PASS)`;
-
+ 
     const assietteCSG = bnc * 1.15;
     const csgDeductible = assietteCSG * bareme.taux_csg_deductible / 100;
     const csgNonDeductible = assietteCSG * bareme.taux_csg_non_deductible / 100;
     const crds = assietteCSG * bareme.taux_crds / 100;
     const totalCsgCrds = csgDeductible + csgNonDeductible + crds;
     const csgDetail = `Base majorée (~115 % du BNC = ${formatEuro(assietteCSG)}) : CSG ${(bareme.taux_csg_deductible + bareme.taux_csg_non_deductible).toFixed(2)} % + CRDS ${bareme.taux_crds} %`;
-
+ 
     const cfpProv = bareme.cfp_montant_annuel;
     const cfpDetail = `Forfait annuel fixé par le barème ${bareme.annee}`;
-
+ 
     const totalAnnuel = maladieProv + allocFamProv + totalCsgCrds + cfpProv;
-
+ 
     return {
       tranches: { partTrA, partTrB, partTrC },
       postes: {
@@ -88,7 +89,49 @@
       }
     };
   }
-
+ 
+  // Calcule le BNC réel de l'année à partir de la comptabilité (même logique que
+  // l'onglet "Bilan / CE" : recettes - dépenses sur les écritures du compte
+  // banque 512xxx). Sert à pré-remplir le champ BNC pour que l'utilisateur
+  // n'ait pas à ressaisir un chiffre qu'on connaît déjà ; le champ reste
+  // modifiable pour simuler une estimation différente.
+  async function calculerBncReelAnnuel(annee) {
+    if (!window.supabaseClient) return 0;
+    try {
+      const dateDebut = `${annee}-01-01`;
+      const dateFin = `${annee}-12-31`;
+      const { data, error } = await window.supabaseClient
+        .from('ecritures_comptables')
+        .select('*')
+        .or('compte_code.eq.512000,compte_code.like.512%')
+        .gte('date', dateDebut)
+        .lte('date', dateFin);
+      if (error) throw error;
+ 
+      let totalRecettes = 0;
+      let totalDepenses = 0;
+      (data || []).forEach(row => {
+        const debit = parseFloat(row.debit || 0);
+        const credit = parseFloat(row.credit || 0);
+        if (debit > 0) totalRecettes += debit;
+        else if (credit > 0) totalDepenses += credit;
+      });
+      return +(totalRecettes - totalDepenses).toFixed(2);
+    } catch (e) {
+      console.error('❌ Impossible de calculer le BNC réel :', e.message);
+      return 0;
+    }
+  }
+  window.calculerBncReelUrssaf = calculerBncReelAnnuel;
+ 
+  window.reinitialiserBncReelUrssaf = function () {
+    const el = document.getElementById('urs-input-bnc');
+    if (el && window.bncReelUrssafActuel) {
+      el.value = window.bncReelUrssafActuel;
+      actualiserCalculsUrssaf();
+    }
+  };
+ 
   function obtenirAnneesDisponibles(transactions = []) {
     const annees = new Set();
     annees.add(new Date().getFullYear());
@@ -100,12 +143,12 @@
     });
     return Array.from(annees).sort((a, b) => b - a);
   }
-
+ 
   function obtenirConteneurURSSAF() {
     let target = document.getElementById('urssaf') ||
                  document.getElementById('vue-urssaf') ||
                  document.getElementById('urssaf-container');
-
+ 
     if (!target) {
       const main = document.querySelector('main') || document.querySelector('.content') || document.body;
       if (main) {
@@ -116,41 +159,41 @@
     }
     return target;
   }
-
+ 
   window.actualiserCalculsUrssaf = function() {
     if (!window.baremeUrssafActif) return; // barème pas encore chargé
-
+ 
     const parseFloatOrZero = (id) => {
       const el = document.getElementById(id);
       if (!el) return 0;
       const val = parseFloat(el.value);
       return isNaN(val) ? 0 : val;
     };
-
+ 
     const bncVal = parseFloatOrZero('urs-input-bnc');
     const passTrAVal = parseFloatOrZero('urs-input-pass-tra');
     const maxTrBVal = parseFloatOrZero('urs-input-pass-trb');
     const convVal = document.getElementById('urs-input-conv')?.checked ?? true;
-
+ 
     const simu = calculerUrssaf(bncVal, window.baremeUrssafActif, passTrAVal, maxTrBVal, convVal);
-
+ 
     const offT1 = parseFloatOrZero('urs-off-t1');
     const offT2 = parseFloatOrZero('urs-off-t2');
     const offT3 = parseFloatOrZero('urs-off-t3');
     const offT4 = parseFloatOrZero('urs-off-t4');
     const totalOffTrimestres = offT1 + offT2 + offT3 + offT4;
-
+ 
     const offMaladie = parseFloatOrZero('urs-off-maladie');
     const offAlloc = parseFloatOrZero('urs-off-alloc');
     const offCsg = parseFloatOrZero('urs-off-csg');
     const offCfp = parseFloatOrZero('urs-off-cfp');
     const totalOffPostes = offMaladie + offAlloc + offCsg + offCfp;
-
+ 
     const totalOfficielRetenu = totalOffTrimestres > 0 ? totalOffTrimestres : totalOffPostes;
     const payeBanque = window.payeBanqueUrssafActuel || 0;
     const baseCompare = payeBanque > 0 ? payeBanque : totalOfficielRetenu;
     const tropCotise = baseCompare - simu.totalAnnuel;
-
+ 
     const mapText = {
       'urs-txt-part-tra': formatEuro(simu.tranches.partTrA),
       'urs-txt-part-trb': formatEuro(simu.tranches.partTrB),
@@ -172,18 +215,18 @@
       'urs-detail-csg': simu.postes.csgCrds.detail,
       'urs-detail-cfp': simu.postes.cfp.detail
     };
-
+ 
     for (const [id, txt] of Object.entries(mapText)) {
       const el = document.getElementById(id);
       if (el) el.textContent = txt;
     }
-
+ 
     const banner = document.getElementById('urs-banner-trop-cotise');
     const title = document.getElementById('urs-banner-title');
     const desc = document.getElementById('urs-banner-desc');
     const badge = document.getElementById('urs-banner-badge');
     const anneeActive = window.anneeUrssafSelectionnee;
-
+ 
     if (banner && title && desc && badge) {
       if (tropCotise >= 0) {
         banner.className = "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border";
@@ -200,29 +243,29 @@
       }
     }
   };
-
+ 
   async function renderUrssafUI(transactions = []) {
     window.transactionsUrssafCache = transactions;
     const container = obtenirConteneurURSSAF();
     if (!container) return;
-
+ 
     const annees = obtenirAnneesDisponibles(transactions);
     const anneeActive = window.anneeUrssafSelectionnee;
-
+ 
     container.innerHTML = `<p style="color:#64748b;padding:16px;">Chargement du barème URSSAF ${anneeActive}...</p>`;
-
+ 
     const bareme = window.obtenirBaremeUrssaf
       ? await window.obtenirBaremeUrssaf(anneeActive)
       : { annee: anneeActive, pass: 48060, plafond_tranche_a: 48060, plafond_tranche_b: 192240, taux_maladie_tranche_a: 0.10, taux_maladie_tranche_b: 0.10, taux_maladie_tranche_c: 0.10, taux_maladie_non_conventionne: 8.50, taux_csg_deductible: 6.80, taux_csg_non_deductible: 2.40, taux_crds: 0.50, taux_alloc_fam_max: 3.10, cfp_montant_annuel: 137 };
     window.baremeUrssafActif = bareme;
-
+ 
     let payeBanque = 0;
     let nbPaiements = 0;
-
+ 
     transactions.forEach(tx => {
       const cat = (tx.category || tx.categorie || '').toLowerCase();
       const desc = (tx.description || tx.libelle || '').toLowerCase();
-
+ 
       if (cat.includes('urssaf') || desc.includes('urssaf')) {
         const dateTx = new Date(tx.date);
         if (!isNaN(dateTx.getTime()) && dateTx.getFullYear() === parseInt(anneeActive, 10)) {
@@ -231,11 +274,15 @@
         }
       }
     });
-
+ 
     window.payeBanqueUrssafActuel = payeBanque;
-
+ 
+    const bncReel = await calculerBncReelAnnuel(anneeActive);
+    window.bncReelUrssafActuel = bncReel;
+    const bncInitial = bncReel > 0 ? bncReel : bareme.pass;
+ 
     const baremeVientDeAnneeDifferente = parseInt(bareme.annee, 10) !== parseInt(anneeActive, 10);
-
+ 
     container.innerHTML = `
       <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
@@ -257,14 +304,14 @@
             </div>
           </div>
         </div>
-
+ 
         ${baremeVientDeAnneeDifferente ? `
         <div class="bg-amber-50 border border-amber-300 text-amber-900 text-xs p-3 rounded-lg">
           ⚠️ Aucun barème n'existe pour ${anneeActive} : les plafonds et taux de <strong>${bareme.annee}</strong> sont utilisés par défaut. Ajoutez l'année ${anneeActive} dans <strong>⚙️ Barème URSSAF</strong> pour des chiffres exacts.
         </div>` : ''}
         ${bareme.notes ? `
         <div class="bg-slate-50 border border-slate-200 text-slate-600 text-xs p-3 rounded-lg italic">📌 ${bareme.notes}</div>` : ''}
-
+ 
         <div id="urs-banner-trop-cotise" class="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border">
           <div class="flex items-center justify-between flex-wrap gap-3">
             <div>
@@ -277,13 +324,18 @@
             </div>
           </div>
         </div>
-
+ 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">1. Base de Calcul & Plafonds d'Imposition (${anneeActive})</h3>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Réel / Estimé (€) :</label>
-              <input type="number" id="urs-input-bnc" value="${bareme.pass}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsUrssaf()">
+              <input type="number" id="urs-input-bnc" value="${bncInitial}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsUrssaf()">
+              <p class="text-[10px] mt-1 ${bncReel > 0 ? 'text-emerald-600' : 'text-slate-400'}">
+                ${bncReel > 0
+                  ? `✅ Pré-rempli avec le résultat réel ${anneeActive} (recettes − dépenses de la comptabilité). Modifiez-le librement pour tester une estimation. <button type="button" onclick="reinitialiserBncReelUrssaf()" class="underline font-semibold">↺ Revenir au réel</button>`
+                  : `ℹ️ Aucune écriture comptable trouvée pour ${anneeActive} : valeur de départ arbitraire, à saisir vous-même.`}
+              </p>
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Plafond Tranche A (€) :</label>
@@ -304,7 +356,7 @@
             </div>
           </div>
         </div>
-
+ 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">2. Échéancier Trimestriel URSSAF (${anneeActive})</h3>
           <div class="overflow-x-auto">
@@ -351,7 +403,7 @@
             </table>
           </div>
         </div>
-
+ 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">3. Ventilation Annuelle Poste par Poste</h3>
           <div class="overflow-x-auto">
@@ -401,15 +453,15 @@
         </div>
       </div>
     `;
-
+ 
     actualiserCalculsUrssaf();
   }
-
+ 
   window.changerAnneeUrssaf = function(nouvelleAnnee) {
     window.anneeUrssafSelectionnee = parseInt(nouvelleAnnee, 10);
     renderUrssafUI(window.transactionsUrssafCache || []);
   };
-
+ 
   window.initUrssafModule = async function() {
     let transactions = window.listeTransactions || window.state?.transactions || [];
     if (transactions.length === 0 && window.supabaseClient) {
@@ -420,7 +472,7 @@
     }
     renderUrssafUI(transactions);
   };
-
+ 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', window.initUrssafModule);
   } else {
