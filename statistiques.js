@@ -145,6 +145,9 @@
     const posteRecettesMap = {};
     const posteDepensesMap = {};
     let dernierMois = 0;
+    let carpimkoTotalReel = 0;
+    let urssafTotalReel = 0;
+    let autresDepensesTotalReel = 0;
 
     ecrituresAnnee.forEach(e => {
       const code = String(e.compte_code || '').trim();
@@ -164,6 +167,12 @@
         if (mois) depensesParMois[mois - 1] += montant;
         if (!posteDepensesMap[code]) posteDepensesMap[code] = { libelle, total: 0 };
         posteDepensesMap[code].total += montant;
+        // Même règle de classement que l'onglet 2035/2042 (declaration2035.js),
+        // pour isoler les charges "autres" (hors cotisations sociales) qui
+        // servent d'hypothèse par défaut au calculateur d'objectif de revenu.
+        if (code === '646100' || code.includes('CARPIMKO')) carpimkoTotalReel += montant;
+        else if (code === '646200' || code.includes('URSSAF')) urssafTotalReel += montant;
+        else autresDepensesTotalReel += montant;
       }
     });
 
@@ -177,6 +186,15 @@
     const recettesProjetees = recettesTotalReel * facteurProjection;
     const depensesProjetees = depensesTotalReel * facteurProjection;
     const bncProjete = recettesProjetees - depensesProjetees;
+    const autresDepensesProjetees = autresDepensesTotalReel * facteurProjection;
+
+    // Barèmes et statut CARPIMKO nécessaires au calculateur d'objectif de
+    // revenu (honoraires à réaliser pour un revenu net souhaité). Chargés une
+    // fois ici (les modules bareme_urssaf.js/bareme_carpimko.js/carpimko.js
+    // mettent eux-mêmes ces appels en cache), pas à chaque frappe.
+    const baremeUrssaf = window.obtenirBaremeUrssaf ? await window.obtenirBaremeUrssaf(anneeActive) : null;
+    const baremeCarpimko = window.obtenirBaremeCarpimko ? await window.obtenirBaremeCarpimko(anneeActive) : null;
+    const statutCarpimko = window.determinerStatutCarpimko ? await window.determinerStatutCarpimko(parseInt(anneeActive, 10)) : 'croisiere';
 
     return {
       anneesDispo, ecrituresAnnee, recettesParMois, depensesParMois,
@@ -184,7 +202,9 @@
       posteDepenses: limiterEtRegrouperPostes(posteDepensesMap),
       dernierMois: dernierMois || null,
       inclureProjection, moisBase,
-      recettesTotalReel, depensesTotalReel, recettesProjetees, depensesProjetees, bncProjete
+      recettesTotalReel, depensesTotalReel, recettesProjetees, depensesProjetees, bncProjete,
+      carpimkoTotalReel, urssafTotalReel, autresDepensesTotalReel, autresDepensesProjetees,
+      baremeUrssaf, baremeCarpimko, statutCarpimko
     };
   }
 
@@ -216,6 +236,80 @@
     setTxt('stats-tile-apres-mensuel', formatEuro(revenuApres / 12));
     setTxt('stats-tile-avant-annuel', `${formatEuro(revenuAvant)} / an`);
     setTxt('stats-tile-apres-annuel', `${formatEuro(revenuApres)} / an (dont ${formatEuro(irEstime)} d'IR estimé)`);
+  };
+
+  // Cotisations sociales (URSSAF + CARPIMKO) estimées pour un BNC cible donné
+  // (assiette sociale = BNC, pas les honoraires bruts).
+  function calculerCotisationsPourBNC(bncCible, calc) {
+    let urssafTotal = 0, carpimkoTotal = 0;
+    if (window.calculerUrssaf && calc.baremeUrssaf) {
+      const r = window.calculerUrssaf(bncCible, calc.baremeUrssaf, calc.baremeUrssaf.plafond_tranche_a, calc.baremeUrssaf.plafond_tranche_b, true, false);
+      urssafTotal = r.totalAnnuel;
+    }
+    if (window.calculerCarpimko && calc.baremeCarpimko) {
+      const r = window.calculerCarpimko(bncCible, calc.baremeCarpimko, calc.baremeCarpimko.pass, calc.statutCarpimko, true);
+      carpimkoTotal = r.totalAnnuel;
+    }
+    return urssafTotal + carpimkoTotal;
+  }
+
+  // Trouve par dichotomie le BNC (revenu avant impôts) dont le revenu net
+  // après IR correspond au montant souhaité. Fonctionne car le revenu net
+  // (BNC - IR(BNC)) est croissant avec le BNC (le taux marginal ne dépasse
+  // jamais 100 %).
+  function trouverBNCPourNetApresImpots(targetApresAnnuel, situation, enfants, baremeIR) {
+    let lo = 0, hi = 1000000;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      const ir = window.calculerIR ? window.calculerIR(mid, situation, enfants, 'reel', 0, baremeIR).impotTotalDu : 0;
+      const net = mid - ir;
+      if (net < targetApresAnnuel) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  window.actualiserObjectifHonoraires = async function () {
+    const calc = window.statsCalculActif;
+    if (!calc) return;
+
+    const situation = document.getElementById('stats-select-situation')?.value || 'celibataire';
+    const enfants = parseInt(document.getElementById('stats-input-enfants')?.value) || 0;
+    const autresDepMensuelSaisi = parseFloat(document.getElementById('stats-input-autres-depenses')?.value);
+    const autresDepAnnuel = isNaN(autresDepMensuelSaisi) ? calc.autresDepensesProjetees : autresDepMensuelSaisi * 12;
+
+    const baremeIR = window.obtenirBaremeIR
+      ? await window.obtenirBaremeIR(window.anneeStatsSelectionnee)
+      : { plafond_tranche1: 11600, taux_tranche1: 0, plafond_tranche2: 29579, taux_tranche2: 11, plafond_tranche3: 84577, taux_tranche3: 30, plafond_tranche4: 181917, taux_tranche4: 41, taux_tranche5: 45 };
+
+    const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+    // -- Objectif AVANT impôts --
+    const avantMensuel = parseFloat(document.getElementById('stats-input-objectif-avant')?.value);
+    if (!isNaN(avantMensuel) && avantMensuel > 0) {
+      const bncCible = avantMensuel * 12;
+      const cotisations = calculerCotisationsPourBNC(bncCible, calc);
+      const honoraires = bncCible + autresDepAnnuel + cotisations;
+      setTxt('stats-result-objectif-avant', `${formatEuro(honoraires / 12)} / mois`);
+      setTxt('stats-detail-objectif-avant', `soit ${formatEuro(honoraires)} / an, dont ${formatEuro(cotisations / 12)}/mois de cotisations sociales estimées (URSSAF+CARPIMKO) et ${formatEuro(autresDepAnnuel / 12)}/mois d'autres charges.`);
+    } else {
+      setTxt('stats-result-objectif-avant', '—');
+      setTxt('stats-detail-objectif-avant', '');
+    }
+
+    // -- Objectif APRES impôts --
+    const apresMensuel = parseFloat(document.getElementById('stats-input-objectif-apres')?.value);
+    if (!isNaN(apresMensuel) && apresMensuel > 0) {
+      const targetApresAnnuel = apresMensuel * 12;
+      const bncCible = trouverBNCPourNetApresImpots(targetApresAnnuel, situation, enfants, baremeIR);
+      const irEstime = window.calculerIR ? window.calculerIR(bncCible, situation, enfants, 'reel', 0, baremeIR).impotTotalDu : 0;
+      const cotisations = calculerCotisationsPourBNC(bncCible, calc);
+      const honoraires = bncCible + autresDepAnnuel + cotisations;
+      setTxt('stats-result-objectif-apres', `${formatEuro(honoraires / 12)} / mois`);
+      setTxt('stats-detail-objectif-apres', `soit ${formatEuro(honoraires)} / an. Revenu avant impôts correspondant : ${formatEuro(bncCible / 12)}/mois (dont ${formatEuro(irEstime / 12)}/mois d'IR estimé). Honoraires = revenu avant impôts + ${formatEuro(cotisations / 12)}/mois de cotisations sociales + ${formatEuro(autresDepAnnuel / 12)}/mois d'autres charges.`);
+    } else {
+      setTxt('stats-result-objectif-apres', '—');
+      setTxt('stats-detail-objectif-apres', '');
+    }
   };
 
   async function renderStatsUI() {
@@ -264,7 +358,7 @@
             <div class="flex items-center gap-3 text-xs">
               <div class="flex items-center gap-1.5">
                 <label for="stats-select-situation" class="font-semibold text-slate-600">Situation :</label>
-                <select id="stats-select-situation" onchange="actualiserRevenuNetStats()" class="text-xs border border-slate-300 rounded-lg p-1.5 bg-slate-50">
+                <select id="stats-select-situation" onchange="actualiserRevenuNetStats(); actualiserObjectifHonoraires();" class="text-xs border border-slate-300 rounded-lg p-1.5 bg-slate-50">
                   <option value="celibataire">Célibataire / Divorcé(e)</option>
                   <option value="marie">Marié(e) / PACS</option>
                   <option value="parent_isole">Parent Isolé</option>
@@ -272,7 +366,7 @@
               </div>
               <div class="flex items-center gap-1.5">
                 <label for="stats-input-enfants" class="font-semibold text-slate-600">Enfants :</label>
-                <input type="number" min="0" id="stats-input-enfants" value="0" oninput="actualiserRevenuNetStats()" class="w-14 text-xs border border-slate-300 rounded-lg p-1.5 bg-slate-50">
+                <input type="number" min="0" id="stats-input-enfants" value="0" oninput="actualiserRevenuNetStats(); actualiserObjectifHonoraires();" class="w-14 text-xs border border-slate-300 rounded-lg p-1.5 bg-slate-50">
               </div>
             </div>
           </div>
@@ -292,6 +386,35 @@
           <p class="text-[11px] text-slate-500 italic">
             "Avant impôts" = BNC réel${calc.inclureProjection ? ' (projeté)' : ''} — recettes moins dépenses professionnelles déductibles, cotisations sociales URSSAF/CARPIMKO déjà comprises dans ces dépenses. "Après impôts" y déduit l'Impôt sur le Revenu estimé au barème progressif (régime réel), pour la situation familiale ci-dessus. Barème modifiable dans l'onglet <strong>⚙️ Barème IR</strong>.
           </p>
+        </div>
+
+        <!-- OBJECTIF DE REVENU -> HONORAIRES A REALISER -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">🎯 Objectif de Revenu → Honoraires à Réaliser</h3>
+          <p class="text-[11px] text-slate-500">
+            Indiquez le revenu net que vous souhaitez percevoir (avant et/ou après impôts) : l'app calcule le montant d'honoraires (recettes) à réaliser sur l'année pour l'atteindre, cotisations sociales et charges comprises. Utilise la même situation familiale que ci-dessus.
+          </p>
+
+          <div>
+            <label for="stats-input-autres-depenses" class="block text-xs font-semibold text-slate-700 mb-1">Autres charges déductibles hors cotisations sociales (€/mois) :</label>
+            <input type="number" id="stats-input-autres-depenses" value="${(calc.autresDepensesProjetees / 12).toFixed(0)}" oninput="actualiserObjectifHonoraires()" class="w-48 text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-semibold">
+            <p class="text-[10px] text-slate-400 mt-1">Pré-rempli avec vos charges réelles ${anneeActive} hors URSSAF/CARPIMKO (loyer, matériel, assurances, comptable...)${calc.inclureProjection ? ', projetées sur 12 mois' : ''}. Modifiable si vous anticipez un changement.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="border border-slate-200 rounded-xl p-4">
+              <label for="stats-input-objectif-avant" class="block text-xs font-bold text-slate-700 mb-1">Revenu net souhaité AVANT impôts (€/mois) :</label>
+              <input type="number" min="0" id="stats-input-objectif-avant" placeholder="ex : 3000" oninput="actualiserObjectifHonoraires()" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold">
+              <p class="text-xs mt-2">Honoraires à réaliser : <strong id="stats-result-objectif-avant" class="text-blue-700 text-sm">—</strong></p>
+              <p id="stats-detail-objectif-avant" class="text-[10px] text-slate-500 mt-1"></p>
+            </div>
+            <div class="border border-slate-200 rounded-xl p-4">
+              <label for="stats-input-objectif-apres" class="block text-xs font-bold text-slate-700 mb-1">Revenu net souhaité APRÈS impôts (€/mois) :</label>
+              <input type="number" min="0" id="stats-input-objectif-apres" placeholder="ex : 2500" oninput="actualiserObjectifHonoraires()" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold">
+              <p class="text-xs mt-2">Honoraires à réaliser : <strong id="stats-result-objectif-apres" class="text-emerald-700 text-sm">—</strong></p>
+              <p id="stats-detail-objectif-apres" class="text-[10px] text-slate-500 mt-1"></p>
+            </div>
+          </div>
         </div>
 
         <!-- REPARTITION PAR POSTE -->

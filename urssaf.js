@@ -151,6 +151,9 @@
     }
   }
   window.calculerBncReelUrssaf = calculerBncReelAnnuel;
+  // Exposé pour d'autres modules (statistiques.js) qui ont besoin de calculer
+  // des cotisations URSSAF pour un BNC donné sans dupliquer la formule.
+  window.calculerUrssaf = calculerUrssaf;
 
   window.reinitialiserBncReelUrssaf = function () {
     const el = document.getElementById('urs-input-bnc');

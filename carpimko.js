@@ -148,6 +148,11 @@
     }
   }
 
+  // Exposés pour d'autres modules (statistiques.js) qui ont besoin de calculer
+  // des cotisations CARPIMKO pour un BNC donné sans dupliquer la formule.
+  window.calculerCarpimko = calculerCarpimko;
+  window.determinerStatutCarpimko = determinerStatutCarpimko;
+
   window.reinitialiserBncReelCarpimko = function () {
     const el = document.getElementById('car-input-bnc');
     if (el && window.bncReelCarpimkoActuel) {
