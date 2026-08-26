@@ -171,11 +171,44 @@
 </head>
 <body>
 
-    <div class="container">
+    <!-- ÉCRAN DE CONNEXION : un compte = un infirmier. Tant qu'aucun compte n'est
+         connecté, seul cet écran est visible ; le reste de l'application (#app-content)
+         reste caché. Voir auth.js. -->
+    <div id="auth-overlay" style="display:flex; position:fixed; inset:0; background:#0f172a; z-index:9999; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:#ffffff; border-radius:12px; padding:32px; width:100%; max-width:380px; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <h1 style="margin:0 0 4px; font-size:22px; color:#0f172a; display:flex; align-items:center; gap:8px;">🩺 Comptabilité Libérale</h1>
+            <p style="margin:0 0 20px; font-size:13px; color:#64748b;">Connectez-vous avec votre compte personnel, ou créez-en un si c'est votre première visite.</p>
+
+            <form id="form-auth-connexion" onsubmit="connexionInfirmier(event)" style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">Email</label>
+                    <input type="email" id="auth-email" required class="form-control" placeholder="vous@exemple.fr" autocomplete="email">
+                </div>
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">Mot de passe</label>
+                    <input type="password" id="auth-password" required minlength="6" class="form-control" placeholder="••••••••" autocomplete="current-password">
+                </div>
+
+                <div id="auth-erreur" style="display:none; font-size:12px; padding:8px 10px; border-radius:6px; background:#fef2f2; color:#b91c1c;"></div>
+                <div id="auth-info" style="display:none; font-size:12px; padding:8px 10px; border-radius:6px; background:#f0fdf4; color:#15803d;"></div>
+
+                <button type="submit" class="btn-primary" style="justify-content:center; height:40px; margin-top:4px;">Se connecter</button>
+                <button type="button" id="btn-auth-inscription" onclick="inscriptionInfirmier(event)" style="background:none; border:1px solid #cbd5e1; color:#334155; padding:10px; border-radius:6px; font-weight:600; cursor:pointer;">Créer un compte</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container" id="app-content" style="display:none;">
         <!-- En-tête principal -->
         <header>
             <h1>🩺 Comptabilité Libérale</h1>
-            <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
+                <div id="auth-user-info" style="display:none; align-items:center; gap:8px;">
+                    <span id="auth-user-email" style="font-size:13px; color:#475569;"></span>
+                    <button onclick="deconnexionInfirmier()" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🚪 Déconnexion</button>
+                </div>
+            </div>
         </header>
 
         <!-- Menu Onglets -->
@@ -557,6 +590,7 @@
     <!-- SCRIPTS DE BASE -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
+    <script src="auth.js"></script>
 
     <!-- EXPORTATION ROBUSTE DES TABLES SUPABASE -->
     <script>
