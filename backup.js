@@ -23,18 +23,15 @@ const FICHIERS_PROGRAMME = [
 async function executerSauvegarde() {
   console.log('🚀 Démarrage de la sauvegarde complète...');
 
-  // Création du dossier principal
   if (!fs.existsSync(DOSSIER_DESTINATION)) {
     fs.mkdirSync(DOSSIER_DESTINATION, { recursive: true });
   }
 
-  // Création du sous-dossier Supabase
   const dossierSupabase = path.join(DOSSIER_DESTINATION, 'supabase');
   if (!fs.existsSync(dossierSupabase)) {
     fs.mkdirSync(dossierSupabase, { recursive: true });
   }
 
-  // --- A. SAUVEGARDE DES FICHIERS PROGRAMME ---
   console.log('📁 Copie des fichiers du programme...');
   FICHIERS_PROGRAMME.forEach((fichier) => {
     const srcPath = path.join(__dirname, fichier);
@@ -48,19 +45,21 @@ async function executerSauvegarde() {
     }
   });
 
-  // --- B. SAUVEGARDE DE LA BASE DE DONNÉES SUPABASE ---
   console.log('🗄️ Sauvegarde des données Supabase...');
-  
-  // Renseignez vos identifiants Supabase si besoin
+
   const SUPABASE_URL = process.env.SUPABASE_URL || 'VOTRE_SUPABASE_URL';
   const SUPABASE_KEY = process.env.SUPABASE_KEY || 'VOTRE_SUPABASE_ANON_KEY';
 
   if (SUPABASE_URL !== 'VOTRE_SUPABASE_URL') {
+    console.log(`  ℹ️ URL utilisée : ${SUPABASE_URL}`);
+    console.log(`  ℹ️ Longueur de la clé : ${SUPABASE_KEY.length} caractères`);
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Extraction de la table profile
     const { data: profileData, error: errProfile } = await supabase.from('profile').select('*');
-    if (!errProfile && profileData) {
+    if (errProfile) {
+      console.error('  ❌ Erreur sur la table "profile" :', errProfile.message);
+    } else if (profileData) {
       fs.writeFileSync(
         path.join(dossierSupabase, 'profile_backup.json'),
         JSON.stringify(profileData, null, 2)
@@ -68,9 +67,10 @@ async function executerSauvegarde() {
       console.log('  ✅ Table "profile" exportée en JSON');
     }
 
-    // Extraction de la table transactions
     const { data: txData, error: errTx } = await supabase.from('transactions').select('*');
-    if (!errTx && txData) {
+    if (errTx) {
+      console.error('  ❌ Erreur sur la table "transactions" :', errTx.message);
+    } else if (txData) {
       fs.writeFileSync(
         path.join(dossierSupabase, 'transactions_backup.json'),
         JSON.stringify(txData, null, 2)
