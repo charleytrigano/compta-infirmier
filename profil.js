@@ -116,6 +116,11 @@ async function renderProfilUI() {
               <label class="block text-xs font-semibold text-slate-700 mb-1">Téléphone :</label>
               <input type="text" id="prof-telephone" value="${escapeHtml(profileData.telephone || '')}" placeholder="Ex: 06 10 09 92 07" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Date d'installation (début d'activité) :</label>
+              <input type="date" id="prof-date-installation" value="${escapeHtml(profileData.date_installation || '')}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <p class="text-[10px] text-slate-400 mt-1">Sert à choisir automatiquement le bon forfait CARPIMKO (1ère / 2ème année / régime de croisière) selon l'année.</p>
+            </div>
           </div>
         </div>
 
@@ -244,6 +249,7 @@ async function sauvegarderProfilSupabase(e) {
     prenom: document.getElementById('prof-prenom')?.value || null,
     email: document.getElementById('prof-email')?.value || null,
     telephone: document.getElementById('prof-telephone')?.value || null,
+    date_installation: document.getElementById('prof-date-installation')?.value || null,
     adresse: document.getElementById('prof-adresse')?.value || null,
     code_postal: document.getElementById('prof-code-postal')?.value || null,
     ville: document.getElementById('prof-ville')?.value || null,

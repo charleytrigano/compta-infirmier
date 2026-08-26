@@ -115,6 +115,27 @@
     }
   };
 
+  // Détermine automatiquement le bon statut CARPIMKO (1ère année / 2ème année
+  // / régime de croisière) pour l'année affichée, à partir de la date
+  // d'installation renseignée dans le Profil (profile.date_installation).
+  // Règle usuelle (la même que l'URSSAF) : l'année civile d'installation
+  // compte comme "1ère année", l'année suivante comme "2ème année", et le
+  // régime de croisière (BNC réel) s'applique ensuite.
+  async function determinerStatutCarpimko(anneeActive) {
+    if (!window.supabaseClient) return 'croisiere';
+    try {
+      const { data, error } = await window.supabaseClient.from('profile').select('date_installation').limit(1);
+      if (error || !data || data.length === 0 || !data[0].date_installation) return 'croisiere';
+      const anneeInstallation = parseInt(String(data[0].date_installation).slice(0, 4), 10);
+      if (isNaN(anneeInstallation)) return 'croisiere';
+      if (anneeActive === anneeInstallation) return 'annee1';
+      if (anneeActive === anneeInstallation + 1) return 'annee2';
+      return 'croisiere';
+    } catch (e) {
+      return 'croisiere';
+    }
+  }
+
   window.reinitialiserBncReelCarpimko = function () {
     const el = document.getElementById('car-input-bnc');
     if (el && window.bncReelCarpimkoActuel) {
@@ -140,6 +161,9 @@
     const bncReel = window.calculerBncReelUrssaf ? await window.calculerBncReelUrssaf(anneeActive) : 0;
     window.bncReelCarpimkoActuel = bncReel;
     const bncInitial = bncReel > 0 ? bncReel : bareme.pass;
+
+    const statutAuto = await determinerStatutCarpimko(anneeActive);
+    const libellesStatut = { croisiere: 'Régime de Croisière (BNC Réel / Estimé)', annee1: '1ère Année d\'Activité (Forfait)', annee2: '2ème Année d\'Activité (Forfait)' };
 
     const baremeVientDeAnneeDifferente = parseInt(bareme.annee, 10) !== parseInt(anneeActive, 10);
 
@@ -173,10 +197,11 @@
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Situation / Ancienneté :</label>
               <select id="car-select-statut" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 font-bold text-slate-800" onchange="actualiserCalculsCarpimko()">
-                <option value="croisiere">Régime de Croisière (BNC Réel / Estimé)</option>
-                <option value="annee1">1ère Année d'Activité (Forfait)</option>
-                <option value="annee2">2ème Année d'Activité (Forfait)</option>
+                <option value="croisiere" ${statutAuto === 'croisiere' ? 'selected' : ''}>Régime de Croisière (BNC Réel / Estimé)</option>
+                <option value="annee1" ${statutAuto === 'annee1' ? 'selected' : ''}>1ère Année d'Activité (Forfait)</option>
+                <option value="annee2" ${statutAuto === 'annee2' ? 'selected' : ''}>2ème Année d'Activité (Forfait)</option>
               </select>
+              <p class="text-[10px] text-emerald-600 mt-1">✅ Sélection automatique (${libellesStatut[statutAuto]}) d'après la date d'installation renseignée dans le Profil. Modifiable librement.</p>
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Estimé (€) :</label>
