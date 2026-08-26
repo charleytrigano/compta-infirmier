@@ -202,10 +202,28 @@ async function genererCSVJournal() {
   link.remove();
 }
 
+// Récupération des transactions (c'est la table "transactions", pas "ecritures_comptables",
+// qui porte le lien vers le fichier scanné — voir uploaderJustificatif() dans transactions.js
+// et journal_od.js, qui écrivent tous deux dans transactions.justificatif_url / file_path).
+async function obtenirTransactionsAvecJustificatifs() {
+  if (window.supabaseClient) {
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: true });
+      if (!error && data) return data;
+    } catch (e) {
+      console.warn("Supabase indisponible, bascule sur LocalStorage", e);
+    }
+  }
+  return JSON.parse(localStorage.getItem('allTransactions') || '[]');
+}
+
 // Exporter l'index HTML de tous les justificatifs scannés
 async function exporterIndexJustificatifs() {
-  const ecritures = await obtenirEcritures();
-  const pieces = ecritures.filter(e => e.justificatif_url || e.receipt_url || e.document_url);
+  const transactionsList = await obtenirTransactionsAvecJustificatifs();
+  const pieces = transactionsList.filter(e => e.justificatif_url || e.file_path || e.receipt_url || e.document_url);
 
   if (pieces.length === 0) {
     alert("Aucun justificatif scanné n'a été trouvé.");
@@ -216,7 +234,7 @@ async function exporterIndexJustificatifs() {
   htmlContent += `<h2>📁 Relevé des Pièces Justificatives Scannées</h2><p>Généré le : ${new Date().toLocaleDateString('fr-FR')}</p><table><tr><th>Date</th><th>Description</th><th>Montant</th><th>Lien de la Pièce Jointe</th></tr>`;
 
   pieces.forEach(p => {
-    const url = p.justificatif_url || p.receipt_url || p.document_url;
+    const url = p.justificatif_url || p.file_path || p.receipt_url || p.document_url;
     const montant = parseFloat(p.amount || p.montant || p.debit || p.credit || 0).toFixed(2);
     htmlContent += `<tr><td>${p.date || ''}</td><td>${p.description || 'Saisie sans libellé'}</td><td>${montant} €</td><td><a href="${url}" target="_blank">Consulter la pièce</a></td></tr>`;
   });

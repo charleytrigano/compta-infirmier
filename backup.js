@@ -88,6 +88,42 @@ async function executerSauvegarde() {
         console.error(`  ❌ Exception sur la table "${table}" :`, err.message);
       }
     }
+
+    // --- C. SAUVEGARDE DES JUSTIFICATIFS (fichiers scannés du bucket Supabase Storage "justificatifs") ---
+    // Les données ci-dessus ne sont que les LIGNES des tables (avec un lien vers chaque fichier),
+    // pas les fichiers eux-mêmes. On télécharge ici les fichiers réels pour que la sauvegarde reste
+    // exploitable même si le projet Supabase devient un jour inaccessible.
+    console.log('📎 Sauvegarde des justificatifs (fichiers scannés)...');
+    const dossierJustificatifs = path.join(DOSSIER_DESTINATION, 'justificatifs');
+    try {
+      const { data: fichiers, error: errList } = await supabase.storage.from('justificatifs').list('', { limit: 1000 });
+      if (errList) {
+        console.error('  ❌ Erreur liste des justificatifs :', errList.message);
+      } else if (fichiers && fichiers.length > 0) {
+        if (!fs.existsSync(dossierJustificatifs)) {
+          fs.mkdirSync(dossierJustificatifs, { recursive: true });
+        }
+        let copies = 0;
+        for (const fichier of fichiers) {
+          try {
+            const { data: blob, error: errDownload } = await supabase.storage.from('justificatifs').download(fichier.name);
+            if (errDownload || !blob) {
+              console.error(`  ❌ Erreur téléchargement "${fichier.name}" :`, errDownload ? errDownload.message : 'fichier vide');
+              continue;
+            }
+            fs.writeFileSync(path.join(dossierJustificatifs, fichier.name), Buffer.from(await blob.arrayBuffer()));
+            copies++;
+          } catch (err) {
+            console.error(`  ❌ Exception sur "${fichier.name}" :`, err.message);
+          }
+        }
+        console.log(`  ✅ ${copies}/${fichiers.length} justificatif(s) sauvegardé(s)`);
+      } else {
+        console.log('  ℹ️ Aucun justificatif dans le bucket Supabase Storage.');
+      }
+    } catch (err) {
+      console.error('  ❌ Exception sauvegarde justificatifs :', err.message);
+    }
   } else {
     console.log("  ℹ️ Configurez vos clés Supabase (secrets GitHub SUPABASE_URL / SUPABASE_SERVICE_KEY) pour l'export automatique des données.");
   }
