@@ -1,4 +1,3 @@
-
 /**
  * urssaf.js - Module URSSAF pour Infirmier Libéral (PAMC)
  * Gestion trimestrielle (T1, T2, T3, T4) et ajustement des plafonds PASS.
@@ -10,11 +9,11 @@
  * bareme_urssaf.js). Ça permet de mettre à jour le barème chaque année sans
  * toucher au code.
  */
- 
+
 (function () {
   window.anneeUrssafSelectionnee = window.anneeUrssafSelectionnee || new Date().getFullYear();
   window.baremeUrssafActif = window.baremeUrssafActif || null; // barème (plafonds + taux) de l'année en cours d'affichage
- 
+
   function formatEuro(valeur) {
     return Number(valeur || 0).toLocaleString('fr-FR', {
       style: 'currency',
@@ -23,18 +22,23 @@
       maximumFractionDigits: 2
     });
   }
- 
+
   // bareme = ligne renvoyée par window.obtenirBaremeUrssaf() : plafonds Tranche A/B
   // et tous les taux de l'année (voir bareme_urssaf.js pour le détail des champs).
-  function calculerUrssaf(bnc, bareme, passTrA, maxTrB, conventionne) {
+  // acreActif : si vrai, applique une exonération dégressive ACRE (1ère année
+  // d'activité, sur demande expresse depuis 2026) sur les cotisations
+  // "mutualisées" (Maladie, Allocations Familiales, Indemnités Journalières,
+  // CURPS) — pas sur la CSG-CRDS ni la CFP, qui ne sont historiquement pas
+  // couvertes par l'ACRE.
+  function calculerUrssaf(bnc, bareme, passTrA, maxTrB, conventionne, acreActif) {
     bnc = bnc || 0;
     passTrA = passTrA || bareme.plafond_tranche_a;
     maxTrB = maxTrB || bareme.plafond_tranche_b;
- 
+
     const partTrA = Math.min(Math.max(bnc, 0), passTrA);
     const partTrB = Math.min(Math.max(bnc - passTrA, 0), Math.max(maxTrB - passTrA, 0));
     const partTrC = Math.max(bnc - maxTrB, 0);
- 
+
     let maladieProv = 0;
     let maladieDetail = "";
     if (conventionne) {
@@ -46,7 +50,7 @@
       maladieProv = bnc * bareme.taux_maladie_non_conventionne / 100;
       maladieDetail = `Taux plein non-conventionné (${bareme.taux_maladie_non_conventionne} %)`;
     }
- 
+
     let tauxAllocFam = 0;
     const ratioPASS = passTrA > 0 ? bnc / passTrA : 0;
     const tauxMaxAlloc = bareme.taux_alloc_fam_max / 100;
@@ -59,26 +63,50 @@
     }
     const allocFamProv = bnc * tauxAllocFam;
     const allocFamDetail = `Taux effectif de ${(tauxAllocFam * 100).toFixed(2)} % (plafond ${bareme.taux_alloc_fam_max} %, selon barème BNC/PASS)`;
- 
+
     const assietteCSG = bnc * 1.15;
     const csgDeductible = assietteCSG * bareme.taux_csg_deductible / 100;
     const csgNonDeductible = assietteCSG * bareme.taux_csg_non_deductible / 100;
     const crds = assietteCSG * bareme.taux_crds / 100;
     const totalCsgCrds = csgDeductible + csgNonDeductible + crds;
     const csgDetail = `Base majorée (~115 % du BNC = ${formatEuro(assietteCSG)}) : CSG ${(bareme.taux_csg_deductible + bareme.taux_csg_non_deductible).toFixed(2)} % + CRDS ${bareme.taux_crds} %`;
- 
+
     const cfpProv = bareme.cfp_montant_annuel;
     const cfpDetail = `Forfait annuel fixé par le barème ${bareme.annee}`;
- 
-    const totalAnnuel = maladieProv + allocFamProv + totalCsgCrds + cfpProv;
- 
+
+    const baseIJ = Math.min(Math.max(bnc - bareme.seuil_bas_ij, 0), Math.max(bareme.seuil_haut_ij - bareme.seuil_bas_ij, 0));
+    const ijProv = baseIJ * bareme.taux_indemnites_journalieres / 100;
+    const ijDetail = `${bareme.taux_indemnites_journalieres} % sur la part comprise entre ${formatEuro(bareme.seuil_bas_ij)} et ${formatEuro(bareme.seuil_haut_ij)}`;
+
+    const curpsProv = bnc * bareme.taux_curps / 100;
+    const curpsDetail = `${bareme.taux_curps} % du revenu professionnel`;
+
+    let ratioAcre = 0;
+    if (acreActif) {
+      const seuilTotal = bareme.acre_seuil_exoneration_totale;
+      const seuilNul = bareme.acre_seuil_exoneration_nulle;
+      if (bnc <= seuilTotal) ratioAcre = 1;
+      else if (bnc >= seuilNul || seuilNul <= seuilTotal) ratioAcre = 0;
+      else ratioAcre = (seuilNul - bnc) / (seuilNul - seuilTotal);
+    }
+    const baseExonerableAcre = maladieProv + allocFamProv + ijProv + curpsProv;
+    const acreProv = baseExonerableAcre * ratioAcre;
+    const acreDetail = acreActif
+      ? `Exonération ${(ratioAcre * 100).toFixed(0)} % sur Maladie + Alloc. Fam. + Indemnités Journ. + CURPS (hors CSG-CRDS et CFP)`
+      : 'Non activée';
+
+    const totalAnnuel = maladieProv + allocFamProv + ijProv + curpsProv + totalCsgCrds + cfpProv - acreProv;
+
     return {
       tranches: { partTrA, partTrB, partTrC },
       postes: {
         maladie: { montant: +maladieProv.toFixed(2), detail: maladieDetail },
         allocFam: { montant: +allocFamProv.toFixed(2), detail: allocFamDetail },
+        indemnitesJournalieres: { montant: +ijProv.toFixed(2), detail: ijDetail },
+        curps: { montant: +curpsProv.toFixed(2), detail: curpsDetail },
         csgCrds: { montant: +totalCsgCrds.toFixed(2), detail: csgDetail },
-        cfp: { montant: +cfpProv.toFixed(2), detail: cfpDetail }
+        cfp: { montant: +cfpProv.toFixed(2), detail: cfpDetail },
+        acre: { montant: -+acreProv.toFixed(2), detail: acreDetail }
       },
       totalAnnuel: +totalAnnuel.toFixed(2),
       trimestres: {
@@ -89,7 +117,7 @@
       }
     };
   }
- 
+
   // Calcule le BNC réel de l'année à partir de la comptabilité (même logique que
   // l'onglet "Bilan / CE" : recettes - dépenses sur les écritures du compte
   // banque 512xxx). Sert à pré-remplir le champ BNC pour que l'utilisateur
@@ -107,7 +135,7 @@
         .gte('date', dateDebut)
         .lte('date', dateFin);
       if (error) throw error;
- 
+
       let totalRecettes = 0;
       let totalDepenses = 0;
       (data || []).forEach(row => {
@@ -123,7 +151,7 @@
     }
   }
   window.calculerBncReelUrssaf = calculerBncReelAnnuel;
- 
+
   window.reinitialiserBncReelUrssaf = function () {
     const el = document.getElementById('urs-input-bnc');
     if (el && window.bncReelUrssafActuel) {
@@ -131,7 +159,7 @@
       actualiserCalculsUrssaf();
     }
   };
- 
+
   function obtenirAnneesDisponibles(transactions = []) {
     const annees = new Set();
     annees.add(new Date().getFullYear());
@@ -143,12 +171,12 @@
     });
     return Array.from(annees).sort((a, b) => b - a);
   }
- 
+
   function obtenirConteneurURSSAF() {
     let target = document.getElementById('urssaf') ||
                  document.getElementById('vue-urssaf') ||
                  document.getElementById('urssaf-container');
- 
+
     if (!target) {
       const main = document.querySelector('main') || document.querySelector('.content') || document.body;
       if (main) {
@@ -159,41 +187,44 @@
     }
     return target;
   }
- 
+
   window.actualiserCalculsUrssaf = function() {
     if (!window.baremeUrssafActif) return; // barème pas encore chargé
- 
+
     const parseFloatOrZero = (id) => {
       const el = document.getElementById(id);
       if (!el) return 0;
       const val = parseFloat(el.value);
       return isNaN(val) ? 0 : val;
     };
- 
+
     const bncVal = parseFloatOrZero('urs-input-bnc');
     const passTrAVal = parseFloatOrZero('urs-input-pass-tra');
     const maxTrBVal = parseFloatOrZero('urs-input-pass-trb');
     const convVal = document.getElementById('urs-input-conv')?.checked ?? true;
- 
-    const simu = calculerUrssaf(bncVal, window.baremeUrssafActif, passTrAVal, maxTrBVal, convVal);
- 
+    const acreVal = document.getElementById('urs-input-acre')?.checked ?? false;
+
+    const simu = calculerUrssaf(bncVal, window.baremeUrssafActif, passTrAVal, maxTrBVal, convVal, acreVal);
+
     const offT1 = parseFloatOrZero('urs-off-t1');
     const offT2 = parseFloatOrZero('urs-off-t2');
     const offT3 = parseFloatOrZero('urs-off-t3');
     const offT4 = parseFloatOrZero('urs-off-t4');
     const totalOffTrimestres = offT1 + offT2 + offT3 + offT4;
- 
+
     const offMaladie = parseFloatOrZero('urs-off-maladie');
     const offAlloc = parseFloatOrZero('urs-off-alloc');
+    const offIJ = parseFloatOrZero('urs-off-ij');
+    const offCurps = parseFloatOrZero('urs-off-curps');
     const offCsg = parseFloatOrZero('urs-off-csg');
     const offCfp = parseFloatOrZero('urs-off-cfp');
-    const totalOffPostes = offMaladie + offAlloc + offCsg + offCfp;
- 
+    const totalOffPostes = offMaladie + offAlloc + offIJ + offCurps + offCsg + offCfp;
+
     const totalOfficielRetenu = totalOffTrimestres > 0 ? totalOffTrimestres : totalOffPostes;
     const payeBanque = window.payeBanqueUrssafActuel || 0;
     const baseCompare = payeBanque > 0 ? payeBanque : totalOfficielRetenu;
     const tropCotise = baseCompare - simu.totalAnnuel;
- 
+
     const mapText = {
       'urs-txt-part-tra': formatEuro(simu.tranches.partTrA),
       'urs-txt-part-trb': formatEuro(simu.tranches.partTrB),
@@ -206,27 +237,33 @@
       'urs-simu-t4': formatEuro(simu.trimestres.t4),
       'urs-simu-maladie': formatEuro(simu.postes.maladie.montant),
       'urs-simu-alloc': formatEuro(simu.postes.allocFam.montant),
+      'urs-simu-ij': formatEuro(simu.postes.indemnitesJournalieres.montant),
+      'urs-simu-curps': formatEuro(simu.postes.curps.montant),
       'urs-simu-csg': formatEuro(simu.postes.csgCrds.montant),
       'urs-simu-cfp': formatEuro(simu.postes.cfp.montant),
+      'urs-simu-acre': formatEuro(simu.postes.acre.montant),
       'urs-simu-tot-postes': formatEuro(simu.totalAnnuel),
       'urs-txt-tot-off-postes': formatEuro(totalOffPostes),
       'urs-detail-maladie': simu.postes.maladie.detail,
       'urs-detail-alloc': simu.postes.allocFam.detail,
+      'urs-detail-ij': simu.postes.indemnitesJournalieres.detail,
+      'urs-detail-curps': simu.postes.curps.detail,
       'urs-detail-csg': simu.postes.csgCrds.detail,
-      'urs-detail-cfp': simu.postes.cfp.detail
+      'urs-detail-cfp': simu.postes.cfp.detail,
+      'urs-detail-acre': simu.postes.acre.detail
     };
- 
+
     for (const [id, txt] of Object.entries(mapText)) {
       const el = document.getElementById(id);
       if (el) el.textContent = txt;
     }
- 
+
     const banner = document.getElementById('urs-banner-trop-cotise');
     const title = document.getElementById('urs-banner-title');
     const desc = document.getElementById('urs-banner-desc');
     const badge = document.getElementById('urs-banner-badge');
     const anneeActive = window.anneeUrssafSelectionnee;
- 
+
     if (banner && title && desc && badge) {
       if (tropCotise >= 0) {
         banner.className = "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border";
@@ -243,29 +280,29 @@
       }
     }
   };
- 
+
   async function renderUrssafUI(transactions = []) {
     window.transactionsUrssafCache = transactions;
     const container = obtenirConteneurURSSAF();
     if (!container) return;
- 
+
     const annees = obtenirAnneesDisponibles(transactions);
     const anneeActive = window.anneeUrssafSelectionnee;
- 
+
     container.innerHTML = `<p style="color:#64748b;padding:16px;">Chargement du barème URSSAF ${anneeActive}...</p>`;
- 
+
     const bareme = window.obtenirBaremeUrssaf
       ? await window.obtenirBaremeUrssaf(anneeActive)
-      : { annee: anneeActive, pass: 48060, plafond_tranche_a: 48060, plafond_tranche_b: 192240, taux_maladie_tranche_a: 0.10, taux_maladie_tranche_b: 0.10, taux_maladie_tranche_c: 0.10, taux_maladie_non_conventionne: 8.50, taux_csg_deductible: 6.80, taux_csg_non_deductible: 2.40, taux_crds: 0.50, taux_alloc_fam_max: 3.10, cfp_montant_annuel: 137 };
+      : { annee: anneeActive, pass: 48060, plafond_tranche_a: 48060, plafond_tranche_b: 192240, taux_maladie_tranche_a: 0.10, taux_maladie_tranche_b: 0.10, taux_maladie_tranche_c: 0.10, taux_maladie_non_conventionne: 8.50, taux_csg_deductible: 6.80, taux_csg_non_deductible: 2.40, taux_crds: 0.50, taux_alloc_fam_max: 3.10, cfp_montant_annuel: 137, taux_indemnites_journalieres: 0.30, seuil_bas_ij: 0.40 * 48060, seuil_haut_ij: 3 * 48060, taux_curps: 0.10, acre_seuil_exoneration_totale: 35325, acre_seuil_exoneration_nulle: 47100 };
     window.baremeUrssafActif = bareme;
- 
+
     let payeBanque = 0;
     let nbPaiements = 0;
- 
+
     transactions.forEach(tx => {
       const cat = (tx.category || tx.categorie || '').toLowerCase();
       const desc = (tx.description || tx.libelle || '').toLowerCase();
- 
+
       if (cat.includes('urssaf') || desc.includes('urssaf')) {
         const dateTx = new Date(tx.date);
         if (!isNaN(dateTx.getTime()) && dateTx.getFullYear() === parseInt(anneeActive, 10)) {
@@ -274,15 +311,15 @@
         }
       }
     });
- 
+
     window.payeBanqueUrssafActuel = payeBanque;
- 
+
     const bncReel = await calculerBncReelAnnuel(anneeActive);
     window.bncReelUrssafActuel = bncReel;
     const bncInitial = bncReel > 0 ? bncReel : bareme.pass;
- 
+
     const baremeVientDeAnneeDifferente = parseInt(bareme.annee, 10) !== parseInt(anneeActive, 10);
- 
+
     container.innerHTML = `
       <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
@@ -304,14 +341,14 @@
             </div>
           </div>
         </div>
- 
+
         ${baremeVientDeAnneeDifferente ? `
         <div class="bg-amber-50 border border-amber-300 text-amber-900 text-xs p-3 rounded-lg">
           ⚠️ Aucun barème n'existe pour ${anneeActive} : les plafonds et taux de <strong>${bareme.annee}</strong> sont utilisés par défaut. Ajoutez l'année ${anneeActive} dans <strong>⚙️ Barème URSSAF</strong> pour des chiffres exacts.
         </div>` : ''}
         ${bareme.notes ? `
         <div class="bg-slate-50 border border-slate-200 text-slate-600 text-xs p-3 rounded-lg italic">📌 ${bareme.notes}</div>` : ''}
- 
+
         <div id="urs-banner-trop-cotise" class="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-500 text-emerald-900 border-l-4 p-4 rounded-r-xl shadow-sm border">
           <div class="flex items-center justify-between flex-wrap gap-3">
             <div>
@@ -324,7 +361,7 @@
             </div>
           </div>
         </div>
- 
+
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">1. Base de Calcul & Plafonds d'Imposition (${anneeActive})</h3>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -347,16 +384,22 @@
             </div>
           </div>
           <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
-            <div class="flex items-center gap-2">
-              <input type="checkbox" id="urs-input-conv" checked class="rounded text-blue-600" onchange="actualiserCalculsUrssaf()">
-              <label for="urs-input-conv" class="text-slate-600 font-medium">Praticien Médical Conventionné PAMC</label>
+            <div class="flex items-center gap-4">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" id="urs-input-conv" checked class="rounded text-blue-600" onchange="actualiserCalculsUrssaf()">
+                <label for="urs-input-conv" class="text-slate-600 font-medium">Praticien Médical Conventionné PAMC</label>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="checkbox" id="urs-input-acre" class="rounded text-blue-600" onchange="actualiserCalculsUrssaf()">
+                <label for="urs-input-acre" class="text-slate-600 font-medium">ACRE en cours (exonération à demander explicitement depuis 2026)</label>
+              </div>
             </div>
             <div class="text-slate-500">
               Ventilation BNC : Tr A = <strong id="urs-txt-part-tra" class="text-slate-700">--</strong> | Tr B = <strong id="urs-txt-part-trb" class="text-slate-700">--</strong> | Tr C (au-delà) = <strong id="urs-txt-part-trc" class="text-slate-700">--</strong>
             </div>
           </div>
         </div>
- 
+
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">2. Échéancier Trimestriel URSSAF (${anneeActive})</h3>
           <div class="overflow-x-auto">
@@ -403,7 +446,7 @@
             </table>
           </div>
         </div>
- 
+
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">3. Ventilation Annuelle Poste par Poste</h3>
           <div class="overflow-x-auto">
@@ -430,6 +473,18 @@
                   <td id="urs-simu-alloc" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
                 </tr>
                 <tr>
+                  <td class="py-2 px-3 font-semibold">Indemnités Journalières</td>
+                  <td id="urs-detail-ij" class="py-2 px-3 text-slate-500 italic">--</td>
+                  <td class="py-1 px-3 text-right"><input type="number" step="0.01" id="urs-off-ij" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs"></td>
+                  <td id="urs-simu-ij" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold">CURPS</td>
+                  <td id="urs-detail-curps" class="py-2 px-3 text-slate-500 italic">--</td>
+                  <td class="py-1 px-3 text-right"><input type="number" step="0.01" id="urs-off-curps" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs"></td>
+                  <td id="urs-simu-curps" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+                </tr>
+                <tr>
                   <td class="py-2 px-3 font-semibold">CSG / CRDS</td>
                   <td id="urs-detail-csg" class="py-2 px-3 text-slate-500 italic">--</td>
                   <td class="py-1 px-3 text-right"><input type="number" step="0.01" id="urs-off-csg" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs"></td>
@@ -440,6 +495,12 @@
                   <td id="urs-detail-cfp" class="py-2 px-3 text-slate-500 italic">--</td>
                   <td class="py-1 px-3 text-right"><input type="number" step="0.01" id="urs-off-cfp" value="0.00" oninput="actualiserCalculsUrssaf()" class="w-28 text-right p-1 bg-slate-50 border border-slate-300 rounded font-semibold text-xs"></td>
                   <td id="urs-simu-cfp" class="py-2 px-3 text-right font-bold text-blue-600">--</td>
+                </tr>
+                <tr class="bg-amber-50">
+                  <td class="py-2 px-3 font-semibold text-amber-800">ACRE (exonération)</td>
+                  <td id="urs-detail-acre" class="py-2 px-3 text-amber-700 italic">--</td>
+                  <td class="py-1 px-3 text-right text-slate-300 italic text-[10px]">n/a</td>
+                  <td id="urs-simu-acre" class="py-2 px-3 text-right font-bold text-amber-700">--</td>
                 </tr>
                 <tr class="bg-slate-800 text-white font-bold text-sm">
                   <td class="py-2.5 px-3">TOTAL ANNUEL PAR POSTES</td>
@@ -453,15 +514,15 @@
         </div>
       </div>
     `;
- 
+
     actualiserCalculsUrssaf();
   }
- 
+
   window.changerAnneeUrssaf = function(nouvelleAnnee) {
     window.anneeUrssafSelectionnee = parseInt(nouvelleAnnee, 10);
     renderUrssafUI(window.transactionsUrssafCache || []);
   };
- 
+
   window.initUrssafModule = async function() {
     let transactions = window.listeTransactions || window.state?.transactions || [];
     if (transactions.length === 0 && window.supabaseClient) {
@@ -472,11 +533,10 @@
     }
     renderUrssafUI(transactions);
   };
- 
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', window.initUrssafModule);
   } else {
     window.initUrssafModule();
   }
 })();
- 

@@ -33,6 +33,12 @@
     taux_crds: 0.50,
     taux_alloc_fam_max: 3.10,
     cfp_montant_annuel: 137.00,
+    taux_indemnites_journalieres: 0.30,
+    seuil_bas_ij: 0.40 * 48060,
+    seuil_haut_ij: 3 * 48060,
+    taux_curps: 0.10,
+    acre_seuil_exoneration_totale: 35325,
+    acre_seuil_exoneration_nulle: 47100,
     notes: 'Valeur de secours (table bareme_urssaf injoignable).'
   };
 
@@ -49,6 +55,12 @@
     { id: 'taux_crds', label: 'Taux CRDS (%)', type: 'number', step: '0.01' },
     { id: 'taux_alloc_fam_max', label: 'Taux plafond Allocations Familiales (%)', type: 'number', step: '0.01' },
     { id: 'cfp_montant_annuel', label: 'CFP - Formation Professionnelle (€ / an)', type: 'number', step: '0.01' },
+    { id: 'taux_indemnites_journalieres', label: 'Taux Indemnités Journalières (%)', type: 'number', step: '0.01' },
+    { id: 'seuil_bas_ij', label: 'Indemnités Journalières - seuil bas (€)', type: 'number', step: '1' },
+    { id: 'seuil_haut_ij', label: 'Indemnités Journalières - seuil haut (€)', type: 'number', step: '1' },
+    { id: 'taux_curps', label: 'Taux CURPS (%)', type: 'number', step: '0.01' },
+    { id: 'acre_seuil_exoneration_totale', label: 'ACRE - seuil exonération totale (€)', type: 'number', step: '1' },
+    { id: 'acre_seuil_exoneration_nulle', label: 'ACRE - seuil exonération nulle (€)', type: 'number', step: '1' },
     { id: 'notes', label: 'Notes (facultatif)', type: 'text', step: null }
   ];
 
@@ -180,6 +192,9 @@
         <td class="py-2 px-3 text-right">${formatPct(ligne.taux_csg_deductible)} / ${formatPct(ligne.taux_csg_non_deductible)} / ${formatPct(ligne.taux_crds)}</td>
         <td class="py-2 px-3 text-right">${formatPct(ligne.taux_alloc_fam_max)}</td>
         <td class="py-2 px-3 text-right">${formatEuro(ligne.cfp_montant_annuel)}</td>
+        <td class="py-2 px-3 text-right">${formatPct(ligne.taux_indemnites_journalieres)}<br><span class="text-[10px] text-slate-500">${formatEuro(ligne.seuil_bas_ij)} → ${formatEuro(ligne.seuil_haut_ij)}</span></td>
+        <td class="py-2 px-3 text-right">${formatPct(ligne.taux_curps)}</td>
+        <td class="py-2 px-3 text-right"><span class="text-[10px] text-slate-500">100% ≤</span> ${formatEuro(ligne.acre_seuil_exoneration_totale)}<br><span class="text-[10px] text-slate-500">0% ≥</span> ${formatEuro(ligne.acre_seuil_exoneration_nulle)}</td>
         <td class="py-2 px-3 text-slate-500 italic text-[11px] max-w-xs">${ligne.notes || ''}</td>
         <td class="py-2 px-3 text-right whitespace-nowrap">
           <button onclick="modifierLigneBareme(${ligne.annee})" class="text-blue-600 hover:underline text-xs font-semibold">✏️ Modifier</button>
@@ -199,7 +214,7 @@
 
     return `
       <tr>
-        <td colspan="11" class="p-4 bg-blue-50/60 border border-blue-200 rounded-xl">
+        <td colspan="14" class="p-4 bg-blue-50/60 border border-blue-200 rounded-xl">
           <h4 class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-3">Barème ${ligne.annee}</h4>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${champsHtml}</div>
           <div class="mt-3 flex gap-2">
@@ -250,6 +265,9 @@
                   <th class="py-2 px-3 text-right">CSG déd. / non-déd. / CRDS</th>
                   <th class="py-2 px-3 text-right">Alloc. Fam. (max)</th>
                   <th class="py-2 px-3 text-right">CFP</th>
+                  <th class="py-2 px-3 text-right">Indemn. Journ. (taux / seuils)</th>
+                  <th class="py-2 px-3 text-right">CURPS</th>
+                  <th class="py-2 px-3 text-right">ACRE (seuils)</th>
                   <th class="py-2 px-3">Notes</th>
                   <th class="py-2 px-3"></th>
                 </tr>

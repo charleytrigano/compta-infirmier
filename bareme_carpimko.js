@@ -24,6 +24,8 @@
     plafond_excedent_complementaire: 120150,
     rid_montant: 1022.00,
     forfait_debut_activite_pct: 19.00,
+    asv_forfait: 224.00,
+    asv_taux: 0.40,
     notes: 'Valeur de secours (table bareme_carpimko injoignable).'
   };
 
@@ -39,6 +41,8 @@
     { id: 'plafond_excedent_complementaire', label: 'Complémentaire - Plafond de l\'excédent soumis au taux (€)', type: 'number', step: '1' },
     { id: 'rid_montant', label: 'RID - Invalidité-Décès (€ / an)', type: 'number', step: '0.01' },
     { id: 'forfait_debut_activite_pct', label: 'Forfait 1ère/2ème année (% du PASS)', type: 'number', step: '0.01' },
+    { id: 'asv_forfait', label: 'ASV - Forfait (€, conventionnés)', type: 'number', step: '0.01' },
+    { id: 'asv_taux', label: 'ASV - Taux proportionnel (%, conventionnés)', type: 'number', step: '0.01' },
     { id: 'notes', label: 'Notes (facultatif)', type: 'text', step: null }
   ];
 
@@ -165,6 +169,7 @@
         <td class="py-2 px-3 text-right">${formatEuro(ligne.forfait_complementaire)} + <span class="text-[10px] text-slate-500">${formatPct(ligne.taux_complementaire)} au-delà de ${formatEuro(ligne.seuil_complementaire)} (max ${formatEuro(ligne.plafond_excedent_complementaire)})</span></td>
         <td class="py-2 px-3 text-right">${formatEuro(ligne.rid_montant)}</td>
         <td class="py-2 px-3 text-right">${formatPct(ligne.forfait_debut_activite_pct)}</td>
+        <td class="py-2 px-3 text-right">${formatEuro(ligne.asv_forfait)} + <span class="text-[10px] text-slate-500">${formatPct(ligne.asv_taux)}</span></td>
         <td class="py-2 px-3 text-slate-500 italic text-[11px] max-w-xs">${ligne.notes || ''}</td>
         <td class="py-2 px-3 text-right whitespace-nowrap">
           <button onclick="modifierLigneBaremeCarpimko(${ligne.annee})" class="text-blue-600 hover:underline text-xs font-semibold">✏️ Modifier</button>
@@ -184,7 +189,7 @@
 
     return `
       <tr>
-        <td colspan="9" class="p-4 bg-blue-50/60 border border-blue-200 rounded-xl">
+        <td colspan="10" class="p-4 bg-blue-50/60 border border-blue-200 rounded-xl">
           <h4 class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-3">Barème CARPIMKO ${ligne.annee}</h4>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${champsHtml}</div>
           <div class="mt-3 flex gap-2">
@@ -233,6 +238,7 @@
                   <th class="py-2 px-3 text-right">Complémentaire</th>
                   <th class="py-2 px-3 text-right">RID</th>
                   <th class="py-2 px-3 text-right">Forfait 1ère/2ème année</th>
+                  <th class="py-2 px-3 text-right">ASV (Conventionnés)</th>
                   <th class="py-2 px-3">Notes</th>
                   <th class="py-2 px-3"></th>
                 </tr>

@@ -30,9 +30,14 @@
   // réforme 2026 selon les paramètres du barème) :
   //   cotisation = forfait_complementaire
   //              + taux_complementaire × clamp(assiette - seuil_complementaire, 0, plafond_excedent_complementaire)
-  function calculerCarpimko(bncSaisi, bareme, pass, statut) {
+  // conventionne : l'ASV (Allocation Supplémentaire Vieillesse) n'existe que
+  // pour les praticiens conventionnés (financée en partie par l'Assurance
+  // Maladie pour eux) ; pour un praticien non-conventionné, l'ASV ne
+  // s'applique pas.
+  function calculerCarpimko(bncSaisi, bareme, pass, statut, conventionne) {
     bncSaisi = bncSaisi || 0;
     pass = pass || bareme.pass;
+    conventionne = conventionne === undefined ? true : conventionne;
 
     let assietteBase = bncSaisi;
     let assietteComp = bncSaisi;
@@ -55,13 +60,17 @@
     // 3. RID (Invalidation-Décès)
     const cotisRID = bareme.rid_montant;
 
-    const totalAnnuel = cotisBase + cotisComp + cotisRID;
+    // 4. ASV (praticiens conventionnés uniquement) : forfait + part proportionnelle sur l'assiette de Base.
+    const cotisASV = conventionne ? (bareme.asv_forfait + (assietteBase * bareme.asv_taux / 100)) : 0;
+
+    const totalAnnuel = cotisBase + cotisComp + cotisRID + cotisASV;
 
     return {
       assietteRetenue: assietteBase,
       base: +cotisBase.toFixed(2),
       complementaire: +cotisComp.toFixed(2),
       rid: +cotisRID.toFixed(2),
+      asv: +cotisASV.toFixed(2),
       totalAnnuel: +totalAnnuel.toFixed(2),
       trimestre: +(totalAnnuel / 4).toFixed(2)
     };
@@ -89,17 +98,20 @@
     const elBnc = document.getElementById('car-input-bnc');
     const elPass = document.getElementById('car-input-pass');
     const elStatut = document.getElementById('car-select-statut');
+    const elConv = document.getElementById('car-input-conv');
 
     const bncVal = elBnc ? parseFloat(elBnc.value) || 0 : 0;
     const passVal = elPass ? parseFloat(elPass.value) || 0 : window.baremeCarpimkoActif.pass;
     const statutVal = elStatut ? elStatut.value : 'croisiere';
+    const convVal = elConv ? elConv.checked : true;
 
-    const simu = calculerCarpimko(bncVal, window.baremeCarpimkoActif, passVal, statutVal);
+    const simu = calculerCarpimko(bncVal, window.baremeCarpimkoActif, passVal, statutVal, convVal);
 
     const mapIds = {
       'car-simu-base': simu.base,
       'car-simu-comp': simu.complementaire,
       'car-simu-rid': simu.rid,
+      'car-simu-asv': simu.asv,
       'car-simu-total': simu.totalAnnuel,
       'car-simu-trim': simu.trimestre
     };
@@ -153,7 +165,7 @@
 
     const bareme = window.obtenirBaremeCarpimko
       ? await window.obtenirBaremeCarpimko(anneeActive)
-      : { annee: anneeActive, pass: 48060, taux_base_tranche1: 8.73, plafond_base_tranche1: 48060, taux_base_tranche2: 1.87, plafond_base_tranche2: 240300, forfait_complementaire: 2090.61, taux_complementaire: 8.70, seuil_complementaire: 24030, plafond_excedent_complementaire: 120150, rid_montant: 1022, forfait_debut_activite_pct: 19 };
+      : { annee: anneeActive, pass: 48060, taux_base_tranche1: 8.73, plafond_base_tranche1: 48060, taux_base_tranche2: 1.87, plafond_base_tranche2: 240300, forfait_complementaire: 2090.61, taux_complementaire: 8.70, seuil_complementaire: 24030, plafond_excedent_complementaire: 120150, rid_montant: 1022, forfait_debut_activite_pct: 19, asv_forfait: 224.00, asv_taux: 0.40 };
     window.baremeCarpimkoActif = bareme;
 
     // Même calcul du BNC réel que l'onglet URSSAF (recettes - dépenses de la
@@ -218,6 +230,10 @@
             </div>
           </div>
           <p id="car-txt-assiette" class="text-xs text-slate-500 font-medium italic pt-1">--</p>
+          <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+            <input type="checkbox" id="car-input-conv" checked class="rounded text-blue-600" onchange="actualiserCalculsCarpimko()">
+            <label for="car-input-conv" class="text-xs text-slate-600 font-medium">Praticien Conventionné (ouvre droit à l'ASV, financée en partie par l'Assurance Maladie)</label>
+          </div>
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
@@ -242,6 +258,10 @@
                 <tr>
                   <td class="py-2 px-3 font-semibold">Invalidation - Décès (RID)</td>
                   <td id="car-simu-rid" class="py-2 px-3 text-right font-bold text-slate-800">--</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold">ASV (Conventionnés)</td>
+                  <td id="car-simu-asv" class="py-2 px-3 text-right font-bold text-slate-800">--</td>
                 </tr>
                 <tr class="bg-slate-800 text-white font-bold text-sm">
                   <td class="py-2.5 px-3">TOTAL ANNUEL CARPIMKO</td>
