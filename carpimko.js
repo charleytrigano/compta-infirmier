@@ -1,17 +1,19 @@
 /**
  * carpimko.js - Module CARPIMKO pour Infirmier Libéral
  * Inclus : Début d'activité (1ère et 2ème année) + Régime de croisière.
+ *
+ * Les plafonds/taux du Régime de Base, du Régime Complémentaire et du RID ne
+ * sont plus codés en dur : ils viennent de la table Supabase
+ * `bareme_carpimko`, modifiable depuis l'écran "⚙️ Barème CARPIMKO" (voir
+ * bareme_carpimko.js). Le BNC est pré-rempli automatiquement à partir du
+ * résultat réel de la comptabilité (même calcul que l'onglet URSSAF, voir
+ * window.calculerBncReelUrssaf dans urssaf.js), et reste modifiable pour
+ * simuler une estimation.
  */
 
 (function () {
   window.anneeCarpimkoSelectionnee = window.anneeCarpimkoSelectionnee || new Date().getFullYear();
-
-  var PLAFONDS_CARPIMKO = window.PLAFONDS_CARPIMKO || {
-    2024: { pass: 46368 },
-    2025: { pass: 47100 },
-    2026: { pass: 47252 }
-  };
-  window.PLAFONDS_CARPIMKO = PLAFONDS_CARPIMKO;
+  window.baremeCarpimkoActif = window.baremeCarpimkoActif || null;
 
   function formatEuro(valeur) {
     return Number(valeur || 0).toLocaleString('fr-FR', {
@@ -22,31 +24,36 @@
     });
   }
 
-  function calculerCarpimko(bncSaisi = 47252, pass = 47252, statut = 'croisiere') {
+  // bareme = ligne renvoyée par window.obtenirBaremeCarpimko() (voir bareme_carpimko.js).
+  //
+  // Formule du Régime Complémentaire (unifiée, valable avant ET après la
+  // réforme 2026 selon les paramètres du barème) :
+  //   cotisation = forfait_complementaire
+  //              + taux_complementaire × clamp(assiette - seuil_complementaire, 0, plafond_excedent_complementaire)
+  function calculerCarpimko(bncSaisi, bareme, pass, statut) {
+    bncSaisi = bncSaisi || 0;
+    pass = pass || bareme.pass;
+
     let assietteBase = bncSaisi;
     let assietteComp = bncSaisi;
 
-    // Assiettes forfaitaires de début d'activité (règlementation CARPIMKO)
-    if (statut === 'annee1') {
-      assietteBase = pass * 0.19; // Forfait 1ère année
-      assietteComp = pass * 0.19;
-    } else if (statut === 'annee2') {
-      assietteBase = pass * 0.19; // Forfait 2ème année
-      assietteComp = pass * 0.19;
+    if (statut === 'annee1' || statut === 'annee2') {
+      const assietteForfait = pass * bareme.forfait_debut_activite_pct / 100;
+      assietteBase = assietteForfait;
+      assietteComp = assietteForfait;
     }
 
     // 1. Régime de Base
-    const tr1Base = Math.min(Math.max(assietteBase, 0), pass);
-    const tr2Base = Math.min(Math.max(assietteBase, 0), 5 * pass);
-    const cotisBase = (tr1Base * 0.0823) + (tr2Base * 0.0187);
+    const tr1Base = Math.min(Math.max(assietteBase, 0), bareme.plafond_base_tranche1);
+    const tr2Base = Math.min(Math.max(assietteBase, 0), bareme.plafond_base_tranche2);
+    const cotisBase = (tr1Base * bareme.taux_base_tranche1 / 100) + (tr2Base * bareme.taux_base_tranche2 / 100);
 
     // 2. Régime Complémentaire
-    const cotisCompForfait = 1976.00;
-    const cotisCompProp = Math.min(Math.max(assietteComp - (0.85 * pass), 0), 5 * pass) * 0.0304;
-    const cotisComp = cotisCompForfait + cotisCompProp;
+    const excedentComp = Math.min(Math.max(assietteComp - bareme.seuil_complementaire, 0), bareme.plafond_excedent_complementaire);
+    const cotisComp = bareme.forfait_complementaire + (excedentComp * bareme.taux_complementaire / 100);
 
     // 3. RID (Invalidation-Décès)
-    const cotisRID = 880.00;
+    const cotisRID = bareme.rid_montant;
 
     const totalAnnuel = cotisBase + cotisComp + cotisRID;
 
@@ -61,8 +68,8 @@
   }
 
   function obtenirConteneurCarpimko() {
-    let target = document.getElementById('carpimko') || 
-                 document.getElementById('vue-carpimko') || 
+    let target = document.getElementById('carpimko') ||
+                 document.getElementById('vue-carpimko') ||
                  document.getElementById('carpimko-container');
 
     if (!target) {
@@ -77,15 +84,17 @@
   }
 
   window.actualiserCalculsCarpimko = function() {
+    if (!window.baremeCarpimkoActif) return;
+
     const elBnc = document.getElementById('car-input-bnc');
     const elPass = document.getElementById('car-input-pass');
     const elStatut = document.getElementById('car-select-statut');
 
-    const bncVal = elBnc ? parseFloat(elBnc.value) || 0 : 47252;
-    const passVal = elPass ? parseFloat(elPass.value) || 0 : 47252;
+    const bncVal = elBnc ? parseFloat(elBnc.value) || 0 : 0;
+    const passVal = elPass ? parseFloat(elPass.value) || 0 : window.baremeCarpimkoActif.pass;
     const statutVal = elStatut ? elStatut.value : 'croisiere';
 
-    const simu = calculerCarpimko(bncVal, passVal, statutVal);
+    const simu = calculerCarpimko(bncVal, window.baremeCarpimkoActif, passVal, statutVal);
 
     const mapIds = {
       'car-simu-base': simu.base,
@@ -106,12 +115,33 @@
     }
   };
 
-  function renderCarpimkoUI() {
+  window.reinitialiserBncReelCarpimko = function () {
+    const el = document.getElementById('car-input-bnc');
+    if (el && window.bncReelCarpimkoActuel) {
+      el.value = window.bncReelCarpimkoActuel;
+      actualiserCalculsCarpimko();
+    }
+  };
+
+  async function renderCarpimkoUI() {
     const container = obtenirConteneurCarpimko();
     if (!container) return;
 
     const anneeActive = window.anneeCarpimkoSelectionnee;
-    const passAnnee = (PLAFONDS_CARPIMKO[anneeActive] || { pass: 47252 }).pass;
+    container.innerHTML = `<p style="color:#64748b;padding:16px;">Chargement du barème CARPIMKO ${anneeActive}...</p>`;
+
+    const bareme = window.obtenirBaremeCarpimko
+      ? await window.obtenirBaremeCarpimko(anneeActive)
+      : { annee: anneeActive, pass: 48060, taux_base_tranche1: 8.73, plafond_base_tranche1: 48060, taux_base_tranche2: 1.87, plafond_base_tranche2: 240300, forfait_complementaire: 2090.61, taux_complementaire: 8.70, seuil_complementaire: 24030, plafond_excedent_complementaire: 120150, rid_montant: 1022, forfait_debut_activite_pct: 19 };
+    window.baremeCarpimkoActif = bareme;
+
+    // Même calcul du BNC réel que l'onglet URSSAF (recettes - dépenses de la
+    // comptabilité), pour ne pas avoir à ressaisir un chiffre déjà connu.
+    const bncReel = window.calculerBncReelUrssaf ? await window.calculerBncReelUrssaf(anneeActive) : 0;
+    window.bncReelCarpimkoActuel = bncReel;
+    const bncInitial = bncReel > 0 ? bncReel : bareme.pass;
+
+    const baremeVientDeAnneeDifferente = parseInt(bareme.annee, 10) !== parseInt(anneeActive, 10);
 
     container.innerHTML = `
       <div class="space-y-6 max-w-6xl mx-auto p-4 font-sans text-slate-800">
@@ -120,9 +150,22 @@
             <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
               🏥 Cotisations CARPIMKO (${anneeActive})
             </h2>
-            <p class="text-xs text-slate-500 mt-1">Caisse de retraite et de prévoyance des infirmiers libéraux</p>
+            <p class="text-xs text-slate-500 mt-1">Caisse de retraite et de prévoyance des infirmiers libéraux. Barème modifiable dans l'onglet <strong>⚙️ Barème CARPIMKO</strong>.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="select-annee-carpimko" class="text-xs font-semibold text-slate-700">Année :</label>
+            <select id="select-annee-carpimko" onchange="changerAnneeCarpimko(this.value)" class="form-select bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg font-bold p-2 focus:ring-blue-500 focus:border-blue-500">
+              ${[anneeActive - 1, anneeActive, anneeActive + 1].map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
+            </select>
           </div>
         </div>
+
+        ${baremeVientDeAnneeDifferente ? `
+        <div class="bg-amber-50 border border-amber-300 text-amber-900 text-xs p-3 rounded-lg">
+          ⚠️ Aucun barème n'existe pour ${anneeActive} : les plafonds et taux de <strong>${bareme.annee}</strong> sont utilisés par défaut. Ajoutez l'année ${anneeActive} dans <strong>⚙️ Barème CARPIMKO</strong> pour des chiffres exacts.
+        </div>` : ''}
+        ${bareme.notes ? `
+        <div class="bg-slate-50 border border-slate-200 text-slate-600 text-xs p-3 rounded-lg italic">📌 ${bareme.notes}</div>` : ''}
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
           <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">1. Situation & Assiette de Calcul</h3>
@@ -137,11 +180,16 @@
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">BNC Estimé (€) :</label>
-              <input type="number" id="car-input-bnc" value="47252" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsCarpimko()">
+              <input type="number" id="car-input-bnc" value="${bncInitial}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-bold" oninput="actualiserCalculsCarpimko()">
+              <p class="text-[10px] mt-1 ${bncReel > 0 ? 'text-emerald-600' : 'text-slate-400'}">
+                ${bncReel > 0
+                  ? `✅ Pré-rempli avec le résultat réel ${anneeActive}. Modifiez-le librement pour tester une estimation. <button type="button" onclick="reinitialiserBncReelCarpimko()" class="underline font-semibold">↺ Revenir au réel</button>`
+                  : `ℹ️ Aucune écriture comptable trouvée pour ${anneeActive} : valeur de départ arbitraire, à saisir vous-même.`}
+              </p>
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">PASS de l'Année (€) :</label>
-              <input type="number" id="car-input-pass" value="${passAnnee}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-semibold text-blue-700" oninput="actualiserCalculsCarpimko()">
+              <input type="number" id="car-input-pass" value="${bareme.pass}" class="w-full text-xs border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white font-semibold text-blue-700" oninput="actualiserCalculsCarpimko()">
             </div>
           </div>
           <p id="car-txt-assiette" class="text-xs text-slate-500 font-medium italic pt-1">--</p>
@@ -187,6 +235,11 @@
 
     actualiserCalculsCarpimko();
   }
+
+  window.changerAnneeCarpimko = function(nouvelleAnnee) {
+    window.anneeCarpimkoSelectionnee = parseInt(nouvelleAnnee, 10);
+    renderCarpimkoUI();
+  };
 
   window.initCarpimkoModule = renderCarpimkoUI;
 

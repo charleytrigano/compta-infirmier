@@ -220,6 +220,7 @@
             <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
             <button class="nav-btn" onclick="switchTab('vue-bareme-urssaf', this)">⚙️ Barème URSSAF</button>
             <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
+            <button class="nav-btn" onclick="switchTab('vue-bareme-carpimko', this)">⚙️ Barème CARPIMKO</button>
             <button class="nav-btn" onclick="switchTab('vue-ir', this)">🧮 Calcul IR</button>
             <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
             <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
@@ -462,6 +463,13 @@
             </div>
         </section>
 
+        <!-- VUE 5bis : BAREME CARPIMKO (plafonds/taux Base, Complémentaire, RID, modifiables) -->
+        <section id="vue-bareme-carpimko" class="view-section">
+            <div id="bareme-carpimko-container">
+                <p style="color: #64748b;">Chargement du barème CARPIMKO...</p>
+            </div>
+        </section>
+
         <!-- VUE 6 : CALCUL IR -->
         <section id="vue-ir" class="view-section">
             <div id="ir-container">
@@ -678,6 +686,7 @@
             if (tabId === 'vue-urssaf' && typeof window.initUrssafModule === 'function') window.initUrssafModule();
             if (tabId === 'vue-bareme-urssaf' && typeof window.initBaremeUrssafModule === 'function') window.initBaremeUrssafModule();
             if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
+            if (tabId === 'vue-bareme-carpimko' && typeof window.initBaremeCarpimkoModule === 'function') window.initBaremeCarpimkoModule();
             if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
             if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
             if (tabId === 'vue-bilan' && typeof window.chargerBilanEtCE === 'function') window.chargerBilanEtCE();
@@ -707,6 +716,7 @@
     <script src="plan_comptable.js"></script>
     <script src="bareme_urssaf.js"></script>
     <script src="urssaf.js"></script>
+    <script src="bareme_carpimko.js"></script>
     <script src="carpimko.js"></script>
     <script src="ir.js"></script>
     <script src="export_comptable.js"></script>
