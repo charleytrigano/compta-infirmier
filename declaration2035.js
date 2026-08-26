@@ -36,6 +36,21 @@
             }
             const anneeActive = window.annee2035Selectionnee;
 
+            // Date d'installation (Profil) : sert à ne remplir la case 5XI
+            // (nombre de mois d'exercice) que si l'activité a réellement
+            // débuté en cours d'année active ; sinon, cette case doit rester
+            // vide (activité sur l'année complète).
+            let dureeExerciceMois = null;
+            try {
+                const { data: profilData } = await supabase.from('profile').select('date_installation').limit(1);
+                if (profilData && profilData.length > 0 && profilData[0].date_installation) {
+                    const dateInstall = new Date(profilData[0].date_installation);
+                    if (!isNaN(dateInstall.getTime()) && dateInstall.getFullYear().toString() === anneeActive) {
+                        dureeExerciceMois = 12 - (dateInstall.getMonth() + 1) + 1;
+                    }
+                }
+            } catch (e) { /* pas bloquant */ }
+
             const ecrituresAnnee = (toutesEcritures || []).filter(e => e.date && new Date(e.date).getFullYear().toString() === anneeActive);
 
             let aaHonoraires = 0;
@@ -152,9 +167,9 @@
                                     <td style="padding: 8px; text-align: right; font-weight: 700; color: #0f172a;">${beneficeArrondi} €</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 8px; font-weight: 800; color: #1d4ed8;">5QI</td>
-                                    <td style="padding: 8px;">Durée de l'exercice (en mois)</td>
-                                    <td style="padding: 8px; text-align: right; font-weight: 700; color: #0f172a;">12</td>
+                                    <td style="padding: 8px; font-weight: 800; color: ${dureeExerciceMois ? '#1d4ed8' : '#94a3b8'};">5XI</td>
+                                    <td style="padding: 8px; ${dureeExerciceMois ? '' : 'color:#94a3b8; font-style: italic;'}">${dureeExerciceMois ? `Nombre de mois d'exercice (activité débutée en cours d'année ${anneeActive})` : "Activité sur l'année complète : case à laisser vide (uniquement à remplir si activité < 12 mois)"}</td>
+                                    <td style="padding: 8px; text-align: right; font-weight: 700; color: ${dureeExerciceMois ? '#0f172a' : '#94a3b8'};">${dureeExerciceMois ? `${dureeExerciceMois} mois` : '—'}</td>
                                 </tr>
                             </tbody>
                         </table>

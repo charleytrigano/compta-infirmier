@@ -140,6 +140,67 @@
     return [anneeCourante - 2, anneeCourante - 1, anneeCourante];
   }
 
+  // Détermine le nombre de mois d'exercice sur l'année active, à partir de la
+  // date d'installation renseignée dans le Profil (même champ que pour
+  // l'auto-sélection du statut CARPIMKO). Renvoie null si l'activité couvre
+  // l'année complète (ou si la date d'installation est inconnue) — la case
+  // 5XI de la déclaration ne doit alors pas être remplie.
+  async function determinerDureeExerciceMois(anneeActive) {
+    if (!window.supabaseClient) return null;
+    try {
+      const { data, error } = await window.supabaseClient.from('profile').select('date_installation').limit(1);
+      if (error || !data || data.length === 0 || !data[0].date_installation) return null;
+      const dateInstall = new Date(data[0].date_installation);
+      if (isNaN(dateInstall.getTime())) return null;
+      const anneeInstallation = dateInstall.getFullYear();
+      if (parseInt(anneeActive, 10) !== anneeInstallation) return null; // année complète
+      const moisInstallation = dateInstall.getMonth() + 1; // 1 = janvier
+      return 12 - moisInstallation + 1;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Construit les lignes "cases à reporter sur la déclaration de revenus"
+  // (2042 / 2042 C PRO) correspondant à la simulation en cours. Codes
+  // vérifiés (sources : indy.fr, milou.care, service-public.gouv.fr,
+  // corrigetonimpot.fr, impotsurlerevenu.org — août 2026) pour le
+  // "déclarant 1" (le professionnel lui-même). En cas de déclaration commune
+  // (marié/pacsé) où le/la conjoint(e) a lui/elle-même des revenus BNC
+  // professionnels, ce serait la 2ème colonne du formulaire (codes décalés,
+  // ex. 5RC au lieu de 5QC) — non géré ici, cette appli ne suit qu'une seule
+  // activité professionnelle.
+  function construireCasesDeclaration(regimeFisc, bncInput, situation, enfants, dureeMois) {
+    const rows = [];
+
+    if (regimeFisc === 'reel') {
+      if (bncInput >= 0) {
+        rows.push({ cadre: '2042 C PRO — Revenus non commerciaux professionnels, régime de la déclaration contrôlée', kase: '5QC', lib: 'Bénéfice (report de la ligne 46 de votre 2035)', montant: formatEuroIR(bncInput) });
+      } else {
+        rows.push({ cadre: '2042 C PRO — Revenus non commerciaux professionnels, régime de la déclaration contrôlée', kase: '5QE', lib: 'Déficit (report de la ligne 47 de votre 2035)', montant: formatEuroIR(Math.abs(bncInput)) });
+      }
+      rows.push(dureeMois
+        ? { cadre: '2042 C PRO — régime de la déclaration contrôlée', kase: '5XI', lib: `Nombre de mois d'exercice (activité débutée en cours d'année ${window.anneeIRSelectionnee})`, montant: `${dureeMois} mois` }
+        : { cadre: '2042 C PRO — régime de la déclaration contrôlée', kase: '5XI', lib: 'Activité sur l\'année complète : case à laisser vide (uniquement à remplir si activité < 12 mois)', montant: '—', inactif: true });
+    } else if (regimeFisc === 'micro') {
+      rows.push({ cadre: '2042 C PRO — Revenus non commerciaux professionnels, régime micro-BNC', kase: '5HQ', lib: 'Recettes brutes annuelles (avant l\'abattement de 34 %, appliqué automatiquement par l\'administration)', montant: formatEuroIR(bncInput) });
+      rows.push(dureeMois
+        ? { cadre: '2042 C PRO — régime micro-BNC', kase: '5XI', lib: `Nombre de mois d'exercice (activité débutée en cours d'année ${window.anneeIRSelectionnee})`, montant: `${dureeMois} mois` }
+        : { cadre: '2042 C PRO — régime micro-BNC', kase: '5XI', lib: 'Activité sur l\'année complète : case à laisser vide (uniquement à remplir si activité < 12 mois)', montant: '—', inactif: true });
+    } else if (regimeFisc === 'micro_vl') {
+      rows.push({ cadre: '2042 C PRO — Micro-entrepreneur ayant opté pour le Versement Libératoire', kase: '5TE', lib: 'Chiffre d\'affaires annuel (l\'impôt correspondant est déjà réglé via le versement libératoire ; ce montant sert au calcul du revenu fiscal de référence)', montant: formatEuroIR(bncInput) });
+    }
+
+    if (situation === 'parent_isole' && enfants > 0) {
+      rows.push({ cadre: '2042 — Cadre B, Votre situation de famille', kase: 'T', lib: 'Case à cocher : vous êtes parent isolé (vous élevez seul(e) au moins un enfant à charge)', montant: 'à cocher' });
+    }
+    if (enfants > 0) {
+      rows.push({ cadre: '2042 — Cadre C, Personnes à charge', kase: 'F', lib: `Nombre d'enfants mineurs (ou majeurs infirmes) à charge = ${enfants}`, montant: String(enfants) });
+    }
+
+    return rows;
+  }
+
   async function renderIRUI() {
     const container = document.getElementById('ir-container');
     if (!container) return;
@@ -155,6 +216,8 @@
     const bncReel = window.calculerBncReelUrssaf ? await window.calculerBncReelUrssaf(anneeActive) : 0;
     window.bncReelIRActuel = bncReel;
     const bncInitial = bncReel > 0 ? bncReel : 45000;
+
+    window.dureeExerciceMoisIR = await determinerDureeExerciceMois(anneeActive);
 
     const baremeVientDeAnneeDifferente = parseInt(bareme.annee, 10) !== parseInt(anneeActive, 10);
     const annees = obtenirAnneesDisponibles();
@@ -286,6 +349,30 @@
           </div>
         </div>
 
+        <!-- ZONES A REPORTER SUR LA DECLARATION DE REVENUS -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-blue-700">
+            3. Zones à Reporter sur votre Déclaration de Revenus (2042 / 2042 C PRO)
+          </h3>
+          <p class="text-[11px] text-slate-500 italic">
+            Codes de cases vérifiés pour le professionnel lui-même ("déclarant 1"). Si vous êtes marié(e)/pacsé(e) et que votre conjoint(e) a aussi des revenus BNC professionnels, ses propres cases sont décalées (ex. 5RC au lieu de 5QC) — non gérées ici. Le changement de situation de famille en cours d'année (mariage, pacs, divorce, décès) n'est pas couvert par ce tableau : vérifiez ces cases avec la notice officielle ou votre avis d'imposition.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100 text-slate-700 font-bold border-b">
+                  <th class="py-2 px-3">Formulaire / Cadre</th>
+                  <th class="py-2 px-3 text-center w-20">Case</th>
+                  <th class="py-2 px-3">Description</th>
+                  <th class="py-2 px-3 text-right w-32">Valeur</th>
+                </tr>
+              </thead>
+              <tbody id="ir-table-cases" class="divide-y divide-slate-100">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     `;
 
@@ -390,6 +477,20 @@
     `;
 
     tbody.innerHTML = htmlTranches;
+
+    // Mise à jour du tableau des zones à reporter sur la déclaration
+    const tbodyCases = document.getElementById('ir-table-cases');
+    if (tbodyCases) {
+      const casesRows = construireCasesDeclaration(regimeSelect, bncInput, situationSelect, enfantsInput, window.dureeExerciceMoisIR);
+      tbodyCases.innerHTML = casesRows.map(r => `
+        <tr class="${r.inactif ? 'text-slate-400 italic' : ''}">
+          <td class="py-2 px-3">${r.cadre}</td>
+          <td class="py-2 px-3 text-center font-extrabold ${r.inactif ? 'text-slate-400' : 'text-blue-700'}">${r.kase}</td>
+          <td class="py-2 px-3">${r.lib}</td>
+          <td class="py-2 px-3 text-right font-bold ${r.inactif ? 'text-slate-400' : 'text-slate-800'}">${r.montant}</td>
+        </tr>
+      `).join('');
+    }
   }
 
   window.actualiserIR = actualiserIR;
