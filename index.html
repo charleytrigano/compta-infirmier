@@ -222,6 +222,7 @@
             <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
             <button class="nav-btn" onclick="switchTab('vue-bareme-carpimko', this)">⚙️ Barème CARPIMKO</button>
             <button class="nav-btn" onclick="switchTab('vue-ir', this)">🧮 Calcul IR</button>
+            <button class="nav-btn" onclick="switchTab('vue-bareme-ir', this)">⚙️ Barème IR</button>
             <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
             <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
             <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035 / 2042</button>
@@ -477,6 +478,13 @@
             </div>
         </section>
 
+        <!-- VUE 6bis : BAREME IR (tranches/taux, abattement Micro-BNC, Versement Libératoire, modifiables) -->
+        <section id="vue-bareme-ir" class="view-section">
+            <div id="bareme-ir-container">
+                <p style="color: #64748b;">Chargement du barème IR...</p>
+            </div>
+        </section>
+
         <!-- VUE 7 : SAUVEGARDE & EXPERT -->
         <section id="vue-export" class="view-section">
             <h2>📁 Sauvegarde & Exportation des Données</h2>
@@ -688,6 +696,7 @@
             if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
             if (tabId === 'vue-bareme-carpimko' && typeof window.initBaremeCarpimkoModule === 'function') window.initBaremeCarpimkoModule();
             if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
+            if (tabId === 'vue-bareme-ir' && typeof window.initBaremeIRModule === 'function') window.initBaremeIRModule();
             if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
             if (tabId === 'vue-bilan' && typeof window.chargerBilanEtCE === 'function') window.chargerBilanEtCE();
             if (tabId === 'vue-2035' && typeof window.chargerDeclaration2035 === 'function') window.chargerDeclaration2035();
@@ -718,6 +727,7 @@
     <script src="urssaf.js"></script>
     <script src="bareme_carpimko.js"></script>
     <script src="carpimko.js"></script>
+    <script src="bareme_ir.js"></script>
     <script src="ir.js"></script>
     <script src="export_comptable.js"></script>
     <script src="journal.js"></script>
