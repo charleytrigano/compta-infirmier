@@ -1,749 +1,711 @@
 <!DOCTYPE html>
 <html lang="fr">
-    
 <head>
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comptabilité Libérale</title>
-
-    <!-- Favicon -->
-    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-
-    <!-- Framework Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
+    <!-- SDK Supabase & Librairies Export Excel / ZIP -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        :root {
+            --primary: #2b6cb0;
+            --primary-hover: #2c5282;
+            --bg: #f7fafc;
+            --card-bg: #ffffff;
+            --text: #2d3748;
+            --border: #e2e8f0;
+            --danger: #e53e3e;
+            --success: #38a169;
         }
 
         body {
-            background-color: #f8fafc;
-            color: #1e293b;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
             padding: 20px;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
         }
 
-        header {
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 15px;
             margin-bottom: 20px;
         }
 
-        h1 {
-            margin: 0;
-            font-size: 24px;
-            color: #0f172a;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .badge-status {
-            background-color: #dcfce7;
-            color: #15803d;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        nav {
+        .tabs {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            margin-bottom: 25px;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
         }
 
-        .nav-btn {
-            background-color: #ffffff;
-            border: 1px solid #cbd5e1;
+        .tab {
             padding: 8px 16px;
+            background: #edf2f7;
+            border: none;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 500;
-            color: #475569;
-            transition: all 0.2s ease;
+            color: var(--text);
+            transition: all 0.2s;
         }
 
-        .nav-btn:hover {
-            background-color: #f1f5f9;
+        .tab:hover { background: #e2e8f0; }
+        .tab.active { background: var(--primary); color: white; }
+        .tab-content.hidden { display: none; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
         }
 
-        .nav-btn.active {
-            background-color: #2563eb;
-            color: #ffffff;
-            border-color: #2563eb;
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
         }
 
-        .view-section {
-            display: none;
-            background: #ffffff;
-            border-radius: 8px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
+        label { font-size: 0.9em; font-weight: 600; }
+        input, select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 1em; }
 
-        .view-section.active {
-            display: block;
-        }
-
-        .form-control {
-            height: 38px;
-            padding: 6px 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 14px;
-            width: 100%;
-            background-color: #ffffff;
-        }
-
-        .btn-primary {
-            background-color: #2563eb;
+        .btn {
+            padding: 8px 16px;
+            background: var(--primary);
             color: white;
             border: none;
-            padding: 0 16px;
             border-radius: 6px;
-            font-weight: 600;
             cursor: pointer;
-            display: inline-flex;
+            font-weight: 600;
+        }
+
+        .btn:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); }
+        .btn-success { background: var(--success); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+        th { background: #f7fafc; }
+
+        .compte-badge {
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        .transaction {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
+        .transaction.recette { border-left: 4px solid var(--success); }
+        .transaction.depense { border-left: 4px solid var(--danger); }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f1f5f9;
-            color: #475569;
-            padding: 12px;
-            font-size: 13px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 14px;
-        }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 24px;
-            border-radius: 8px;
-            width: 480px;
-            max-width: 90%;
-        }
+        #loading { text-align: center; padding: 40px; font-size: 1.2em; color: #718096; }
     </style>
 </head>
 <body>
 
-    <!-- ÉCRAN DE CONNEXION : un compte = un infirmier. Tant qu'aucun compte n'est
-         connecté, seul cet écran est visible ; le reste de l'application (#app-content)
-         reste caché. Voir auth.js. -->
-    <div id="auth-overlay" style="display:flex; position:fixed; inset:0; background:#0f172a; z-index:9999; align-items:center; justify-content:center; padding:20px;">
-        <div style="background:#ffffff; border-radius:12px; padding:32px; width:100%; max-width:380px; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-            <h1 style="margin:0 0 4px; font-size:22px; color:#0f172a; display:flex; align-items:center; gap:8px;">🩺 Comptabilité Libérale</h1>
-            <p style="margin:0 0 20px; font-size:13px; color:#64748b;">Connectez-vous avec votre compte personnel, ou créez-en un si c'est votre première visite.</p>
+<div class="container">
+    <div id="loading">Chargement de l'application...</div>
 
-            <form id="form-auth-connexion" onsubmit="connexionInfirmier(event)" style="display:flex; flex-direction:column; gap:12px;">
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">Email</label>
-                    <input type="email" id="auth-email" required class="form-control" placeholder="vous@exemple.fr" autocomplete="email">
-                </div>
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">Mot de passe</label>
-                    <input type="password" id="auth-password" required minlength="6" class="form-control" placeholder="••••••••" autocomplete="current-password">
-                </div>
-
-                <div id="auth-erreur" style="display:none; font-size:12px; padding:8px 10px; border-radius:6px; background:#fef2f2; color:#b91c1c;"></div>
-                <div id="auth-info" style="display:none; font-size:12px; padding:8px 10px; border-radius:6px; background:#f0fdf4; color:#15803d;"></div>
-
-                <button type="submit" class="btn-primary" style="justify-content:center; height:40px; margin-top:4px;">Se connecter</button>
-                <button type="button" id="btn-auth-inscription" onclick="inscriptionInfirmier(event)" style="background:none; border:1px solid #cbd5e1; color:#334155; padding:10px; border-radius:6px; font-weight:600; cursor:pointer;">Créer un compte</button>
-            </form>
+    <div id="app" class="hidden">
+        <div class="card header">
+            <h2>🩺 Comptabilité Libérale</h2>
+            <span id="syncStatus" style="font-size: 0.9em; color: #718096;">☁️ Connexion...</span>
         </div>
-    </div>
 
-    <div class="container" id="app-content" style="display:none;">
-        <!-- En-tête principal -->
-        <header>
-            <h1>🩺 Comptabilité Libérale</h1>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
-                <div id="auth-user-info" style="display:none; align-items:center; gap:8px;">
-                    <span id="auth-user-email" style="font-size:13px; color:#475569;"></span>
-                    <button onclick="deconnexionInfirmier()" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🚪 Déconnexion</button>
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('transactions')">📝 Transactions</button>
+            <button class="tab" onclick="showTab('plancomptable')">📚 Plan Comptable</button>
+            <button class="tab" onclick="showTab('urssaf')">🏛️ URSSAF</button>
+            <button class="tab" onclick="showTab('carpimko')">🏛️ CARPIMKO</button>
+            <button class="tab" onclick="showTab('bilan')">📊 Bilan / CE</button>
+            <button class="tab" onclick="showTab('declarations')">📄 Déclarations</button>
+            <button class="tab" onclick="showTab('journal')">📑 Journal & Balance</button>
+            <button class="tab" onclick="showTab('grandlivre')">📖 Grand Livre</button>
+            <button class="tab" onclick="showTab('profil')">👤 Profil</button>
+            <button class="tab" onclick="showTab('ngap')">💊 Nomenclature NGAP</button>
+        </div>
+
+        <!-- TAB TRANSACTIONS -->
+        <div id="tab-transactions" class="tab-content">
+            <div class="card">
+                <h3>Ajouter une opération</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="date">Date</label>
+                        <input type="date" id="date">
+                    </div>
+                    <div class="form-group">
+                        <label for="type">Type</label>
+                        <select id="type" onchange="updateCategories()">
+                            <option value="recette">Recette</option>
+                            <option value="depense">Dépense</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Catégorie</label>
+                        <select id="category"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description / Libellé</label>
+                        <input type="text" id="description" placeholder="Ex: Retrocession, Urssaf...">
+                    </div>
+                    <div class="form-group">
+                        <label for="amount">Montant (€)</label>
+                        <input type="number" step="0.01" id="amount" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="fileInput">📎 Scanner / Pièce jointe</label>
+                        <input type="file" id="fileInput" accept="image/*,application/pdf">
+                    </div>
+                </div>
+                <button class="btn" onclick="addTransaction()">➕ Ajouter l'écriture</button>
+            </div>
+
+            <div class="card">
+                <h3>Historique des transactions</h3>
+                <div id="transactions"></div>
+            </div>
+        </div>
+
+        <!-- TAB PLAN COMPTABLE -->
+        <div id="tab-plancomptable" class="tab-content hidden">
+            <div class="card">
+                <h3>Nouveau compte comptable</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="pcCode">Code Compte (ex: 606300)</label>
+                        <input type="text" id="pcCode" placeholder="606300">
+                    </div>
+                    <div class="form-group">
+                        <label for="pcLibelle">Libellé du compte</label>
+                        <input type="text" id="pcLibelle" placeholder="Achats petit matériel">
+                    </div>
+                    <div class="form-group">
+                        <label for="pcType">Type de compte</label>
+                        <select id="pcType">
+                            <option value="Charge">Charge (6...)</option>
+                            <option value="Produit">Produit (7...)</option>
+                            <option value="Trésorerie">Trésorerie (5...)</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn" onclick="ajouterComptePC()">➕ Ajouter au Plan Comptable</button>
+            </div>
+
+            <div class="card">
+                <h3>Plan Comptable du Cabinet</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code Compte</th>
+                            <th>Libellé</th>
+                            <th>Type</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPlanComptable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB URSSAF -->
+        <div id="tab-urssaf" class="tab-content hidden">
+            <div class="card">
+                <h3>Calcul & Décompte Officiel URSSAF (PAMC 2026)</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="urssafBncReel">BNC Réel Estimé (€)</label>
+                        <input type="number" id="urssafBncReel" value="40000" oninput="actualiserCalculsUrssaf()">
+                    </div>
+                    <div class="form-group">
+                        <label for="urssafRevConv">Revenus Conventionnés (€)</label>
+                        <input type="number" id="urssafRevConv" value="40000" oninput="actualiserCalculsUrssaf()">
+                    </div>
+                    <div class="form-group">
+                        <label for="urssafDejaRegle">Acomptes URSSAF Déjà Réglés (€)</label>
+                        <input type="number" id="urssafDejaRegle" value="5000" oninput="actualiserCalculsUrssaf()">
+                    </div>
+                </div>
+
+                <div id="analyseEcartUrssaf" style="padding: 12px; border-radius: 6px; margin: 15px 0; font-weight: 500;"></div>
+
+                <h4>Échéancier & Ventilation Officielle URSSAF</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cotisation / Contribution</th>
+                            <th>Base de calcul</th>
+                            <th>Montant Réel Dû</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Assurance Maladie / Maternité (Part PAMC - 0,10%)</td>
+                            <td id="urssafBaseMaladie">0.00 €</td>
+                            <td id="urssafReelMaladie">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Allocations Familiales (Taux progressif 0% à 3.10%)</td>
+                            <td id="urssafBaseAF">0.00 €</td>
+                            <td id="urssafReelAF">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>CSG / CRDS (9.70% total sur BNC réintégré)</td>
+                            <td id="urssafBaseCsg">0.00 €</td>
+                            <td id="urssafReelCsg">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Formation Professionnelle (CFP - Forfait annuel)</td>
+                            <td id="urssafBaseCfp">Forfait</td>
+                            <td id="urssafReelCfp">123.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>CURPS (Professionnels de santé - 0,50%)</td>
+                            <td id="urssafBaseCurps">0.00 €</td>
+                            <td id="urssafReelCurps">0.00 €</td>
+                        </tr>
+                        <tr style="font-weight: bold; background: #edf2f7;">
+                            <td>Total Cotisations Réelles Dues</td>
+                            <td>-</td>
+                            <td id="urssafTotalReelDu">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Acomptes déjà réglés</td>
+                            <td>-</td>
+                            <td id="urssafDejaRegleAffichage">0.00 €</td>
+                        </tr>
+                        <tr style="font-weight: bold; color: var(--primary);">
+                            <td>Solde estimé à régulariser / payer</td>
+                            <td>-</td>
+                            <td id="urssafSoldeReelPaye">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4 style="margin-top: 25px;">Comptes Individuels URSSAF (Comptabilité PCG)</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code PCG</th>
+                            <th>Intitulé du compte</th>
+                            <th style="text-align: right;">Montant Réel Dû</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="compte-badge">645110</span></td><td>URSSAF - Assurance Maladie / Maternité</td><td style="text-align: right;" id="uMaladie">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645120</span></td><td>URSSAF - Allocations Familiales</td><td style="text-align: right;" id="uAF">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645130</span></td><td>URSSAF - CSG Déductible (6,80%)</td><td style="text-align: right;" id="uCsgDed">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">635800</span></td><td>URSSAF - CSG Non Déductible (2,40%) & CRDS (0,50%)</td><td style="text-align: right;" id="uCsgNDed">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">637800</span></td><td>URSSAF - Contribution Formation Professionnelle (CFP)</td><td style="text-align: right;" id="uCFP">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">637810</span></td><td>URSSAF - CURPS</td><td style="text-align: right;" id="uCURPS">0.00 €</td></tr>
+                        <tr style="font-weight: bold; background: #edf2f7;">
+                            <td colspan="2">Total Général Cotisations URSSAF</td>
+                            <td style="text-align: right;" id="uTotal">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB CARPIMKO -->
+        <div id="tab-carpimko" class="tab-content hidden">
+            <div class="card">
+                <h3>Estimation des cotisations CARPIMKO 2026</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="carpBncReel">BNC Réel Estimé (€)</label>
+                        <input type="number" id="carpBncReel" value="40000" oninput="actualiserCalculsCarpimko()">
+                    </div>
+                    <div class="form-group">
+                        <label for="carpRevConv">Revenus Conventionnés (€)</label>
+                        <input type="number" id="carpRevConv" value="40000" oninput="actualiserCalculsCarpimko()">
+                    </div>
+                    <div class="form-group">
+                        <label for="carpDejaRegle">Acomptes Déjà Réglés (€)</label>
+                        <input type="number" id="carpDejaRegle" value="8896.86" oninput="actualiserCalculsCarpimko()">
+                    </div>
+                </div>
+
+                <div id="analyseEcart" style="padding: 12px; border-radius: 6px; margin: 15px 0; font-weight: 500;"></div>
+
+                <h4>Échéancier récapitulatif des cotisations réelles</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Régime / Cotisation</th>
+                            <th>Base de calcul</th>
+                            <th>Montant Calculé / Dû</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Régime de base - Tranche 1 (8.73%)</td><td id="baseT1">0.00 €</td><td id="reelT1">0.00 €</td></tr>
+                        <tr><td>Régime de base - Tranche 2 (1.87%)</td><td id="baseT2">0.00 €</td><td id="reelT2">0.00 €</td></tr>
+                        <tr><td>ASV Proportionnel (0.16%)</td><td id="baseAsv">0.00 €</td><td id="reelAsvProp">0.00 €</td></tr>
+                        <tr style="font-weight: bold; background: #edf2f7;">
+                            <td>Total Cotisations Réelles Dues</td>
+                            <td>-</td>
+                            <td id="totalReelDu">0.00 €</td>
+                        </tr>
+                        <tr>
+                            <td>Acomptes versés / Appel officiel</td>
+                            <td>-</td>
+                            <td id="dejaRegleAffichage">0.00 €</td>
+                        </tr>
+                        <tr style="font-weight: bold; color: var(--primary);">
+                            <td>Solde estimé à régulariser</td>
+                            <td>-</td>
+                            <td id="soldeReelPaye">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4 style="margin-top: 25px;">Comptes Individuels CARPIMKO</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code PCG</th>
+                            <th>Intitulé du compte</th>
+                            <th style="text-align: right;">Montant Réel Dû</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="compte-badge">645210</span></td><td>CARPIMKO - Régime de base (avec régularisation)</td><td style="text-align: right;" id="ciBase">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645220</span></td><td>CARPIMKO - Régime complémentaire (Forfait)</td><td style="text-align: right;" id="ciComp">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645230</span></td><td>CARPIMKO - ASV (Forfait + Prop.)</td><td style="text-align: right;" id="ciAsv">0.00 €</td></tr>
+                        <tr><td><span class="compte-badge">645240</span></td><td>CARPIMKO - Invalidité / Décès</td><td style="text-align: right;" id="ciInv">0.00 €</td></tr>
+                        <tr style="font-weight: bold; background: #edf2f7;">
+                            <td colspan="2">Total Général CARPIMKO</td>
+                            <td style="text-align: right;" id="ciTotal">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB BILAN -->
+        <div id="tab-bilan" class="tab-content hidden">
+            <div class="card">
+                <h3>Compte d'Exploitation / Bilan Simplifié</h3>
+                <table>
+                    <thead>
+                        <tr><th>PRODUITS (RECETTES)</th><th style="text-align: right;">Montant</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Honoraires PAI / Patients / Soins</td><td style="text-align: right;" id="ceHonoraires">0.00 €</td></tr>
+                        <tr><td>Autres produits annexes</td><td style="text-align: right;" id="ceAutresRecettes">0.00 €</td></tr>
+                        <tr style="font-weight: bold; background: #e6fffa;">
+                            <td>TOTAL DES PRODUITS</td>
+                            <td style="text-align: right;" id="ceProduits">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table style="margin-top: 20px;">
+                    <thead>
+                        <tr><th>CHARGES (DÉPENSES)</th><th style="text-align: right;">Montant</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Cotisations Sociales (URSSAF / CARPIMKO)</td><td style="text-align: right;" id="ceCotis">0.00 €</td></tr>
+                        <tr><td>Petit matériel médical</td><td style="text-align: right;" id="ceMateriel">0.00 €</td></tr>
+                        <tr><td>Frais de déplacements / Carburant</td><td style="text-align: right;" id="ceFraisDeplacement">0.00 €</td></tr>
+                        <tr><td>Assurances Professionnelles</td><td style="text-align: right;" id="ceAssurances">0.00 €</td></tr>
+                        <tr><td>Autres charges extérieures</td><td style="text-align: right;" id="ceCharges">0.00 €</td></tr>
+                        <tr style="font-weight: bold; background: #fff5f5;">
+                            <td>TOTAL DES CHARGES</td>
+                            <td style="text-align: right;" id="ceChargesTotal">0.00 €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 20px; padding: 15px; background: #edf2f7; border-radius: 6px; text-align: right;">
+                    <h3 style="margin: 0;">Résultat Net Estimé : <span id="ceResultat" style="color: var(--primary);">0.00 €</span></h3>
                 </div>
             </div>
-        </header>
+        </div>
 
-        <!-- Menu Onglets -->
-        <nav>
-            <button class="nav-btn active" onclick="switchTab('vue-transactions', this)">📄 Transactions</button>
-            <button class="nav-btn" onclick="switchTab('vue-banque', this)">🏦 Journal de Banque</button>
-            <button class="nav-btn" onclick="switchTab('vue-od', this)">📝 Journal OD</button>
-            <button class="nav-btn" onclick="switchTab('vue-plan', this)">📊 Plan Comptable</button>
-            <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
-            <button class="nav-btn" onclick="switchTab('vue-bareme-urssaf', this)">⚙️ Barème URSSAF</button>
-            <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
-            <button class="nav-btn" onclick="switchTab('vue-bareme-carpimko', this)">⚙️ Barème CARPIMKO</button>
-            <button class="nav-btn" onclick="switchTab('vue-ir', this)">🧮 Calcul IR</button>
-            <button class="nav-btn" onclick="switchTab('vue-bareme-ir', this)">⚙️ Barème IR</button>
-            <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
-            <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
-            <button class="nav-btn" onclick="switchTab('vue-stats', this)">📊 Statistiques</button>
-            <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035 / 2042</button>
-            <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
-            <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
-            <button class="nav-btn" onclick="switchTab('vue-balance', this)">⚖️ Balance des Comptes</button>
-            <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
-        </nav>
-
-        <!-- VUE 1 : TRANSACTIONS -->
-        <section id="vue-transactions" class="view-section active">
-            <h2>Ajouter une opération</h2>
-            <form id="form-ajouter-transaction" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterTransaction();">
-                <div class="flex-1 min-w-[140px] flex flex-col gap-1">
-                    <label for="tx-date" class="text-xs font-semibold text-slate-600">Date *</label>
-                    <input type="date" id="tx-date" class="form-control" required>
-                </div>
-
-                <div class="w-32 flex flex-col gap-1">
-                    <label for="tx-type" class="text-xs font-semibold text-slate-600">Type *</label>
-                    <select id="tx-type" class="form-control" required>
-                        <option value="Recette">Recette</option>
-                        <option value="Dépense">Dépense</option>
+        <!-- TAB DECLARATIONS -->
+        <div id="tab-declarations" class="tab-content hidden">
+            <div class="card">
+                <h3>Récapitulatif & Export Comptable Réel</h3>
+                <div class="form-group" style="max-width: 200px; margin-bottom: 15px;">
+                    <label for="selectAnnee">Filtrer par année</label>
+                    <select id="selectAnnee" onchange="genererDeclarations()">
+                        <option value="Toutes">Toutes les années</option>
+                        <option value="2026" selected>2026</option>
+                        <option value="2025">2025</option>
                     </select>
                 </div>
 
-                <div class="flex-1 min-w-[160px] flex flex-col gap-1">
-                    <label for="tx-categorie" class="text-xs font-semibold text-slate-600">Catégorie *</label>
-                    <select id="tx-categorie" class="form-control" required>
-                        <option value="Soins infirmiers">Soins infirmiers</option>
-                        <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
-                        <option value="URSSAF">URSSAF</option>
-                        <option value="Achats matériel">Achats matériel</option>
-                        <option value="Autre">Autre</option>
-                    </select>
+                <table>
+                    <tbody>
+                        <tr style="font-weight: bold;">
+                            <td>Chiffre d'Affaires / Recettes Totales Encaissées</td>
+                            <td style="text-align: right;" id="declCA">0.00 €</td>
+                        </tr>
+                        <tr><td>Trimestre 1 (Janvier - Mars)</td><td style="text-align: right;" id="caT1">0.00 €</td></tr>
+                        <tr><td>Trimestre 2 (Avril - Juin)</td><td style="text-align: right;" id="caT2">0.00 €</td></tr>
+                        <tr><td>Trimestre 3 (Juillet - Septembre)</td><td style="text-align: right;" id="caT3">0.00 €</td></tr>
+                        <tr><td>Trimestre 4 (Octobre - Décembre)</td><td style="text-align: right;" id="caT4">0.00 €</td></tr>
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn btn-success" onclick="exporterSauvegardeZIP()">📦 Export Complet pour Comptable (.ZIP)</button>
+                    <button class="btn" onclick="exporterPourComptable()">📥 Export CSV Simple</button>
                 </div>
-
-                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
-                    <label for="tx-description" class="text-xs font-semibold text-slate-600">Description *</label>
-                    <input type="text" id="tx-description" class="form-control" placeholder="Ex: Patient X, Matériel..." required>
-                </div>
-
-                <div class="w-32 flex flex-col gap-1">
-                    <label for="tx-montant" class="text-xs font-semibold text-slate-600">Montant (€) *</label>
-                    <input type="number" step="0.01" id="tx-montant" class="form-control" placeholder="0.00" required>
-                </div>
-
-                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
-                    <label for="tx-justificatif" class="text-xs font-semibold text-slate-600 truncate">📷 Scan / Justificatif</label>
-                    <input type="file" id="tx-justificatif" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
-                </div>
-
-                <button type="submit" class="btn-primary h-[38px] whitespace-nowrap px-4 font-semibold text-sm self-end">
-                    + Enregistrer l'écriture
-                </button>
-            </form>
-
-            <h2>Historique des transactions</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Catégorie</th>
-                        <th>Description</th>
-                        <th>Montant</th>
-                        <th>Justificatif</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="body-tableau-transactions"></tbody>
-            </table>
-        </section>
-
-        <!-- VUE 2 : JOURNAL DE BANQUE -->
-        <section id="vue-banque" class="view-section">
-            <h2>🏦 Journal de Banque & Règlements</h2>
-            <div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 15px; border-radius: 6px; margin-bottom: 25px;">
-                <h3 style="margin:0; color:#1e40af; font-size:1.1rem;">
-                    Solde du compte bancaire : <span id="solde-banque" style="font-weight: bold; font-size:1.3rem;">0.00 €</span>
-                </h3>
             </div>
+        </div>
 
-            <h3>Saisir un règlement / paiement bancaire</h3>
-            <form id="form-ajouter-paiement" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterPaiement();">
-                <div class="flex-1 min-w-[140px] flex flex-col gap-1">
-                    <label for="pay-date" class="text-xs font-semibold text-slate-600">Date de valeur *</label>
-                    <input type="date" id="pay-date" class="form-control" required>
-                </div>
-
-                <div class="w-48 flex flex-col gap-1">
-                    <label for="pay-type" class="text-xs font-semibold text-slate-600">Sens du flux *</label>
-                    <select id="pay-type" class="form-control" required>
-                        <option value="Recette">Encaissement (Recette)</option>
-                        <option value="Dépense">Décaissement (Dépense)</option>
-                    </select>
-                </div>
-
-                <div class="flex-1 min-w-[160px] flex flex-col gap-1">
-                    <label for="pay-categorie" class="text-xs font-semibold text-slate-600">Catégorie *</label>
-                    <select id="pay-categorie" class="form-control" required>
-                        <option value="Soins infirmiers">Soins infirmiers</option>
-                        <option value="Cotisations CARPIMKO">Cotisations CARPIMKO</option>
-                        <option value="URSSAF">URSSAF</option>
-                        <option value="Achats matériel">Achats matériel</option>
-                        <option value="Frais bancaires">Frais bancaires</option>
-                        <option value="Autre">Autre</option>
-                    </select>
-                </div>
-
-                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
-                    <label for="pay-description" class="text-xs font-semibold text-slate-600">Libellé / Tiers *</label>
-                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: Virement CPAM..." required>
-                </div>
-
-                <div class="w-32 flex flex-col gap-1">
-                    <label for="pay-montant" class="text-xs font-semibold text-slate-600">Montant (€) *</label>
-                    <input type="number" step="0.01" id="pay-montant" class="form-control" placeholder="0.00" required>
-                </div>
-
-                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
-                    <label for="pay-justificatif" class="text-xs font-semibold text-slate-600 truncate">📷 Scan / Justificatif</label>
-                    <input type="file" id="pay-justificatif" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
-                </div>
-
-                <button type="submit" class="btn-primary h-[38px] whitespace-nowrap px-4 font-semibold text-sm self-end" style="background-color: #059669;">
-                    💳 Valider le paiement
-                </button>
-            </form>
-
-            <h3>Mouvements bancaires enregistrés</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Sens</th>
-                        <th>Catégorie</th>
-                        <th>Description</th>
-                        <th style="color:#dc2626;">Débit (-)</th>
-                        <th style="color:#16a34a;">Crédit (+)</th>
-                        <th>Justificatif</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="body-tableau-banque"></tbody>
-            </table>
-        </section>
-
-        <!-- VUE : JOURNAL OD -->
-        <section id="vue-od" class="view-section">
-            <h2>📝 Journal des Opérations Diverses (OD)</h2>
-
-            <form onsubmit="window.enregistrerEcritureOD(event)" class="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-200">
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Date *</label>
-                        <input type="date" id="od-date" class="form-control" required>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Compte Débit *</label>
-                        <input type="text" id="od-compte-debit" class="form-control" placeholder="Ex: 626" required>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Libellé Débit</label>
-                        <input type="text" id="od-libelle-debit" class="form-control" placeholder="Ex: Frais postaux">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Compte Crédit *</label>
-                        <input type="text" id="od-compte-credit" class="form-control" placeholder="Ex: 401" required>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Libellé Crédit</label>
-                        <input type="text" id="od-libelle-credit" class="form-control" placeholder="Ex: Fournisseur">
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap md:flex-nowrap gap-3 items-end">
-                    <div class="flex-grow">
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Description / Motif *</label>
-                        <input type="text" id="od-description" class="form-control" placeholder="Ex: Régularisation de compte" required>
-                    </div>
-                    <div class="w-36">
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Montant (€) *</label>
-                        <input type="number" step="0.01" id="od-montant" class="form-control" placeholder="0.00" required>
-                    </div>
-                    <div class="w-48">
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">📷 Scan / Justificatif</label>
-                        <input type="file" id="od-file" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
-                    </div>
-                    <button type="submit" class="btn-primary h-[38px] whitespace-nowrap">
-                        + Valider l'OD
-                    </button>
-                </div>
-            </form>
-
-            <h3>Écritures enregistrées</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Compte</th>
-                        <th>Libellé Compte</th>
-                        <th>Description</th>
-                        <th style="text-align: right;">Débit</th>
-                        <th style="text-align: right;">Crédit</th>
-                        <th style="text-align: center;">Justificatif</th>
-                        <th style="text-align: center;">Action</th>
-                    </tr>
-                </thead>
-                <tbody id="body-tableau-od"></tbody>
-            </table>
-        </section>
-
-        <!-- VUE 3 : PLAN COMPTABLE -->
-        <section id="vue-plan" class="view-section">
-            <div id="conteneur-plan-comptable">
-                <p style="color: #64748b;">Chargement du plan comptable...</p>
-            </div>
-        </section>
-
-        <!-- VUE 4 : URSSAF -->
-        <section id="vue-urssaf" class="view-section">
-            <div id="urssaf-container">
-                <p style="color: #64748b;">Chargement de la déclaration URSSAF...</p>
-            </div>
-        </section>
-
-        <!-- VUE 4bis : BAREME URSSAF (plafonds Tranche A/B/C et taux, modifiables) -->
-        <section id="vue-bareme-urssaf" class="view-section">
-            <div id="bareme-urssaf-container">
-                <p style="color: #64748b;">Chargement du barème URSSAF...</p>
-            </div>
-        </section>
-
-        <!-- VUE 5 : CARPIMKO -->
-        <section id="vue-carpimko" class="view-section">
-            <div id="carpimko-container">
-                <p style="color: #64748b;">Chargement du module CARPIMKO...</p>
-            </div>
-        </section>
-
-        <!-- VUE 5bis : BAREME CARPIMKO (plafonds/taux Base, Complémentaire, RID, modifiables) -->
-        <section id="vue-bareme-carpimko" class="view-section">
-            <div id="bareme-carpimko-container">
-                <p style="color: #64748b;">Chargement du barème CARPIMKO...</p>
-            </div>
-        </section>
-
-        <!-- VUE 6 : CALCUL IR -->
-        <section id="vue-ir" class="view-section">
-            <div id="ir-container">
-                <p style="color: #64748b;">Chargement du simulateur IR...</p>
-            </div>
-        </section>
-
-        <!-- VUE 6bis : BAREME IR (tranches/taux, abattement Micro-BNC, Versement Libératoire, modifiables) -->
-        <section id="vue-bareme-ir" class="view-section">
-            <div id="bareme-ir-container">
-                <p style="color: #64748b;">Chargement du barème IR...</p>
-            </div>
-        </section>
-
-        <!-- VUE 7 : SAUVEGARDE & EXPERT -->
-        <section id="vue-export" class="view-section">
-            <h2>📁 Sauvegarde & Exportation des Données</h2>
-            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; background: #ffffff; margin-top: 15px;">
-                <h3 style="margin-top: 0; color: #1e293b; font-size: 1.1rem; font-weight: 700;">🔒 Sécurité & Exportation Globale</h3>
-                <p style="color: #475569; font-size: 0.9rem; margin-bottom: 20px;">
-                    Téléchargez une sauvegarde instantanée de l'ensemble de vos tables Supabase directement sur votre appareil.
-                </p>
-                <button onclick="window.exporterSauvegardeGlobale()" class="btn-primary" style="background-color: #0f172a; padding: 10px 20px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                    📦 Télécharger la Sauvegarde Globale (Supabase)
-                </button>
-            </div>
-            <div id="export-container" style="margin-top: 20px;"></div>
-        </section>
-
-        <!-- VUE 8 : BILAN & COMPTE D'EXPLOITATION -->
-        <section id="vue-bilan" class="view-section">
-            <h2>📋 Présentation Fiscale - Déclaration 2035 & Bilan</h2>
-            <div id="conteneur-compte-exploitation"></div>
-            <div id="conteneur-bilan"></div>
-        </section>
-
-        <!-- VUE 8bis : STATISTIQUES & PREVISIONNEL -->
-        <section id="vue-stats" class="view-section">
-            <div id="stats-container">
-                <p style="color: #64748b;">Chargement des statistiques...</p>
-            </div>
-        </section>
-
-        <!-- VUE 9 : DÉCLARATION 2035 -->
-        <section id="vue-2035" class="view-section">
-            <div id="conteneur-2035">
-                <p style="color: #64748b;">Chargement de la déclaration 2035...</p>
-            </div>
-        </section>
-
-        <!-- VUE 10 : JOURNAL -->
-        <section id="vue-journal" class="view-section">
-            <h2>Journal des écritures</h2>
-            <div id="journal-container">
+        <!-- TAB JOURNAL ET BALANCE -->
+        <div id="tab-journal" class="tab-content hidden">
+            <div class="card">
+                <h3>Journal Général des Écritures</h3>
                 <table>
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Catégorie</th>
-                            <th>Description</th>
-                            <th>Débit (Dépense)</th>
-                            <th>Crédit (Recette)</th>
-                            <th>Statut</th>
+                            <th>Compte PCG</th>
+                            <th>Libellé</th>
+                            <th>Pièce Jointe</th>
+                            <th style="text-align: right;">Débit (€)</th>
+                            <th style="text-align: right;">Crédit (€)</th>
                         </tr>
                     </thead>
-                    <tbody id="body-tableau-journal"></tbody>
+                    <tbody id="tbodyJournal"></tbody>
                 </table>
             </div>
-        </section>
 
-        <!-- VUE 11 : GRAND LIVRE -->
-        <section id="vue-grandlivre" class="view-section">
-            <h2>Grand Livre</h2>
-            <div id="grandlivre-container">
-                <div id="grandlivre-contenu">
-                    <p style="color: #64748b;">Chargement du grand livre...</p>
-                </div>
+            <div class="card">
+                <h3>Balance Générale</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Compte</th>
+                            <th>Intitulé</th>
+                            <th style="text-align: right;">Total Débit</th>
+                            <th style="text-align: right;">Total Crédit</th>
+                            <th style="text-align: right;">Solde</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyBalance"></tbody>
+                </table>
             </div>
-        </section>
+        </div>
 
-        <!-- VUE 12 : BALANCE DES COMPTES -->
-        <section id="vue-balance" class="view-section">
-            <h2>⚖️ Balance Générale des Comptes</h2>
-            <div id="balance-contenu">
-                <p style="color: #64748b;">Chargement de la balance...</p>
-            </div>
-        </section>
-
-        <!-- VUE 13 : PROFIL -->
-        <section id="vue-profil" class="view-section">
-            <div id="profil-container">
-                <p style="color: #64748b;">Chargement du profil...</p>
-            </div>
-        </section>
-    </div>
-
-    <!-- MODALE MODIFICATION -->
-    <div id="modal-modifier" class="modal-overlay">
-        <div class="modal-content">
-            <h3 style="margin-top:0;">✏️ Modifier l'opération</h3>
-            <form id="form-modifier-operation" onsubmit="window.enregistrerModificationOD(event)">
-                <input type="hidden" id="edit-id">
-                <input type="hidden" id="edit-transaction-id">
-
-                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
-                    <div class="form-group">
-                        <label for="edit-date" class="text-xs font-semibold text-slate-600">Date</label>
-                        <input type="date" id="edit-date" class="form-control" required>
+        <!-- TAB GRAND LIVRE -->
+        <div id="tab-grandlivre" class="tab-content hidden">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <h3 style="margin: 0;">📖 Grand Livre Détaillé</h3>
+                        <p style="color: #718096; margin: 5px 0 0 0;">Mouvements détaillés par compte avec reprise des à-nouveaux.</p>
                     </div>
+                    <div class="form-group" style="min-width: 180px;">
+                        <label for="selectAnneeGrandLivre">Exercice / Année :</label>
+                        <select id="selectAnneeGrandLivre" onchange="afficherGrandLivre()"></select>
+                    </div>
+                </div>
+                <div id="grandLivreContainer"></div>
+            </div>
+        </div>
 
-                    <div class="form-group">
-                        <label for="edit-type" class="text-xs font-semibold text-slate-600">Type</label>
-                        <select id="edit-type" class="form-control">
-                            <option value="Recette">Recette</option>
-                            <option value="Dépense">Dépense</option>
+        <!-- TAB PROFIL -->
+        <div id="tab-profil" class="tab-content hidden">
+            <div class="card">
+                <h3>Profil Praticien / Cabinet</h3>
+                <div class="form-grid">
+                    <div class="form-group"><label for="nom">Nom</label><input type="text" id="nom"></div>
+                    <div class="form-group"><label for="prenom">Prénom</label><input type="text" id="prenom"></div>
+                    <div class="form-group"><label for="siret">N° SIRET</label><input type="text" id="siret"></div>
+                    <div class="form-group"><label for="rpps">N° RPPS / ADELI</label><input type="text" id="rpps"></div>
+                    <div class="form-group"><label for="email">Adresse Email</label><input type="email" id="email"></div>
+                </div>
+                <button class="btn" onclick="saveProfile()">💾 Enregistrer le profil</button>
+            </div>
+        </div>
+
+        <!-- TAB NOMENCLATURE NGAP -->
+        <div id="tab-ngap" class="tab-content hidden">
+
+            <!-- En-tête et filtres -->
+            <div class="card" style="padding:15px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <h3 style="margin:0;">💊 Nomenclature NGAP — Tarifs SS 2026</h3>
+                        <p style="color:#718096;margin:4px 0 0;font-size:0.85em;">Tarifs de remboursement Sécurité Sociale. Valeur lettre-clé AMI/AIS : <strong>3,15 €</strong></p>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <input type="text" id="ngapSearch" placeholder="🔍 Rechercher un acte..." 
+                               oninput="filtrerNGAP()" 
+                               style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;min-width:200px;">
+                        <select id="ngapCategorie" onchange="filtrerNGAP()" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                            <option value="">Toutes les catégories</option>
+                            <option value="Soins généraux">Soins généraux (AMI)</option>
+                            <option value="Psychiatrie">Psychiatrie (AIS)</option>
+                            <option value="Bilan">Bilan (BSI)</option>
+                            <option value="Prélèvement">Prélèvements</option>
+                            <option value="Perfusion">Perfusions</option>
+                            <option value="Majoration">Majorations</option>
+                            <option value="Indemnité">Indemnités</option>
                         </select>
                     </div>
-
-                    <div class="form-group">
-                        <label for="edit-categorie" class="text-xs font-semibold text-slate-600">Catégorie</label>
-                        <input type="text" id="edit-categorie" class="form-control">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="edit-description" class="text-xs font-semibold text-slate-600">Description</label>
-                        <input type="text" id="edit-description" class="form-control" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="edit-montant" class="text-xs font-semibold text-slate-600">Montant (€)</label>
-                        <input type="number" step="0.01" id="edit-montant" class="form-control" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="edit-file" class="text-xs font-semibold text-slate-600">📷 Scan / Justificatif (optionnel)</label>
-                        <input type="file" id="edit-file" accept="image/*,application/pdf" class="form-control text-xs">
-                    </div>
                 </div>
 
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="button" class="btn-primary h-[38px]" style="background:#64748b;" onclick="window.fermerModal()">Annuler</button>
-                    <button type="submit" class="btn-primary h-[38px]">Enregistrer</button>
+                <!-- Toggle Titulaire / Remplaçante -->
+                <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+                    <button class="btn" id="btnTitulaire" onclick="setStatutNGAP('titulaire')"
+                            style="background:#2b6cb0;">👩‍⚕️ Infirmière titulaire</button>
+                    <button class="btn" id="btnRemplacante" onclick="setStatutNGAP('remplacante')"
+                            style="background:#e2e8f0;color:#2d3748;">🔄 Infirmière remplaçante</button>
+                    <div id="ngapInfoStatut" style="padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:0.85em;color:#2b6cb0;display:flex;align-items:center;">
+                        ℹ️ Titulaire : facturation directe à la CPAM
+                    </div>
                 </div>
-            </form>
+            </div>
+
+            <!-- Info remplaçante -->
+            <div id="bandeauRemplacante" style="display:none;" class="card" 
+                 style="background:#fffbeb;border-left:4px solid #f6ad55;padding:12px 20px;">
+                <p style="margin:0;color:#744210;">
+                    <strong>⚠️ Infirmière remplaçante :</strong> 
+                    Elle facture sous le numéro de la titulaire. Les mêmes tarifs s'appliquent. 
+                    Elle reverse ensuite une <strong>rétrocession à la titulaire</strong> (généralement <strong>30 à 40 %</strong> des honoraires bruts). 
+                    La rétrocession est déductible des BNC de la remplaçante.
+                </p>
+            </div>
+
+            <!-- Tableau principal -->
+            <div class="card">
+                <div id="ngapTableContainer">
+                    <table id="ngapTable">
+                        <thead>
+                            <tr style="background:#edf2f7;">
+                                <th style="width:100px;">Code</th>
+                                <th>Description de l'acte</th>
+                                <th style="width:90px;text-align:center;">Coeff.</th>
+                                <th style="width:100px;text-align:right;">Tarif SS</th>
+                                <th style="width:90px;text-align:right;">Remb. SS</th>
+                                <th style="width:110px;text-align:right;" id="colRemplacante" style="display:none;">Après rétrocession</th>
+                                <th style="width:100px;">Catégorie</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ngapTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Majorations applicables -->
+            <div class="card">
+                <h3 style="margin-top:0;">📋 Récapitulatif des majorations applicables</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;">
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #4299e1;">
+                        <strong>MAU</strong> — Majoration Acte Unique<br>
+                        <span style="color:#718096;font-size:0.9em;">Quand l'infirmière ne fait qu'un seul acte lors du passage</span><br>
+                        <strong style="color:#2b6cb0;">+ 3,50 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #48bb78;">
+                        <strong>MIE</strong> — Majoration Infirmière Exclusive<br>
+                        <span style="color:#718096;font-size:0.9em;">Patient suivi exclusivement par l'infirmière</span><br>
+                        <strong style="color:#2b6cb0;">+ 3,15 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #ed8936;">
+                        <strong>MDD</strong> — Majoration Dimanche / Férié<br>
+                        <span style="color:#718096;font-size:0.9em;">Actes réalisés le dimanche ou les jours fériés</span><br>
+                        <strong style="color:#2b6cb0;">+ 8,35 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #9f7aea;">
+                        <strong>MN</strong> — Majoration Nuit (20h-8h)<br>
+                        <span style="color:#718096;font-size:0.9em;">Actes réalisés entre 20h et minuit, ou 6h et 8h</span><br>
+                        <strong style="color:#2b6cb0;">+ 9,15 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #e53e3e;">
+                        <strong>MSN</strong> — Majoration Nuit Profonde (0h-6h)<br>
+                        <span style="color:#718096;font-size:0.9em;">Actes réalisés entre minuit et 6h du matin</span><br>
+                        <strong style="color:#2b6cb0;">+ 19,50 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #667eea;">
+                        <strong>IK</strong> — Indemnités Kilométriques<br>
+                        <span style="color:#718096;font-size:0.9em;">Remboursement des déplacements domicile-patient</span><br>
+                        <strong style="color:#2b6cb0;">Plaine : 0,35 €/km — Montagne : 0,50 €/km</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulateur rapide -->
+            <div class="card">
+                <h3 style="margin-top:0;">🧮 Simulateur rapide de revenus</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:15px;">
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">Nb passages / jour</label>
+                        <input type="number" id="simNbPassages" value="12" min="1" max="50" oninput="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">Acte principal</label>
+                        <select id="simActePrincipal" onchange="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                            <option value="12.60">Séance soins (AMI 4) — 12,60€</option>
+                            <option value="9.45">Pansement complexe (AMI 3) — 9,45€</option>
+                            <option value="6.30">Pansement simple (AMI 2) — 6,30€</option>
+                            <option value="9.45">AIS 3 (psychiatrie) — 9,45€</option>
+                            <option value="65.69">BSI initial — 65,69€</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">Jours travaillés / mois</label>
+                        <input type="number" id="simNbJours" value="22" min="1" max="31" oninput="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">% dimanches/nuits</label>
+                        <input type="number" id="simPctMajo" value="15" min="0" max="100" oninput="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                    </div>
+                </div>
+                <div id="simResultatNGAP" style="background:#ebf8ff;border-radius:8px;padding:15px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;text-align:center;">
+                    <div><div style="color:#718096;font-size:0.85em;">CA mensuel estimé</div><div id="simCaMensuel" style="font-size:1.5em;font-weight:bold;color:#2b6cb0;">0 €</div></div>
+                    <div><div style="color:#718096;font-size:0.85em;">CA annuel estimé</div><div id="simCaAnnuel" style="font-size:1.5em;font-weight:bold;color:#2b6cb0;">0 €</div></div>
+                    <div><div style="color:#718096;font-size:0.85em;">Après rétrocession (si rempl.)</div><div id="simApresRetro" style="font-size:1.5em;font-weight:bold;color:#744210;">0 €</div></div>
+                </div>
+            </div>
+
+            <p style="color:#718096;font-size:0.8em;text-align:center;">
+                ⚠️ Tarifs indicatifs 2025-2026. Remboursement SS à 60% sur base conventionnelle (sauf ALD/maternité/accident : 100%). 
+                Source : CNAM / Ameli. Vérifiez avec votre CPAM.
+            </p>
         </div>
+
+
     </div>
+</div>
 
-    <!-- SCRIPTS DE BASE -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <script src="auth.js"></script>
-
-    <!-- EXPORTATION ROBUSTE DES TABLES SUPABASE -->
-    <script>
-        window.exporterSauvegardeGlobale = async function() {
-            const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
-            
-            if (!supabase) {
-                alert("Erreur : Connexion à Supabase non disponible.");
-                return;
-            }
-
-            const tables = [
-                'attachments',
-                'declarations',
-                'ecritures_comptables',
-                'plan_comptable',
-                'profile',
-                'transactions'
-            ];
-
-            const sauvegarde = {
-                date_export: new Date().toISOString(),
-                tables: {}
-            };
-
-            for (const table of tables) {
-                try {
-                    const { data, error } = await supabase.from(table).select('*');
-                    if (error) {
-                        console.warn(`Erreur lors de la récupération de la table ${table}:`, error.message);
-                        sauvegarde.tables[table] = [];
-                    } else {
-                        sauvegarde.tables[table] = data || [];
-                    }
-                } catch (err) {
-                    console.error(`Exception sur la table ${table}:`, err);
-                    sauvegarde.tables[table] = [];
-                }
-            }
-
-            const blob = new Blob([JSON.stringify(sauvegarde, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `sauvegarde_compta_complete_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        };
-
-        window.transactions = window.transactions || [];
-
-        window.switchTab = function(tabId, btnElement) {
-            var sections = document.querySelectorAll('.view-section');
-            sections.forEach(function(sec) { sec.classList.remove('active'); });
-
-            var target = document.getElementById(tabId);
-            if (target) { target.classList.add('active'); }
-
-            var buttons = document.querySelectorAll('.nav-btn');
-            buttons.forEach(function(btn) { btn.classList.remove('active'); });
-
-            if (btnElement) { btnElement.classList.add('active'); }
-
-            // NOTE : les noms de fonctions appelés ci-dessous doivent correspondre
-            // EXACTEMENT à ce que chaque module expose sur `window` (voir la fin de
-            // chaque fichier .js). Plusieurs onglets (URSSAF, Bilan, 2035, Journal,
-            // Balance) appelaient auparavant des noms de fonctions qui n'existaient
-            // nulle part : ces onglets ne se rafraîchissaient donc JAMAIS lors du
-            // changement d'onglet et affichaient des données obsolètes tant que la
-            // page n'était pas rechargée entièrement.
-            if (tabId === 'vue-transactions' && typeof window.chargerHistoriqueTransactions === 'function') window.chargerHistoriqueTransactions();
-            if (tabId === 'vue-banque' && typeof window.chargerJournalBanque === 'function') window.chargerJournalBanque();
-            if (tabId === 'vue-od' && typeof window.chargerJournalOD === 'function') window.chargerJournalOD();
-            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') window.afficherPlanComptable();
-            if (tabId === 'vue-urssaf' && typeof window.initUrssafModule === 'function') window.initUrssafModule();
-            if (tabId === 'vue-bareme-urssaf' && typeof window.initBaremeUrssafModule === 'function') window.initBaremeUrssafModule();
-            if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
-            if (tabId === 'vue-bareme-carpimko' && typeof window.initBaremeCarpimkoModule === 'function') window.initBaremeCarpimkoModule();
-            if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
-            if (tabId === 'vue-bareme-ir' && typeof window.initBaremeIRModule === 'function') window.initBaremeIRModule();
-            if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
-            if (tabId === 'vue-bilan' && typeof window.chargerBilanEtCE === 'function') window.chargerBilanEtCE();
-            if (tabId === 'vue-stats' && typeof window.initStatsModule === 'function') window.initStatsModule();
-            if (tabId === 'vue-2035' && typeof window.chargerDeclaration2035 === 'function') window.chargerDeclaration2035();
-            if (tabId === 'vue-journal' && typeof window.chargerJournalGeneral === 'function') window.chargerJournalGeneral();
-            if (tabId === 'vue-grandlivre' && typeof window.chargerEtAfficherGrandLivre === 'function') window.chargerEtAfficherGrandLivre();
-            if (tabId === 'vue-balance' && typeof window.initBalanceModule === 'function') window.initBalanceModule();
-            if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
-        };
-
-        window.fermerModal = function() {
-            var modal = document.getElementById('modal-modifier');
-            if (modal) modal.style.display = 'none';
-        };
-
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
-        });
-    </script>
-
-    <!-- SCRIPTS APPLICATIFS MODULES -->
-    <script src="transactions.js"></script>
-    <script src="exercice.js"></script>
-    <script src="journal_od.js"></script>
-    <script src="bilan.js"></script>
-    <script src="declaration2035.js"></script>
-    <script src="plan_comptable.js"></script>
-    <script src="bareme_urssaf.js"></script>
-    <script src="urssaf.js"></script>
-    <script src="bareme_carpimko.js"></script>
-    <script src="carpimko.js"></script>
-    <script src="bareme_ir.js"></script>
-    <script src="ir.js"></script>
-    <script src="statistiques.js"></script>
-    <script src="export_comptable.js"></script>
-    <script src="journal.js"></script>
-    <script src="grand-livre.js"></script>
-    <script src="balance.js"></script>
-    <script src="profil.js"></script>
-
+<script src="app.js"></script>
 </body>
 </html>
