@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comptabilité Libérale</title>
+    <title>Comptabilité Infirmier Pro</title>
     <!-- SDK Supabase & Librairies Export Excel / ZIP -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -138,23 +138,137 @@
 
     <div id="app" class="hidden">
         <div class="card header">
-            <h2>🩺 Comptabilité Libérale</h2>
+            <h2>🩺 Comptabilité Infirmier Pro</h2>
             <span id="syncStatus" style="font-size: 0.9em; color: #718096;">☁️ Connexion...</span>
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="showTab('transactions')">📝 Transactions</button>
-            <button class="tab" onclick="showTab('plancomptable')">📚 Plan Comptable</button>
+            <button class="tab active" onclick="showTab('operations')">💰 Opérations</button>
+            <button class="tab" onclick="showTab('banque')">🏦 Banque</button>
+            <button class="tab" onclick="showTab('documents')">📑 Documents</button>
+            <button class="tab" onclick="showTab('stats')">📊 Statistiques</button>
             <button class="tab" onclick="showTab('urssaf')">🏛️ URSSAF</button>
-            <button class="tab" onclick="showTab('carpimko')">🏛️ CARPIMKO</button>
+            <button class="tab" onclick="showTab('carpimko')">🏥 CARPIMKO</button>
             <button class="tab" onclick="showTab('bilan')">📊 Bilan / CE</button>
             <button class="tab" onclick="showTab('declarations')">📄 Déclarations</button>
             <button class="tab" onclick="showTab('journal')">📑 Journal & Balance</button>
             <button class="tab" onclick="showTab('grandlivre')">📖 Grand Livre</button>
+            <button class="tab" onclick="showTab('plancomptable')">📚 Plan Comptable</button>
             <button class="tab" onclick="showTab('profil')">👤 Profil</button>
+            <button class="tab" onclick="showTab('simulateur')">🧮 Simulateur</button>
             <button class="tab" onclick="showTab('ngap')">💊 Nomenclature NGAP</button>
         </div>
 
+
+        <!-- TAB OPERATIONS -->
+        <div id="tab-operations" class="tab-content">
+            <div class="card">
+                <h3>Ajouter une opération</h3>
+                <div class="form-grid">
+                    <div class="form-group"><label for="date">Date</label><input type="date" id="date"></div>
+                    <div class="form-group"><label for="type">Type</label><select id="type" onchange="updateCategories()"><option value="recette">💚 Recette</option><option value="depense">🔴 Dépense</option></select></div>
+                    <div class="form-group"><label for="category">Catégorie</label><select id="category"></select></div>
+                    <div class="form-group"><label for="description">Description</label><input type="text" id="description" placeholder="Ex: Retrocession, Urssaf..."></div>
+                    <div class="form-group"><label for="amount">Montant (€)</label><input type="number" step="0.01" id="amount" placeholder="0.00"></div>
+                    <div class="form-group"><label for="fileInput">📎 Scanner / Pièce jointe</label><input type="file" id="fileInput" accept="image/*,application/pdf"></div>
+                </div>
+                <button class="btn" onclick="addTransaction()">➕ Ajouter l'écriture</button>
+            </div>
+            <div class="card">
+                <h3>Historique des transactions</h3>
+                <div id="transactions"></div>
+            </div>
+        </div>
+
+        <!-- TAB BANQUE -->
+        <div id="tab-banque" class="tab-content hidden">
+            <div class="card">
+                <h3>🏦 Journal de banque</h3>
+                <div style="background:#f7fafc;padding:15px;border-radius:8px;margin-bottom:15px;">
+                    <strong>Solde bancaire estimé :</strong> <span id="soldeBanque" style="font-size:1.3em;color:var(--primary);">0,00 €</span>
+                </div>
+                <div id="nonEncaisses"></div>
+            </div>
+        </div>
+
+        <!-- TAB DOCUMENTS -->
+        <div id="tab-documents" class="tab-content hidden">
+            <div class="card">
+                <h3>📤 Ajouter un justificatif / document</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Catégorie</label>
+                        <select id="docCategory">
+                            <option value="Facture Dépense">Facture Dépense</option>
+                            <option value="Recette / Encaissement">Recette / Encaissement</option>
+                            <option value="Relevé Bancaire">Relevé Bancaire</option>
+                            <option value="Cotisation Sociale">Cotisation Sociale (URSSAF / CARPIMKO)</option>
+                            <option value="Autre">Autre document</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Note / Description</label>
+                        <input type="text" id="docNotes" placeholder="Ex: Matériel infirmier">
+                    </div>
+                    <div class="form-group">
+                        <label>Fichier</label>
+                        <input type="file" id="docFile" accept="image/*,application/pdf">
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="uploadDocument()">☁️ Sauvegarder dans Supabase</button>
+            </div>
+            <div class="card">
+                <h3>📧 Transmettre à l'expert-comptable</h3>
+                <p style="color:#718096;margin-bottom:15px;">Générez un paquet complet au format <strong>.ZIP</strong> comprenant le bilan Excel et les pièces justificatives.</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-success" onclick="exporterSauvegardeZIP()">📦 Export Comptable (.ZIP)</button>
+                    <button class="btn" onclick="exporterPourComptable()">📥 Export CSV</button>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📑 Documents sauvegardés</h3>
+                <div id="listeDocuments"><p style="color:#718096;">Chargement...</p></div>
+            </div>
+        </div>
+
+        <!-- TAB STATS -->
+        <div id="tab-stats" class="tab-content hidden">
+            <div class="card">
+                <h3>📊 Statistiques</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:20px;">
+                    <div style="background:#f7fafc;padding:20px;border-radius:8px;text-align:center;border:1px solid var(--border);">
+                        <div style="color:#718096;font-size:0.85em;margin-bottom:5px;">Total Recettes</div>
+                        <div id="statRecettes" style="font-size:1.5em;font-weight:bold;color:var(--success);">0,00 €</div>
+                    </div>
+                    <div style="background:#f7fafc;padding:20px;border-radius:8px;text-align:center;border:1px solid var(--border);">
+                        <div style="color:#718096;font-size:0.85em;margin-bottom:5px;">Total Dépenses</div>
+                        <div id="statDepenses" style="font-size:1.5em;font-weight:bold;color:var(--danger);">0,00 €</div>
+                    </div>
+                    <div style="background:#f7fafc;padding:20px;border-radius:8px;text-align:center;border:1px solid var(--border);">
+                        <div style="color:#718096;font-size:0.85em;margin-bottom:5px;">Balance</div>
+                        <div id="statBalance" style="font-size:1.5em;font-weight:bold;color:var(--primary);">0,00 €</div>
+                    </div>
+                    <div style="background:#f7fafc;padding:20px;border-radius:8px;text-align:center;border:1px solid var(--border);">
+                        <div style="color:#718096;font-size:0.85em;margin-bottom:5px;">Nb opérations</div>
+                        <div id="statNb" style="font-size:1.5em;font-weight:bold;color:var(--text);">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB SIMULATEUR -->
+        <div id="tab-simulateur" class="tab-content hidden">
+            <div class="card">
+                <h3>🧮 Simulateur de charges sociales 2026</h3>
+                <div class="form-grid">
+                    <div class="form-group"><label>BNC Réel Estimé (€)</label><input type="number" id="simBnc" value="40000" oninput="actualiserSimulateur()"></div>
+                    <div class="form-group"><label>Revenus Conventionnés (€)</label><input type="number" id="simRevConv" value="40000" oninput="actualiserSimulateur()"></div>
+                </div>
+                <div id="simResultat" style="margin-top:15px;"></div>
+            </div>
+        </div>
+
+        <!-- TAB NGAP -->
         <!-- TAB TRANSACTIONS -->
         <div id="tab-transactions" class="tab-content">
             <div class="card">
@@ -704,7 +818,6 @@
                 Source : CNAM / Ameli. Vérifiez avec votre CPAM.
             </p>
         </div>
-
 
 <script src="app.js"></script>
 </body>

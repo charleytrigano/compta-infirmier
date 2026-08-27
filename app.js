@@ -129,8 +129,11 @@ function showTab(tabName) {
     );
     if (activeBtn) activeBtn.classList.add('active');
 
-    if (tabName === 'ngap') { setTimeout(()=>{ filtrerNGAP(); calculerSimulateurNGAP(); }, 100); }
-    else { actualiserTousLesCalculs(); }
+    const statsOnglets = ['stats','bilan','declarations','urssaf','carpimko','journal','grandlivre'];
+    if (tabName === 'ngap') { setTimeout(()=>{ if(typeof filtrerNGAP==='function'){filtrerNGAP();calculerSimulateurNGAP();} }, 100); }
+    else if (statsOnglets.includes(tabName)) { actualiserTousLesCalculs(); }
+    // Mise à jour stats
+    if (tabName === 'stats') { mettreAJourStats(); }
 }
 
 // ============================================================================
@@ -876,6 +879,71 @@ function afficherGrandLivre() {
 
     container.innerHTML = htmlGlobal || `<p style="color:#718096; padding: 10px;">Aucune écriture pour l'exercice ${anneeFiltre}.</p>`;
 }
+
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function mettreAJourStats() {
+    const recettes = currentTransactions.filter(t => (t.type||'').includes('recette')).reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
+    const depenses = currentTransactions.filter(t => (t.type||'').includes('depense')).reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
+    const fmt = n => n.toLocaleString('fr-FR', {minimumFractionDigits:2}) + ' €';
+    const el = id => document.getElementById(id);
+    if(el('statRecettes')) el('statRecettes').textContent = fmt(recettes);
+    if(el('statDepenses')) el('statDepenses').textContent = fmt(depenses);
+    if(el('statBalance')) el('statBalance').textContent = fmt(recettes - depenses);
+    if(el('statNb')) el('statNb').textContent = currentTransactions.length;
+}
+
+// ── Upload Document ───────────────────────────────────────────────────────────
+async function uploadDocument() {
+    if (!supabaseClient) return alert('Non connecté à Supabase');
+    const file = document.getElementById('docFile')?.files[0];
+    const category = document.getElementById('docCategory')?.value || 'Autre';
+    const notes = document.getElementById('docNotes')?.value || '';
+    if (!file) return alert('Veuillez sélectionner un fichier');
+    const path = `documents/${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabaseClient.storage.from('justificatifs').upload(path, file);
+    if (upErr) return alert('Erreur upload : ' + upErr.message);
+    const { error: dbErr } = await supabaseClient.from('documents').insert([{
+        file_name: file.name, file_type: file.type,
+        file_size: file.size, storage_path: path,
+        category, notes
+    }]);
+    if (!dbErr) { alert('✅ Document sauvegardé !'); chargerDocuments(); }
+}
+
+async function chargerDocuments() {
+    if (!supabaseClient) return;
+    const { data } = await supabaseClient.from('documents').select('*').order('created_at', {ascending:false});
+    const el = document.getElementById('listeDocuments');
+    if (!el) return;
+    if (!data || data.length === 0) { el.innerHTML = '<p style="color:#718096;">Aucun document.</p>'; return; }
+    el.innerHTML = data.map(d => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);">
+            <div><strong>${d.file_name}</strong><br><small style="color:#718096;">${d.category} — ${d.notes || ''}</small></div>
+            <a href="${'https://qfwhzuhwldurnmhirgil.supabase.co/storage/v1/object/public/justificatifs/' + d.storage_path}" target="_blank" class="btn" style="padding:5px 10px;">📥</a>
+        </div>`).join('');
+}
+
+// ── Simulateur rapide ─────────────────────────────────────────────────────────
+function actualiserSimulateur() {
+    const bnc = parseFloat(document.getElementById('simBnc')?.value) || 0;
+    const revConv = parseFloat(document.getElementById('simRevConv')?.value) || 0;
+    const PASS = 46368;
+    const urssaf = bnc * 0.001 + bnc * 0.097 + 123;
+    const carpimko = Math.min(bnc,PASS)*0.0873 + bnc*0.0187 + 2091 + 224 + 1022;
+    const total = urssaf + carpimko;
+    const net = bnc - total;
+    const fmt = n => n.toLocaleString('fr-FR',{minimumFractionDigits:2}) + ' €';
+    const el = document.getElementById('simResultat');
+    if(el) el.innerHTML = `
+        <table><thead><tr><th>Poste</th><th style="text-align:right;">Montant</th></tr></thead><tbody>
+        <tr><td>URSSAF estimé</td><td style="text-align:right;color:var(--danger);">${fmt(urssaf)}</td></tr>
+        <tr><td>CARPIMKO estimé</td><td style="text-align:right;color:var(--danger);">${fmt(carpimko)}</td></tr>
+        <tr style="font-weight:bold;background:#f7fafc;"><td>Total charges sociales</td><td style="text-align:right;color:var(--danger);">${fmt(total)}</td></tr>
+        <tr style="font-weight:bold;background:#e6fffa;"><td>Revenu net estimé</td><td style="text-align:right;color:var(--success);">${fmt(net)}</td></tr>
+        </tbody></table>`;
+}
+
 
 
 
