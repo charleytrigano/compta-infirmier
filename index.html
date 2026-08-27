@@ -152,6 +152,7 @@
             <button class="tab" onclick="showTab('journal')">📑 Journal & Balance</button>
             <button class="tab" onclick="showTab('grandlivre')">📖 Grand Livre</button>
             <button class="tab" onclick="showTab('profil')">👤 Profil</button>
+            <button class="tab" onclick="showTab('ngap')">💊 Nomenclature NGAP</button>
         </div>
 
         <!-- TAB TRANSACTIONS -->
@@ -557,6 +558,154 @@
     </div>
 </div>
 
+        <!-- TAB NOMENCLATURE NGAP -->
+        <div id="tab-ngap" class="tab-content hidden">
+
+            <!-- En-tête et filtres -->
+            <div class="card" style="padding:15px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <h3 style="margin:0;">💊 Nomenclature NGAP — Tarifs SS 2026</h3>
+                        <p style="color:#718096;margin:4px 0 0;font-size:0.85em;">Tarifs de remboursement Sécurité Sociale. Valeur lettre-clé AMI/AIS : <strong>3,15 €</strong></p>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <input type="text" id="ngapSearch" placeholder="🔍 Rechercher un acte..." 
+                               oninput="filtrerNGAP()" 
+                               style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;min-width:200px;">
+                        <select id="ngapCategorie" onchange="filtrerNGAP()" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                            <option value="">Toutes les catégories</option>
+                            <option value="Soins généraux">Soins généraux (AMI)</option>
+                            <option value="Psychiatrie">Psychiatrie (AIS)</option>
+                            <option value="Bilan">Bilan (BSI)</option>
+                            <option value="Prélèvement">Prélèvements</option>
+                            <option value="Perfusion">Perfusions</option>
+                            <option value="Majoration">Majorations</option>
+                            <option value="Indemnité">Indemnités</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Toggle Titulaire / Remplaçante -->
+                <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+                    <button class="btn" id="btnTitulaire" onclick="setStatutNGAP('titulaire')"
+                            style="background:#2b6cb0;">👩‍⚕️ Infirmière titulaire</button>
+                    <button class="btn" id="btnRemplacante" onclick="setStatutNGAP('remplacante')"
+                            style="background:#e2e8f0;color:#2d3748;">🔄 Infirmière remplaçante</button>
+                    <div id="ngapInfoStatut" style="padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:0.85em;color:#2b6cb0;display:flex;align-items:center;">
+                        ℹ️ Titulaire : facturation directe à la CPAM
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info remplaçante -->
+            <div id="bandeauRemplacante" style="display:none;" class="card" 
+                 style="background:#fffbeb;border-left:4px solid #f6ad55;padding:12px 20px;">
+                <p style="margin:0;color:#744210;">
+                    <strong>⚠️ Infirmière remplaçante :</strong> 
+                    Elle facture sous le numéro de la titulaire. Les mêmes tarifs s'appliquent. 
+                    Elle reverse ensuite une <strong>rétrocession à la titulaire</strong> (généralement <strong>30 à 40 %</strong> des honoraires bruts). 
+                    La rétrocession est déductible des BNC de la remplaçante.
+                </p>
+            </div>
+
+            <!-- Tableau principal -->
+            <div class="card">
+                <div id="ngapTableContainer">
+                    <table id="ngapTable">
+                        <thead>
+                            <tr style="background:#edf2f7;">
+                                <th style="width:100px;">Code</th>
+                                <th>Description de l'acte</th>
+                                <th style="width:90px;text-align:center;">Coeff.</th>
+                                <th style="width:100px;text-align:right;">Tarif SS</th>
+                                <th style="width:90px;text-align:right;">Remb. SS</th>
+                                <th style="width:110px;text-align:right;" id="colRemplacante" style="display:none;">Après rétrocession</th>
+                                <th style="width:100px;">Catégorie</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ngapTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Majorations applicables -->
+            <div class="card">
+                <h3 style="margin-top:0;">📋 Récapitulatif des majorations applicables</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;">
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #4299e1;">
+                        <strong>MAU</strong> — Majoration Acte Unique<br>
+                        <span style="color:#718096;font-size:0.9em;">Quand l'infirmière ne fait qu'un seul acte lors du passage</span><br>
+                        <strong style="color:#2b6cb0;">+ 3,50 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #48bb78;">
+                        <strong>MIE</strong> — Majoration Infirmière Exclusive<br>
+                        <span style="color:#718096;font-size:0.9em;">Patient suivi exclusivement par l'infirmière</span><br>
+                        <strong style="color:#2b6cb0;">+ 3,15 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #ed8936;">
+                        <strong>MDD</strong> — Majoration Dimanche / Férié<br>
+                        <span style="color:#718096;font-size:0.9em;">Actes réalisés le dimanche ou les jours fériés</span><br>
+                        <strong style="color:#2b6cb0;">+ 8,35 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #9f7aea;">
+                        <strong>MN</strong> — Majoration Nuit (20h-8h)<br>
+                        <span style="color:#718096;font-size:0.9em;">Actes réalisés entre 20h et minuit, ou 6h et 8h</span><br>
+                        <strong style="color:#2b6cb0;">+ 9,15 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #e53e3e;">
+                        <strong>MSN</strong> — Majoration Nuit Profonde (0h-6h)<br>
+                        <span style="color:#718096;font-size:0.9em;">Actes réalisés entre minuit et 6h du matin</span><br>
+                        <strong style="color:#2b6cb0;">+ 19,50 €</strong>
+                    </div>
+                    <div style="background:#f7fafc;border-radius:8px;padding:12px;border-left:4px solid #667eea;">
+                        <strong>IK</strong> — Indemnités Kilométriques<br>
+                        <span style="color:#718096;font-size:0.9em;">Remboursement des déplacements domicile-patient</span><br>
+                        <strong style="color:#2b6cb0;">Plaine : 0,35 €/km — Montagne : 0,50 €/km</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulateur rapide -->
+            <div class="card">
+                <h3 style="margin-top:0;">🧮 Simulateur rapide de revenus</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:15px;">
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">Nb passages / jour</label>
+                        <input type="number" id="simNbPassages" value="12" min="1" max="50" oninput="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">Acte principal</label>
+                        <select id="simActePrincipal" onchange="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                            <option value="12.60">Séance soins (AMI 4) — 12,60€</option>
+                            <option value="9.45">Pansement complexe (AMI 3) — 9,45€</option>
+                            <option value="6.30">Pansement simple (AMI 2) — 6,30€</option>
+                            <option value="9.45">AIS 3 (psychiatrie) — 9,45€</option>
+                            <option value="65.69">BSI initial — 65,69€</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">Jours travaillés / mois</label>
+                        <input type="number" id="simNbJours" value="22" min="1" max="31" oninput="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-weight:600;">% dimanches/nuits</label>
+                        <input type="number" id="simPctMajo" value="15" min="0" max="100" oninput="calculerSimulateurNGAP()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                    </div>
+                </div>
+                <div id="simResultatNGAP" style="background:#ebf8ff;border-radius:8px;padding:15px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;text-align:center;">
+                    <div><div style="color:#718096;font-size:0.85em;">CA mensuel estimé</div><div id="simCaMensuel" style="font-size:1.5em;font-weight:bold;color:#2b6cb0;">0 €</div></div>
+                    <div><div style="color:#718096;font-size:0.85em;">CA annuel estimé</div><div id="simCaAnnuel" style="font-size:1.5em;font-weight:bold;color:#2b6cb0;">0 €</div></div>
+                    <div><div style="color:#718096;font-size:0.85em;">Après rétrocession (si rempl.)</div><div id="simApresRetro" style="font-size:1.5em;font-weight:bold;color:#744210;">0 €</div></div>
+                </div>
+            </div>
+
+            <p style="color:#718096;font-size:0.8em;text-align:center;">
+                ⚠️ Tarifs indicatifs 2025-2026. Remboursement SS à 60% sur base conventionnelle (sauf ALD/maternité/accident : 100%). 
+                Source : CNAM / Ameli. Vérifiez avec votre CPAM.
+            </p>
+        </div>
+
+
 <script src="app.js"></script>
 </body>
-</h
+</html>
