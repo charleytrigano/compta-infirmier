@@ -714,7 +714,7 @@
             if (tabId === 'vue-grandlivre' && typeof window.chargerEtAfficherGrandLivre === 'function') window.chargerEtAfficherGrandLivre();
             if (tabId === 'vue-balance' && typeof window.initBalanceModule === 'function') window.initBalanceModule();
             if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
-            if (tabId === 'vue-ngap') { if(typeof window.filtrerNGAP==='function'){window.filtrerNGAP();window.calculerSimulateurNGAP();} }
+            if (tabId === 'vue-ngap') { if(typeof window.initNGAP==='function') window.initNGAP(); }
         };
 
         window.fermerModal = function() {
@@ -750,15 +750,28 @@
 
     <!-- VUE NOMENCLATURE NGAP -->
     <section id="vue-ngap" class="view-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+
+        <!-- En-tête filtres -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
             <div>
-                <h2 style="margin:0;">💊 Nomenclature NGAP — Tarifs SS 2026</h2>
-                <p style="color:#64748b;margin:5px 0 0;font-size:13px;">Valeur lettre-clé AMI/AIS : <strong>3,15 €</strong> — Taux remboursement SS : 60% (100% ALD/maternité)</p>
+                <h2 style="margin:0 0 4px;">💊 Nomenclature NGAP — Infirmières Libérales</h2>
+                <p style="color:#64748b;font-size:13px;margin:0;">
+                    Valeur AMI <span id="ngapAnnee" style="font-weight:700;color:#2563eb;">2026</span> :
+                    <strong id="ngapValeurAMI" style="color:#2563eb;">3,15 €</strong>
+                    — Remboursement SS : 60% (100% ALD/maternité/accident)
+                </p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input type="text" id="ngapSearch" placeholder="🔍 Rechercher..." oninput="filtrerNGAP()"
-                    class="form-control" style="width:200px;">
-                <select id="ngapCategorie" onchange="filtrerNGAP()" class="form-control" style="width:180px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <select id="ngapAnnee" onchange="changerAnneeNGAP()" class="form-control" style="width:90px;">
+                    <option value="2022">2022</option>
+                    <option value="2023">2023</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026" selected>2026</option>
+                </select>
+                <input type="text" id="ngapSearch" placeholder="🔍 Rechercher un acte..."
+                    oninput="filtrerNGAP()" class="form-control" style="width:220px;">
+                <select id="ngapCategorie" onchange="filtrerNGAP()" class="form-control" style="width:190px;">
                     <option value="">Toutes catégories</option>
                     <option value="Soins généraux">Soins généraux (AMI)</option>
                     <option value="Psychiatrie">Psychiatrie (AIS)</option>
@@ -768,32 +781,41 @@
                     <option value="Majoration">Majorations</option>
                     <option value="Indemnité">Indemnités</option>
                 </select>
+                <button onclick="ouvrirEditionTarifs()" class="btn-primary" style="height:38px;padding:0 14px;font-size:13px;">
+                    ⚙️ Modifier les tarifs
+                </button>
             </div>
         </div>
 
         <!-- Toggle Titulaire / Remplaçante -->
         <div style="display:flex;gap:10px;margin-bottom:15px;align-items:center;flex-wrap:wrap;">
-            <button id="btnTitulaire" onclick="setStatutNGAP('titulaire')"
-                class="btn-primary" style="padding:8px 16px;">👩‍⚕️ Titulaire</button>
+            <button id="btnTitulaire" onclick="setStatutNGAP('titulaire')" class="btn-primary" style="padding:8px 16px;">
+                👩‍⚕️ Infirmière titulaire
+            </button>
             <button id="btnRemplacante" onclick="setStatutNGAP('remplacante')"
-                style="background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;">🔄 Remplaçante</button>
-            <span id="ngapInfoStatut" style="font-size:13px;color:#2563eb;background:#eff6ff;padding:6px 12px;border-radius:6px;">ℹ️ Titulaire : facturation directe à la CPAM</span>
+                style="background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;">
+                🔄 Infirmière remplaçante
+            </button>
+            <span id="ngapInfoStatut" style="font-size:13px;color:#2563eb;background:#eff6ff;padding:6px 12px;border-radius:6px;">
+                ℹ️ Titulaire : facturation directe à la CPAM
+            </span>
         </div>
 
         <!-- Bandeau remplaçante -->
-        <div id="bandeauRemplacante" style="display:none;background:#fffbeb;border-left:4px solid #f59e0b;padding:12px;border-radius:6px;margin-bottom:15px;font-size:13px;">
-            <strong>⚠️ Remplaçante :</strong> Facture sous le n° de la titulaire. Reverse <strong>30 à 40%</strong> en rétrocession. La rétrocession est déductible de son BNC.
+        <div id="bandeauRemplacante" style="display:none;background:#fffbeb;border-left:4px solid #f59e0b;padding:12px;border-radius:6px;margin-bottom:15px;font-size:13px;color:#78350f;">
+            <strong>⚠️ Remplaçante :</strong> Facture sous le numéro de la titulaire avec les mêmes tarifs.
+            Elle reverse <strong>30 à 40%</strong> des honoraires en rétrocession (déductible de son BNC).
         </div>
 
-        <!-- Tableau des actes -->
+        <!-- Tableau -->
         <table>
             <thead>
                 <tr>
-                    <th>Code</th>
+                    <th style="width:100px;">Code</th>
                     <th>Description de l'acte</th>
-                    <th style="text-align:center;width:80px;">Coeff.</th>
+                    <th style="text-align:center;width:70px;">Coeff.</th>
                     <th style="text-align:right;width:100px;">Tarif SS</th>
-                    <th style="text-align:right;width:100px;">Remb. SS</th>
+                    <th style="text-align:right;width:100px;">Remb. 60%</th>
                     <th id="colRetro" style="text-align:right;width:120px;display:none;">Après rétro. (35%)</th>
                     <th style="width:120px;">Catégorie</th>
                 </tr>
@@ -801,44 +823,84 @@
             <tbody id="ngapTbody"></tbody>
         </table>
 
-        <!-- Simulateur rapide -->
+        <!-- Simulateur -->
         <div style="margin-top:25px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;">
-            <h3 style="margin:0 0 15px;">🧮 Simulateur de revenus</h3>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:15px;">
-                <div><label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;">Passages / jour</label>
-                    <input type="number" id="simNbPassages" value="12" class="form-control" oninput="calculerSimulateurNGAP()"></div>
-                <div><label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;">Acte principal</label>
+            <h3 style="margin:0 0 15px;font-size:16px;">🧮 Simulateur de revenus</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:15px;">
+                <div>
+                    <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">Passages / jour</label>
+                    <input type="number" id="simNbPassages" value="12" class="form-control" oninput="calculerSimulateurNGAP()">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">Acte principal</label>
                     <select id="simActePrincipal" class="form-control" onchange="calculerSimulateurNGAP()">
                         <option value="12.60">Séance soins AMI 4 — 12,60€</option>
                         <option value="9.45">Pansement complexe AMI 3 — 9,45€</option>
                         <option value="6.30">Pansement simple AMI 2 — 6,30€</option>
                         <option value="9.45">AIS 3 psychiatrie — 9,45€</option>
                         <option value="65.69">BSI initial — 65,69€</option>
-                    </select></div>
-                <div><label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;">Jours / mois</label>
-                    <input type="number" id="simNbJours" value="22" class="form-control" oninput="calculerSimulateurNGAP()"></div>
-                <div><label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;">% majorations (DIM/NUIT)</label>
-                    <input type="number" id="simPctMajo" value="15" class="form-control" oninput="calculerSimulateurNGAP()"></div>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">Jours / mois</label>
+                    <input type="number" id="simNbJours" value="22" class="form-control" oninput="calculerSimulateurNGAP()">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">% majorations (dim/nuit)</label>
+                    <input type="number" id="simPctMajo" value="15" class="form-control" oninput="calculerSimulateurNGAP()">
+                </div>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;text-align:center;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;text-align:center;">
                 <div style="background:#eff6ff;padding:12px;border-radius:6px;">
-                    <div style="font-size:12px;color:#64748b;">CA mensuel</div>
-                    <div id="simCaMensuel" style="font-size:1.4em;font-weight:bold;color:#2563eb;">0 €</div>
+                    <div style="font-size:12px;color:#64748b;margin-bottom:4px;">CA mensuel</div>
+                    <div id="simCaMensuel" style="font-size:1.3em;font-weight:bold;color:#2563eb;">0 €</div>
                 </div>
                 <div style="background:#eff6ff;padding:12px;border-radius:6px;">
-                    <div style="font-size:12px;color:#64748b;">CA annuel</div>
-                    <div id="simCaAnnuel" style="font-size:1.4em;font-weight:bold;color:#2563eb;">0 €</div>
+                    <div style="font-size:12px;color:#64748b;margin-bottom:4px;">CA annuel</div>
+                    <div id="simCaAnnuel" style="font-size:1.3em;font-weight:bold;color:#2563eb;">0 €</div>
                 </div>
                 <div style="background:#fffbeb;padding:12px;border-radius:6px;">
-                    <div style="font-size:12px;color:#64748b;">Après rétrocession (rempl.)</div>
-                    <div id="simApresRetro" style="font-size:1.4em;font-weight:bold;color:#92400e;">0 €/mois</div>
+                    <div style="font-size:12px;color:#64748b;margin-bottom:4px;">Après rétrocession 35% (rempl.)</div>
+                    <div id="simApresRetro" style="font-size:1.3em;font-weight:bold;color:#92400e;">0 €/mois</div>
                 </div>
             </div>
         </div>
         <p style="color:#94a3b8;font-size:12px;margin-top:15px;text-align:center;">
-            ⚠️ Tarifs indicatifs 2025-2026. Source : CNAM / Ameli. À vérifier avec votre CPAM.
+            ⚠️ Tarifs indicatifs. Source : CNAM / Avenant conventionnel. À vérifier avec votre CPAM.
         </p>
     </section>
+
+    <!-- MODAL ÉDITION TARIFS NGAP -->
+    <div id="ngapModalTarifs" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="width:520px;max-height:90vh;overflow-y:auto;">
+            <h3 style="margin:0 0 5px;">⚙️ Tarifs NGAP — Année <span id="ngapModalAnnee">2026</span></h3>
+            <p style="color:#64748b;font-size:13px;margin:0 0 15px;">Modifiez les tarifs pour cette année. Sauvegardés localement sur votre navigateur.</p>
+            <table>
+                <thead><tr><th>Paramètre</th><th style="text-align:right;width:120px;">Valeur</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Valeur lettre-clé AMI / AIS</strong> (€)</td><td><input type="number" id="edit_ami" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr style="background:#f0fdf4;"><td colspan="2" style="font-weight:600;color:#15803d;">BSI — Bilan de Soins Infirmiers</td></tr>
+                    <tr><td>BSI Initial (€)</td><td><input type="number" id="edit_bsiInit" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>BSI Intermédiaire (€)</td><td><input type="number" id="edit_bsiInter" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>BSI Fin (€)</td><td><input type="number" id="edit_bsiFin" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr style="background:#eff6ff;"><td colspan="2" style="font-weight:600;color:#1d4ed8;">Majorations</td></tr>
+                    <tr><td>MAU — Majoration Acte Unique (€)</td><td><input type="number" id="edit_mau" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>MIE — Majoration Infirmière Exclusive (€)</td><td><input type="number" id="edit_mie" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>MDD — Dimanche / Jours Fériés (€)</td><td><input type="number" id="edit_mdd" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>MN — Nuit 20h–minuit, 6h–8h (€)</td><td><input type="number" id="edit_mn" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>MSN — Nuit profonde minuit–6h (€)</td><td><input type="number" id="edit_msn" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr style="background:#fffbeb;"><td colspan="2" style="font-weight:600;color:#92400e;">Indemnités kilométriques</td></tr>
+                    <tr><td>IK Plaine (€/km)</td><td><input type="number" id="edit_ikPlaine" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                    <tr><td>IK Montagne (€/km)</td><td><input type="number" id="edit_ikMontagne" step="0.01" class="form-control" style="text-align:right;"></td></tr>
+                </tbody>
+            </table>
+            <div style="display:flex;gap:10px;margin-top:15px;justify-content:flex-end;">
+                <button onclick="resetTarifsNGAP()" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;">↺ Réinitialiser</button>
+                <button onclick="fermerModalNGAP()" style="background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;">Annuler</button>
+                <button onclick="sauvegarderTarifsNGAP()" class="btn-primary" style="padding:8px 16px;">💾 Sauvegarder</button>
+            </div>
+        </div>
+    </div>
 
     <script src="ngap.js"></script>
 
