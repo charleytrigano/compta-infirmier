@@ -130,7 +130,7 @@ function showTab(tabName) {
     if (activeBtn) activeBtn.classList.add('active');
 
     if (tabName === 'ngap') { filtrerNGAP(); calculerSimulateurNGAP(); }
-    else actualiserTousLesCalculs();
+    else { actualiserTousLesCalculs(); }
 }
 
 // ============================================================================
