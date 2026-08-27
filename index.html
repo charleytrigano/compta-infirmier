@@ -762,7 +762,7 @@
                 </p>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <select id="ngapAnnee" onchange="changerAnneeNGAP()" class="form-control" style="width:90px;">
+                <select id="ngapAnnee" class="form-control" style="width:90px;">
                     <option value="2022">2022</option>
                     <option value="2023">2023</option>
                     <option value="2024">2024</option>
@@ -770,16 +770,16 @@
                     <option value="2026" selected>2026</option>
                 </select>
                 <input type="text" id="ngapSearch" placeholder="🔍 Rechercher un acte..."
-                    oninput="filtrerNGAP()" class="form-control" style="width:220px;">
-                <select id="ngapCategorie" onchange="filtrerNGAP()" class="form-control" style="width:190px;">
+                    class="form-control" style="width:220px;">
+                <select id="ngapCategorie" class="form-control" style="width:190px;">
                     <option value="">Toutes catégories</option>
-                    <option value="Soins généraux">Soins généraux (AMI)</option>
-                    <option value="Psychiatrie">Psychiatrie (AIS)</option>
-                    <option value="Bilan">Bilan (BSI)</option>
-                    <option value="Prélèvement">Prélèvements</option>
-                    <option value="Perfusion">Perfusions</option>
-                    <option value="Majoration">Majorations</option>
-                    <option value="Indemnité">Indemnités</option>
+                    <option value="soins">Soins généraux (AMI)</option>
+                    <option value="psychiatrie">Psychiatrie (AIS)</option>
+                    <option value="bilan">Bilan BSI</option>
+                    <option value="prelevement">Prélèvements</option>
+                    <option value="perfusion">Perfusions</option>
+                    <option value="majoration">Majorations</option>
+                    <option value="indemnite">Indemnités</option>
                 </select>
                 <button onclick="ouvrirEditionTarifs()" class="btn-primary" style="height:38px;padding:0 14px;font-size:13px;">
                     ⚙️ Modifier les tarifs
@@ -829,11 +829,11 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:15px;">
                 <div>
                     <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">Passages / jour</label>
-                    <input type="number" id="simNbPassages" value="12" class="form-control" oninput="calculerSimulateurNGAP()">
+                    <input type="number" id="simNbPassages" value="12" class="form-control">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">Acte principal</label>
-                    <select id="simActePrincipal" class="form-control" onchange="calculerSimulateurNGAP()">
+                    <select id="simActePrincipal" class="form-control">
                         <option value="12.60">Séance soins AMI 4 — 12,60€</option>
                         <option value="9.45">Pansement complexe AMI 3 — 9,45€</option>
                         <option value="6.30">Pansement simple AMI 2 — 6,30€</option>
@@ -843,11 +843,11 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">Jours / mois</label>
-                    <input type="number" id="simNbJours" value="22" class="form-control" oninput="calculerSimulateurNGAP()">
+                    <input type="number" id="simNbJours" value="22" class="form-control">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-600" style="display:block;margin-bottom:4px;font-size:12px;">% majorations (dim/nuit)</label>
-                    <input type="number" id="simPctMajo" value="15" class="form-control" oninput="calculerSimulateurNGAP()">
+                    <input type="number" id="simPctMajo" value="15" class="form-control">
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;text-align:center;">
