@@ -1,242 +1,288 @@
 <!DOCTYPE html>
 <html lang="fr">
-    
 <head>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comptabilité Libérale</title>
-
-    <!-- Favicon -->
+    <title>Comptabilité Infirmière</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-
-    <!-- Framework Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-        * {
-            box-sizing: border-box;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        body {
-            background-color: #f8fafc;
-            color: #1e293b;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 24px;
-            color: #0f172a;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .badge-status {
-            background-color: #dcfce7;
-            color: #15803d;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        nav {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 25px;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
-        }
-
-        .nav-btn {
-            background-color: #ffffff;
-            border: 1px solid #cbd5e1;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            color: #475569;
-            transition: all 0.2s ease;
-        }
-
-        .nav-btn:hover {
-            background-color: #f1f5f9;
-        }
-
-        .nav-btn.active {
-            background-color: #2563eb;
-            color: #ffffff;
-            border-color: #2563eb;
-        }
-
-        .view-section {
-            display: none;
-            background: #ffffff;
-            border-radius: 8px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .view-section.active {
-            display: block;
-        }
-
-        .form-control {
-            height: 38px;
-            padding: 6px 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 14px;
-            width: 100%;
-            background-color: #ffffff;
-        }
-
-        .btn-primary {
-            background-color: #2563eb;
-            color: white;
-            border: none;
-            padding: 0 16px;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s;
-        }
-
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f1f5f9;
-            color: #475569;
-            padding: 12px;
-            font-size: 13px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 14px;
-        }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 24px;
-            border-radius: 8px;
-            width: 480px;
-            max-width: 90%;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- ÉCRAN DE CONNEXION : un compte = un infirmier. Tant qu'aucun compte n'est
-         connecté, seul cet écran est visible ; le reste de l'application (#app-content)
-         reste caché. Voir auth.js. -->
-    <div id="auth-overlay" style="display:flex; position:fixed; inset:0; background:#0f172a; z-index:9999; align-items:center; justify-content:center; padding:20px;">
-        <div style="background:#ffffff; border-radius:12px; padding:32px; width:100%; max-width:380px; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-            <h1 style="margin:0 0 4px; font-size:22px; color:#0f172a; display:flex; align-items:center; gap:8px;">🩺 Comptabilité Libérale</h1>
-            <p style="margin:0 0 20px; font-size:13px; color:#64748b;">Connectez-vous avec votre compte personnel, ou créez-en un si c'est votre première visite.</p>
-
-            <form id="form-auth-connexion" onsubmit="connexionInfirmier(event)" style="display:flex; flex-direction:column; gap:12px;">
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">Email</label>
-                    <input type="email" id="auth-email" required class="form-control" placeholder="vous@exemple.fr" autocomplete="email">
-                </div>
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">Mot de passe</label>
-                    <input type="password" id="auth-password" required minlength="6" class="form-control" placeholder="••••••••" autocomplete="current-password">
-                </div>
-
-                <div id="auth-erreur" style="display:none; font-size:12px; padding:8px 10px; border-radius:6px; background:#fef2f2; color:#b91c1c;"></div>
-                <div id="auth-info" style="display:none; font-size:12px; padding:8px 10px; border-radius:6px; background:#f0fdf4; color:#15803d;"></div>
-
-                <button type="submit" class="btn-primary" style="justify-content:center; height:40px; margin-top:4px;">Se connecter</button>
-                <button type="button" id="btn-auth-inscription" onclick="inscriptionInfirmier(event)" style="background:none; border:1px solid #cbd5e1; color:#334155; padding:10px; border-radius:6px; font-weight:600; cursor:pointer;">Créer un compte</button>
-            </form>
+<!-- ════════════════════════════════════════════════════════
+     ÉCRAN DE CONNEXION
+════════════════════════════════════════════════════════ -->
+<div id="auth-overlay" style="display:flex; position:fixed; inset:0; background:linear-gradient(135deg,#1e293b 0%,#1d4ed8 100%); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#ffffff; border-radius:16px; padding:36px; width:100%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+        <div style="text-align:center;margin-bottom:24px;">
+            <div style="font-size:40px;margin-bottom:8px;">🩺</div>
+            <h1 style="margin:0;font-size:22px;font-weight:700;color:#0f172a;">Comptabilité Infirmière</h1>
+            <p style="margin:8px 0 0;font-size:13px;color:#64748b;">Connectez-vous à votre espace personnel</p>
         </div>
+        <form id="form-auth-connexion" onsubmit="connexionInfirmier(event)" style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Email</label>
+                <input type="email" id="auth-email" required class="form-control" placeholder="vous@exemple.fr" autocomplete="email">
+            </div>
+            <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Mot de passe</label>
+                <input type="password" id="auth-password" required minlength="6" class="form-control" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <div id="auth-erreur" style="display:none;font-size:12px;padding:10px;border-radius:8px;background:#fef2f2;color:#b91c1c;"></div>
+            <div id="auth-info"   style="display:none;font-size:12px;padding:10px;border-radius:8px;background:#f0fdf4;color:#15803d;"></div>
+            <button type="submit" class="btn-primary" style="justify-content:center;height:44px;font-size:15px;margin-top:4px;border-radius:10px;">Se connecter</button>
+            <button type="button" id="btn-auth-inscription" onclick="inscriptionInfirmier(event)" style="background:none;border:1px solid #cbd5e1;color:#334155;padding:12px;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">Créer un compte</button>
+        </form>
     </div>
+</div>
 
-    <div class="container" id="app-content" style="display:none;">
-        <!-- En-tête principal -->
-        <header>
-            <h1>🩺 Comptabilité Libérale</h1>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span id="status-supabase" class="badge-status">Connecté à Supabase</span>
-                <div id="auth-user-info" style="display:none; align-items:center; gap:8px;">
-                    <span id="auth-user-email" style="font-size:13px; color:#475569;"></span>
-                    <button onclick="deconnexionInfirmier()" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🚪 Déconnexion</button>
+<!-- ════════════════════════════════════════════════════════
+     APPLICATION PRINCIPALE
+════════════════════════════════════════════════════════ -->
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<div id="app-content" style="display:none;">
+
+    <!-- ── SIDEBAR ────────────────────────────────────────── -->
+    <aside id="sidebar">
+
+        <!-- Logo -->
+        <div id="sidebar-logo">
+            <h1>🩺 Comptabilité<br>Infirmière</h1>
+            <div class="subtitle">Gestion libérale</div>
+        </div>
+
+        <!-- Utilisateur -->
+        <div id="sidebar-user">
+            <div class="avatar" id="sidebar-avatar">?</div>
+            <div class="user-info">
+                <span class="user-email" id="auth-user-email">—</span>
+                <span id="sidebar-status" style="font-size:10px;color:#22c55e;">● Connecté</span>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav id="sidebar-nav">
+
+            <!-- TABLEAU DE BORD -->
+            <div class="nav-group">
+                <div class="nav-item active" onclick="goTo('vue-dashboard','🏠 Tableau de bord',this)">
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-label">Tableau de bord</span>
                 </div>
             </div>
-        </header>
 
-        <!-- Menu Onglets -->
-        <nav>
-            <button class="nav-btn active" onclick="switchTab('vue-transactions', this)">📄 Transactions</button>
-            <button class="nav-btn" onclick="switchTab('vue-banque', this)">🏦 Journal de Banque</button>
-            <button class="nav-btn" onclick="switchTab('vue-od', this)">📝 Journal OD</button>
-            <button class="nav-btn" onclick="switchTab('vue-plan', this)">📊 Plan Comptable</button>
-            <button class="nav-btn" onclick="switchTab('vue-urssaf', this)">🏛️ URSSAF</button>
-            <button class="nav-btn" onclick="switchTab('vue-bareme-urssaf', this)">⚙️ Barème URSSAF</button>
-            <button class="nav-btn" onclick="switchTab('vue-carpimko', this)">🏛️ CARPIMKO</button>
-            <button class="nav-btn" onclick="switchTab('vue-bareme-carpimko', this)">⚙️ Barème CARPIMKO</button>
-            <button class="nav-btn" onclick="switchTab('vue-ir', this)">🧮 Calcul IR</button>
-            <button class="nav-btn" onclick="switchTab('vue-bareme-ir', this)">⚙️ Barème IR</button>
-            <button class="nav-btn" onclick="switchTab('vue-export', this)">📁 Sauvegarde & Expert</button>
-            <button class="nav-btn" onclick="switchTab('vue-bilan', this)">📊 Bilan / CE</button>
-            <button class="nav-btn" onclick="switchTab('vue-stats', this)">📊 Statistiques</button>
-            <button class="nav-btn" onclick="switchTab('vue-2035', this)">📑 2035 / 2042</button>
-            <button class="nav-btn" onclick="switchTab('vue-journal', this)">📖 Journal</button>
-            <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
-            <button class="nav-btn" onclick="switchTab('vue-balance', this)">⚖️ Balance des Comptes</button>
-            <button class="nav-btn" onclick="switchTab('vue-patients', this)">👥 Patients</button>
-            <button class="nav-btn" onclick="switchTab('vue-ngap', this)">💊 Nomenclature NGAP</button>
-            <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
+            <!-- SAISIE COMPTABLE -->
+            <div class="nav-group">
+                <div class="nav-group-title">Saisie comptable</div>
+                <div class="nav-item" onclick="goTo('vue-transactions','📄 Transactions',this)">
+                    <span class="nav-icon">📄</span>
+                    <span class="nav-label">Transactions</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-banque','🏦 Journal de Banque',this)">
+                    <span class="nav-icon">🏦</span>
+                    <span class="nav-label">Journal de Banque</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-od','📝 Journal OD',this)">
+                    <span class="nav-icon">📝</span>
+                    <span class="nav-label">Journal OD</span>
+                </div>
+            </div>
+
+            <!-- LIVRES COMPTABLES -->
+            <div class="nav-group">
+                <div class="nav-group-title">Livres comptables</div>
+                <div class="nav-item" onclick="goTo('vue-journal','📖 Journal Général',this)">
+                    <span class="nav-icon">📖</span>
+                    <span class="nav-label">Journal Général</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-grandlivre','📚 Grand Livre',this)">
+                    <span class="nav-icon">📚</span>
+                    <span class="nav-label">Grand Livre</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-balance','⚖️ Balance des Comptes',this)">
+                    <span class="nav-icon">⚖️</span>
+                    <span class="nav-label">Balance des Comptes</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-plan','📊 Plan Comptable',this)">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Plan Comptable</span>
+                </div>
+            </div>
+
+            <!-- CHARGES SOCIALES -->
+            <div class="nav-group">
+                <div class="nav-group-title">Charges sociales</div>
+                <div class="nav-item" onclick="goTo('vue-urssaf','🏛️ URSSAF',this)">
+                    <span class="nav-icon">🏛️</span>
+                    <span class="nav-label">URSSAF</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-bareme-urssaf','⚙️ Barème URSSAF',this)" style="padding-left:32px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:12px;">⚙️</span>
+                    <span class="nav-label">Barème URSSAF</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-carpimko','🏥 CARPIMKO',this)">
+                    <span class="nav-icon">🏥</span>
+                    <span class="nav-label">CARPIMKO</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-bareme-carpimko','⚙️ Barème CARPIMKO',this)" style="padding-left:32px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:12px;">⚙️</span>
+                    <span class="nav-label">Barème CARPIMKO</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-ir','💶 Calcul IR',this)">
+                    <span class="nav-icon">💶</span>
+                    <span class="nav-label">Calcul IR</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-bareme-ir','⚙️ Barème IR',this)" style="padding-left:32px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:12px;">⚙️</span>
+                    <span class="nav-label">Barème IR</span>
+                </div>
+            </div>
+
+            <!-- ANALYSES -->
+            <div class="nav-group">
+                <div class="nav-group-title">Analyses & Déclarations</div>
+                <div class="nav-item" onclick="goTo('vue-bilan','📈 Bilan / CE',this)">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-label">Bilan / CE</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-stats','📊 Statistiques',this)">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Statistiques</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-2035','📑 2035 / 2042',this)">
+                    <span class="nav-icon">📑</span>
+                    <span class="nav-label">2035 / 2042</span>
+                </div>
+                <div class="nav-item" onclick="goTo('vue-export','📁 Sauvegarde & Expert',this)">
+                    <span class="nav-icon">📁</span>
+                    <span class="nav-label">Sauvegarde & Expert</span>
+                </div>
+            </div>
+
+            <!-- PATIENTS -->
+            <div class="nav-group">
+                <div class="nav-group-title">Patients & Facturation</div>
+                <div class="nav-item" onclick="goTo('vue-patients','👥 Patients',this)">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-label">Patients & Cabinets</span>
+                </div>
+            </div>
+
+            <!-- RÉFÉRENTIELS -->
+            <div class="nav-group">
+                <div class="nav-group-title">Référentiels</div>
+                <div class="nav-item" onclick="goTo('vue-ngap','💊 Nomenclature NGAP',this)">
+                    <span class="nav-icon">💊</span>
+                    <span class="nav-label">Nomenclature NGAP</span>
+                </div>
+            </div>
+
+            <!-- CONFIGURATION -->
+            <div class="nav-group">
+                <div class="nav-group-title">Configuration</div>
+                <div class="nav-item" onclick="goTo('vue-profil','👤 Profil',this)">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-label">Mon Profil</span>
+                </div>
+            </div>
+
         </nav>
 
-        <!-- VUE 1 : TRANSACTIONS -->
-        <section id="vue-transactions" class="view-section active">
+        <!-- Bouton déconnexion -->
+        <div id="sidebar-footer">
+            <button id="btn-deconnexion" onclick="deconnexionInfirmier()">
+                🚪 Déconnexion
+            </button>
+        </div>
+
+    </aside>
+
+    <!-- ── CONTENU PRINCIPAL ──────────────────────────────── -->
+    <main id="main-content">
+
+        <!-- Topbar -->
+        <div id="topbar">
+            <button id="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <h2 id="page-title">🏠 Tableau de bord</h2>
+            <span id="status-supabase" class="status-pill ok">Connecté à Supabase</span>
+        </div>
+
+        <!-- Corps de page -->
+        <div id="page-body">
+
+            <!-- ══ TABLEAU DE BORD ══════════════════════════ -->
+            <section id="vue-dashboard" class="view-section active">
+
+                <div class="dashboard-grid">
+                    <div class="kpi-card green">
+                        <div class="kpi-label">Recettes</div>
+                        <div class="kpi-value" id="dash-recettes">—</div>
+                        <div class="kpi-sub">Exercice en cours</div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-label">Dépenses</div>
+                        <div class="kpi-value" id="dash-depenses">—</div>
+                        <div class="kpi-sub">Exercice en cours</div>
+                    </div>
+                    <div class="kpi-card blue">
+                        <div class="kpi-label">Balance</div>
+                        <div class="kpi-value" id="dash-balance">—</div>
+                        <div class="kpi-sub">Recettes − Dépenses</div>
+                    </div>
+                    <div class="kpi-card orange">
+                        <div class="kpi-label">Transactions</div>
+                        <div class="kpi-value" id="dash-nb">—</div>
+                        <div class="kpi-sub">Opérations saisies</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:16px;">
+                    <h3 style="font-size:14px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">Actions rapides</h3>
+                    <div class="dashboard-shortcuts">
+                        <div class="shortcut-btn" onclick="goTo('vue-transactions','📄 Transactions',null)">
+                            <span class="sh-icon">📄</span>
+                            <span class="sh-label">Nouvelle transaction</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-patients','👥 Patients',null)">
+                            <span class="sh-icon">👥</span>
+                            <span class="sh-label">Gérer les patients</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-urssaf','🏛️ URSSAF',null)">
+                            <span class="sh-icon">🏛️</span>
+                            <span class="sh-label">Calcul URSSAF</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-carpimko','🏥 CARPIMKO',null)">
+                            <span class="sh-icon">🏥</span>
+                            <span class="sh-label">Calcul CARPIMKO</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-bilan','📈 Bilan / CE',null)">
+                            <span class="sh-icon">📈</span>
+                            <span class="sh-label">Voir le bilan</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-ngap','💊 NGAP',null)">
+                            <span class="sh-icon">💊</span>
+                            <span class="sh-label">Nomenclature NGAP</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-export','📁 Sauvegarde',null)">
+                            <span class="sh-icon">📁</span>
+                            <span class="sh-label">Sauvegarde & Expert</span>
+                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-2035','📑 2035/2042',null)">
+                            <span class="sh-icon">📑</span>
+                            <span class="sh-label">Déclaration 2035</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>📋 Dernières transactions</h3>
+                    <div id="dash-dernieres-transactions" style="color:#94a3b8;text-align:center;padding:20px;">Chargement...</div>
+                </div>
+
+            </section>
+
             <h2>Ajouter une opération</h2>
             <form id="form-ajouter-transaction" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterTransaction();">
                 <div class="flex-1 min-w-[140px] flex flex-col gap-1">
@@ -622,132 +668,7 @@
     </div>
 
     <!-- SCRIPTS DE BASE -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <script src="auth.js"></script>
 
-    <!-- EXPORTATION ROBUSTE DES TABLES SUPABASE -->
-    <script>
-        window.exporterSauvegardeGlobale = async function() {
-            const supabase = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
-            
-            if (!supabase) {
-                alert("Erreur : Connexion à Supabase non disponible.");
-                return;
-            }
-
-            const tables = [
-                'attachments',
-                'declarations',
-                'ecritures_comptables',
-                'plan_comptable',
-                'profile',
-                'transactions'
-            ];
-
-            const sauvegarde = {
-                date_export: new Date().toISOString(),
-                tables: {}
-            };
-
-            for (const table of tables) {
-                try {
-                    const { data, error } = await supabase.from(table).select('*');
-                    if (error) {
-                        console.warn(`Erreur lors de la récupération de la table ${table}:`, error.message);
-                        sauvegarde.tables[table] = [];
-                    } else {
-                        sauvegarde.tables[table] = data || [];
-                    }
-                } catch (err) {
-                    console.error(`Exception sur la table ${table}:`, err);
-                    sauvegarde.tables[table] = [];
-                }
-            }
-
-            const blob = new Blob([JSON.stringify(sauvegarde, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `sauvegarde_compta_complete_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        };
-
-        window.transactions = window.transactions || [];
-
-        window.switchTab = function(tabId, btnElement) {
-            var sections = document.querySelectorAll('.view-section');
-            sections.forEach(function(sec) { sec.classList.remove('active'); });
-
-            var target = document.getElementById(tabId);
-            if (target) { target.classList.add('active'); }
-
-            var buttons = document.querySelectorAll('.nav-btn');
-            buttons.forEach(function(btn) { btn.classList.remove('active'); });
-
-            if (btnElement) { btnElement.classList.add('active'); }
-
-            // NOTE : les noms de fonctions appelés ci-dessous doivent correspondre
-            // EXACTEMENT à ce que chaque module expose sur `window` (voir la fin de
-            // chaque fichier .js). Plusieurs onglets (URSSAF, Bilan, 2035, Journal,
-            // Balance) appelaient auparavant des noms de fonctions qui n'existaient
-            // nulle part : ces onglets ne se rafraîchissaient donc JAMAIS lors du
-            // changement d'onglet et affichaient des données obsolètes tant que la
-            // page n'était pas rechargée entièrement.
-            if (tabId === 'vue-transactions' && typeof window.chargerHistoriqueTransactions === 'function') window.chargerHistoriqueTransactions();
-            if (tabId === 'vue-banque' && typeof window.chargerJournalBanque === 'function') window.chargerJournalBanque();
-            if (tabId === 'vue-od' && typeof window.chargerJournalOD === 'function') window.chargerJournalOD();
-            if (tabId === 'vue-plan' && typeof window.afficherPlanComptable === 'function') window.afficherPlanComptable();
-            if (tabId === 'vue-urssaf' && typeof window.initUrssafModule === 'function') window.initUrssafModule();
-            if (tabId === 'vue-bareme-urssaf' && typeof window.initBaremeUrssafModule === 'function') window.initBaremeUrssafModule();
-            if (tabId === 'vue-carpimko' && typeof window.initCarpimkoModule === 'function') window.initCarpimkoModule();
-            if (tabId === 'vue-bareme-carpimko' && typeof window.initBaremeCarpimkoModule === 'function') window.initBaremeCarpimkoModule();
-            if (tabId === 'vue-ir' && typeof window.initIRModule === 'function') window.initIRModule();
-            if (tabId === 'vue-bareme-ir' && typeof window.initBaremeIRModule === 'function') window.initBaremeIRModule();
-            if (tabId === 'vue-export' && typeof window.initExportModule === 'function') window.initExportModule();
-            if (tabId === 'vue-bilan' && typeof window.chargerBilanEtCE === 'function') window.chargerBilanEtCE();
-            if (tabId === 'vue-stats' && typeof window.initStatsModule === 'function') window.initStatsModule();
-            if (tabId === 'vue-2035' && typeof window.chargerDeclaration2035 === 'function') window.chargerDeclaration2035();
-            if (tabId === 'vue-journal' && typeof window.chargerJournalGeneral === 'function') window.chargerJournalGeneral();
-            if (tabId === 'vue-grandlivre' && typeof window.chargerEtAfficherGrandLivre === 'function') window.chargerEtAfficherGrandLivre();
-            if (tabId === 'vue-balance' && typeof window.initBalanceModule === 'function') window.initBalanceModule();
-            if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
-            if (tabId === 'vue-patients' && typeof window.initPatients === 'function') window.initPatients();
-            if (tabId === 'vue-ngap' && typeof window.initNGAP === 'function') window.initNGAP();
-        };
-
-        window.fermerModal = function() {
-            var modal = document.getElementById('modal-modifier');
-            if (modal) modal.style.display = 'none';
-        };
-
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
-        });
-    </script>
-
-    <!-- SCRIPTS APPLICATIFS MODULES -->
-    <script src="transactions.js"></script>
-    <script src="exercice.js"></script>
-    <script src="journal_od.js"></script>
-    <script src="bilan.js"></script>
-    <script src="declaration2035.js"></script>
-    <script src="plan_comptable.js"></script>
-    <script src="bareme_urssaf.js"></script>
-    <script src="urssaf.js"></script>
-    <script src="bareme_carpimko.js"></script>
-    <script src="carpimko.js"></script>
-    <script src="bareme_ir.js"></script>
-    <script src="ir.js"></script>
-    <script src="statistiques.js"></script>
-    <script src="export_comptable.js"></script>
-    <script src="journal.js"></script>
-    <script src="grand-livre.js"></script>
-    <script src="balance.js"></script>
-    <script src="profil.js"></script>
 
 
     <!-- VUE PATIENTS -->
@@ -982,9 +903,196 @@
     .pass-btn-acte:hover { background:#dbeafe; }
     </style>
 
-    <script src="patients.js"></script>
-    <script src="passages.js"></script>
-    <script src="ngap.js"></script>
+
+
+        </div><!-- /page-body -->
+    </main><!-- /main-content -->
+
+</div><!-- /app-content -->
+
+<!-- ════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+
+<script>
+// ── Sauvegarde globale ────────────────────────────────────
+window.exporterSauvegardeGlobale = async function() {
+    var sc = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
+    if (!sc) { alert("Connexion Supabase non disponible."); return; }
+    var tables = ['attachments','declarations','ecritures_comptables','plan_comptable','profile','transactions','cabinets','patients','passages'];
+    var save = { date_export: new Date().toISOString(), tables: {} };
+    for (var t of tables) {
+        try { var r = await sc.from(t).select('*'); save.tables[t] = r.error ? [] : (r.data||[]); }
+        catch(e) { save.tables[t] = []; }
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(save,null,2)],{type:'application/json'}));
+    a.download = 'sauvegarde_compta_' + new Date().toISOString().split('T')[0] + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+};
+
+window.transactions = window.transactions || [];
+
+// ── Navigation principale ─────────────────────────────────
+var PAGE_TITLES = {
+    'vue-dashboard': '🏠 Tableau de bord',
+    'vue-transactions': '📄 Transactions',
+    'vue-banque': '🏦 Journal de Banque',
+    'vue-od': '📝 Journal OD',
+    'vue-plan': '📊 Plan Comptable',
+    'vue-urssaf': '🏛️ URSSAF',
+    'vue-bareme-urssaf': '⚙️ Barème URSSAF',
+    'vue-carpimko': '🏥 CARPIMKO',
+    'vue-bareme-carpimko': '⚙️ Barème CARPIMKO',
+    'vue-ir': '💶 Calcul IR',
+    'vue-bareme-ir': '⚙️ Barème IR',
+    'vue-export': '📁 Sauvegarde & Expert',
+    'vue-bilan': '📈 Bilan / CE',
+    'vue-stats': '📊 Statistiques',
+    'vue-2035': '📑 2035 / 2042',
+    'vue-journal': '📖 Journal Général',
+    'vue-grandlivre': '📚 Grand Livre',
+    'vue-balance': '⚖️ Balance des Comptes',
+    'vue-patients': '👥 Patients & Cabinets',
+    'vue-ngap': '💊 Nomenclature NGAP',
+    'vue-profil': '👤 Mon Profil'
+};
+
+window.goTo = function(tabId, title, navEl) {
+    // Sections
+    document.querySelectorAll('.view-section').forEach(function(s){ s.classList.remove('active'); });
+    var target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
+
+    // Nav items
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+    if (navEl) navEl.classList.add('active');
+
+    // Title
+    var t = document.getElementById('page-title');
+    if (t) t.textContent = title || PAGE_TITLES[tabId] || tabId;
+
+    // Fermer sidebar mobile
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+
+    // Init modules
+    var inits = {
+        'vue-dashboard': dashboardInit,
+        'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
+        'vue-banque': function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); },
+        'vue-od': function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); },
+        'vue-plan': function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
+        'vue-urssaf': function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
+        'vue-bareme-urssaf': function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
+        'vue-carpimko': function(){ if(typeof window.initCarpimkoModule==='function') window.initCarpimkoModule(); },
+        'vue-bareme-carpimko': function(){ if(typeof window.initBaremeCarpimkoModule==='function') window.initBaremeCarpimkoModule(); },
+        'vue-ir': function(){ if(typeof window.initIRModule==='function') window.initIRModule(); },
+        'vue-bareme-ir': function(){ if(typeof window.initBaremeIRModule==='function') window.initBaremeIRModule(); },
+        'vue-export': function(){ if(typeof window.initExportModule==='function') window.initExportModule(); },
+        'vue-bilan': function(){ if(typeof window.chargerBilanEtCE==='function') window.chargerBilanEtCE(); },
+        'vue-stats': function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
+        'vue-2035': function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
+        'vue-journal': function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
+        'vue-grandlivre': function(){ if(typeof window.chargerEtAfficherGrandLivre==='function') window.chargerEtAfficherGrandLivre(); },
+        'vue-balance': function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
+        'vue-profil': function(){ if(typeof window.initProfil==='function') window.initProfil(); },
+        'vue-patients': function(){ if(typeof window.initPatients==='function') window.initPatients(); },
+        'vue-ngap': function(){ if(typeof window.initNGAP==='function') window.initNGAP(); }
+    };
+    if (inits[tabId]) inits[tabId]();
+};
+
+// Rétrocompatibilité : switchTab utilisé par certains modules
+window.switchTab = window.goTo;
+
+// ── Sidebar mobile ────────────────────────────────────────
+window.toggleSidebar = function() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+};
+
+// ── Tableau de bord ───────────────────────────────────────
+function dashboardInit() {
+    var sc = window.supabaseClient;
+    if (!sc) return;
+    sc.from('transactions').select('type,amount').then(function(r){
+        if (r.error) return;
+        var data = r.data || [];
+        var rec = data.filter(function(t){ return t.type==='recette' || (t.type||'').includes('recette'); })
+                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); }, 0);
+        var dep = data.filter(function(t){ return t.type==='depense' || (t.type||'').includes('depense'); })
+                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); }, 0);
+        var fmt = function(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2})+' €'; };
+        var el = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+        el('dash-recettes', fmt(rec));
+        el('dash-depenses', fmt(dep));
+        el('dash-balance',  fmt(rec-dep));
+        el('dash-nb', data.length);
+        // Dernières transactions
+        var der = document.getElementById('dash-dernieres-transactions');
+        if (!der) return;
+        sc.from('transactions').select('*').order('date',{ascending:false}).limit(5).then(function(r2){
+            if (r2.error || !r2.data || !r2.data.length) { der.innerHTML='<p style="color:#94a3b8;">Aucune transaction.</p>'; return; }
+            der.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th style="text-align:right;">Montant</th></tr></thead><tbody>'
+                + r2.data.map(function(t){
+                    var isRec = (t.type||'').includes('recette');
+                    return '<tr><td>'+t.date+'</td>'
+                        +'<td><span class="badge '+(isRec?'badge-green':'badge-red')+'">'+(isRec?'Recette':'Dépense')+'</span></td>'
+                        +'<td>'+(t.description||'')+'</td>'
+                        +'<td style="text-align:right;font-weight:600;color:'+(isRec?'#16a34a':'#dc2626')+';">'+(isRec?'+':'-')+(parseFloat(t.amount)||0).toLocaleString('fr-FR',{minimumFractionDigits:2})+' €</td>'
+                        +'</tr>';
+                }).join('')+'</tbody></table>';
+        });
+    });
+}
+
+// ── Modal helper ──────────────────────────────────────────
+window.fermerModal = function() {
+    var m = document.getElementById('modal-modifier');
+    if (m) m.style.display='none';
+};
+
+// ── Init au chargement ────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
+    // Mettre à jour email dans sidebar quand disponible
+    var checkUser = setInterval(function(){
+        var em = document.getElementById('auth-user-email');
+        var av = document.getElementById('sidebar-avatar');
+        if (em && em.textContent && em.textContent !== '—') {
+            if (av) av.textContent = em.textContent.charAt(0).toUpperCase();
+            clearInterval(checkUser);
+        }
+    }, 500);
+});
+</script>
+
+<!-- SCRIPTS APPLICATIFS -->
+<script src="transactions.js"></script>
+<script src="exercice.js"></script>
+<script src="journal_od.js"></script>
+<script src="bilan.js"></script>
+<script src="declaration2035.js"></script>
+<script src="plan_comptable.js"></script>
+<script src="bareme_urssaf.js"></script>
+<script src="urssaf.js"></script>
+<script src="bareme_carpimko.js"></script>
+<script src="carpimko.js"></script>
+<script src="bareme_ir.js"></script>
+<script src="ir.js"></script>
+<script src="statistiques.js"></script>
+<script src="export_comptable.js"></script>
+<script src="journal.js"></script>
+<script src="grand-livre.js"></script>
+<script src="balance.js"></script>
+<script src="profil.js"></script>
+<script src="patients.js"></script>
+<script src="passages.js"></script>
+<script src="ngap.js"></script>
 
 </body>
 </html>
