@@ -10,11 +10,9 @@
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════════════
-     ÉCRAN DE CONNEXION
-════════════════════════════════════════════════════════ -->
-<div id="auth-overlay" style="display:flex; position:fixed; inset:0; background:linear-gradient(135deg,#1e293b 0%,#1d4ed8 100%); z-index:9999; align-items:center; justify-content:center; padding:20px;">
-    <div style="background:#ffffff; border-radius:16px; padding:36px; width:100%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+<!-- ════ CONNEXION ═══════════════════════════════════════════ -->
+<div id="auth-overlay" style="display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#1e293b 0%,#1d4ed8 100%);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:#fff;border-radius:16px;padding:36px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
         <div style="text-align:center;margin-bottom:24px;">
             <div style="font-size:40px;margin-bottom:8px;">🩺</div>
             <h1 style="margin:0;font-size:22px;font-weight:700;color:#0f172a;">Comptabilité Infirmière</h1>
@@ -22,199 +20,153 @@
         </div>
         <form id="form-auth-connexion" onsubmit="connexionInfirmier(event)" style="display:flex;flex-direction:column;gap:14px;">
             <div>
-                <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Email</label>
+                <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px;">Email</label>
                 <input type="email" id="auth-email" required class="form-control" placeholder="vous@exemple.fr" autocomplete="email">
             </div>
             <div>
-                <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Mot de passe</label>
+                <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px;">Mot de passe</label>
                 <input type="password" id="auth-password" required minlength="6" class="form-control" placeholder="••••••••" autocomplete="current-password">
             </div>
             <div id="auth-erreur" style="display:none;font-size:12px;padding:10px;border-radius:8px;background:#fef2f2;color:#b91c1c;"></div>
             <div id="auth-info"   style="display:none;font-size:12px;padding:10px;border-radius:8px;background:#f0fdf4;color:#15803d;"></div>
-            <button type="submit" class="btn-primary" style="justify-content:center;height:44px;font-size:15px;margin-top:4px;border-radius:10px;">Se connecter</button>
+            <button type="submit" class="btn-primary" style="height:44px;font-size:15px;justify-content:center;border-radius:10px;margin-top:4px;">Se connecter</button>
             <button type="button" id="btn-auth-inscription" onclick="inscriptionInfirmier(event)" style="background:none;border:1px solid #cbd5e1;color:#334155;padding:12px;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">Créer un compte</button>
         </form>
     </div>
 </div>
 
-<!-- ════════════════════════════════════════════════════════
-     APPLICATION PRINCIPALE
-════════════════════════════════════════════════════════ -->
+<!-- ════ APP ═════════════════════════════════════════════════ -->
 <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <div id="app-content" style="display:none;">
 
-    <!-- ── SIDEBAR ────────────────────────────────────────── -->
+    <!-- SIDEBAR -->
     <aside id="sidebar">
-
-        <!-- Logo -->
         <div id="sidebar-logo">
             <h1>🩺 Comptabilité<br>Infirmière</h1>
             <div class="subtitle">Gestion libérale</div>
         </div>
-
-        <!-- Utilisateur -->
         <div id="sidebar-user">
             <div class="avatar" id="sidebar-avatar">?</div>
             <div class="user-info">
                 <span class="user-email" id="auth-user-email">—</span>
-                <span id="sidebar-status" style="font-size:10px;color:#22c55e;">● Connecté</span>
+                <span style="font-size:10px;color:#22c55e;" id="sidebar-conn">● Connecté</span>
             </div>
         </div>
-
-        <!-- Navigation -->
         <nav id="sidebar-nav">
 
-            <!-- TABLEAU DE BORD -->
             <div class="nav-group">
-                <div class="nav-item active" onclick="goTo('vue-dashboard','🏠 Tableau de bord',this)">
-                    <span class="nav-icon">🏠</span>
-                    <span class="nav-label">Tableau de bord</span>
+                <div class="nav-item active" data-tab="vue-dashboard" onclick="goTo('vue-dashboard',this)">
+                    <span class="nav-icon">🏠</span><span class="nav-label">Tableau de bord</span>
                 </div>
             </div>
 
-            <!-- SAISIE COMPTABLE -->
             <div class="nav-group">
                 <div class="nav-group-title">Saisie comptable</div>
-                <div class="nav-item" onclick="goTo('vue-transactions','📄 Transactions',this)">
-                    <span class="nav-icon">📄</span>
-                    <span class="nav-label">Transactions</span>
+                <div class="nav-item" data-tab="vue-transactions" onclick="goTo('vue-transactions',this)">
+                    <span class="nav-icon">📄</span><span class="nav-label">Transactions</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-banque','🏦 Journal de Banque',this)">
-                    <span class="nav-icon">🏦</span>
-                    <span class="nav-label">Journal de Banque</span>
+                <div class="nav-item" data-tab="vue-banque" onclick="goTo('vue-banque',this)">
+                    <span class="nav-icon">🏦</span><span class="nav-label">Journal de Banque</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-od','📝 Journal OD',this)">
-                    <span class="nav-icon">📝</span>
-                    <span class="nav-label">Journal OD</span>
+                <div class="nav-item" data-tab="vue-od" onclick="goTo('vue-od',this)">
+                    <span class="nav-icon">📝</span><span class="nav-label">Journal OD</span>
                 </div>
             </div>
 
-            <!-- LIVRES COMPTABLES -->
             <div class="nav-group">
                 <div class="nav-group-title">Livres comptables</div>
-                <div class="nav-item" onclick="goTo('vue-journal','📖 Journal Général',this)">
-                    <span class="nav-icon">📖</span>
-                    <span class="nav-label">Journal Général</span>
+                <div class="nav-item" data-tab="vue-journal" onclick="goTo('vue-journal',this)">
+                    <span class="nav-icon">📖</span><span class="nav-label">Journal Général</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-grandlivre','📚 Grand Livre',this)">
-                    <span class="nav-icon">📚</span>
-                    <span class="nav-label">Grand Livre</span>
+                <div class="nav-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)">
+                    <span class="nav-icon">📚</span><span class="nav-label">Grand Livre</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-balance','⚖️ Balance des Comptes',this)">
-                    <span class="nav-icon">⚖️</span>
-                    <span class="nav-label">Balance des Comptes</span>
+                <div class="nav-item" data-tab="vue-balance" onclick="goTo('vue-balance',this)">
+                    <span class="nav-icon">⚖️</span><span class="nav-label">Balance des Comptes</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-plan','📊 Plan Comptable',this)">
-                    <span class="nav-icon">📊</span>
-                    <span class="nav-label">Plan Comptable</span>
+                <div class="nav-item" data-tab="vue-plan" onclick="goTo('vue-plan',this)">
+                    <span class="nav-icon">📊</span><span class="nav-label">Plan Comptable</span>
                 </div>
             </div>
 
-            <!-- CHARGES SOCIALES -->
             <div class="nav-group">
                 <div class="nav-group-title">Charges sociales</div>
-                <div class="nav-item" onclick="goTo('vue-urssaf','🏛️ URSSAF',this)">
-                    <span class="nav-icon">🏛️</span>
-                    <span class="nav-label">URSSAF</span>
+                <div class="nav-item" data-tab="vue-urssaf" onclick="goTo('vue-urssaf',this)">
+                    <span class="nav-icon">🏛️</span><span class="nav-label">URSSAF</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-bareme-urssaf','⚙️ Barème URSSAF',this)" style="padding-left:32px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:12px;">⚙️</span>
-                    <span class="nav-label">Barème URSSAF</span>
+                <div class="nav-item" data-tab="vue-bareme-urssaf" onclick="goTo('vue-bareme-urssaf',this)" style="padding-left:32px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:12px;">⚙️</span><span class="nav-label">Barème URSSAF</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-carpimko','🏥 CARPIMKO',this)">
-                    <span class="nav-icon">🏥</span>
-                    <span class="nav-label">CARPIMKO</span>
+                <div class="nav-item" data-tab="vue-carpimko" onclick="goTo('vue-carpimko',this)">
+                    <span class="nav-icon">🏥</span><span class="nav-label">CARPIMKO</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-bareme-carpimko','⚙️ Barème CARPIMKO',this)" style="padding-left:32px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:12px;">⚙️</span>
-                    <span class="nav-label">Barème CARPIMKO</span>
+                <div class="nav-item" data-tab="vue-bareme-carpimko" onclick="goTo('vue-bareme-carpimko',this)" style="padding-left:32px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:12px;">⚙️</span><span class="nav-label">Barème CARPIMKO</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-ir','💶 Calcul IR',this)">
-                    <span class="nav-icon">💶</span>
-                    <span class="nav-label">Calcul IR</span>
+                <div class="nav-item" data-tab="vue-ir" onclick="goTo('vue-ir',this)">
+                    <span class="nav-icon">💶</span><span class="nav-label">Calcul IR</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-bareme-ir','⚙️ Barème IR',this)" style="padding-left:32px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:12px;">⚙️</span>
-                    <span class="nav-label">Barème IR</span>
+                <div class="nav-item" data-tab="vue-bareme-ir" onclick="goTo('vue-bareme-ir',this)" style="padding-left:32px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:12px;">⚙️</span><span class="nav-label">Barème IR</span>
                 </div>
             </div>
 
-            <!-- ANALYSES -->
             <div class="nav-group">
                 <div class="nav-group-title">Analyses & Déclarations</div>
-                <div class="nav-item" onclick="goTo('vue-bilan','📈 Bilan / CE',this)">
-                    <span class="nav-icon">📈</span>
-                    <span class="nav-label">Bilan / CE</span>
+                <div class="nav-item" data-tab="vue-bilan" onclick="goTo('vue-bilan',this)">
+                    <span class="nav-icon">📈</span><span class="nav-label">Bilan / CE</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-stats','📊 Statistiques',this)">
-                    <span class="nav-icon">📊</span>
-                    <span class="nav-label">Statistiques</span>
+                <div class="nav-item" data-tab="vue-stats" onclick="goTo('vue-stats',this)">
+                    <span class="nav-icon">📊</span><span class="nav-label">Statistiques</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-2035','📑 2035 / 2042',this)">
-                    <span class="nav-icon">📑</span>
-                    <span class="nav-label">2035 / 2042</span>
+                <div class="nav-item" data-tab="vue-2035" onclick="goTo('vue-2035',this)">
+                    <span class="nav-icon">📑</span><span class="nav-label">2035 / 2042</span>
                 </div>
-                <div class="nav-item" onclick="goTo('vue-export','📁 Sauvegarde & Expert',this)">
-                    <span class="nav-icon">📁</span>
-                    <span class="nav-label">Sauvegarde & Expert</span>
+                <div class="nav-item" data-tab="vue-export" onclick="goTo('vue-export',this)">
+                    <span class="nav-icon">📁</span><span class="nav-label">Sauvegarde & Expert</span>
                 </div>
             </div>
 
-            <!-- PATIENTS -->
             <div class="nav-group">
                 <div class="nav-group-title">Patients & Facturation</div>
-                <div class="nav-item" onclick="goTo('vue-patients','👥 Patients',this)">
-                    <span class="nav-icon">👥</span>
-                    <span class="nav-label">Patients & Cabinets</span>
+                <div class="nav-item" data-tab="vue-patients" onclick="goTo('vue-patients',this)">
+                    <span class="nav-icon">👥</span><span class="nav-label">Patients & Cabinets</span>
                 </div>
             </div>
 
-            <!-- RÉFÉRENTIELS -->
             <div class="nav-group">
                 <div class="nav-group-title">Référentiels</div>
-                <div class="nav-item" onclick="goTo('vue-ngap','💊 Nomenclature NGAP',this)">
-                    <span class="nav-icon">💊</span>
-                    <span class="nav-label">Nomenclature NGAP</span>
+                <div class="nav-item" data-tab="vue-ngap" onclick="goTo('vue-ngap',this)">
+                    <span class="nav-icon">💊</span><span class="nav-label">Nomenclature NGAP</span>
                 </div>
             </div>
 
-            <!-- CONFIGURATION -->
             <div class="nav-group">
                 <div class="nav-group-title">Configuration</div>
-                <div class="nav-item" onclick="goTo('vue-profil','👤 Profil',this)">
-                    <span class="nav-icon">👤</span>
-                    <span class="nav-label">Mon Profil</span>
+                <div class="nav-item" data-tab="vue-profil" onclick="goTo('vue-profil',this)">
+                    <span class="nav-icon">👤</span><span class="nav-label">Mon Profil</span>
                 </div>
             </div>
 
         </nav>
-
-        <!-- Bouton déconnexion -->
         <div id="sidebar-footer">
-            <button id="btn-deconnexion" onclick="deconnexionInfirmier()">
-                🚪 Déconnexion
-            </button>
+            <button id="btn-deconnexion" onclick="deconnexionInfirmier()">🚪 Déconnexion</button>
         </div>
-
     </aside>
 
-    <!-- ── CONTENU PRINCIPAL ──────────────────────────────── -->
+    <!-- CONTENU PRINCIPAL -->
     <main id="main-content">
-
-        <!-- Topbar -->
         <div id="topbar">
             <button id="menu-toggle" onclick="toggleSidebar()">☰</button>
             <h2 id="page-title">🏠 Tableau de bord</h2>
             <span id="status-supabase" class="status-pill ok">Connecté à Supabase</span>
         </div>
 
-        <!-- Corps de page -->
         <div id="page-body">
 
-            <!-- ══ TABLEAU DE BORD ══════════════════════════ -->
+            <!-- TABLEAU DE BORD -->
             <section id="vue-dashboard" class="view-section active">
-
                 <div class="dashboard-grid">
                     <div class="kpi-card green">
                         <div class="kpi-label">Recettes</div>
@@ -232,57 +184,31 @@
                         <div class="kpi-sub">Recettes − Dépenses</div>
                     </div>
                     <div class="kpi-card orange">
-                        <div class="kpi-label">Transactions</div>
+                        <div class="kpi-label">Opérations</div>
                         <div class="kpi-value" id="dash-nb">—</div>
-                        <div class="kpi-sub">Opérations saisies</div>
+                        <div class="kpi-sub">Transactions saisies</div>
                     </div>
                 </div>
-
                 <div style="margin-bottom:16px;">
-                    <h3 style="font-size:14px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">Actions rapides</h3>
+                    <h3 style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">Accès rapides</h3>
                     <div class="dashboard-shortcuts">
-                        <div class="shortcut-btn" onclick="goTo('vue-transactions','📄 Transactions',null)">
-                            <span class="sh-icon">📄</span>
-                            <span class="sh-label">Nouvelle transaction</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-patients','👥 Patients',null)">
-                            <span class="sh-icon">👥</span>
-                            <span class="sh-label">Gérer les patients</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-urssaf','🏛️ URSSAF',null)">
-                            <span class="sh-icon">🏛️</span>
-                            <span class="sh-label">Calcul URSSAF</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-carpimko','🏥 CARPIMKO',null)">
-                            <span class="sh-icon">🏥</span>
-                            <span class="sh-label">Calcul CARPIMKO</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-bilan','📈 Bilan / CE',null)">
-                            <span class="sh-icon">📈</span>
-                            <span class="sh-label">Voir le bilan</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-ngap','💊 NGAP',null)">
-                            <span class="sh-icon">💊</span>
-                            <span class="sh-label">Nomenclature NGAP</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-export','📁 Sauvegarde',null)">
-                            <span class="sh-icon">📁</span>
-                            <span class="sh-label">Sauvegarde & Expert</span>
-                        </div>
-                        <div class="shortcut-btn" onclick="goTo('vue-2035','📑 2035/2042',null)">
-                            <span class="sh-icon">📑</span>
-                            <span class="sh-label">Déclaration 2035</span>
-                        </div>
+                        <div class="shortcut-btn" onclick="goTo('vue-transactions',null)"><span class="sh-icon">📄</span><span class="sh-label">Nouvelle transaction</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-banque',null)"><span class="sh-icon">🏦</span><span class="sh-label">Journal de Banque</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-patients',null)"><span class="sh-icon">👥</span><span class="sh-label">Patients</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-urssaf',null)"><span class="sh-icon">🏛️</span><span class="sh-label">URSSAF</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-carpimko',null)"><span class="sh-icon">🏥</span><span class="sh-label">CARPIMKO</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-bilan',null)"><span class="sh-icon">📈</span><span class="sh-label">Bilan / CE</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-2035',null)"><span class="sh-icon">📑</span><span class="sh-label">Déclaration 2035</span></div>
+                        <div class="shortcut-btn" onclick="goTo('vue-export',null)"><span class="sh-icon">📁</span><span class="sh-label">Sauvegarde</span></div>
                     </div>
                 </div>
-
                 <div class="card">
                     <h3>📋 Dernières transactions</h3>
-                    <div id="dash-dernieres-transactions" style="color:#94a3b8;text-align:center;padding:20px;">Chargement...</div>
+                    <div id="dash-dernieres" style="color:#94a3b8;text-align:center;padding:20px;">Chargement...</div>
                 </div>
-
             </section>
 
+        <section id="vue-transactions" class="view-section">
             <h2>Ajouter une opération</h2>
             <form id="form-ajouter-transaction" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterTransaction();">
                 <div class="flex-1 min-w-[140px] flex flex-col gap-1">
@@ -617,7 +543,7 @@
     </div>
 
     <!-- MODALE MODIFICATION -->
-    <div id="modal-modifier" class="modal-overlay">
+    <div id="modal-modifier" class="modal-overlay" style="display:none;">
         <div class="modal-content">
             <h3 style="margin-top:0;">✏️ Modifier l'opération</h3>
             <form id="form-modifier-operation" onsubmit="window.enregistrerModificationOD(event)">
@@ -905,173 +831,147 @@
 
 
 
-        </div><!-- /page-body -->
-    </main><!-- /main-content -->
+        </div>
+    </main>
+</div>
 
-</div><!-- /app-content -->
-
-<!-- ════════════════════════════════════════════════════════
-     SCRIPTS
-════════════════════════════════════════════════════════ -->
+<!-- SCRIPTS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="auth.js"></script>
 
 <script>
-// ── Sauvegarde globale ────────────────────────────────────
 window.exporterSauvegardeGlobale = async function() {
-    var sc = window.supabaseClient || (window.supabase && typeof window.supabase.from === 'function' ? window.supabase : null);
-    if (!sc) { alert("Connexion Supabase non disponible."); return; }
-    var tables = ['attachments','declarations','ecritures_comptables','plan_comptable','profile','transactions','cabinets','patients','passages'];
-    var save = { date_export: new Date().toISOString(), tables: {} };
-    for (var t of tables) {
-        try { var r = await sc.from(t).select('*'); save.tables[t] = r.error ? [] : (r.data||[]); }
-        catch(e) { save.tables[t] = []; }
-    }
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(save,null,2)],{type:'application/json'}));
-    a.download = 'sauvegarde_compta_' + new Date().toISOString().split('T')[0] + '.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    var sc = window.supabaseClient || (window.supabase && typeof window.supabase.from==='function'?window.supabase:null);
+    if (!sc){alert("Connexion Supabase indisponible.");return;}
+    var tables=['attachments','declarations','ecritures_comptables','plan_comptable','profile','transactions','cabinets','patients','passages'];
+    var save={date_export:new Date().toISOString(),tables:{}};
+    for(var t of tables){try{var r=await sc.from(t).select('*');save.tables[t]=r.error?[]:(r.data||[]);}catch(e){save.tables[t]=[];}}
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(save,null,2)],{type:'application/json'}));
+    a.download='sauvegarde_compta_'+new Date().toISOString().split('T')[0]+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
 };
 
-window.transactions = window.transactions || [];
+window.transactions=window.transactions||[];
 
-// ── Navigation principale ─────────────────────────────────
-var PAGE_TITLES = {
-    'vue-dashboard': '🏠 Tableau de bord',
-    'vue-transactions': '📄 Transactions',
-    'vue-banque': '🏦 Journal de Banque',
-    'vue-od': '📝 Journal OD',
-    'vue-plan': '📊 Plan Comptable',
-    'vue-urssaf': '🏛️ URSSAF',
-    'vue-bareme-urssaf': '⚙️ Barème URSSAF',
-    'vue-carpimko': '🏥 CARPIMKO',
-    'vue-bareme-carpimko': '⚙️ Barème CARPIMKO',
-    'vue-ir': '💶 Calcul IR',
-    'vue-bareme-ir': '⚙️ Barème IR',
-    'vue-export': '📁 Sauvegarde & Expert',
-    'vue-bilan': '📈 Bilan / CE',
-    'vue-stats': '📊 Statistiques',
-    'vue-2035': '📑 2035 / 2042',
-    'vue-journal': '📖 Journal Général',
-    'vue-grandlivre': '📚 Grand Livre',
-    'vue-balance': '⚖️ Balance des Comptes',
-    'vue-patients': '👥 Patients & Cabinets',
-    'vue-ngap': '💊 Nomenclature NGAP',
-    'vue-profil': '👤 Mon Profil'
+var PAGE_INITS = {
+    'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
+    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); },
+    'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); },
+    'vue-plan':         function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
+    'vue-urssaf':       function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
+    'vue-bareme-urssaf':function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
+    'vue-carpimko':     function(){ if(typeof window.initCarpimkoModule==='function') window.initCarpimkoModule(); },
+    'vue-bareme-carpimko':function(){ if(typeof window.initBaremeCarpimkoModule==='function') window.initBaremeCarpimkoModule(); },
+    'vue-ir':           function(){ if(typeof window.initIRModule==='function') window.initIRModule(); },
+    'vue-bareme-ir':    function(){ if(typeof window.initBaremeIRModule==='function') window.initBaremeIRModule(); },
+    'vue-export':       function(){ if(typeof window.initExportModule==='function') window.initExportModule(); },
+    'vue-bilan':        function(){ if(typeof window.chargerBilanEtCE==='function') window.chargerBilanEtCE(); },
+    'vue-stats':        function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
+    'vue-2035':         function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
+    'vue-journal':      function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
+    'vue-grandlivre':   function(){ if(typeof window.chargerEtAfficherGrandLivre==='function') window.chargerEtAfficherGrandLivre(); },
+    'vue-balance':      function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
+    'vue-profil':       function(){ if(typeof window.initProfil==='function') window.initProfil(); },
+    'vue-patients':     function(){ if(typeof window.initPatients==='function') window.initPatients(); },
+    'vue-ngap':         function(){ if(typeof window.initNGAP==='function') window.initNGAP(); },
+    'vue-dashboard':    dashboardInit
 };
 
-window.goTo = function(tabId, title, navEl) {
-    // Sections
+window.goTo = function(tabId, navEl) {
     document.querySelectorAll('.view-section').forEach(function(s){ s.classList.remove('active'); });
     var target = document.getElementById(tabId);
     if (target) target.classList.add('active');
 
-    // Nav items
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
     if (navEl) navEl.classList.add('active');
+    else {
+        var found = document.querySelector('.nav-item[data-tab="'+tabId+'"]');
+        if (found) found.classList.add('active');
+    }
 
-    // Title
-    var t = document.getElementById('page-title');
-    if (t) t.textContent = title || PAGE_TITLES[tabId] || tabId;
+    var titles = {
+        'vue-dashboard':'🏠 Tableau de bord','vue-transactions':'📄 Transactions',
+        'vue-banque':'🏦 Journal de Banque','vue-od':'📝 Journal OD',
+        'vue-plan':'📊 Plan Comptable','vue-urssaf':'🏛️ URSSAF',
+        'vue-bareme-urssaf':'⚙️ Barème URSSAF','vue-carpimko':'🏥 CARPIMKO',
+        'vue-bareme-carpimko':'⚙️ Barème CARPIMKO','vue-ir':'💶 Calcul IR',
+        'vue-bareme-ir':'⚙️ Barème IR','vue-export':'📁 Sauvegarde & Expert',
+        'vue-bilan':'📈 Bilan / CE','vue-stats':'📊 Statistiques',
+        'vue-2035':'📑 2035 / 2042','vue-journal':'📖 Journal Général',
+        'vue-grandlivre':'📚 Grand Livre','vue-balance':'⚖️ Balance des Comptes',
+        'vue-profil':'👤 Mon Profil','vue-patients':'👥 Patients & Cabinets',
+        'vue-ngap':'💊 Nomenclature NGAP'
+    };
+    var titleEl = document.getElementById('page-title');
+    if (titleEl) titleEl.textContent = titles[tabId] || tabId;
 
-    // Fermer sidebar mobile
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
 
-    // Init modules
-    var inits = {
-        'vue-dashboard': dashboardInit,
-        'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
-        'vue-banque': function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); },
-        'vue-od': function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); },
-        'vue-plan': function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
-        'vue-urssaf': function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
-        'vue-bareme-urssaf': function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
-        'vue-carpimko': function(){ if(typeof window.initCarpimkoModule==='function') window.initCarpimkoModule(); },
-        'vue-bareme-carpimko': function(){ if(typeof window.initBaremeCarpimkoModule==='function') window.initBaremeCarpimkoModule(); },
-        'vue-ir': function(){ if(typeof window.initIRModule==='function') window.initIRModule(); },
-        'vue-bareme-ir': function(){ if(typeof window.initBaremeIRModule==='function') window.initBaremeIRModule(); },
-        'vue-export': function(){ if(typeof window.initExportModule==='function') window.initExportModule(); },
-        'vue-bilan': function(){ if(typeof window.chargerBilanEtCE==='function') window.chargerBilanEtCE(); },
-        'vue-stats': function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
-        'vue-2035': function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
-        'vue-journal': function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
-        'vue-grandlivre': function(){ if(typeof window.chargerEtAfficherGrandLivre==='function') window.chargerEtAfficherGrandLivre(); },
-        'vue-balance': function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
-        'vue-profil': function(){ if(typeof window.initProfil==='function') window.initProfil(); },
-        'vue-patients': function(){ if(typeof window.initPatients==='function') window.initPatients(); },
-        'vue-ngap': function(){ if(typeof window.initNGAP==='function') window.initNGAP(); }
-    };
-    if (inits[tabId]) inits[tabId]();
+    if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
 };
 
-// Rétrocompatibilité : switchTab utilisé par certains modules
-window.switchTab = window.goTo;
+// Rétrocompatibilité
+window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
-// ── Sidebar mobile ────────────────────────────────────────
 window.toggleSidebar = function() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('sidebar-overlay').classList.toggle('open');
 };
 
-// ── Tableau de bord ───────────────────────────────────────
+window.fermerModal = function() {
+    var m = document.getElementById('modal-modifier');
+    if (m) { m.style.display='none'; }
+};
+
 function dashboardInit() {
     var sc = window.supabaseClient;
     if (!sc) return;
     sc.from('transactions').select('type,amount').then(function(r){
         if (r.error) return;
-        var data = r.data || [];
-        var rec = data.filter(function(t){ return t.type==='recette' || (t.type||'').includes('recette'); })
-                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); }, 0);
-        var dep = data.filter(function(t){ return t.type==='depense' || (t.type||'').includes('depense'); })
-                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); }, 0);
+        var data = r.data||[];
+        var rec = data.filter(function(t){ return (t.type||'').toLowerCase().includes('recette'); })
+                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); },0);
+        var dep = data.filter(function(t){ return (t.type||'').toLowerCase().includes('d'); })
+                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); },0);
         var fmt = function(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2})+' €'; };
-        var el = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
-        el('dash-recettes', fmt(rec));
-        el('dash-depenses', fmt(dep));
-        el('dash-balance',  fmt(rec-dep));
-        el('dash-nb', data.length);
-        // Dernières transactions
-        var der = document.getElementById('dash-dernieres-transactions');
-        if (!der) return;
-        sc.from('transactions').select('*').order('date',{ascending:false}).limit(5).then(function(r2){
-            if (r2.error || !r2.data || !r2.data.length) { der.innerHTML='<p style="color:#94a3b8;">Aucune transaction.</p>'; return; }
+        var el = function(id,v){ var e=document.getElementById(id);if(e)e.textContent=v; };
+        el('dash-recettes',fmt(rec));
+        el('dash-depenses',fmt(dep));
+        el('dash-balance',fmt(rec-dep));
+        el('dash-nb',data.length);
+        sc.from('transactions').select('*').order('date',{ascending:false}).limit(6).then(function(r2){
+            var der=document.getElementById('dash-dernieres');
+            if(!der)return;
+            if(!r2.data||!r2.data.length){der.innerHTML='<p style="color:#94a3b8;">Aucune transaction.</p>';return;}
+            var isRec=function(t){return (t.type||'').toLowerCase().includes('recette');};
             der.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th style="text-align:right;">Montant</th></tr></thead><tbody>'
-                + r2.data.map(function(t){
-                    var isRec = (t.type||'').includes('recette');
+                +r2.data.map(function(t){
                     return '<tr><td>'+t.date+'</td>'
-                        +'<td><span class="badge '+(isRec?'badge-green':'badge-red')+'">'+(isRec?'Recette':'Dépense')+'</span></td>'
+                        +'<td><span class="badge '+(isRec(t)?'badge-green':'badge-red')+'">'+(isRec(t)?'Recette':'Dépense')+'</span></td>'
                         +'<td>'+(t.description||'')+'</td>'
-                        +'<td style="text-align:right;font-weight:600;color:'+(isRec?'#16a34a':'#dc2626')+';">'+(isRec?'+':'-')+(parseFloat(t.amount)||0).toLocaleString('fr-FR',{minimumFractionDigits:2})+' €</td>'
-                        +'</tr>';
+                        +'<td style="text-align:right;font-weight:600;color:'+(isRec(t)?'#16a34a':'#dc2626')+';">'
+                        +(isRec(t)?'+':'-')+(parseFloat(t.amount)||0).toLocaleString('fr-FR',{minimumFractionDigits:2})+' €</td></tr>';
                 }).join('')+'</tbody></table>';
         });
     });
 }
 
-// ── Modal helper ──────────────────────────────────────────
-window.fermerModal = function() {
-    var m = document.getElementById('modal-modifier');
-    if (m) m.style.display='none';
-};
-
-// ── Init au chargement ────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
-    // Mettre à jour email dans sidebar quand disponible
-    var checkUser = setInterval(function(){
-        var em = document.getElementById('auth-user-email');
-        var av = document.getElementById('sidebar-avatar');
-        if (em && em.textContent && em.textContent !== '—') {
-            if (av) av.textContent = em.textContent.charAt(0).toUpperCase();
-            clearInterval(checkUser);
+    var iv = setInterval(function(){
+        var em=document.getElementById('auth-user-email');
+        var av=document.getElementById('sidebar-avatar');
+        if(em&&em.textContent&&em.textContent!=='—'){
+            if(av)av.textContent=em.textContent.charAt(0).toUpperCase();
+            clearInterval(iv);
         }
-    }, 500);
+    },500);
 });
 </script>
 
-<!-- SCRIPTS APPLICATIFS -->
 <script src="transactions.js"></script>
 <script src="exercice.js"></script>
 <script src="journal_od.js"></script>
