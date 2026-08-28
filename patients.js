@@ -309,8 +309,11 @@ function ptEditerPatient(id) {
 }
 
 function ptAjouterPassage(patientId) {
-    // TODO : ouvrir modal passage avec NGAP
-    alert('Fonctionnalité "Nouveau passage" à venir avec sélection des actes NGAP.');
+    if (typeof window.ouvrirNouveauPassage === 'function') {
+        window.ouvrirNouveauPassage(patientId);
+    } else {
+        alert('Module de facturation non chargé.');
+    }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
