@@ -231,6 +231,7 @@
             <button class="nav-btn" onclick="switchTab('vue-grandlivre', this)">📖 Grand Livre</button>
             <button class="nav-btn" onclick="switchTab('vue-balance', this)">⚖️ Balance des Comptes</button>
             <button class="nav-btn" onclick="switchTab('vue-patients', this)">👥 Patients</button>
+            <button class="nav-btn" onclick="switchTab('vue-ngap', this)">💊 Nomenclature NGAP</button>
             <button class="nav-btn" onclick="switchTab('vue-profil', this)">👤 Profil</button>
         </nav>
 
@@ -715,6 +716,7 @@
             if (tabId === 'vue-balance' && typeof window.initBalanceModule === 'function') window.initBalanceModule();
             if (tabId === 'vue-profil' && typeof window.initProfil === 'function') window.initProfil();
             if (tabId === 'vue-patients' && typeof window.initPatients === 'function') window.initPatients();
+            if (tabId === 'vue-ngap' && typeof window.initNGAP === 'function') window.initNGAP();
         };
 
         window.fermerModal = function() {
@@ -888,6 +890,7 @@
     </div>
 
     <script src="patients.js"></script>
+    <script src="ngap.js"></script>
 
 </body>
 </html>
