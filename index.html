@@ -1135,7 +1135,20 @@ window.chargerHistoriquePatientActif = function() {
 window.toggleRecapLibre = function() {
     var val = (document.getElementById('recapPeriode')||{}).value;
     var bl  = document.getElementById('recapLibreBlock');
-    if (bl) bl.style.display = val==='libre' ? 'flex' : 'none';
+    if (!bl) return;
+    if (val === 'libre') {
+        bl.style.display = 'flex';
+        // Pré-remplir avec le mois en cours
+        var today = new Date();
+        var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
+        var fin   = today.toISOString().split('T')[0];
+        var d1 = document.getElementById('recapDebut');
+        var d2 = document.getElementById('recapFin');
+        if (d1 && !d1.value) d1.value = debut;
+        if (d2 && !d2.value) d2.value = fin;
+    } else {
+        bl.style.display = 'none';
+    }
 };
 
 window._ptFicheId = null;
@@ -1249,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <option value="libre">Période libre</option>
                     </select>
                 </div>
-                <div id="recapLibreBlock" style="display:none;display:flex;gap:8px;">
+                <div id="recapLibreBlock" style="display:none;gap:8px;flex-wrap:wrap;">
                     <div><label class="form-label">Du</label><input type="date" id="recapDebut" class="form-control" style="width:140px;"></div>
                     <div><label class="form-label">Au</label><input type="date" id="recapFin" class="form-control" style="width:140px;"></div>
                 </div>
