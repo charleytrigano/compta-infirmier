@@ -23,16 +23,32 @@ function ptAge(dateNaissance) {
     return Math.floor(diff / (365.25 * 24 * 3600 * 1000)) + ' ans';
 }
 
-function ptSC() { return window.supabaseClient; }
+function ptSC() {
+    return window.supabaseClient || window.supabase || null;
+}
 
 // ── CABINETS ─────────────────────────────────────────────────────────────────
 
 async function ptChargerCabinets() {
-    if (!ptSC()) return;
-    var r = await ptSC().from('cabinets').select('*').order('nom');
-    if (!r.error) {
+    var sc = ptSC();
+    if (!sc) {
+        console.warn('patients.js : Supabase non disponible - retry dans 1s');
+        setTimeout(function(){ window.initPatients && window.initPatients(); }, 1000);
+        return;
+    }
+    try {
+        var r = await sc.from('cabinets').select('*').order('nom');
+        if (r.error) {
+            console.error('Erreur cabinets:', r.error.message);
+            var el = document.getElementById('ptListeCabinets');
+            if (el) el.innerHTML = '<p style="color:#ef4444;">Erreur : ' + r.error.message + '</p>';
+            return;
+        }
         PT.cabinets = r.data || [];
         ptRenouvellerSelectCabinets();
+        ptRenduCabinets();
+    } catch(e) {
+        console.error('Exception ptChargerCabinets:', e);
     }
 }
 
@@ -137,8 +153,9 @@ function ptFiltrerParCabinet(cabinetId) {
 // ── PATIENTS ─────────────────────────────────────────────────────────────────
 
 async function ptChargerPatients() {
-    if (!ptSC()) return;
-    var r = await ptSC().from('patients').select('*, cabinets(nom, ville)').order('nom');
+    var sc = ptSC();
+    if (!sc) return;
+    var r = await sc.from('patients').select('*, cabinets(nom, ville)').order('nom');
     if (!r.error) {
         PT.patients = r.data || [];
         ptRenduPatients();
@@ -325,14 +342,24 @@ function ptAjouterPassage(patientId) {
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 window.initPatients = async function() {
-    // Filtres
-    ['ptRecherchePatient','ptFiltreCABINET','ptFiltreALD'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', ptRenduPatients);
-            el.addEventListener('change', ptRenduPatients);
-        }
-    });
+    // Filtres (une seule fois)
+    if (!window._patientsFiltersInit) {
+        window._patientsFiltersInit = true;
+        ['ptRecherchePatient','ptFiltreCABINET','ptFiltreALD'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', ptRenduPatients);
+                el.addEventListener('change', ptRenduPatients);
+            }
+        });
+    }
+    // Attendre Supabase si nécessaire
+    if (!ptSC()) {
+        var el = document.getElementById('ptListeCabinets');
+        if (el) el.innerHTML = '<p style="color:#f59e0b;">⏳ Connexion Supabase en cours...</p>';
+        setTimeout(window.initPatients, 1500);
+        return;
+    }
     await ptChargerCabinets();
     await ptChargerPatients();
 };
