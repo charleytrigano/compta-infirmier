@@ -534,3 +534,287 @@ window.genererFdSPassage = async function(passageId) {
         numF: p.facture_numero
     });
 };
+
+// ============================================================================
+// RÉCAPITULATIF REMPLAÇANT → TITULAIRE
+// Export PDF professionnel par période
+// ============================================================================
+
+window.chargerRecapitulatifRemplacant = async function() {
+    var sc = window.supabaseClient;
+    if (!sc) return;
+
+    var periode = (document.getElementById('recapPeriode')||{}).value || 'mois';
+    var cabinetId = (document.getElementById('recapCabinet')||{}).value || '';
+
+    // Calculer les dates selon la période
+    var today = new Date();
+    var debut, fin;
+    fin = today.toISOString().split('T')[0];
+
+    switch(periode) {
+        case 'jour':
+            debut = fin;
+            break;
+        case 'semaine':
+            var lundi = new Date(today);
+            lundi.setDate(today.getDate() - today.getDay() + (today.getDay()===0?-6:1));
+            debut = lundi.toISOString().split('T')[0];
+            break;
+        case 'quinzaine':
+            var d15 = new Date(today);
+            d15.setDate(today.getDate() - 14);
+            debut = d15.toISOString().split('T')[0];
+            break;
+        case 'mois':
+        default:
+            debut = today.getFullYear() + '-' + ('0'+(today.getMonth()+1)).slice(-2) + '-01';
+            break;
+        case 'libre':
+            debut = (document.getElementById('recapDebut')||{}).value || fin;
+            fin   = (document.getElementById('recapFin')||{}).value   || fin;
+            break;
+    }
+
+    // Afficher les dates
+    var elD = document.getElementById('recapDateDebut'); if(elD) elD.textContent = new Date(debut).toLocaleDateString('fr-FR');
+    var elF = document.getElementById('recapDateFin');   if(elF) elF.textContent = new Date(fin).toLocaleDateString('fr-FR');
+
+    // Charger les passages
+    var query = sc.from('passages')
+        .select('*, patients(nom,prenom,num_secu,date_naissance,ald)')
+        .gte('date_passage', debut)
+        .lte('date_passage', fin)
+        .order('date_passage');
+
+    if (cabinetId) query = query.eq('cabinet_id', cabinetId);
+
+    var r = await query;
+    if (r.error) { console.error('Erreur récap:', r.error); return; }
+
+    var passages = r.data || [];
+
+    // Calculer les totaux
+    var totalBrut    = passages.reduce(function(s,p){ return s+(parseFloat(p.montant_total)||0); }, 0);
+    var totalSS      = passages.reduce(function(s,p){ return s+(parseFloat(p.remboursement_ss)||0); }, 0);
+    var cab = (window.PT&&PT.cabinets&&cabinetId) ? PT.cabinets.find(function(c){ return c.id===cabinetId; }) : null;
+    var taux = cab ? (cab.taux_retrocession||35) : 35;
+    var totalRetro   = +(totalBrut * taux/100).toFixed(2);
+    var totalNet     = +(totalBrut - totalRetro).toFixed(2);
+    var fmt = function(n){ return parseFloat(n||0).toFixed(2).replace('.',',')+' €'; };
+
+    // KPIs
+    var el = function(id,v){ var e=document.getElementById(id); if(e)e.textContent=v; };
+    el('recapNbPassages', passages.length);
+    el('recapTotalBrut',  fmt(totalBrut));
+    el('recapTotalRetro', fmt(totalRetro)+' ('+taux+'%)');
+    el('recapTotalNet',   fmt(totalNet));
+
+    // Tableau détaillé
+    var tbody = document.getElementById('recapTableau');
+    if (!tbody) return;
+
+    if (!passages.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px;">Aucun passage sur cette période.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = passages.map(function(p,i) {
+        var pt = p.patients || {};
+        var actes = [];
+        try { actes = JSON.parse(p.actes||'[]'); } catch(e){}
+        var descActes = actes.map(function(a){ return a.code+(a.qte>1?' x'+a.qte:''); }).join(', ') || '—';
+        var brut = parseFloat(p.montant_total)||0;
+        var retro = +(brut * taux/100).toFixed(2);
+        var net   = +(brut - retro).toFixed(2);
+        var ald   = p.type_remboursement === 'ald';
+        return '<tr style="background:'+(i%2===0?'#fff':'#f8fafc')+'">'
+            +'<td style="font-weight:600;">'+(p.date_passage||'—')+'</td>'
+            +'<td>'+(p.heure_passage||'—')+'</td>'
+            +'<td><strong>'+(pt.nom||'').toUpperCase()+' '+(pt.prenom||'')+'</strong>'
+            +(ald?'<br><span style="font-size:10px;color:#dc2626;font-weight:600;">ALD 100%</span>':'')+'</td>'
+            +'<td style="font-size:11px;">'+(pt.num_secu||'—')+'</td>'
+            +'<td style="font-size:12px;">'+(descActes)+'</td>'
+            +'<td style="text-align:right;font-weight:600;color:#2563eb;">'+fmt(brut)+'</td>'
+            +'<td style="text-align:right;color:#dc2626;">-'+fmt(retro)+'</td>'
+            +'<td style="text-align:right;font-weight:600;color:#16a34a;">'+fmt(net)+'</td>'
+            +'</tr>';
+    }).join('');
+
+    // Stocker pour export PDF
+    window._recapData = { passages, debut, fin, periode, totalBrut, totalRetro, totalNet, totalSS, taux, cab };
+};
+
+// ── EXPORT PDF RÉCAPITULATIF ──────────────────────────────────────────────────
+window.exporterRecapPDF = async function() {
+    if (typeof PDFLib === 'undefined') { alert('pdf-lib non disponible'); return; }
+    var d = window._recapData;
+    if (!d || !d.passages) { alert('Chargez d\'abord le récapitulatif'); return; }
+
+    var { PDFDocument, rgb, StandardFonts } = PDFLib;
+    var doc = await PDFDocument.create();
+    var fontB = await doc.embedFont(StandardFonts.HelveticaBold);
+    var fontN = await doc.embedFont(StandardFonts.Helvetica);
+
+    var profil = {};
+    try { profil = JSON.parse(localStorage.getItem('profil_praticien')||'{}'); } catch(e){}
+    var nomRempl = (profil.prenom||'')+' '+(profil.nom||'');
+    var nomTitul = d.cab ? (d.cab.nom_titulaire||d.cab.nom||'—') : '—';
+    var nomCab   = d.cab ? d.cab.nom : '—';
+    var fmt = function(n){ return parseFloat(n||0).toFixed(2)+' €'; };
+    var fmtDate = function(s){ try{ return new Date(s).toLocaleDateString('fr-FR'); }catch(e){return s;} };
+
+    var labels = {jour:'Journée',semaine:'Semaine',quinzaine:'Quinzaine',mois:'Mois',libre:'Période'};
+    var periodeLabel = labels[d.periode]||'Période';
+
+    // ── PAGE 1 : RÉCAPITULATIF ────────────────────────────────────────────────
+    var page = doc.addPage([595, 842]);
+    var y = 800; var L = 40; var R = 555;
+
+    var draw = function(text,x,yy,size,bold,color) {
+        var col = color || rgb(0.05,0.05,0.05);
+        page.drawText(String(text||''), {x:x,y:yy,size:size||10,font:bold?fontB:fontN,color:col});
+    };
+    var hline = function(yy,thick,col) {
+        page.drawLine({start:{x:L,y:yy},end:{x:R,y:yy},thickness:thick||0.5,color:col||rgb(0.8,0.8,0.8)});
+    };
+    var rect = function(x,yy,w,h,col) {
+        page.drawRectangle({x:x,y:yy,width:w,height:h,color:col});
+    };
+
+    // Bandeau header bleu
+    rect(0, 790, 595, 55, rgb(0.15,0.39,0.92));
+    draw('RÉCAPITULATIF DES INTERVENTIONS', L, 820, 16, true, rgb(1,1,1));
+    draw('Infirmière Remplaçante → Titulaire', L, 802, 10, false, rgb(0.8,0.9,1));
+    draw(periodeLabel+' du '+fmtDate(d.debut)+' au '+fmtDate(d.fin), L, 793, 9, false, rgb(0.8,0.9,1));
+
+    y = 770;
+
+    // Deux colonnes : Remplaçante | Titulaire
+    rect(L, y-75, 240, 80, rgb(0.97,0.98,1));
+    rect(315, y-75, 240, 80, rgb(0.97,1,0.98));
+    draw('INFIRMIÈRE REMPLAÇANTE', L+8, y-6, 8, true, rgb(0.15,0.39,0.92));
+    draw(nomRempl||'—', L+8, y-18, 10, true);
+    draw('ADELI : '+(profil.adeli||'—'), L+8, y-30, 8);
+    draw('RPPS : '+(profil.rpps||'—'), L+8, y-41, 8);
+    draw((profil.adresse||'')+' '+(profil.code_postal||''), L+8, y-52, 8);
+    draw('Tél : '+(profil.telephone||'—'), L+8, y-63, 8);
+
+    draw('CABINET / TITULAIRE', 323, y-6, 8, true, rgb(0.06,0.5,0.25));
+    draw(nomCab, 323, y-18, 10, true);
+    draw('Titulaire : '+nomTitul, 323, y-30, 8);
+    draw((d.cab&&d.cab.adresse||''), 323, y-41, 8);
+    draw('Taux rétrocession : '+d.taux+'%', 323, y-52, 9, true);
+    draw((d.cab&&d.cab.iban?'IBAN : '+d.cab.iban:''), 323, y-63, 8);
+
+    y -= 90;
+    hline(y, 1, rgb(0.6,0.6,0.6)); y -= 15;
+
+    // KPIs
+    var kpis = [
+        {label:'Passages', val:d.passages.length, color:rgb(0.15,0.39,0.92)},
+        {label:'Total honoraires bruts', val:fmt(d.totalBrut), color:rgb(0.15,0.39,0.92)},
+        {label:'Rétrocession ('+d.taux+'%)', val:fmt(d.totalRetro), color:rgb(0.86,0.15,0.15)},
+        {label:'Votre net à percevoir', val:fmt(d.totalNet), color:rgb(0.06,0.5,0.25)},
+    ];
+    var kx = L;
+    kpis.forEach(function(k) {
+        rect(kx, y-40, 120, 45, rgb(0.97,0.97,0.97));
+        draw(k.label, kx+5, y-10, 7, false, rgb(0.4,0.4,0.4));
+        draw(k.val, kx+5, y-28, 11, true, k.color);
+        kx += 130;
+    });
+    y -= 55; hline(y, 1, rgb(0.6,0.6,0.6)); y -= 12;
+
+    // Tableau des passages
+    draw('DÉTAIL DES INTERVENTIONS', L, y, 10, true, rgb(0.2,0.2,0.2)); y -= 15;
+
+    // En-têtes colonnes
+    var cols = [{l:'Date',x:L,w:55},{l:'Patient',x:L+58,w:95},{l:'Actes',x:L+156,w:140},
+                {l:'Brut',x:L+299,w:55},{l:'Rétro.',x:L+357,w:55},{l:'Net',x:L+415,w:55}];
+    rect(L, y-12, R-L, 16, rgb(0.15,0.39,0.92));
+    cols.forEach(function(c){ draw(c.l, c.x+3, y-10, 8, true, rgb(1,1,1)); });
+    y -= 14;
+
+    // Lignes
+    d.passages.forEach(function(p, i) {
+        if (y < 60) {
+            page = doc.addPage([595,842]);
+            y = 800;
+        }
+        var pt = p.patients||{};
+        var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
+        var descActes = actes.map(function(a){return a.code+(a.qte>1?'x'+a.qte:'');}).join('+') || '—';
+        var brut = parseFloat(p.montant_total)||0;
+        var retro = +(brut*d.taux/100).toFixed(2);
+        var net = +(brut-retro).toFixed(2);
+        var bg = i%2===0 ? rgb(1,1,1) : rgb(0.96,0.97,1);
+        rect(L, y-11, R-L, 14, bg);
+        draw(p.date_passage||'—', L+3, y-9, 7);
+        draw((pt.nom||'').toUpperCase().substring(0,10)+' '+(pt.prenom||'').substring(0,8)
+            +(p.type_remboursement==='ald'?' ★':''), L+61, y-9, 7, p.type_remboursement==='ald');
+        draw(descActes.substring(0,28), L+159, y-9, 7);
+        draw(fmt(brut), L+302, y-9, 7, false, rgb(0.15,0.39,0.92));
+        draw('-'+fmt(retro), L+360, y-9, 7, false, rgb(0.8,0.15,0.15));
+        draw(fmt(net), L+418, y-9, 7, true, rgb(0.06,0.5,0.25));
+        y -= 14;
+    });
+
+    // ★ ALD légende
+    y -= 5; draw('★ Patient ALD (100% Sécurité Sociale)', L, y, 7, false, rgb(0.5,0.5,0.5));
+
+    // Ligne totaux
+    y -= 12; hline(y+2, 1, rgb(0.15,0.39,0.92));
+    rect(L, y-14, R-L, 17, rgb(0.15,0.39,0.92));
+    draw('TOTAUX', L+3, y-11, 9, true, rgb(1,1,1));
+    draw(fmt(d.totalBrut), L+302, y-11, 9, true, rgb(1,1,1));
+    draw('-'+fmt(d.totalRetro), L+360, y-11, 9, true, rgb(1,0.8,0.8));
+    draw(fmt(d.totalNet), L+418, y-11, 9, true, rgb(0.8,1,0.8));
+    y -= 28;
+
+    // Bloc de signature
+    hline(y, 1); y -= 15;
+    draw('RÉCAPITULATIF ÉTABLI PAR', L, y, 8, true); y -= 12;
+    draw(nomRempl, L, y, 9); draw('Le : ___/___/______', 350, y, 9); y -= 25;
+    draw('Signature remplaçante :', L, y, 8);
+    draw('Signature titulaire :', 320, y, 8); y -= 40;
+    hline(y+5, 0.5);
+
+    // Pied de page
+    draw('Document généré automatiquement — Comptabilité Infirmière', L, 25, 7, false, rgb(0.6,0.6,0.6));
+    draw('ADELI : '+(profil.adeli||'—')+'  |  SIRET : '+(profil.siret||'—'), L, 15, 7, false, rgb(0.6,0.6,0.6));
+
+    // Télécharger
+    var bytes = await doc.save();
+    var blob = new Blob([bytes], {type:'application/pdf'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Recap_Retrocession_'+d.debut+'_'+d.fin+'.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+};
+
+// ── EXPORT CSV RÉCAPITULATIF ──────────────────────────────────────────────────
+window.exporterRecapCSV = function() {
+    var d = window._recapData;
+    if (!d || !d.passages) { alert('Chargez d\'abord le récapitulatif'); return; }
+    var fmt = function(n){ return parseFloat(n||0).toFixed(2); };
+    var header = 'Date;Heure;Patient;N°Sécu;ALD;Actes;Montant brut;Rétrocession '+d.taux+'%;Net remplaçante\n';
+    var csv = header + d.passages.map(function(p) {
+        var pt = p.patients||{};
+        var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
+        var brut = parseFloat(p.montant_total)||0;
+        var retro = +(brut*d.taux/100).toFixed(2);
+        return [
+            p.date_passage, p.heure_passage||'',
+            (pt.nom||'').toUpperCase()+' '+(pt.prenom||''),
+            pt.num_secu||'',
+            p.type_remboursement==='ald'?'OUI':'NON',
+            actes.map(function(a){return a.code+(a.qte>1?'x'+a.qte:'');}).join(' + '),
+            fmt(brut), fmt(retro), fmt(brut-retro)
+        ].join(';');
+    }).join('\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+    a.download = 'Recap_Retrocession_'+d.debut+'_'+d.fin+'.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+};
