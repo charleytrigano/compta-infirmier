@@ -43,12 +43,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 }
 
 /* ── LAYOUT FLEXBOX ─────────────────────────────────────── */
-/* auth.js force display:block → on intercepte avec [style*=block] */
+/* display:flex forcé par le style inline dans <head> d'index.html */
 #app-content {
     min-height: 100vh;
-}
-#app-content[style*="block"] {
-    display: flex !important;
 }
 
 /* SIDEBAR : flex child, sticky pour rester visible au scroll */

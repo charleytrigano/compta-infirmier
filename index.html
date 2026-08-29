@@ -9,14 +9,18 @@
     <link rel="stylesheet" href="style.css">
 
     <style>
-        /* Correctifs layout global */
-        html { overflow-x:hidden; }
-        body { margin:0; padding:0; overflow-y:auto; overflow-x:hidden; }
-        #app-content { display:block; }
-        #main-content { box-sizing:border-box; min-height:100vh; }
-        #page-body { box-sizing:border-box; padding:24px; }
-        .view-section { box-sizing:border-box; }
-        .card { box-sizing:border-box; overflow:visible; }
+        /* Layout principal */
+        html, body { margin:0; padding:0; }
+
+        /* FORCER flex sur #app-content dès que visible
+           auth.js met display:block → on override en flex
+           auth.js met display:none  → le sélecteur [style*="none"] reprend le dessus */
+        #app-content                 { display: flex !important; min-height: 100vh; }
+        #app-content[style*="none"]  { display: none !important; }
+
+        #main-content  { box-sizing: border-box; }
+        #page-body     { box-sizing: border-box; padding: 24px; }
+        .view-section  { box-sizing: border-box; }
     </style>
 </head>
 <body>
