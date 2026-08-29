@@ -72,106 +72,99 @@
         </div>
         <nav id="sidebar-nav">
 
+            <!-- TABLEAU DE BORD -->
             <div class="nav-group">
                 <div class="nav-item active" data-tab="vue-dashboard" onclick="goTo('vue-dashboard',this)">
                     <span class="nav-icon">🏠</span><span class="nav-label">Tableau de bord</span>
                 </div>
             </div>
 
+            <!-- PATIENTÈLE -->
             <div class="nav-group">
-                <div class="nav-group-title">Saisie comptable</div>
-                <div class="nav-item" data-tab="vue-transactions" onclick="goTo('vue-transactions',this)">
-                    <span class="nav-icon">📄</span><span class="nav-label">Transactions</span>
-                </div>
-                <div class="nav-item" data-tab="vue-banque" onclick="goTo('vue-banque',this)">
-                    <span class="nav-icon">🏦</span><span class="nav-label">Journal de Banque</span>
-                </div>
-                <div class="nav-item" data-tab="vue-od" onclick="goTo('vue-od',this)">
-                    <span class="nav-icon">📝</span><span class="nav-label">Journal OD</span>
-                </div>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">Livres comptables</div>
-                <div class="nav-item" data-tab="vue-journal" onclick="goTo('vue-journal',this)">
-                    <span class="nav-icon">📖</span><span class="nav-label">Journal Général</span>
-                </div>
-                <div class="nav-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)">
-                    <span class="nav-icon">📚</span><span class="nav-label">Grand Livre</span>
-                </div>
-                <div class="nav-item" data-tab="vue-balance" onclick="goTo('vue-balance',this)">
-                    <span class="nav-icon">⚖️</span><span class="nav-label">Balance des Comptes</span>
-                </div>
-                <div class="nav-item" data-tab="vue-plan" onclick="goTo('vue-plan',this)">
-                    <span class="nav-icon">📊</span><span class="nav-label">Plan Comptable</span>
-                </div>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">Charges sociales</div>
-                <div class="nav-item" data-tab="vue-urssaf" onclick="goTo('vue-urssaf',this)">
-                    <span class="nav-icon">🏛️</span><span class="nav-label">URSSAF</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bareme-urssaf" onclick="goTo('vue-bareme-urssaf',this)" style="padding-left:32px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:12px;">⚙️</span><span class="nav-label">Barème URSSAF</span>
-                </div>
-                <div class="nav-item" data-tab="vue-carpimko" onclick="goTo('vue-carpimko',this)">
-                    <span class="nav-icon">🏥</span><span class="nav-label">CARPIMKO</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bareme-carpimko" onclick="goTo('vue-bareme-carpimko',this)" style="padding-left:32px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:12px;">⚙️</span><span class="nav-label">Barème CARPIMKO</span>
-                </div>
-                <div class="nav-item" data-tab="vue-ir" onclick="goTo('vue-ir',this)">
-                    <span class="nav-icon">💶</span><span class="nav-label">Calcul IR</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bareme-ir" onclick="goTo('vue-bareme-ir',this)" style="padding-left:32px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:12px;">⚙️</span><span class="nav-label">Barème IR</span>
-                </div>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">Analyses & Déclarations</div>
-                <div class="nav-item" data-tab="vue-bilan" onclick="goTo('vue-bilan',this)">
-                    <span class="nav-icon">📈</span><span class="nav-label">Bilan / CE</span>
-                </div>
-                <div class="nav-item" data-tab="vue-stats" onclick="goTo('vue-stats',this)">
-                    <span class="nav-icon">📊</span><span class="nav-label">Statistiques</span>
-                </div>
-                <div class="nav-item" data-tab="vue-2035" onclick="goTo('vue-2035',this)">
-                    <span class="nav-icon">📑</span><span class="nav-label">2035 / 2042</span>
-                </div>
-                <div class="nav-item" data-tab="vue-export" onclick="goTo('vue-export',this)">
-                    <span class="nav-icon">📁</span><span class="nav-label">Sauvegarde & Expert</span>
-                </div>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">Patients & Facturation</div>
+                <div class="nav-group-title">Patientèle</div>
                 <div class="nav-item" data-tab="vue-patients" onclick="goTo('vue-patients',this)">
                     <span class="nav-icon">👥</span><span class="nav-label">Patients & Cabinets</span>
                 </div>
                 <div class="nav-item" data-tab="vue-passages" onclick="goTo('vue-passages',this)">
                     <span class="nav-icon">🩺</span><span class="nav-label">Passages du jour</span>
                 </div>
-                <div class="nav-item" data-tab="vue-export-cpam" onclick="goTo('vue-export-cpam',this)">
-                    <span class="nav-icon">📤</span><span class="nav-label">Export CPAM</span>
-                </div>
                 <div class="nav-item" data-tab="vue-recap-remplacant" onclick="goTo('vue-recap-remplacant',this)">
                     <span class="nav-icon">📋</span><span class="nav-label">Récap. Rétrocession</span>
                 </div>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">Référentiels</div>
+                <div class="nav-item" data-tab="vue-export-cpam" onclick="goTo('vue-export-cpam',this)">
+                    <span class="nav-icon">📤</span><span class="nav-label">Export CPAM</span>
+                </div>
                 <div class="nav-item" data-tab="vue-ngap" onclick="goTo('vue-ngap',this)">
                     <span class="nav-icon">💊</span><span class="nav-label">Nomenclature NGAP</span>
                 </div>
             </div>
 
+            <!-- IMPÔTS & CHARGES SOCIALES -->
             <div class="nav-group">
-                <div class="nav-group-title">Configuration</div>
+                <div class="nav-group-title">Impôts & Charges Sociales</div>
                 <div class="nav-item" data-tab="vue-profil" onclick="goTo('vue-profil',this)">
                     <span class="nav-icon">👤</span><span class="nav-label">Mon Profil</span>
+                </div>
+                <div class="nav-item" data-tab="vue-urssaf" onclick="goTo('vue-urssaf',this)">
+                    <span class="nav-icon">🏛️</span><span class="nav-label">URSSAF</span>
+                </div>
+                <div class="nav-item" data-tab="vue-bareme-urssaf" onclick="goTo('vue-bareme-urssaf',this)" style="padding-left:28px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:11px;">⚙️</span><span class="nav-label">Barème URSSAF</span>
+                </div>
+                <div class="nav-item" data-tab="vue-carpimko" onclick="goTo('vue-carpimko',this)">
+                    <span class="nav-icon">🏥</span><span class="nav-label">CARPIMKO</span>
+                </div>
+                <div class="nav-item" data-tab="vue-bareme-carpimko" onclick="goTo('vue-bareme-carpimko',this)" style="padding-left:28px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:11px;">⚙️</span><span class="nav-label">Barème CARPIMKO</span>
+                </div>
+                <div class="nav-item" data-tab="vue-ir" onclick="goTo('vue-ir',this)">
+                    <span class="nav-icon">💶</span><span class="nav-label">Calcul IR</span>
+                </div>
+                <div class="nav-item" data-tab="vue-bareme-ir" onclick="goTo('vue-bareme-ir',this)" style="padding-left:28px;font-size:12px;">
+                    <span class="nav-icon" style="font-size:11px;">⚙️</span><span class="nav-label">Barème IR</span>
+                </div>
+                <div class="nav-item" data-tab="vue-2035" onclick="goTo('vue-2035',this)">
+                    <span class="nav-icon">📑</span><span class="nav-label">2035 / 2042</span>
+                </div>
+            </div>
+
+            <!-- COMPTABILITÉ -->
+            <div class="nav-group">
+                <div class="nav-group-title">Comptabilité</div>
+                <div class="nav-item" data-tab="vue-banque" onclick="goTo('vue-banque',this)">
+                    <span class="nav-icon">🏦</span><span class="nav-label">Journal de Banque</span>
+                </div>
+                <div class="nav-item" data-tab="vue-od" onclick="goTo('vue-od',this)">
+                    <span class="nav-icon">📝</span><span class="nav-label">Journal OD</span>
+                </div>
+                <div class="nav-item" data-tab="vue-transactions" onclick="goTo('vue-transactions',this)">
+                    <span class="nav-icon">📄</span><span class="nav-label">Transactions</span>
+                </div>
+                <div class="nav-item" data-tab="vue-bilan" onclick="goTo('vue-bilan',this)">
+                    <span class="nav-icon">📈</span><span class="nav-label">Bilan / CE</span>
+                </div>
+                <div class="nav-item" data-tab="vue-balance" onclick="goTo('vue-balance',this)">
+                    <span class="nav-icon">⚖️</span><span class="nav-label">Balance des Comptes</span>
+                </div>
+                <div class="nav-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)">
+                    <span class="nav-icon">📚</span><span class="nav-label">Grand Livre</span>
+                </div>
+                <div class="nav-item" data-tab="vue-journal" onclick="goTo('vue-journal',this)">
+                    <span class="nav-icon">📖</span><span class="nav-label">Journal Général</span>
+                </div>
+                <div class="nav-item" data-tab="vue-plan" onclick="goTo('vue-plan',this)">
+                    <span class="nav-icon">📊</span><span class="nav-label">Plan Comptable</span>
+                </div>
+                <div class="nav-item" data-tab="vue-stats" onclick="goTo('vue-stats',this)">
+                    <span class="nav-icon">📊</span><span class="nav-label">Statistiques</span>
+                </div>
+            </div>
+
+            <!-- PARAMÉTRAGE -->
+            <div class="nav-group">
+                <div class="nav-group-title">Paramétrage</div>
+                <div class="nav-item" data-tab="vue-export" onclick="goTo('vue-export',this)">
+                    <span class="nav-icon">📁</span><span class="nav-label">Sauvegarde & Expert</span>
                 </div>
             </div>
 
