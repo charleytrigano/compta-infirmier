@@ -652,6 +652,13 @@
         <div id="ptSectionFiche" style="display:none;" class="card">
             <h3 style="margin:0 0 15px;">📋 Fiche patient</h3>
             <div id="ptFicheContenu"></div>
+            <div class="card" style="margin-top:15px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3 style="margin:0;">📋 Historique des passages</h3>
+                    <button id="btnChargerHistorique" onclick="chargerHistoriquePatientActif()" class="btn-primary" style="padding:7px 14px;font-size:12px;">🔄 Charger l'historique</button>
+                </div>
+                <div id="passHistoriquePatient"><p style="color:#94a3b8;font-size:13px;">Cliquez sur "Charger l'historique" pour afficher les passages.</p></div>
+            </div>
         </div>
     </section>
 
@@ -1118,11 +1125,28 @@ window.toggleSidebar = function() {
     document.getElementById('sidebar-overlay').classList.toggle('open');
 };
 
+window.chargerHistoriquePatientActif = function() {
+    var ptId = window.PT && window.PT.patients && window._ptFicheId ? window._ptFicheId : null;
+    if (!ptId) { alert('Ouvrez d\'abord une fiche patient'); return; }
+    if (typeof window.chargerHistoriquePassages === 'function')
+        window.chargerHistoriquePassages(ptId, 'passHistoriquePatient');
+};
+
 window.toggleRecapLibre = function() {
     var val = (document.getElementById('recapPeriode')||{}).value;
     var bl  = document.getElementById('recapLibreBlock');
     if (bl) bl.style.display = val==='libre' ? 'flex' : 'none';
 };
+
+window._ptFicheId = null;
+var _origOuvrirFiche = null;
+document.addEventListener('DOMContentLoaded', function() {
+    var _orig = window.ptOuvrirFiche;
+    if (_orig) window.ptOuvrirFiche = function(id) {
+        window._ptFicheId = id;
+        _orig(id);
+    };
+});
 
 window.fermerModal = function() {
     var m = document.getElementById('modal-modifier');
@@ -1198,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="kpi-card green"><div class="kpi-label">CA du jour</div><div class="kpi-value" id="dashCAJour">—</div></div>
             <div class="kpi-card orange"><div class="kpi-label">Passages ce mois</div><div class="kpi-value" id="dashPassagesMois">—</div></div>
             <div class="kpi-card green"><div class="kpi-label">CA du mois</div><div class="kpi-value" id="dashCAMois">—</div></div>
+            <div class="kpi-card orange"><div class="kpi-label">Non transmis</div><div class="kpi-value" id="dashNonTransmis">—</div></div>
         </div>
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
@@ -1259,6 +1284,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="kpi-label">Votre net</div>
                 <div class="kpi-value" id="recapTotalNet">—</div>
             </div>
+            <div class="kpi-card orange">
+                <div class="kpi-label">Non transmis</div>
+                <div class="kpi-value" id="recapNonTransmis">—</div>
+            </div>
         </div>
 
         <!-- Tableau -->
@@ -1286,6 +1315,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <th style="text-align:right;">Brut</th>
                             <th style="text-align:right;">Rétrocession</th>
                             <th style="text-align:right;">Votre net</th>
+                            <th style="text-align:center;">Transmis</th>
                         </tr>
                     </thead>
                     <tbody id="recapTableau">
