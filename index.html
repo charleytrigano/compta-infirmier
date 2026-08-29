@@ -1184,7 +1184,7 @@ window.toggleSidebar = function() {
 };
 
 window.chargerHistoriquePatientActif = function() {
-    var ptId = window.PT && window.PT.patients && window._ptFicheId ? window._ptFicheId : null;
+    var ptId = window._ptFicheId;
     if (!ptId) { alert('Ouvrez d\'abord une fiche patient'); return; }
     if (typeof window.chargerHistoriquePassages === 'function')
         window.chargerHistoriquePassages(ptId, 'passHistoriquePatient');
@@ -1202,14 +1202,6 @@ window.toggleRecapLibre = function() {
 };
 
 window._ptFicheId = null;
-var _origOuvrirFiche = null;
-document.addEventListener('DOMContentLoaded', function() {
-    var _orig = window.ptOuvrirFiche;
-    if (_orig) window.ptOuvrirFiche = function(id) {
-        window._ptFicheId = id;
-        _orig(id);
-    };
-});
 
 window.fermerModal = function() {
     var m = document.getElementById('modal-modifier');

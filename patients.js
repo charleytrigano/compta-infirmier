@@ -301,6 +301,7 @@ function ptEditerPatient(id) {
 }
 
 function ptOuvrirFiche(id) {
+    window._ptFicheId = id; // mémoriser pour l'historique
     var p = PT.patients.find(function(x){ return x.id===id; });
     if (!p) return;
     var cab = p._cabinet;
@@ -338,6 +339,11 @@ function ptOuvrirFiche(id) {
         + '<button onclick="ptFermerFiche()" style="background:#f8fafc;border:1px solid #e2e8f0;padding:8px 16px;border-radius:6px;cursor:pointer;">← Retour</button>'
         + '</div>';
     if (ptEl('ptSectionFiche')) ptEl('ptSectionFiche').style.display='block';
+    // Charger l'historique automatiquement
+    setTimeout(function() {
+        if (typeof window.chargerHistoriquePassages === 'function')
+            window.chargerHistoriquePassages(id, 'passHistoriquePatient');
+    }, 300);
 }
 
 function ptFermerFiche() {
