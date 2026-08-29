@@ -42,31 +42,38 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
     z-index: 9999; padding: 20px;
 }
 
-/* ── LAYOUT ───────────────────────────────────────────────── */
-#app-content { display: block; min-height: 100vh; }
-
-/* SIDEBAR fixe à gauche */
-#sidebar {
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    width: var(--sidebar-w);
-    background: var(--sidebar-bg);
-    display: flex; flex-direction: column;
-    z-index: 200;
-    overflow-y: auto; overflow-x: hidden;
-    transition: width 0.25s ease;
+/* ── LAYOUT FLEXBOX (sidebar + contenu côte à côte) ─────── */
+#app-content {
+    display: flex;
+    min-height: 100vh;
 }
 
-/* CONTENU : margin-left = largeur sidebar */
+/* SIDEBAR : flex child, sticky pour rester visible au scroll */
+#sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: width 0.25s ease;
+    z-index: 10;
+}
+
+/* CONTENU : prend tout l'espace restant automatiquement */
 #main-content {
-    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-width: 0;          /* évite débordement flex */
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
-    display: flex; flex-direction: column;
-    transition: margin-left 0.25s ease;
 }
 
 /* ── SIDEBAR RÉDUITE ──────────────────────────────────────── */
-:root.collapsed { --sidebar-w: 56px; }
 
 .collapsed-label,
 #sidebar .nav-group-title,
@@ -280,9 +287,9 @@ tr:last-child td { border-bottom: none; }
 
 /* ── RESPONSIVE ───────────────────────────────────────────── */
 @media (max-width: 768px) {
-    #sidebar { transform: translateX(-100%); width: 240px !important; }
+    #sidebar { position: fixed; top:0; left:0; bottom:0; transform: translateX(-100%); width: 240px !important; z-index:200; }
     #sidebar.open { transform: translateX(0); }
-    #main-content { margin-left: 0 !important; }
+    /* main-content prend flex:1 automatiquement */
     #menu-toggle { display: block; }
     #page-body { padding: 14px; }
 }

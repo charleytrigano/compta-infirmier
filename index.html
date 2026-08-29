@@ -7,15 +7,6 @@
     <title>Comptabilité Infirmière</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <link rel="stylesheet" href="style.css">
-    <script>
-        /* Appliquer état sidebar AVANT le 1er rendu pour éviter le flash */
-        (function(){
-            if(localStorage.getItem('sidebar_collapsed')==='1'){
-                document.documentElement.classList.add('collapsed');
-                document.write('<style>#main-content{margin-left:56px!important}</style>');
-            }
-        })();
-    </script>
 
     <style>
         /* Correctifs layout global */
@@ -1154,21 +1145,18 @@ window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
 function applySidebarState(collapsed) {
     var sidebar = document.getElementById('sidebar');
-    var main    = document.getElementById('main-content');
     var icon    = document.getElementById('sidebar-toggle-icon');
     var label   = document.getElementById('sidebar-toggle-label');
     if (!sidebar) return;
-
+    // Flexbox : seule la WIDTH de la sidebar change, le contenu s'adapte seul
     if (collapsed) {
         sidebar.classList.add('collapsed');
-        document.documentElement.classList.add('collapsed');
-        if (main)  main.style.marginLeft  = '56px';
+        sidebar.style.width = '56px';
         if (icon)  icon.textContent  = '▶';
         if (label) label.textContent = '';
     } else {
         sidebar.classList.remove('collapsed');
-        document.documentElement.classList.remove('collapsed');
-        if (main)  main.style.marginLeft  = '240px';
+        sidebar.style.width = '240px';
         if (icon)  icon.textContent  = '◀';
         if (label) label.textContent = 'Réduire';
     }
@@ -1183,6 +1171,14 @@ window.toggleSidebarCollapse = function() {
 
 // Restaurer l'état au chargement
 document.addEventListener('DOMContentLoaded', function() {
+    // S'assurer que #app-content est en flex pour le layout sidebar
+    var appEl = document.getElementById('app-content');
+    if (appEl) {
+        var obs = new MutationObserver(function() {
+            if (appEl.style.display === 'block') appEl.style.display = 'flex';
+        });
+        obs.observe(appEl, {attributes: true, attributeFilter: ['style']});
+    }
     var collapsed = localStorage.getItem('sidebar_collapsed') === '1';
     applySidebarState(collapsed);
 });
