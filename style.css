@@ -42,10 +42,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
     z-index: 9999; padding: 20px;
 }
 
-/* ── LAYOUT FLEXBOX (sidebar + contenu côte à côte) ─────── */
+/* ── LAYOUT FLEXBOX ─────────────────────────────────────── */
+/* auth.js force display:block → on intercepte avec [style*=block] */
 #app-content {
-    display: flex;
     min-height: 100vh;
+}
+#app-content[style*="block"] {
+    display: flex !important;
 }
 
 /* SIDEBAR : flex child, sticky pour rester visible au scroll */

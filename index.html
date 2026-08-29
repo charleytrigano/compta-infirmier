@@ -1171,14 +1171,6 @@ window.toggleSidebarCollapse = function() {
 
 // Restaurer l'état au chargement
 document.addEventListener('DOMContentLoaded', function() {
-    // S'assurer que #app-content est en flex pour le layout sidebar
-    var appEl = document.getElementById('app-content');
-    if (appEl) {
-        var obs = new MutationObserver(function() {
-            if (appEl.style.display === 'block') appEl.style.display = 'flex';
-        });
-        obs.observe(appEl, {attributes: true, attributeFilter: ['style']});
-    }
     var collapsed = localStorage.getItem('sidebar_collapsed') === '1';
     applySidebarState(collapsed);
 });
