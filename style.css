@@ -261,13 +261,11 @@ body {
     flex-direction: column;
     min-height: 100vh;
     position: relative;
-    transition: margin-left 0.25s ease, width 0.25s ease;
+    transition: margin-left 0.3s ease, width 0.3s ease;
+    box-sizing: border-box;
 }
 
-body.sidebar-collapsed #main-content {
-    margin-left: 56px;
-    width: calc(100% - 56px);
-}
+/* sidebar collapse géré par JS */
 
 /* Topbar */
 #topbar {

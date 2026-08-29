@@ -1132,28 +1132,42 @@ window.goTo = function(tabId, navEl) {
 // Rétrocompatibilité
 window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
-window.toggleSidebarCollapse = function() {
+function applySidebarState(collapsed) {
     var sidebar = document.getElementById('sidebar');
+    var main    = document.getElementById('main-content');
     var icon    = document.getElementById('sidebar-toggle-icon');
     var label   = document.getElementById('sidebar-toggle-label');
-    var collapsed = sidebar.classList.toggle('collapsed');
-    document.body.classList.toggle('sidebar-collapsed', collapsed);
-    if (icon)  icon.textContent  = collapsed ? '▶' : '◀';
-    if (label) label.textContent = collapsed ? 'Agrandir' : 'Réduire';
+    var W_open  = '240px';
+    var W_close = '56px';
+    if (!sidebar || !main) return;
+    if (collapsed) {
+        sidebar.classList.add('collapsed');
+        sidebar.style.width = W_close;
+        main.style.marginLeft = W_close;
+        main.style.width = 'calc(100% - ' + W_close + ')';
+        if (icon)  icon.textContent  = '▶';
+        if (label) label.textContent = '';
+    } else {
+        sidebar.classList.remove('collapsed');
+        sidebar.style.width = W_open;
+        main.style.marginLeft = W_open;
+        main.style.width = 'calc(100% - ' + W_open + ')';
+        if (icon)  icon.textContent  = '◀';
+        if (label) label.textContent = 'Réduire';
+    }
+}
+
+window.toggleSidebarCollapse = function() {
+    var sidebar   = document.getElementById('sidebar');
+    var collapsed = !sidebar.classList.contains('collapsed');
+    applySidebarState(collapsed);
     localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
 };
 
-// Restaurer l'état de la sidebar au chargement
+// Restaurer l'état au chargement
 document.addEventListener('DOMContentLoaded', function() {
-    if (localStorage.getItem('sidebar_collapsed') === '1') {
-        var sidebar = document.getElementById('sidebar');
-        var icon    = document.getElementById('sidebar-toggle-icon');
-        var label   = document.getElementById('sidebar-toggle-label');
-        if (sidebar) sidebar.classList.add('collapsed');
-        document.body.classList.add('sidebar-collapsed');
-        if (icon)  icon.textContent  = '▶';
-        if (label) label.textContent = 'Agrandir';
-    }
+    var collapsed = localStorage.getItem('sidebar_collapsed') === '1';
+    applySidebarState(collapsed);
 });
 
 window.toggleSidebar = function() {
