@@ -7,6 +7,18 @@
     <title>Comptabilité Infirmière</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Correctifs layout global */
+        html, body { margin:0; padding:0; overflow-x:hidden; }
+        #app-content { display:block; }
+        #main-content { box-sizing:border-box; }
+        #page-body { box-sizing:border-box; overflow-x:hidden; }
+        .view-section { box-sizing:border-box; max-width:100%; }
+        .card table, #page-body table { width:100%; max-width:100%; }
+        .table-responsive { overflow-x:auto; width:100%; }
+        .card { box-sizing:border-box; }
+        img, iframe, video { max-width:100%; }
+    </style>
 </head>
 <body>
 
@@ -1137,24 +1149,22 @@ function applySidebarState(collapsed) {
     var main    = document.getElementById('main-content');
     var icon    = document.getElementById('sidebar-toggle-icon');
     var label   = document.getElementById('sidebar-toggle-label');
-    var W_open  = '240px';
-    var W_close = '56px';
     if (!sidebar || !main) return;
     if (collapsed) {
         sidebar.classList.add('collapsed');
-        sidebar.style.width = W_close;
-        main.style.marginLeft = W_close;
-        main.style.width = 'calc(100% - ' + W_close + ')';
+        sidebar.style.width = '56px';
+        main.style.marginLeft = '56px';
         if (icon)  icon.textContent  = '▶';
         if (label) label.textContent = '';
     } else {
         sidebar.classList.remove('collapsed');
-        sidebar.style.width = W_open;
-        main.style.marginLeft = W_open;
-        main.style.width = 'calc(100% - ' + W_open + ')';
+        sidebar.style.width = '240px';
+        main.style.marginLeft = '240px';
         if (icon)  icon.textContent  = '◀';
         if (label) label.textContent = 'Réduire';
     }
+    // Supprimer width explicite — le bloc prend l'espace restant naturellement
+    main.style.width = '';
 }
 
 window.toggleSidebarCollapse = function() {

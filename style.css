@@ -49,6 +49,7 @@ body {
 #app-content {
     display: block;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 /* ── SIDEBAR ──────────────────────────────────────────────── */
@@ -255,14 +256,12 @@ body {
 /* ── CONTENU PRINCIPAL ────────────────────────────────────── */
 #main-content {
     margin-left: var(--sidebar-width);
-    width: calc(100% - var(--sidebar-width));
-    flex: 1;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    position: relative;
-    transition: margin-left 0.3s ease, width 0.3s ease;
+    transition: margin-left 0.3s ease;
     box-sizing: border-box;
+    /* PAS de width : le bloc prend naturellement l'espace restant */
 }
 
 /* sidebar collapse géré par JS */
@@ -303,8 +302,9 @@ body {
 #page-body {
     flex: 1;
     padding: 24px;
-    max-width: 1400px;
     width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 /* Bouton hamburger mobile */
@@ -598,3 +598,17 @@ tr:last-child td { border-bottom: none; }
 #sidebar::-webkit-scrollbar { width: 4px; }
 #sidebar::-webkit-scrollbar-track { background: transparent; }
 #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+/* ── Fixes globaux débordement ─────────────────────────── */
+.card { overflow: hidden; }
+table { table-layout: fixed; word-break: break-word; }
+.view-section { width: 100%; box-sizing: border-box; }
+.dashboard-grid { width: 100%; }
+.dashboard-shortcuts { width: 100%; }
+.form-grid { width: 100%; }
+
+/* Topbar pleine largeur */
+#topbar {
+    width: 100%;
+    box-sizing: border-box;
+}
