@@ -121,6 +121,32 @@ async function renderProfilUI() {
               <input type="date" id="prof-date-installation" value="${escapeHtml(profileData.date_installation || '')}" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
               <p class="text-[10px] text-slate-400 mt-1">Sert à choisir automatiquement le bon forfait CARPIMKO (1ère / 2ème année / régime de croisière) selon l'année.</p>
             </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-slate-700 mb-2">Statut d'exercice :</label>
+              <div style="display:flex;gap:12px;">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 16px;border-radius:8px;border:2px solid ${profileData.statut_exercice === 'remplacant' ? '#cbd5e1' : '#2563eb'};background:${profileData.statut_exercice === 'remplacant' ? '#f8fafc' : '#eff6ff'};flex:1;font-size:13px;font-weight:600;transition:all 0.2s;">
+                  <input type="radio" name="statut_exercice" id="statut-titulaire" value="titulaire" ${profileData.statut_exercice !== 'remplacant' ? 'checked' : ''} onchange="mettreAJourStatutVisuel()" style="width:16px;height:16px;accent-color:#2563eb;">
+                  <div>
+                    <div>👩‍⚕️ Titulaire</div>
+                    <div style="font-size:11px;font-weight:400;color:#64748b;">Facturation directe CPAM</div>
+                  </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 16px;border-radius:8px;border:2px solid ${profileData.statut_exercice === 'remplacant' ? '#2563eb' : '#cbd5e1'};background:${profileData.statut_exercice === 'remplacant' ? '#eff6ff' : '#f8fafc'};flex:1;font-size:13px;font-weight:600;transition:all 0.2s;">
+                  <input type="radio" name="statut_exercice" id="statut-remplacant" value="remplacant" ${profileData.statut_exercice === 'remplacant' ? 'checked' : ''} onchange="mettreAJourStatutVisuel()" style="width:16px;height:16px;accent-color:#2563eb;">
+                  <div>
+                    <div>🔄 Remplaçant(e)</div>
+                    <div style="font-size:11px;font-weight:400;color:#64748b;">Rétrocession 30-40%</div>
+                  </div>
+                </label>
+              </div>
+              <div id="info-statut-exercice" style="margin-top:8px;padding:9px 12px;border-radius:6px;font-size:12px;${profileData.statut_exercice === 'remplacant' ? 'background:#fffbeb;color:#92400e;border:1px solid #fde68a;' : 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;'}">
+                ${profileData.statut_exercice === 'remplacant'
+                  ? '⚠️ Remplaçant(e) : vous facturez sous le n° de la titulaire et lui reversez une rétrocession de 30 à 40 % des honoraires.'
+                  : 'ℹ️ Titulaire : vous facturez directement à la CPAM avec votre propre numéro conventionnel ADELI/RPPS.'}
+              </div>
+            </div>
+
           </div>
         </div>
 
