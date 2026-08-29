@@ -14,6 +14,7 @@
     --sidebar-title:  #f1f5f9;
     --sidebar-group:  #64748b;
     --sidebar-width:  240px;
+    --sw: 240px;  /* variable active pour sidebar */
     --header-h:       56px;
     --bg:             #f8fafc;
     --card:           #ffffff;
@@ -53,7 +54,7 @@ body {
 
 /* ── SIDEBAR ──────────────────────────────────────────────── */
 #sidebar {
-    width: var(--sidebar-width);
+    width: var(--sw);
     background: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
@@ -254,13 +255,12 @@ body {
 
 /* ── CONTENU PRINCIPAL ────────────────────────────────────── */
 #main-content {
-    margin-left: var(--sidebar-width);
+    margin-left: var(--sw);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     transition: margin-left 0.3s ease;
     box-sizing: border-box;
-    /* PAS de width : le bloc prend naturellement l'espace restant */
 }
 
 /* sidebar collapse géré par JS */
@@ -278,6 +278,8 @@ body {
     top: 0;
     z-index: 50;
     box-shadow: var(--shadow);
+    width: 100%;
+    box-sizing: border-box;
 }
 
 #topbar h2 {
