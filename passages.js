@@ -39,7 +39,7 @@ var PASS_MAJORATIONS = [
 ];
 
 // ── Tarifs ────────────────────────────────────────────────────────────────────
-function passT() {
+window.passT = window.passT = function passT() {
     var annee = new Date().getFullYear();
     var saved = localStorage.getItem('ngap_tarifs_' + annee);
     if (saved) { try { return JSON.parse(saved); } catch(e){} }
@@ -424,8 +424,11 @@ window.exporterPassagesCPAM = async function() {
 
 // ── FEUILLE DE SOINS PDF ──────────────────────────────────────────────────────
 window.genererFdS = async function(opts) {
-    if (typeof PDFLib === 'undefined') { alert('pdf-lib non chargé'); return; }
-    var { PDFDocument, rgb, StandardFonts } = PDFLib;
+    var _PDFLib = window.PDFLib;
+    if (!_PDFLib) { alert('pdf-lib non chargé - rechargez la page'); return; }
+    var PDFDocument = _PDFLib.PDFDocument;
+    var rgb = _PDFLib.rgb;
+    var StandardFonts = _PDFLib.StandardFonts;
     var doc = await PDFDocument.create();
     var page = doc.addPage([595, 842]); // A4
     var fontB = await doc.embedFont(StandardFonts.HelveticaBold);
