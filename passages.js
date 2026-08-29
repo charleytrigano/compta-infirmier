@@ -69,6 +69,14 @@ function passCalcSS(total, estALD) {
     return +(total * (estALD ? 1.0 : 0.6)).toFixed(2);
 }
 
+function passGetTauxRetro() {
+    // Récupérer le taux réel du cabinet si disponible
+    if (typeof window.getTauxRetrocession === 'function' && PASS.cabinetId) {
+        return window.getTauxRetrocession(PASS.cabinetId) / 100;
+    }
+    return 0.35; // 35% par défaut
+}
+
 // ── OUVRIR LE MODAL ──────────────────────────────────────────────────────────
 
 window.ouvrirNouveauPassage = function(patientId) {
@@ -191,6 +199,25 @@ function passCalculer() {
     if (el('passPartSS'))      el('passPartSS').textContent      = fmt(partSS) + (estALD ? ' (ALD 100%)' : ' (60%)');
     if (el('passReste'))       el('passReste').textContent       = fmt(resteCharge);
     if (el('passMontantFinal'))el('passMontantFinal').textContent = fmt(total);
+
+    // Afficher la section rétrocession si remplaçant
+    var estRemplacant = (typeof window.getStatutFacturation === 'function')
+        ? window.getStatutFacturation() === 'remplacant'
+        : false;
+    var secRetro = el('passBlockRetrocession');
+    if (secRetro) {
+        if (estRemplacant) {
+            var tauxRetro = passGetTauxRetro();
+            var montantRetro = +(total * tauxRetro).toFixed(2);
+            var netRemplacant = +(total - montantRetro).toFixed(2);
+            secRetro.style.display = 'block';
+            if (el('passTauxRetro'))    el('passTauxRetro').textContent    = (tauxRetro * 100).toFixed(0) + '%';
+            if (el('passMontantRetro')) el('passMontantRetro').textContent = fmt(montantRetro);
+            if (el('passNetRemplacant'))el('passNetRemplacant').textContent = fmt(netRemplacant);
+        } else {
+            secRetro.style.display = 'none';
+        }
+    }
 }
 
 // ── ENREGISTRER ──────────────────────────────────────────────────────────────
@@ -239,6 +266,37 @@ window.enregistrerPassage = async function() {
     };
     var r2 = await sc.from('transactions').insert([transaction]);
     if (r2.error) { alert('Passage enregistré mais erreur transaction : ' + r2.error.message); }
+
+    // Si remplaçant → créer automatiquement la dépense rétrocession
+    var estRemplacant = (typeof window.getStatutFacturation === 'function')
+        ? window.getStatutFacturation() === 'remplacant' : false;
+    if (estRemplacant && PASS.cabinetId) {
+        var tauxRetro = passGetTauxRetro();
+        var montantRetro = +(total * tauxRetro).toFixed(2);
+        var cab = (window.PT && PT.cabinets)
+            ? PT.cabinets.find(function(c){ return c.id === PASS.cabinetId; }) : null;
+        var nomCab = cab ? (cab.nom_titulaire || cab.nom) : 'Titulaire';
+        var depRetro = {
+            date: date,
+            type: 'depense',
+            category: 'Rétrocession honoraires',
+            description: 'Rétrocession ' + (tauxRetro*100).toFixed(0) + '% — ' + nomCab + ' (passage ' + nomPatient + ')',
+            amount: montantRetro,
+            payment_method: 'Virement',
+            notes: 'Rétrocession automatique passage du ' + date
+        };
+        var r3 = await sc.from('transactions').insert([depRetro]);
+        if (!r3.error) {
+            alert('✅ Passage enregistré !
+
+Recette : ' + total.toFixed(2) + ' €
+Rétrocession (' + (tauxRetro*100).toFixed(0) + '%) : -' + montantRetro.toFixed(2) + ' €
+Net remplaçant : ' + (total - montantRetro).toFixed(2) + ' €
+Part SS encaissée : ' + partSS.toFixed(2) + ' €');
+            if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
+            return;
+        }
+    }
 
     // 3. Fermer et rafraîchir
     document.getElementById('passModal').style.display = 'none';

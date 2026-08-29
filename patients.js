@@ -56,14 +56,17 @@ async function ptSauvegarderCabinet(e) {
     if (e) e.preventDefault();
     if (!ptSC()) return;
     var data = {
-        nom:         document.getElementById('ptCabNom').value.trim(),
-        adresse:     document.getElementById('ptCabAdresse').value.trim(),
-        code_postal: document.getElementById('ptCabCP').value.trim(),
-        ville:       document.getElementById('ptCabVille').value.trim(),
-        telephone:   document.getElementById('ptCabTel').value.trim(),
-        email:       document.getElementById('ptCabEmail').value.trim(),
-        siret:       document.getElementById('ptCabSiret').value.trim(),
-        responsable: document.getElementById('ptCabResponsable').value.trim(),
+        nom:              document.getElementById('ptCabNom').value.trim(),
+        adresse:          document.getElementById('ptCabAdresse').value.trim(),
+        code_postal:      document.getElementById('ptCabCP').value.trim(),
+        ville:            document.getElementById('ptCabVille').value.trim(),
+        telephone:        document.getElementById('ptCabTel').value.trim(),
+        email:            document.getElementById('ptCabEmail').value.trim(),
+        siret:            document.getElementById('ptCabSiret').value.trim(),
+        responsable:      document.getElementById('ptCabResponsable').value.trim(),
+        nom_titulaire:    document.getElementById('ptCabNomTitulaire')?.value.trim() || null,
+        taux_retrocession:parseFloat(document.getElementById('ptCabRetrocession')?.value) || 35,
+        iban:             document.getElementById('ptCabIBAN')?.value.trim() || null,
         actif: true
     };
     if (!data.nom) { alert('Le nom du cabinet est obligatoire'); return; }
@@ -111,7 +114,10 @@ function ptEditerCabinet(id) {
     PT.cabinetEdite = id;
     var champs = {ptCabNom:c.nom, ptCabAdresse:c.adresse, ptCabCP:c.code_postal,
                   ptCabVille:c.ville, ptCabTel:c.telephone, ptCabEmail:c.email,
-                  ptCabSiret:c.siret, ptCabResponsable:c.responsable};
+                  ptCabSiret:c.siret, ptCabResponsable:c.responsable,
+                  ptCabNomTitulaire:c.nom_titulaire, ptCabIBAN:c.iban};
+    var retEl = document.getElementById('ptCabRetrocession');
+    if (retEl) retEl.value = c.taux_retrocession || 35;
     Object.keys(champs).forEach(function(k) {
         var el = document.getElementById(k);
         if (el) el.value = champs[k] || '';
@@ -342,3 +348,11 @@ window.ptFermerFiche          = ptFermerFiche;
 window.ptEditerPatient        = ptEditerPatient;
 window.ptAjouterPassage       = ptAjouterPassage;
 window.ptRenduPatients        = ptRenduPatients;
+
+
+// ── Récupérer le taux de rétrocession d'un cabinet ───────────────────────────
+window.getTauxRetrocession = function(cabinetId) {
+    if (!cabinetId || !window.PT || !PT.cabinets) return 35;
+    var cab = PT.cabinets.find(function(c){ return c.id === cabinetId; });
+    return cab ? (cab.taux_retrocession || 35) : 35;
+};
