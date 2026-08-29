@@ -344,6 +344,74 @@ window.chargerRecapitulatifRemplacant = async function() {
     var totalNet=+(totalBrut-totalRetro).toFixed(2);
     var nonTransmis=passages.filter(function(p){return !p.transmis;}).length;
 
+    // Détail par code NGAP
+    var detailCodes = {};
+    passages.forEach(function(p) {
+        var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
+        var majes=[]; try{majes=JSON.parse(p.majorations||'[]');}catch(e){}
+        actes.forEach(function(a) {
+            var k = a.code;
+            if (!detailCodes[k]) detailCodes[k] = {code:k, nb:0, qte:0, total:0, type:'acte'};
+            detailCodes[k].nb++;
+            detailCodes[k].qte += (a.qte||1);
+            detailCodes[k].total += pTarif(a)*(a.qte||1);
+        });
+        majes.forEach(function(m) {
+            var t=window.passT();
+            if (!detailCodes[m.code]) detailCodes[m.code] = {code:m.code, nb:0, qte:0, total:0, type:'majo'};
+            detailCodes[m.code].nb++;
+            detailCodes[m.code].qte++;
+            detailCodes[m.code].total += (t[m.type]||0);
+        });
+    });
+
+    // Afficher le détail par code
+    var elDetail = pEl('recapDetailCodes');
+    if (elDetail) {
+        var codes = Object.values(detailCodes).sort(function(a,b){return b.total-a.total;});
+        if (!codes.length) {
+            elDetail.innerHTML = '<p style="color:#94a3b8;font-size:13px;">Aucun acte.</p>';
+        } else {
+            var totalActesSeuls = codes.filter(function(c){return c.type==='acte';}).reduce(function(s,c){return s+c.total;},0);
+            elDetail.innerHTML = '<table><thead><tr>'
+                +'<th>Code NGAP</th><th style="text-align:center;">Nb passages</th>'
+                +'<th style="text-align:center;">Qté totale</th>'
+                +'<th style="text-align:right;">Total brut</th>'
+                +'<th style="text-align:right;">Rétrocession ('+taux+'%)</th>'
+                +'<th style="text-align:right;">Votre net</th>'
+                +'<th style="text-align:right;">% du CA</th>'
+                +'</tr></thead><tbody>'
+                +codes.map(function(c) {
+                    var retro = +(c.total*taux/100).toFixed(2);
+                    var net   = +(c.total-retro).toFixed(2);
+                    var pct   = totalBrut>0 ? (c.total/totalBrut*100).toFixed(1) : '0';
+                    var isMajo = c.type==='majo';
+                    return '<tr style="background:'+(isMajo?'#f8fafc':'#fff')+'">'
+                        +'<td><code style="background:#e2e8f0;padding:2px 8px;border-radius:4px;font-weight:bold;font-size:12px;">'+c.code+'</code>'
+                        +(isMajo?' <span style="font-size:10px;color:#64748b;">(majoration)</span>':'')+'</td>'
+                        +'<td style="text-align:center;">'+c.nb+'</td>'
+                        +'<td style="text-align:center;font-weight:600;">'+c.qte+'</td>'
+                        +'<td style="text-align:right;font-weight:600;color:#2563eb;">'+pFmt(c.total)+'</td>'
+                        +'<td style="text-align:right;color:#dc2626;">'+pFmt(retro)+'</td>'
+                        +'<td style="text-align:right;font-weight:700;color:#16a34a;">'+pFmt(net)+'</td>'
+                        +'<td style="text-align:right;">'
+                        +'<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">'
+                        +'<div style="width:60px;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">'
+                        +'<div style="width:'+pct+'%;height:100%;background:'+(isMajo?'#f59e0b':'#2563eb')+';border-radius:3px;"></div></div>'
+                        +pct+' %</div></td>'
+                        +'</tr>';
+                }).join('')
+                +'<tr style="background:#1e293b;color:white;font-weight:700;">'
+                +'<td colspan="3" style="padding:8px 12px;">TOTAL</td>'
+                +'<td style="text-align:right;padding:8px 12px;">'+pFmt(totalBrut)+'</td>'
+                +'<td style="text-align:right;padding:8px 12px;">'+pFmt(totalRetro)+'</td>'
+                +'<td style="text-align:right;padding:8px 12px;">'+pFmt(totalNet)+'</td>'
+                +'<td style="text-align:right;padding:8px 12px;">100 %</td>'
+                +'</tr>'
+                +'</tbody></table>';
+        }
+    }
+
     var el=function(id,v){var e=pEl(id);if(e)e.textContent=v;};
     el('recapNbPassages',passages.length);
     el('recapTotalBrut',pFmt(totalBrut));
@@ -545,6 +613,48 @@ window.exporterRecapPDF = function() {
     var fmtD=function(s){try{return new Date(s).toLocaleDateString('fr-FR');}catch(e){return s;}};
     var labels={jour:'Journée',semaine:'Semaine',quinzaine:'Quinzaine',mois:'Mois',libre:'Période'};
 
+    // Tableau synthèse par code pour le PDF
+    var detailPDF = {};
+    d.passages.forEach(function(p) {
+        var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
+        var majes=[]; try{majes=JSON.parse(p.majorations||'[]');}catch(e){}
+        actes.forEach(function(a){ var k=a.code;
+            if(!detailPDF[k]) detailPDF[k]={code:k,nb:0,qte:0,total:0};
+            detailPDF[k].nb++; detailPDF[k].qte+=(a.qte||1); detailPDF[k].total+=parseFloat(a.tarif||(a.coeff*3.15)||0)*(a.qte||1);
+        });
+        majes.forEach(function(m){ var k=m.code;
+            if(!detailPDF[k]) detailPDF[k]={code:k,nb:0,qte:0,total:0};
+            detailPDF[k].nb++; detailPDF[k].qte++; detailPDF[k].total+=(window.passT()[m.type]||0);
+        });
+    });
+    var lignesSynthese=Object.values(detailPDF).sort(function(a,b){return b.total-a.total;}).map(function(c,i){
+        var retro=+(c.total*d.taux/100).toFixed(2);
+        return '<tr style="background:'+(i%2===0?'#fff':'#f8fafc')+'">'
+            +'<td style="padding:4px 7px;border:1px solid #e2e8f0;font-weight:bold;font-size:10px;">'+c.code+'</td>'
+            +'<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:center;">'+c.nb+'</td>'
+            +'<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:center;font-weight:600;">'+c.qte+'</td>'
+            +'<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:right;color:#1d4ed8;font-weight:600;">'+fmtE(c.total)+'</td>'
+            +'<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:right;color:#dc2626;">'+fmtE(retro)+'</td>'
+            +'<td style="padding:4px 7px;border:1px solid #e2e8f0;text-align:right;color:#15803d;font-weight:700;">'+fmtE(c.total-retro)+'</td>'
+            +'</tr>';
+    }).join('');
+    var tableSynthese='<h3 style="font-size:12px;margin:15px 0 6px;color:#1d4ed8;border-bottom:2px solid #1d4ed8;padding-bottom:3px;">SYNTHÈSE PAR CODE NGAP</h3>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px;"><thead>'
+        +'<tr style="background:#1d4ed8;color:white;">'
+        +'<th style="padding:5px 7px;text-align:left;">Code</th>'
+        +'<th style="padding:5px 7px;text-align:center;">Passages</th>'
+        +'<th style="padding:5px 7px;text-align:center;">Quantité</th>'
+        +'<th style="padding:5px 7px;text-align:right;">Total brut</th>'
+        +'<th style="padding:5px 7px;text-align:right;">Rétro. '+d.taux+'%</th>'
+        +'<th style="padding:5px 7px;text-align:right;">Net</th></tr></thead>'
+        +'<tbody>'+lignesSynthese+'</tbody>'
+        +'<tfoot><tr style="background:#1e293b;color:white;font-weight:bold;">'
+        +'<td colspan="3" style="padding:5px 7px;border:1px solid #ddd;">TOTAL</td>'
+        +'<td style="padding:5px 7px;border:1px solid #ddd;text-align:right;">'+fmtE(d.totalBrut)+'</td>'
+        +'<td style="padding:5px 7px;border:1px solid #ddd;text-align:right;">'+fmtE(d.totalRetro)+'</td>'
+        +'<td style="padding:5px 7px;border:1px solid #ddd;text-align:right;">'+fmtE(d.totalNet)+'</td>'
+        +'</tr></tfoot></table>';
+
     var lignes=d.passages.map(function(p,i){
         var pt=p.patients||{};
         var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
@@ -602,6 +712,8 @@ window.exporterRecapPDF = function() {
         +'<div class="kpi" style="background:#f0fdf4;"><div style="color:#64748b;font-size:9px;">NET REMPLAÇANTE</div><div style="font-size:16px;font-weight:bold;color:#15803d;">'+fmtE(d.totalNet)+'</div></div>'
         +(d.nonTransmis>0?'<div class="kpi" style="background:#fffbeb;"><div style="color:#64748b;font-size:9px;">NON TRANSMIS</div><div style="font-size:16px;font-weight:bold;color:#f59e0b;">'+d.nonTransmis+'</div></div>':'')
         +'</div>'
+        +tableSynthese
+        +'<h3 style="font-size:12px;margin:0 0 6px;color:#1d4ed8;border-bottom:2px solid #1d4ed8;padding-bottom:3px;">DÉTAIL DES PASSAGES</h3>'
         +'<table><thead><tr style="background:#1d4ed8;color:white;">'
         +'<th style="padding:6px 7px;text-align:left;">Date</th><th style="padding:6px 7px;text-align:left;">Heure</th>'
         +'<th style="padding:6px 7px;text-align:left;">Patient</th><th style="padding:6px 7px;text-align:left;">N° Sécu</th>'
