@@ -262,8 +262,12 @@ async function sauvegarderProfilSupabase(e) {
     comptable_tel: document.getElementById('prof-comptable-tel')?.value || null,
     comptable_email: document.getElementById('prof-comptable-email')?.value || null,
     exercice_debut: document.getElementById('prof-exercice-debut')?.value || null,
-    exercice_fin: document.getElementById('prof-exercice-fin')?.value || null
+    exercice_fin: document.getElementById('prof-exercice-fin')?.value || null,
+    statut_exercice: document.querySelector('input[name="statut_exercice"]:checked')?.value || 'titulaire'
   };
+
+  // Mettre à jour la fonction globale pour la facturation
+  window._statutExerciceCache = payload.statut_exercice;
 
   localStorage.setItem('profil_praticien', JSON.stringify(payload));
 
@@ -303,3 +307,54 @@ window.initProfil = function() {
 };
 
 document.addEventListener('DOMContentLoaded', window.initProfil);
+
+
+// ── Helpers statut d'exercice ─────────────────────────────────────────────
+
+window.mettreAJourStatutVisuel = function() {
+  var val = document.querySelector('input[name="statut_exercice"]:checked')?.value || 'titulaire';
+  var info = document.getElementById('info-statut-exercice');
+  var lblT = document.querySelector('label[for="statut-titulaire"]') || document.querySelector('label:has(#statut-titulaire)');
+  var lblR = document.querySelector('label[for="statut-remplacant"]') || document.querySelector('label:has(#statut-remplacant)');
+
+  // Mettre à jour les styles des labels
+  document.querySelectorAll('input[name="statut_exercice"]').forEach(function(radio) {
+    var lbl = radio.closest('label');
+    if (!lbl) return;
+    var actif = radio.checked;
+    lbl.style.border = actif ? '2px solid #2563eb' : '2px solid #cbd5e1';
+    lbl.style.background = actif ? '#eff6ff' : '#f8fafc';
+  });
+
+  if (info) {
+    if (val === 'remplacant') {
+      info.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;';
+      info.textContent = '⚠️ Remplaçant(e) : vous facturez sous le n° de la titulaire. Une rétrocession (30-40%) lui est reversée.';
+    } else {
+      info.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;';
+      info.textContent = 'ℹ️ Titulaire : vous facturez directement à la CPAM avec votre propre numéro conventionnel.';
+    }
+  }
+  window._statutExerciceCache = val;
+};
+
+/**
+ * Retourne le statut d'exercice depuis le profil sauvegardé.
+ * Utilisé par passages.js et ngap.js pour adapter la facturation.
+ * @returns {'titulaire'|'remplacant'}
+ */
+window.getStatutFacturation = function() {
+  if (window._statutExerciceCache) return window._statutExerciceCache;
+  try {
+    var local = JSON.parse(localStorage.getItem('profil_praticien') || '{}');
+    return local.statut_exercice || 'titulaire';
+  } catch(e) { return 'titulaire'; }
+};
+
+// Initialiser le cache au chargement
+(function() {
+  try {
+    var local = JSON.parse(localStorage.getItem('profil_praticien') || '{}');
+    window._statutExerciceCache = local.statut_exercice || 'titulaire';
+  } catch(e) { window._statutExerciceCache = 'titulaire'; }
+})();
