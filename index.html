@@ -133,6 +133,12 @@
                 <div class="nav-item" data-tab="vue-patients" onclick="goTo('vue-patients',this)">
                     <span class="nav-icon">👥</span><span class="nav-label">Patients & Cabinets</span>
                 </div>
+                <div class="nav-item" data-tab="vue-passages" onclick="goTo('vue-passages',this)">
+                    <span class="nav-icon">🩺</span><span class="nav-label">Passages du jour</span>
+                </div>
+                <div class="nav-item" data-tab="vue-export-cpam" onclick="goTo('vue-export-cpam',this)">
+                    <span class="nav-icon">📤</span><span class="nav-label">Export CPAM</span>
+                </div>
             </div>
 
             <div class="nav-group">
@@ -602,7 +608,8 @@
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
             <div style="background:#eff6ff;border-radius:8px;padding:15px;text-align:center;">
                 <div style="font-size:12px;color:#64748b;margin-bottom:4px;">Patients actifs</div>
-                <div id="ptNbTotal" style="font-size:1.8em;font-weight:bold;color:#2563eb;">0</div>
+
+                  <div id="ptNbTotal" style="font-size:1.8em;font-weight:bold;color:#2563eb;">0</div>
             </div>
             <div style="background:#fef2f2;border-radius:8px;padding:15px;text-align:center;">
                 <div style="font-size:12px;color:#64748b;margin-bottom:4px;">Patients ALD</div>
@@ -1045,6 +1052,12 @@ var PAGE_INITS = {
     'vue-balance':      function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
     'vue-profil':       function(){ if(typeof window.initProfil==='function') window.initProfil(); },
     'vue-patients':     function(){ if(typeof window.initPatients==='function') window.initPatients(); },
+    'vue-passages':     function(){ if(typeof window.chargerDashboardPassages==='function') window.chargerDashboardPassages(); },
+    'vue-export-cpam':  function(){
+        var d = new Date(); var m = ('0'+(d.getMonth()+1)).slice(-2);
+        var e1=document.getElementById('cpamDebut'); if(e1) e1.value=d.getFullYear()+'-'+m+'-01';
+        var e2=document.getElementById('cpamFin'); if(e2) e2.value=d.toISOString().split('T')[0];
+    },
     'vue-ngap':         function(){ if(typeof window.initNGAP==='function') window.initNGAP(); },
     'vue-dashboard':    dashboardInit
 };
@@ -1072,7 +1085,9 @@ window.goTo = function(tabId, navEl) {
         'vue-2035':'📑 2035 / 2042','vue-journal':'📖 Journal Général',
         'vue-grandlivre':'📚 Grand Livre','vue-balance':'⚖️ Balance des Comptes',
         'vue-profil':'👤 Mon Profil','vue-patients':'👥 Patients & Cabinets',
-        'vue-ngap':'💊 Nomenclature NGAP'
+        'vue-ngap':'💊 Nomenclature NGAP',
+        'vue-passages':'🩺 Passages du jour',
+        'vue-export-cpam':'📤 Export CPAM'
     };
     var titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[tabId] || tabId;
@@ -1157,6 +1172,47 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="statistiques.js"></script>
 <script src="export_comptable.js"></script>
 <script src="journal.js"></script>
+
+    <!-- VUE PASSAGES DU JOUR -->
+    <section id="vue-passages" class="view-section">
+        <div class="dashboard-grid" style="margin-bottom:20px;">
+            <div class="kpi-card blue"><div class="kpi-label">Passages aujourd'hui</div><div class="kpi-value" id="dashPassagesJour">—</div></div>
+            <div class="kpi-card green"><div class="kpi-label">CA du jour</div><div class="kpi-value" id="dashCAJour">—</div></div>
+            <div class="kpi-card orange"><div class="kpi-label">Passages ce mois</div><div class="kpi-value" id="dashPassagesMois">—</div></div>
+            <div class="kpi-card green"><div class="kpi-label">CA du mois</div><div class="kpi-value" id="dashCAMois">—</div></div>
+        </div>
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                <h3 style="margin:0;">🩺 Passages du jour</h3>
+                <button onclick="chargerDashboardPassages()" class="btn-primary" style="padding:7px 14px;font-size:12px;">🔄 Actualiser</button>
+            </div>
+            <div id="dashListePassagesJour"><p style="color:#94a3b8;text-align:center;padding:20px;">Chargement...</p></div>
+        </div>
+    </section>
+
+    <!-- VUE EXPORT CPAM -->
+    <section id="vue-export-cpam" class="view-section">
+        <div class="card">
+            <h3>📤 Export des passages pour la CPAM</h3>
+            <p style="color:#64748b;margin-bottom:20px;font-size:13px;">Exportez vos passages sous forme de fichier CSV. Chaque ligne = un passage facturé avec le détail NGAP complet.</p>
+            <div class="form-grid" style="max-width:500px;">
+                <div class="form-group"><label class="form-label">Date de début</label><input type="date" id="cpamDebut" class="form-control"></div>
+                <div class="form-group"><label class="form-label">Date de fin</label><input type="date" id="cpamFin" class="form-control"></div>
+            </div>
+            <button onclick="exporterPassagesCPAM()" class="btn-primary" style="padding:10px 24px;margin-top:15px;">📥 Télécharger le CSV CPAM</button>
+            <div style="margin-top:20px;padding:15px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:13px;">📋 Colonnes du fichier :</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    <span class="badge badge-blue">Date</span><span class="badge badge-blue">Heure</span>
+                    <span class="badge badge-blue">Patient</span><span class="badge badge-blue">N° Sécu</span>
+                    <span class="badge badge-blue">Actes NGAP</span><span class="badge badge-blue">Montant</span>
+                    <span class="badge badge-blue">Part SS</span><span class="badge badge-blue">Type ALD/Std</span>
+                    <span class="badge badge-blue">N° Facture</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
 <script src="grand-livre.js"></script>
 <script src="balance.js"></script>
 <script src="profil.js"></script>
@@ -1164,5 +1220,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="passages.js"></script>
 <script src="ngap.js"></script>
 
-</body>
-</html>
+
+
+
+                
