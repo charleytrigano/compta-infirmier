@@ -47,7 +47,7 @@ body {
 
 /* ── LAYOUT PRINCIPAL ─────────────────────────────────────── */
 #app-content {
-    display: flex;
+    display: block;
     min-height: 100vh;
 }
 
@@ -61,8 +61,63 @@ body {
     top: 0; left: 0; bottom: 0;
     z-index: 100;
     overflow-y: auto;
-    transition: transform 0.25s ease;
+    overflow-x: hidden;
+    transition: width 0.25s ease, transform 0.25s ease;
 }
+
+/* Sidebar rétractée */
+#sidebar.collapsed {
+    width: 56px;
+}
+#sidebar.collapsed .nav-label,
+#sidebar.collapsed .nav-group-title,
+#sidebar.collapsed .nav-badge,
+#sidebar.collapsed .subtitle,
+#sidebar.collapsed .user-info,
+#sidebar.collapsed #sidebar-footer span {
+    display: none;
+}
+#sidebar.collapsed #sidebar-logo h1 {
+    font-size: 18px;
+    text-align: center;
+}
+#sidebar.collapsed .nav-item {
+    padding: 10px;
+    justify-content: center;
+}
+#sidebar.collapsed .nav-icon {
+    width: auto;
+    font-size: 18px;
+}
+#sidebar.collapsed #sidebar-user {
+    justify-content: center;
+    padding: 10px;
+}
+#sidebar.collapsed #btn-deconnexion {
+    justify-content: center;
+    padding: 8px;
+    font-size: 16px;
+}
+#sidebar.collapsed #btn-toggle-sidebar {
+    justify-content: center;
+}
+
+/* Bouton toggle */
+#btn-toggle-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    background: none;
+    border: none;
+    color: var(--sidebar-text);
+    cursor: pointer;
+    font-size: 16px;
+    width: 100%;
+    border-bottom: 1px solid #334155;
+    transition: all 0.15s;
+}
+#btn-toggle-sidebar:hover { background: var(--sidebar-hover); }
 
 #sidebar-logo {
     padding: 16px 20px;
@@ -200,10 +255,18 @@ body {
 /* ── CONTENU PRINCIPAL ────────────────────────────────────── */
 #main-content {
     margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    position: relative;
+    transition: margin-left 0.25s ease, width 0.25s ease;
+}
+
+body.sidebar-collapsed #main-content {
+    margin-left: 56px;
+    width: calc(100% - 56px);
 }
 
 /* Topbar */
@@ -242,6 +305,8 @@ body {
 #page-body {
     flex: 1;
     padding: 24px;
+    max-width: 1400px;
+    width: 100%;
 }
 
 /* Bouton hamburger mobile */

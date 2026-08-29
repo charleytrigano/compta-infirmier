@@ -42,6 +42,12 @@
 
     <!-- SIDEBAR -->
     <aside id="sidebar">
+        <!-- Bouton toggle sidebar -->
+        <button id="btn-toggle-sidebar" onclick="toggleSidebarCollapse()" title="Réduire/Agrandir le menu">
+            <span id="sidebar-toggle-icon">◀</span>
+            <span class="nav-label" id="sidebar-toggle-label" style="font-size:12px;">Réduire</span>
+        </button>
+
         <div id="sidebar-logo">
             <h1>🩺 Comptabilité<br>Infirmière</h1>
             <div class="subtitle">Gestion libérale</div>
@@ -1063,6 +1069,12 @@ var PAGE_INITS = {
     'vue-patients':     function(){ if(typeof window.initPatients==='function') window.initPatients(); },
     'vue-passages':     function(){ if(typeof window.chargerDashboardPassages==='function') window.chargerDashboardPassages(); },
     'vue-recap-remplacant': function(){
+        // Pré-remplir les dates si vides
+        var today = new Date();
+        var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
+        var fin   = today.toISOString().split('T')[0];
+        var d1=document.getElementById('recapDebut'); if(d1&&!d1.value) d1.value=debut;
+        var d2=document.getElementById('recapFin');   if(d2&&!d2.value) d2.value=fin;
         // Pré-remplir les selects cabinets
         var sel=document.getElementById('recapCabinet');
         if(sel && window.PT && PT.cabinets) {
@@ -1120,6 +1132,30 @@ window.goTo = function(tabId, navEl) {
 // Rétrocompatibilité
 window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
+window.toggleSidebarCollapse = function() {
+    var sidebar = document.getElementById('sidebar');
+    var icon    = document.getElementById('sidebar-toggle-icon');
+    var label   = document.getElementById('sidebar-toggle-label');
+    var collapsed = sidebar.classList.toggle('collapsed');
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    if (icon)  icon.textContent  = collapsed ? '▶' : '◀';
+    if (label) label.textContent = collapsed ? 'Agrandir' : 'Réduire';
+    localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
+};
+
+// Restaurer l'état de la sidebar au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    if (localStorage.getItem('sidebar_collapsed') === '1') {
+        var sidebar = document.getElementById('sidebar');
+        var icon    = document.getElementById('sidebar-toggle-icon');
+        var label   = document.getElementById('sidebar-toggle-label');
+        if (sidebar) sidebar.classList.add('collapsed');
+        document.body.classList.add('sidebar-collapsed');
+        if (icon)  icon.textContent  = '▶';
+        if (label) label.textContent = 'Agrandir';
+    }
+});
+
 window.toggleSidebar = function() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('sidebar-overlay').classList.toggle('open');
@@ -1133,22 +1169,14 @@ window.chargerHistoriquePatientActif = function() {
 };
 
 window.toggleRecapLibre = function() {
-    var val = (document.getElementById('recapPeriode')||{}).value;
-    var bl  = document.getElementById('recapLibreBlock');
-    if (!bl) return;
-    if (val === 'libre') {
-        bl.style.display = 'flex';
-        // Pré-remplir avec le mois en cours
-        var today = new Date();
-        var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
-        var fin   = today.toISOString().split('T')[0];
-        var d1 = document.getElementById('recapDebut');
-        var d2 = document.getElementById('recapFin');
-        if (d1 && !d1.value) d1.value = debut;
-        if (d2 && !d2.value) d2.value = fin;
-    } else {
-        bl.style.display = 'none';
-    }
+    // Les dates sont toujours visibles - pré-remplir si vides
+    var today = new Date();
+    var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
+    var fin   = today.toISOString().split('T')[0];
+    var d1 = document.getElementById('recapDebut');
+    var d2 = document.getElementById('recapFin');
+    if (d1 && !d1.value) d1.value = debut;
+    if (d2 && !d2.value) d2.value = fin;
 };
 
 window._ptFicheId = null;
@@ -1259,12 +1287,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         <option value="semaine">Semaine en cours</option>
                         <option value="quinzaine">Quinzaine</option>
                         <option value="mois" selected>Mois en cours</option>
-                        <option value="libre">Période libre</option>
+                        <option value="libre">Période libre ▼</option>
                     </select>
                 </div>
-                <div id="recapLibreBlock" style="display:none;gap:8px;flex-wrap:wrap;">
-                    <div><label class="form-label">Du</label><input type="date" id="recapDebut" class="form-control" style="width:140px;"></div>
-                    <div><label class="form-label">Au</label><input type="date" id="recapFin" class="form-control" style="width:140px;"></div>
+                <div>
+                    <label class="form-label">Du</label>
+                    <input type="date" id="recapDebut" class="form-control" style="width:140px;">
+                </div>
+                <div>
+                    <label class="form-label">Au</label>
+                    <input type="date" id="recapFin" class="form-control" style="width:140px;">
                 </div>
                 <div>
                     <label class="form-label">Cabinet</label>
