@@ -49,7 +49,6 @@ body {
 #app-content {
     display: block;
     min-height: 100vh;
-    overflow-x: hidden;
 }
 
 /* ── SIDEBAR ──────────────────────────────────────────────── */
@@ -304,7 +303,6 @@ body {
     padding: 24px;
     width: 100%;
     box-sizing: border-box;
-    overflow-x: hidden;
 }
 
 /* Bouton hamburger mobile */
@@ -600,7 +598,7 @@ tr:last-child td { border-bottom: none; }
 #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
 
 /* ── Fixes globaux débordement ─────────────────────────── */
-.card { overflow: hidden; }
+.card { overflow: visible; }
 table { table-layout: fixed; word-break: break-word; }
 .view-section { width: 100%; box-sizing: border-box; }
 .dashboard-grid { width: 100%; }
