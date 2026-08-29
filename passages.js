@@ -222,7 +222,8 @@ window.enregistrerPassage = async function() {
     if(confirm('Générer la feuille de soins PDF ?')){
         genererFdSPrint({patient:p,cabinet:PASS.cabinet,date:date,heure:heure,
             actes:PASS.actes,majorations:PASS.majorations,
-            total:total,partSS:partSS,estALD:ald,numF:numF});
+            total:total,partSS:partSS,estALD:ald,numF:numF,
+            notes:notes});
     }
 };
 
@@ -500,6 +501,9 @@ function genererFdSPrint(opts) {
         +'<div class="sign-box">Signature patient :<br><br><br></div>'
         +'<div class="sign-box" style="font-size:10px;color:#888;">Généré le '+new Date().toLocaleDateString('fr-FR')+'<br>N° facture : '+opts.numF+'</div>'
         +'</div>'
+        +(opts.notes?'<div style="margin-top:15px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;">'
+        +'<strong style="font-size:12px;">📝 Notes / Observations :</strong>'
+        +'<p style="margin:5px 0 0;font-size:12px;">'+opts.notes+'</p></div>':'')
         +'<div style="text-align:center;margin-top:15px;">'
         +'<button onclick="window.print()" style="background:#1d4ed8;color:white;border:none;padding:10px 30px;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;">🖨️ Imprimer / Enregistrer en PDF</button></div>'
         +'</body></html>';
@@ -524,7 +528,8 @@ window.genererFdSPassage = async function(passageId) {
         date:p.date_passage,heure:p.heure_passage,
         actes:actes,majorations:majes,
         total:p.montant_total,partSS:p.remboursement_ss,
-        estALD:p.type_remboursement==='ald',numF:p.facture_numero});
+        estALD:p.type_remboursement==='ald',numF:p.facture_numero,
+        notes:p.notes});
 };
 
 // -- PDF RÉCAPITULATIF RÉTROCESSION --------------------------------------------
