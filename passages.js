@@ -745,17 +745,61 @@ window.exporterRecapCSV = function() {
     var d=window._recapData;
     if(!d||!d.passages){alert('Chargez d\'abord le récapitulatif');return;}
     var fmtE=function(n){return parseFloat(n||0).toFixed(2);};
-    var csv='Date;Heure;Patient;N\u00b0S\u00e9cu;ALD;Actes;Brut;R\u00e9trocession '+d.taux+'%;Net;Transmis;Date transmission\n'
+
+    // ── Section 1 : Synthèse par code NGAP ───────────────────────────────────
+    var detailCSV = {};
+    d.passages.forEach(function(p) {
+        var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
+        var majes=[]; try{majes=JSON.parse(p.majorations||'[]');}catch(e){}
+        actes.forEach(function(a) {
+            var k=a.code;
+            if(!detailCSV[k]) detailCSV[k]={code:k,nb:0,qte:0,total:0};
+            detailCSV[k].nb++; detailCSV[k].qte+=(a.qte||1);
+            detailCSV[k].total+=pTarif(a)*(a.qte||1);
+        });
+        majes.forEach(function(m) {
+            var t=window.passT();
+            if(!detailCSV[m.code]) detailCSV[m.code]={code:m.code,nb:0,qte:0,total:0};
+            detailCSV[m.code].nb++; detailCSV[m.code].qte++;
+            detailCSV[m.code].total+=(t[m.type]||0);
+        });
+    });
+
+    var synthese = 'SYNTHESE PAR CODE NGAP\n'
+        +'Periode;Du '+d.debut+';Au '+d.fin+'\n'
+        +'Cabinet;'+(d.cab?d.cab.nom:'Tous')+'\n'
+        +'Taux retrocession;'+d.taux+'%\n\n'
+        +'Code NGAP;Nb passages;Quantite totale;Total brut;Retrocession '+d.taux+'%;Votre net\n'
+        +Object.values(detailCSV).sort(function(a,b){return b.total-a.total;}).map(function(c){
+            var retro=+(c.total*d.taux/100).toFixed(2);
+            return [c.code, c.nb, c.qte,
+                fmtE(c.total), fmtE(retro), fmtE(c.total-retro)].join(';');
+        }).join('\n')
+        +'\n'
+        +'TOTAL;;'+fmtE(d.passages.reduce(function(s,p){return s+(parseFloat(p.montant_total)||0);},0))
+        +';'+fmtE(d.totalRetro)+';'+fmtE(d.totalNet)+'\n';
+
+    // ── Section 2 : Détail des passages ──────────────────────────────────────
+    var detail = '\nDETAIL DES PASSAGES\n'
+        +'Date;Heure;Patient;N°Secu;ALD;Actes;Majorations;Brut;Retrocession '+d.taux+'%;Net;Transmis;Date transmission\n'
         +d.passages.map(function(p){
             var pt=p.patients||{};
             var actes=[]; try{actes=JSON.parse(p.actes||'[]');}catch(e){}
+            var majes=[]; try{majes=JSON.parse(p.majorations||'[]');}catch(e){}
             var brut=parseFloat(p.montant_total)||0;
-            return [p.date_passage,p.heure_passage||'',(pt.nom||'').toUpperCase()+' '+(pt.prenom||''),
-                pt.num_secu||'',p.type_remboursement==='ald'?'OUI':'NON',
-                actes.map(function(a){return a.code+(a.qte>1?'x'+a.qte:'');}).join('+'),
-                fmtE(brut),fmtE(brut*d.taux/100),fmtE(brut-brut*d.taux/100),
-                p.transmis?'OUI':'NON',p.date_transmission||''].join(';');
+            return [
+                p.date_passage, p.heure_passage||'',
+                (pt.nom||'').toUpperCase()+' '+(pt.prenom||''),
+                pt.num_secu||'',
+                p.type_remboursement==='ald'?'OUI':'NON',
+                actes.map(function(a){return a.code+(a.qte>1?'x'+a.qte:'');}).join(' + '),
+                majes.map(function(m){return m.code;}).join(' + '),
+                fmtE(brut), fmtE(brut*d.taux/100), fmtE(brut-brut*d.taux/100),
+                p.transmis?'OUI':'NON', p.date_transmission||''
+            ].join(';');
         }).join('\n');
+
+    var csv = synthese + detail;
     var a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
     a.download='Recap_Retrocession_'+d.debut+'_'+d.fin+'.csv';
