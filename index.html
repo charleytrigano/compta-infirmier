@@ -177,6 +177,9 @@
                 <div class="nav-item" data-tab="vue-export" onclick="goTo('vue-export',this)">
                     <span class="nav-icon">📁</span><span class="nav-label">Sauvegarde & Expert</span>
                 </div>
+                <div class="nav-item" data-tab="vue-aide" onclick="goTo('vue-aide',this)">
+                    <span class="nav-icon">📖</span><span class="nav-label">Mode d'emploi</span>
+                </div>
             </div>
 
         </nav>
@@ -1134,6 +1137,7 @@ window.goTo = function(tabId, navEl) {
         'vue-ngap':'💊 Nomenclature NGAP',
         'vue-passages':'🩺 Passages du jour',
         'vue-export-cpam':'📤 Export CPAM',
+        'vue-aide':'📖 Mode d\'emploi',
         'vue-recap-remplacant':'📋 Récapitulatif Rétrocession'
     };
     var titleEl = document.getElementById('page-title');
@@ -1500,6 +1504,693 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <script src="agenda.js"></script>
+
+<section id="vue-aide" class="view-section">
+<div style="max-width:860px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+
+<!-- ══ EN-TÊTE ══════════════════════════════════════════════════════════ -->
+<div style="background:linear-gradient(135deg,#1e293b 0%,#2563eb 100%);color:white;border-radius:12px;padding:30px;margin-bottom:24px;text-align:center;">
+    <div style="font-size:40px;margin-bottom:8px;">🩺</div>
+    <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;">Mode d'emploi</h1>
+    <p style="margin:0;opacity:0.85;font-size:14px;">Comptabilité Infirmière — Guide complet pour infirmières libérales</p>
+</div>
+
+<!-- ══ SOMMAIRE ═════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:24px;">
+    <h2 style="margin:0 0 14px;font-size:16px;color:#1e293b;">📋 Sommaire</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <a href="#aide-1" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">1. Première connexion &amp; Profil</a>
+        <a href="#aide-2" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">2. Créer un Cabinet infirmier</a>
+        <a href="#aide-3" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">3. Ajouter un Patient</a>
+        <a href="#aide-4" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">4. Agenda &amp; Rendez-vous</a>
+        <a href="#aide-5" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">5. Facturer un Passage</a>
+        <a href="#aide-6" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">6. Feuille de Soins PDF</a>
+        <a href="#aide-7" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">7. Récapitulatif Rétrocession</a>
+        <a href="#aide-8" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">8. Nomenclature NGAP</a>
+        <a href="#aide-9" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">9. Charges Sociales</a>
+        <a href="#aide-10" style="color:#2563eb;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;background:#f8fafc;">10. Sauvegarde &amp; Export</a>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 1 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-1" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #eff6ff;">
+        <div style="background:#2563eb;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">1</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Première connexion &amp; Profil</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">Lors de votre première utilisation, vous devez créer un compte puis renseigner votre profil professionnel. Ces informations apparaîtront sur toutes vos feuilles de soins.</p>
+
+    <!-- Illustration écran connexion -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">📱 Écran de connexion</div>
+        <svg viewBox="0 0 500 220" style="width:100%;border-radius:8px;">
+            <rect width="500" height="220" fill="#1e3a5f"/>
+            <rect x="150" y="20" width="200" height="180" rx="10" fill="white"/>
+            <circle cx="250" cy="55" r="18" fill="#2563eb" opacity=".15"/>
+            <text x="250" y="60" text-anchor="middle" font-size="18">🩺</text>
+            <text x="250" y="85" text-anchor="middle" font-size="10" font-weight="bold" fill="#1e293b">Comptabilité Infirmière</text>
+            <rect x="165" y="95" width="170" height="22" rx="4" fill="#f1f5f9" stroke="#e2e8f0"/>
+            <text x="175" y="110" font-size="8" fill="#94a3b8">Email</text>
+            <rect x="165" y="125" width="170" height="22" rx="4" fill="#f1f5f9" stroke="#e2e8f0"/>
+            <text x="175" y="140" font-size="8" fill="#94a3b8">Mot de passe</text>
+            <rect x="165" y="155" width="170" height="24" rx="6" fill="#2563eb"/>
+            <text x="250" y="171" text-anchor="middle" font-size="9" fill="white" font-weight="bold">Se connecter</text>
+            <text x="250" y="192" text-anchor="middle" font-size="8" fill="#94a3b8">Créer un compte</text>
+        </svg>
+    </div>
+
+    <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:12px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+        <strong style="color:#1d4ed8;">📌 Étapes :</strong>
+        <ol style="margin:8px 0 0;padding-left:18px;color:#1d4ed8;font-size:13px;line-height:1.8;">
+            <li>Cliquez <strong>"Créer un compte"</strong> → entrez votre email professionnel et un mot de passe</li>
+            <li>Après connexion, allez dans <strong>"Mon Profil"</strong> (tout en haut de la sidebar)</li>
+            <li>Renseignez : Nom, Prénom, ADELI, RPPS, SIRET, adresse, téléphone</li>
+            <li>Sélectionnez votre statut : <strong>Titulaire</strong> ou <strong>Remplaçant(e)</strong></li>
+            <li>Cliquez <strong>"💾 Enregistrer dans Supabase"</strong></li>
+        </ol>
+    </div>
+
+    <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#92400e;">⚠️ Important :</strong>
+        <p style="color:#92400e;font-size:13px;margin:4px 0 0;">Renseignez votre ADELI et RPPS : ils apparaîtront sur toutes vos feuilles de soins PDF. Sans ces numéros, vos documents ne seront pas valides.</p>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 2 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-2" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f0fdf4;">
+        <div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">2</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Créer un Cabinet infirmier</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">Le cabinet est obligatoire avant de créer des patients. Si vous êtes remplaçante, chaque cabinet correspond à une titulaire différente avec son propre taux de rétrocession.</p>
+
+    <svg viewBox="0 0 500 160" style="width:100%;border-radius:8px;margin-bottom:16px;">
+        <rect width="500" height="160" fill="#f8fafc" rx="8"/>
+        <!-- Fenêtre modale -->
+        <rect x="80" y="10" width="340" height="140" rx="8" fill="white" stroke="#e2e8f0"/>
+        <rect x="80" y="10" width="340" height="32" rx="8" fill="#1e293b"/>
+        <rect x="80" y="30" width="340" height="12" fill="#1e293b"/>
+        <text x="250" y="30" text-anchor="middle" font-size="10" fill="white" font-weight="bold">🏥 Nouveau Cabinet infirmier</text>
+        <!-- Champs -->
+        <text x="100" y="58" font-size="8" fill="#64748b" font-weight="bold">NOM DU CABINET *</text>
+        <rect x="100" y="62" width="140" height="16" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="106" y="73" font-size="7" fill="#94a3b8">Cabinet Saint-André</text>
+        <text x="260" y="58" font-size="8" fill="#64748b" font-weight="bold">TITULAIRE</text>
+        <rect x="260" y="62" width="140" height="16" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="266" y="73" font-size="7" fill="#94a3b8">IDE Dupont Marie</text>
+        <!-- Rétrocession -->
+        <rect x="100" y="86" width="340" height="20" rx="4" fill="#fffbeb" stroke="#fde68a"/>
+        <text x="110" y="99" font-size="8" fill="#92400e" font-weight="bold">⚡ TAUX RÉTROCESSION : 35%</text>
+        <text x="290" y="99" font-size="7" fill="#92400e">→ Modifiable selon accord</text>
+        <!-- IBAN -->
+        <text x="100" y="118" font-size="8" fill="#64748b" font-weight="bold">IBAN TITULAIRE</text>
+        <rect x="100" y="122" width="280" height="16" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="106" y="133" font-size="7" fill="#94a3b8">FR76 1234 5678 9012 3456 7890 123</text>
+        <!-- Bouton -->
+        <rect x="360" y="122" width="60" height="16" rx="4" fill="#2563eb"/>
+        <text x="390" y="133" text-anchor="middle" font-size="7" fill="white" font-weight="bold">💾 Enregistrer</text>
+    </svg>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-weight:700;font-size:13px;color:#1e293b;margin-bottom:8px;">📝 Champs obligatoires</div>
+            <ul style="margin:0;padding-left:16px;font-size:12px;color:#475569;line-height:1.9;">
+                <li><strong>Nom</strong> du cabinet</li>
+            </ul>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-weight:700;font-size:13px;color:#1e293b;margin-bottom:8px;">📝 Champs recommandés</div>
+            <ul style="margin:0;padding-left:16px;font-size:12px;color:#475569;line-height:1.9;">
+                <li>Nom du <strong>titulaire</strong></li>
+                <li>Taux de <strong>rétrocession</strong> (%)</li>
+                <li><strong>IBAN</strong> pour les virements</li>
+                <li>Adresse, téléphone</li>
+            </ul>
+        </div>
+    </div>
+
+    <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#166534;">💡 Astuce :</strong>
+        <p style="color:#166534;font-size:13px;margin:4px 0 0;">Si vous travaillez dans plusieurs cabinets, créez-en autant que nécessaire. Chaque patient sera rattaché à un cabinet spécifique, ce qui permet de gérer plusieurs taux de rétrocession différents.</p>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 3 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-3" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #fef3c7;">
+        <div style="background:#f59e0b;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">3</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Ajouter un Patient</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">Chaque patient doit être rattaché à un cabinet. La fiche patient contient toutes les informations nécessaires à la facturation et à la feuille de soins.</p>
+
+    <svg viewBox="0 0 500 200" style="width:100%;border-radius:8px;margin-bottom:16px;">
+        <rect width="500" height="200" fill="#f8fafc" rx="8"/>
+        <rect x="60" y="10" width="380" height="180" rx="8" fill="white" stroke="#e2e8f0"/>
+        <rect x="60" y="10" width="380" height="30" rx="8" fill="#1e293b"/>
+        <rect x="60" y="28" width="380" height="12" fill="#1e293b"/>
+        <text x="250" y="28" text-anchor="middle" font-size="10" fill="white" font-weight="bold">👤 Nouveau Patient</text>
+        <!-- Cabinet (obligatoire) -->
+        <rect x="80" y="46" width="340" height="20" rx="4" fill="#fffbeb" stroke="#fde68a"/>
+        <text x="90" y="59" font-size="8" fill="#92400e" font-weight="bold">🏥 CABINET ASSOCIÉ * (obligatoire)</text>
+        <text x="340" y="59" font-size="8" fill="#92400e">Cabinet Saint-André ▼</text>
+        <!-- Nom / Prénom -->
+        <text x="80" y="80" font-size="7" fill="#64748b" font-weight="bold">NOM *</text>
+        <rect x="80" y="83" width="150" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="86" y="93" font-size="7" fill="#94a3b8">DUPONT</text>
+        <text x="250" y="80" font-size="7" fill="#64748b" font-weight="bold">PRÉNOM *</text>
+        <rect x="250" y="83" width="150" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="256" y="93" font-size="7" fill="#94a3b8">Marie</text>
+        <!-- Date naissance / N°Sécu -->
+        <text x="80" y="110" font-size="7" fill="#64748b" font-weight="bold">DATE DE NAISSANCE</text>
+        <rect x="80" y="113" width="150" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="86" y="123" font-size="7" fill="#94a3b8">15/03/1952</text>
+        <text x="250" y="110" font-size="7" fill="#64748b" font-weight="bold">N° SÉCURITÉ SOCIALE</text>
+        <rect x="250" y="113" width="150" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="256" y="123" font-size="7" fill="#94a3b8">2 52 03 75 XXX XXX XX</text>
+        <!-- ALD -->
+        <rect x="80" y="134" width="340" height="18" rx="4" fill="#fef2f2" stroke="#fecaca"/>
+        <rect x="90" y="138" width="10" height="10" rx="2" fill="#dc2626"/>
+        <text x="108" y="147" font-size="8" fill="#dc2626" font-weight="bold">✓  Patient ALD — Prise en charge à 100%</text>
+        <!-- Bouton -->
+        <rect x="320" y="158" width="100" height="20" rx="5" fill="#2563eb"/>
+        <text x="370" y="172" text-anchor="middle" font-size="8" fill="white" font-weight="bold">💾 Enregistrer</text>
+    </svg>
+
+    <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px;border-radius:0 8px 8px 0;margin-bottom:12px;">
+        <strong style="color:#991b1b;">🔴 ALD — Affection Longue Durée :</strong>
+        <p style="color:#991b1b;font-size:13px;margin:4px 0 0;">Cochez cette case si le patient bénéficie d'une prise en charge à 100% par la Sécurité Sociale. Le calcul de remboursement passera automatiquement de 60% à 100% lors de la facturation.</p>
+    </div>
+
+    <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#166534;">💡 Fiche patient :</strong>
+        <p style="color:#166534;font-size:13px;margin:4px 0 0;">Cliquez sur un patient dans la liste pour ouvrir sa fiche. Vous y retrouverez toutes ses informations, son cabinet, et l'historique complet de ses passages avec le statut de transmission.</p>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 4 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-4" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e0e7ff;">
+        <div style="background:#7c3aed;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">4</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Agenda &amp; Rendez-vous</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">L'agenda vous permet de planifier vos visites à l'avance. Le jour venu, vos RDV s'affichent dans "Passages du jour" avec un bouton pour démarrer directement la facturation.</p>
+
+    <svg viewBox="0 0 500 180" style="width:100%;border-radius:8px;margin-bottom:16px;">
+        <rect width="500" height="180" fill="#f8fafc" rx="8"/>
+        <!-- Calendrier simplifié -->
+        <rect x="20" y="10" width="320" height="160" rx="8" fill="white" stroke="#e2e8f0"/>
+        <!-- En-tête -->
+        <rect x="20" y="10" width="320" height="28" rx="8" fill="#1e293b"/>
+        <rect x="20" y="26" width="320" height="12" fill="#1e293b"/>
+        <text x="55" y="27" font-size="10" fill="white">◀</text>
+        <text x="180" y="28" text-anchor="middle" font-size="10" fill="white" font-weight="bold">Août 2026</text>
+        <text x="320" y="27" text-anchor="middle" font-size="10" fill="white">▶</text>
+        <!-- Jours semaine -->
+        <text x="35" y="50" font-size="7" fill="#64748b">Lun</text><text x="80" y="50" font-size="7" fill="#64748b">Mar</text>
+        <text x="125" y="50" font-size="7" fill="#64748b">Mer</text><text x="170" y="50" font-size="7" fill="#64748b">Jeu</text>
+        <text x="215" y="50" font-size="7" fill="#64748b">Ven</text><text x="258" y="50" font-size="7" fill="#94a3b8">Sam</text>
+        <text x="300" y="50" font-size="7" fill="#94a3b8">Dim</text>
+        <!-- Cases -->
+        <rect x="25" y="55" width="42" height="40" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="46" y="68" text-anchor="middle" font-size="8" fill="#1e293b">3</text>
+        <rect x="70" y="55" width="42" height="40" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="91" y="68" text-anchor="middle" font-size="8" fill="#1e293b">4</text>
+        <rect x="115" y="55" width="42" height="40" rx="3" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="136" y="68" text-anchor="middle" font-size="9" fill="#2563eb" font-weight="bold">5</text>
+        <rect x="119" y="71" width="34" height="11" rx="2" fill="#dbeafe"/>
+        <text x="136" y="79" text-anchor="middle" font-size="6" fill="#1d4ed8">08:30 DUPONT</text>
+        <rect x="119" y="84" width="34" height="11" rx="2" fill="#dbeafe"/>
+        <text x="136" y="92" text-anchor="middle" font-size="6" fill="#1d4ed8">10:00 MARTIN</text>
+        <rect x="160" y="55" width="42" height="40" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="181" y="68" text-anchor="middle" font-size="8" fill="#1e293b">6</text>
+        <rect x="205" y="55" width="42" height="40" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="226" y="68" text-anchor="middle" font-size="8" fill="#1e293b">7</text>
+        <!-- Légende -->
+        <rect x="25" y="100" width="10" height="8" rx="2" fill="#dbeafe"/>
+        <text x="40" y="107" font-size="7" fill="#64748b">RDV planifié</text>
+        <rect x="100" y="100" width="10" height="8" rx="2" fill="#dcfce7"/>
+        <text x="115" y="107" font-size="7" fill="#64748b">Effectué</text>
+        <rect x="170" y="100" width="10" height="8" rx="2" fill="#fef2f2"/>
+        <text x="185" y="107" font-size="7" fill="#64748b">Annulé</text>
+        <!-- Bouton nouveau RDV -->
+        <rect x="25" y="115" width="100" height="18" rx="4" fill="#2563eb"/>
+        <text x="75" y="127" text-anchor="middle" font-size="7" fill="white" font-weight="bold">+ Nouveau RDV</text>
+
+        <!-- Panel droit - liste du jour -->
+        <rect x="355" y="10" width="130" height="160" rx="8" fill="white" stroke="#e2e8f0"/>
+        <text x="420" y="28" text-anchor="middle" font-size="8" fill="#1e293b" font-weight="bold">RDV du 05/08</text>
+        <rect x="363" y="35" width="114" height="35" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="372" y="47" font-size="8" fill="#2563eb" font-weight="bold">08:30</text>
+        <text x="372" y="57" font-size="7" fill="#1e293b" font-weight="bold">DUPONT Marie</text>
+        <text x="372" y="66" font-size="6" fill="#64748b">AMI 4, pansement</text>
+        <rect x="363" y="75" width="114" height="22" rx="4" fill="#f0fdf4" stroke="#bbf7d0"/>
+        <text x="420" y="89" text-anchor="middle" font-size="7" fill="#16a34a" font-weight="bold">▶ Démarrer passage</text>
+        <rect x="363" y="103" width="114" height="35" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="372" y="115" font-size="8" fill="#2563eb" font-weight="bold">10:00</text>
+        <text x="372" y="125" font-size="7" fill="#1e293b" font-weight="bold">MARTIN Jean</text>
+        <text x="372" y="134" font-size="6" fill="#64748b">AMI 1, prélèvement</text>
+    </svg>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-weight:700;font-size:12px;color:#1e293b;margin-bottom:6px;">📅 Créer un RDV</div>
+            <ol style="margin:0;padding-left:14px;font-size:12px;color:#475569;line-height:1.8;">
+                <li>Cliquez sur un <strong>jour</strong> dans le calendrier</li>
+                <li>Cliquez <strong>"+ Nouveau RDV"</strong></li>
+                <li>Sélectionnez le <strong>patient</strong></li>
+                <li>Entrez l'<strong>heure</strong> et la <strong>durée</strong></li>
+                <li>Notez les actes prévus (optionnel)</li>
+            </ol>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-weight:700;font-size:12px;color:#1e293b;margin-bottom:6px;">▶ Démarrer un passage</div>
+            <ol style="margin:0;padding-left:14px;font-size:12px;color:#475569;line-height:1.8;">
+                <li>Dans "Passages du jour" : section <strong>"RDV planifiés"</strong></li>
+                <li>Cliquez <strong>"▶ Démarrer"</strong></li>
+                <li>Le modal s'ouvre avec le <strong>patient pré-rempli</strong></li>
+                <li>Le RDV passe automatiquement en <strong>"Effectué"</strong></li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 5 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-5" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #fef2f2;">
+        <div style="background:#dc2626;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">5</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Facturer un Passage</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">Le passage est le coeur de l'application. Il enregistre les actes réalisés, calcule automatiquement la part Sécurité Sociale, et crée la transaction comptable correspondante.</p>
+
+    <svg viewBox="0 0 500 260" style="width:100%;border-radius:8px;margin-bottom:16px;">
+        <rect width="500" height="260" fill="#f8fafc" rx="8"/>
+        <rect x="30" y="8" width="440" height="244" rx="8" fill="white" stroke="#e2e8f0"/>
+        <!-- Header -->
+        <rect x="30" y="8" width="440" height="28" rx="8" fill="#1e293b"/>
+        <rect x="30" y="24" width="440" height="12" fill="#1e293b"/>
+        <text x="250" y="26" text-anchor="middle" font-size="10" fill="white" font-weight="bold">🩺 Nouveau passage — Facturation</text>
+        <!-- Patient info -->
+        <rect x="40" y="42" width="420" height="22" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="50" y="57" font-size="8" fill="#1e293b" font-weight="bold">DUPONT Marie</text>
+        <text x="50" y="57" font-size="8" fill="#1e293b" font-weight="bold">          </text>
+        <rect x="130" y="47" width="30" height="10" rx="3" fill="#fef2f2"/>
+        <text x="145" y="55" text-anchor="middle" font-size="6" fill="#dc2626" font-weight="bold">ALD 100%</text>
+        <text x="200" y="57" font-size="8" fill="#64748b">🏥 Cabinet Saint-André — 06 12 34 56 78</text>
+        <!-- Date/Heure + ALD -->
+        <rect x="40" y="70" width="190" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="46" y="80" font-size="7" fill="#94a3b8">Date : 29/08/2026</text>
+        <rect x="240" y="70" width="100" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0"/>
+        <text x="246" y="80" font-size="7" fill="#94a3b8">Heure : 08:30</text>
+        <rect x="350" y="68" width="105" height="18" rx="4" fill="#dcfce7" stroke="#bbf7d0"/>
+        <rect x="358" y="72" width="10" height="10" rx="2" fill="#16a34a"/>
+        <text x="376" y="80" font-size="7" fill="#166534" font-weight="bold">ALD 100% ✓</text>
+        <!-- Boutons actes -->
+        <text x="40" y="98" font-size="8" fill="#475569" font-weight="bold">Actes :</text>
+        <rect x="40" y="102" width="50" height="14" rx="3" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="65" y="112" text-anchor="middle" font-size="6" fill="#2563eb">AMI 1</text>
+        <rect x="96" y="102" width="55" height="14" rx="3" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="123" y="112" text-anchor="middle" font-size="6" fill="#2563eb">AMI 1,5</text>
+        <rect x="157" y="102" width="50" height="14" rx="3" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="182" y="112" text-anchor="middle" font-size="6" fill="#2563eb">AMI 2</text>
+        <rect x="213" y="102" width="50" height="14" rx="3" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="238" y="112" text-anchor="middle" font-size="6" fill="#2563eb">AMI 3</text>
+        <rect x="269" y="102" width="55" height="14" rx="3" fill="#2563eb"/>
+        <text x="296" y="112" text-anchor="middle" font-size="6" fill="white" font-weight="bold">AMI 4 ✓</text>
+        <rect x="330" y="102" width="50" height="14" rx="3" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="355" y="112" text-anchor="middle" font-size="6" fill="#2563eb">AMI 6</text>
+        <!-- Tableau actes sélectionnés -->
+        <rect x="40" y="122" width="420" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="50" y="130" font-size="7" fill="#94a3b8">CODE</text>
+        <text x="110" y="130" font-size="7" fill="#94a3b8">ACTE</text>
+        <text x="320" y="130" font-size="7" fill="#94a3b8">QTÉ</text>
+        <text x="370" y="130" font-size="7" fill="#94a3b8">TARIF</text>
+        <text x="420" y="130" font-size="7" fill="#94a3b8">TOTAL</text>
+        <rect x="46" y="133" width="22" height="9" rx="2" fill="#e2e8f0"/>
+        <text x="57" y="140" text-anchor="middle" font-size="6" fill="#1e293b" font-weight="bold">AMI 4</text>
+        <text x="110" y="140" font-size="7" fill="#1e293b">SSI / Soins complets</text>
+        <text x="325" y="140" text-anchor="middle" font-size="7" fill="#1e293b">1</text>
+        <text x="380" y="140" text-anchor="middle" font-size="7" fill="#2563eb">12,60€</text>
+        <text x="435" y="140" text-anchor="middle" font-size="7" fill="#1e293b" font-weight="bold">12,60€</text>
+        <!-- Majorations -->
+        <text x="40" y="162" font-size="8" fill="#475569" font-weight="bold">Majorations :</text>
+        <rect x="40" y="166" width="50" height="14" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <text x="65" y="176" text-anchor="middle" font-size="6" fill="#334155">MAU</text>
+        <rect x="96" y="166" width="50" height="14" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <text x="121" y="176" text-anchor="middle" font-size="6" fill="#334155">MIE</text>
+        <rect x="152" y="166" width="60" height="14" rx="3" fill="#2563eb"/>
+        <text x="182" y="176" text-anchor="middle" font-size="6" fill="white" font-weight="bold">MDD ✓</text>
+        <text x="230" y="176" font-size="6" fill="#64748b">→ +8,35€</text>
+        <rect x="280" y="166" width="45" height="14" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <text x="302" y="176" text-anchor="middle" font-size="6" fill="#334155">MN</text>
+        <rect x="331" y="166" width="50" height="14" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <text x="356" y="176" text-anchor="middle" font-size="6" fill="#334155">MSN</text>
+        <!-- Récap financier -->
+        <rect x="40" y="186" width="420" height="40" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="50" y="198" font-size="7" fill="#64748b">Total actes :</text>
+        <text x="160" y="198" font-size="7" fill="#1e293b">12,60 €</text>
+        <text x="50" y="210" font-size="7" fill="#64748b">Majorations :</text>
+        <text x="160" y="210" font-size="7" fill="#1e293b">8,35 €</text>
+        <text x="250" y="198" font-size="7" fill="#16a34a" font-weight="bold">Part SS (ALD 100%) :</text>
+        <text x="395" y="198" font-size="7" fill="#16a34a" font-weight="bold">20,95 €</text>
+        <text x="250" y="210" font-size="7" fill="#f59e0b">Reste patient :</text>
+        <text x="395" y="210" font-size="7" fill="#f59e0b">0,00 €</text>
+        <text x="50" y="220" font-size="8" fill="#1e293b" font-weight="bold">TOTAL FACTURÉ</text>
+        <text x="395" y="220" text-anchor="end" font-size="9" fill="#2563eb" font-weight="bold">20,95 €</text>
+        <!-- Bouton -->
+        <rect x="270" y="232" width="190" height="18" rx="5" fill="#2563eb"/>
+        <text x="365" y="244" text-anchor="middle" font-size="8" fill="white" font-weight="bold">💾 Enregistrer + créer la transaction</text>
+    </svg>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div style="background:#dbeafe;border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:4px;">📋</div>
+            <div style="font-size:11px;font-weight:700;color:#1d4ed8;">Actes NGAP</div>
+            <div style="font-size:11px;color:#1d4ed8;">Cliquez pour ajouter.<br>Quantité modifiable.</div>
+        </div>
+        <div style="background:#dcfce7;border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:4px;">🟢</div>
+            <div style="font-size:11px;font-weight:700;color:#166534;">Majorations</div>
+            <div style="font-size:11px;color:#166534;">MDD, MN, MSN, MAU, MIE<br>Toggle actif/inactif</div>
+        </div>
+        <div style="background:#fef3c7;border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:4px;">💶</div>
+            <div style="font-size:11px;font-weight:700;color:#92400e;">Calcul auto</div>
+            <div style="font-size:11px;color:#92400e;">SS 60% ou 100% ALD.<br>Rétro. si remplaçante.</div>
+        </div>
+    </div>
+
+    <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:12px;border-radius:0 8px 8px 0;margin-bottom:10px;">
+        <strong style="color:#1d4ed8;">✅ Après enregistrement :</strong>
+        <ul style="margin:6px 0 0;padding-left:18px;color:#1d4ed8;font-size:13px;line-height:1.8;">
+            <li>Une <strong>transaction comptable</strong> est créée automatiquement</li>
+            <li>Si remplaçante : une <strong>dépense rétrocession</strong> est aussi créée</li>
+            <li>Proposition de générer la <strong>feuille de soins PDF</strong></li>
+            <li>Le passage apparaît dans l'<strong>historique du patient</strong></li>
+        </ul>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 6 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-6" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f0fdf4;">
+        <div style="background:#059669;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">6</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Feuille de Soins PDF</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">La feuille de soins est générée automatiquement après chaque passage. Elle s'ouvre dans un nouvel onglet, prête à imprimer ou enregistrer en PDF.</p>
+
+    <svg viewBox="0 0 500 200" style="width:100%;border-radius:8px;margin-bottom:16px;">
+        <rect width="500" height="200" fill="#f8fafc" rx="8"/>
+        <!-- Document -->
+        <rect x="60" y="10" width="380" height="175" rx="6" fill="white" stroke="#e2e8f0" stroke-width="1.5"/>
+        <!-- Header bleu -->
+        <rect x="60" y="10" width="380" height="40" rx="6" fill="#1d4ed8"/>
+        <rect x="60" y="38" width="380" height="12" fill="#1d4ed8"/>
+        <text x="80" y="30" font-size="11" fill="white" font-weight="bold">FEUILLE DE SOINS INFIRMIÈRE</text>
+        <text x="80" y="44" font-size="8" fill="white" opacity=".8">Date : 29/08/2026 — 08:30  |  N° F20260829-4521</text>
+        <!-- 2 colonnes -->
+        <rect x="70" y="58" width="170" height="60" rx="4" fill="#f9fafb" stroke="#e2e8f0"/>
+        <text x="80" y="70" font-size="7" fill="#2563eb" font-weight="bold">INFIRMIÈRE LIBÉRALE</text>
+        <text x="80" y="81" font-size="8" fill="#1e293b" font-weight="bold">Nolwenn MASSOCCO</text>
+        <text x="80" y="91" font-size="7" fill="#64748b">ADELI : 066XXXXXXX</text>
+        <text x="80" y="101" font-size="7" fill="#64748b">Cabinet Saint-André, Nice</text>
+        <text x="80" y="111" font-size="7" fill="#64748b">Tél : 06 12 34 56 78</text>
+
+        <rect x="250" y="58" width="180" height="60" rx="4" fill="#f9fafb" stroke="#e2e8f0"/>
+        <text x="260" y="70" font-size="7" fill="#dc2626" font-weight="bold">PATIENT</text>
+        <text x="260" y="81" font-size="8" fill="#1e293b" font-weight="bold">DUPONT Marie</text>
+        <rect x="310" y="75" width="25" height="9" rx="2" fill="#fef2f2"/>
+        <text x="322" y="82" text-anchor="middle" font-size="5" fill="#dc2626" font-weight="bold">ALD 100%</text>
+        <text x="260" y="91" font-size="7" fill="#64748b">Née le : 15/03/1952</text>
+        <text x="260" y="101" font-size="7" fill="#64748b">N° : 2 52 03 75 XXX XXX</text>
+        <text x="260" y="111" font-size="7" fill="#64748b">Dr. Martin (MT)</text>
+        <!-- Tableau actes -->
+        <rect x="70" y="126" width="360" height="10" rx="2" fill="#e2e8f0"/>
+        <text x="80" y="134" font-size="6" fill="#64748b" font-weight="bold">CODE</text>
+        <text x="130" y="134" font-size="6" fill="#64748b" font-weight="bold">DESCRIPTION</text>
+        <text x="330" y="134" font-size="6" fill="#64748b" font-weight="bold">TARIF</text>
+        <text x="390" y="134" font-size="6" fill="#64748b" font-weight="bold">TOTAL</text>
+        <text x="80" y="146" font-size="7" fill="#1e293b" font-weight="bold">AMI 4</text>
+        <text x="130" y="146" font-size="7" fill="#1e293b">SSI / Soins complets</text>
+        <text x="330" y="146" font-size="7" fill="#2563eb">12,60 €</text>
+        <text x="390" y="146" font-size="7" fill="#1e293b" font-weight="bold">12,60 €</text>
+        <text x="80" y="156" font-size="7" fill="#1e293b" font-weight="bold">MDD</text>
+        <text x="130" y="156" font-size="7" fill="#1e293b">Majoration Dimanche</text>
+        <text x="330" y="156" font-size="7" fill="#2563eb">8,35 €</text>
+        <text x="390" y="156" font-size="7" fill="#1e293b" font-weight="bold">8,35 €</text>
+        <!-- Totaux -->
+        <rect x="260" y="162" width="170" height="10" rx="2" fill="#dcfce7"/>
+        <text x="270" y="169" font-size="6" fill="#166534" font-weight="bold">Part SS (ALD 100%) : 20,95 €</text>
+        <!-- Bouton imprimer -->
+        <rect x="160" y="180" width="180" height="18" rx="5" fill="#1d4ed8"/>
+        <text x="250" y="192" text-anchor="middle" font-size="8" fill="white" font-weight="bold">🖨️ Imprimer / Enregistrer en PDF</text>
+    </svg>
+
+    <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px;border-radius:0 8px 8px 0;margin-bottom:10px;">
+        <strong style="color:#166534;">📄 Comment enregistrer en PDF :</strong>
+        <ol style="margin:8px 0 0;padding-left:18px;color:#166534;font-size:13px;line-height:1.8;">
+            <li>Cliquez <strong>"🖨️ Imprimer / Enregistrer en PDF"</strong></li>
+            <li>Dans la fenêtre qui s'ouvre : choisissez <strong>destination → "Enregistrer au format PDF"</strong></li>
+            <li>Sélectionnez le dossier et cliquez <strong>Enregistrer</strong></li>
+        </ol>
+    </div>
+
+    <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#92400e;">💡 Accéder à une feuille de soins plus tard :</strong>
+        <p style="color:#92400e;font-size:13px;margin:4px 0 0;">Ouvrez la fiche patient → onglet "Historique des passages" → bouton <strong>"📄 PDF"</strong> sur n'importe quel passage passé.</p>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 7 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-7" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #fef3c7;">
+        <div style="background:#f59e0b;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">7</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Récapitulatif Rétrocession</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:16px;">Le récapitulatif regroupe tous vos passages sur une période et calcule automatiquement la rétrocession due à la titulaire. Il génère un PDF professionnel à signer et transmettre.</p>
+
+    <svg viewBox="0 0 500 150" style="width:100%;border-radius:8px;margin-bottom:16px;">
+        <rect width="500" height="150" fill="#f8fafc" rx="8"/>
+        <!-- Filtres -->
+        <text x="20" y="25" font-size="8" fill="#64748b" font-weight="bold">PÉRIODE</text>
+        <rect x="20" y="30" width="90" height="16" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="26" y="41" font-size="7" fill="#1e293b">Mois en cours ▼</text>
+        <text x="120" y="25" font-size="8" fill="#64748b" font-weight="bold">DU</text>
+        <rect x="120" y="30" width="80" height="16" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="126" y="41" font-size="7" fill="#1e293b">01/08/2026</text>
+        <text x="210" y="25" font-size="8" fill="#64748b" font-weight="bold">AU</text>
+        <rect x="210" y="30" width="80" height="16" rx="3" fill="white" stroke="#e2e8f0"/>
+        <text x="216" y="41" font-size="7" fill="#1e293b">29/08/2026</text>
+        <rect x="300" y="28" width="70" height="18" rx="4" fill="#2563eb"/>
+        <text x="335" y="40" text-anchor="middle" font-size="7" fill="white" font-weight="bold">🔄 Actualiser</text>
+        <!-- KPIs -->
+        <rect x="20" y="55" width="95" height="40" rx="6" fill="white" stroke="#bfdbfe"/>
+        <rect x="20" y="55" width="4" height="40" rx="2" fill="#2563eb"/>
+        <text x="32" y="67" font-size="7" fill="#64748b">PASSAGES</text>
+        <text x="32" y="82" font-size="15" fill="#2563eb" font-weight="bold">12</text>
+
+        <rect x="125" y="55" width="95" height="40" rx="6" fill="white" stroke="#bfdbfe"/>
+        <rect x="125" y="55" width="4" height="40" rx="2" fill="#2563eb"/>
+        <text x="137" y="67" font-size="7" fill="#64748b">TOTAL BRUT</text>
+        <text x="137" y="82" font-size="12" fill="#2563eb" font-weight="bold">280,40€</text>
+
+        <rect x="230" y="55" width="95" height="40" rx="6" fill="white" stroke="#fecaca"/>
+        <rect x="230" y="55" width="4" height="40" rx="2" fill="#dc2626"/>
+        <text x="242" y="67" font-size="7" fill="#64748b">RÉTROCESSION</text>
+        <text x="242" y="82" font-size="12" fill="#dc2626" font-weight="bold">98,14€</text>
+
+        <rect x="335" y="55" width="95" height="40" rx="6" fill="white" stroke="#bbf7d0"/>
+        <rect x="335" y="55" width="4" height="40" rx="2" fill="#16a34a"/>
+        <text x="347" y="67" font-size="7" fill="#64748b">VOTRE NET</text>
+        <text x="347" y="82" font-size="12" fill="#16a34a" font-weight="bold">182,26€</text>
+
+        <!-- Boutons export -->
+        <rect x="20" y="108" width="150" height="20" rx="5" fill="#2563eb"/>
+        <text x="95" y="121" text-anchor="middle" font-size="7" fill="white" font-weight="bold">📄 Export PDF (à signer)</text>
+        <rect x="180" y="108" width="100" height="20" rx="5" fill="white" stroke="#e2e8f0"/>
+        <text x="230" y="121" text-anchor="middle" font-size="7" fill="#475569">📊 Export CSV</text>
+        <!-- Transmis -->
+        <rect x="295" y="108" width="185" height="20" rx="5" fill="#fffbeb" stroke="#fde68a"/>
+        <text x="387" y="121" text-anchor="middle" font-size="7" fill="#92400e">⚠️ 2 passages non transmis</text>
+    </svg>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-weight:700;font-size:12px;margin-bottom:6px;">📋 Utilisation quotidienne</div>
+            <ul style="margin:0;padding-left:14px;font-size:12px;color:#475569;line-height:1.8;">
+                <li>Sélectionnez la <strong>période</strong> (jour, semaine, quinzaine, mois, libre)</li>
+                <li>Choisissez le <strong>cabinet</strong> si vous en avez plusieurs</li>
+                <li>Cliquez <strong>Actualiser</strong></li>
+                <li>Cliquez <strong>"Marquer transmis"</strong> après envoi</li>
+            </ul>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-weight:700;font-size:12px;margin-bottom:6px;">📄 Export PDF mensuel</div>
+            <ul style="margin:0;padding-left:14px;font-size:12px;color:#475569;line-height:1.8;">
+                <li>Contient : vos infos + infos titulaire</li>
+                <li>Tableau détaillé par acte + synthèse NGAP</li>
+                <li>Zone de <strong>signature</strong> (vous + titulaire)</li>
+                <li>Prêt à <strong>imprimer et envoyer</strong></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 8 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-8" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e0e7ff;">
+        <div style="background:#4f46e5;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">8</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Nomenclature NGAP</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:12px;">La nomenclature NGAP liste tous les actes infirmiers remboursables avec leurs tarifs officiels. Les tarifs sont mis à jour chaque année et vous pouvez les modifier manuellement si besoin.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:#eff6ff;border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">📅</div>
+            <div style="font-weight:700;font-size:12px;color:#1d4ed8;margin-bottom:4px;">Filtre par année</div>
+            <div style="font-size:11px;color:#1d4ed8;">2020 → 2026<br>Les changements sont surlignés</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">🔄</div>
+            <div style="font-weight:700;font-size:12px;color:#166534;margin-bottom:4px;">Titulaire / Remplaçante</div>
+            <div style="font-size:11px;color:#166534;">Toggle pour voir<br>le net après rétrocession</div>
+        </div>
+        <div style="background:#fef3c7;border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">🧮</div>
+            <div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:4px;">Simulateur revenus</div>
+            <div style="font-size:11px;color:#92400e;">Estimez votre CA mensuel<br>et annuel</div>
+        </div>
+    </div>
+
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">Codes les plus utilisés :</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;"><code style="font-size:12px;font-weight:700;color:#2563eb;">AMI 1</code><div style="font-size:10px;color:#64748b;margin-top:2px;">Injection SC/IM<br>3,15 €</div></div>
+            <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;"><code style="font-size:12px;font-weight:700;color:#2563eb;">AMI 4</code><div style="font-size:10px;color:#64748b;margin-top:2px;">SSI / Soins<br>12,60 €</div></div>
+            <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;"><code style="font-size:12px;font-weight:700;color:#16a34a;">BSI Init.</code><div style="font-size:10px;color:#64748b;margin-top:2px;">Bilan initial<br>65,69 €</div></div>
+            <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;"><code style="font-size:12px;font-weight:700;color:#f59e0b;">MDD</code><div style="font-size:10px;color:#64748b;margin-top:2px;">Dimanche/Férié<br>8,35 €</div></div>
+        </div>
+    </div>
+
+    <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#1d4ed8;">⚙️ Modifier les tarifs :</strong>
+        <p style="color:#1d4ed8;font-size:13px;margin:4px 0 0;">Cliquez sur <strong>"⚙️ Modifier les tarifs"</strong> pour ajuster les valeurs (ex: revalorisation de la valeur AMI). Les modifications sont sauvegardées dans votre navigateur et prioritaires sur les tarifs officiels.</p>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 9 ════════════════════════════════════════════════════════ -->
+<div class="card" id="aide-9" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #fef2f2;">
+        <div style="background:#dc2626;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">9</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Charges Sociales</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:14px;">Les modules URSSAF, CARPIMKO et IR calculent vos charges sociales en fonction de votre revenu annuel. Les barèmes sont mis à jour chaque année.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <div style="background:#1e293b;color:white;padding:10px;text-align:center;font-weight:700;font-size:13px;">🏛️ URSSAF</div>
+            <div style="padding:10px;font-size:12px;color:#475569;">
+                <p style="margin:0 0 6px;">Calcule vos cotisations :</p>
+                <ul style="margin:0;padding-left:14px;line-height:1.8;">
+                    <li>Maladie</li>
+                    <li>Allocations familiales</li>
+                    <li>Formation professionnelle</li>
+                </ul>
+                <div style="margin-top:8px;background:#f1f5f9;border-radius:4px;padding:6px;font-size:11px;color:#64748b;">Saisir votre BNC prévisionnel</div>
+            </div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <div style="background:#1d4ed8;color:white;padding:10px;text-align:center;font-weight:700;font-size:13px;">🏥 CARPIMKO</div>
+            <div style="padding:10px;font-size:12px;color:#475569;">
+                <p style="margin:0 0 6px;">Retraite infirmière :</p>
+                <ul style="margin:0;padding-left:14px;line-height:1.8;">
+                    <li>Retraite de base</li>
+                    <li>Retraite complémentaire</li>
+                    <li>Invalidité-décès</li>
+                </ul>
+                <div style="margin-top:8px;background:#f1f5f9;border-radius:4px;padding:6px;font-size:11px;color:#64748b;">Tient compte de l'ancienneté</div>
+            </div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <div style="background:#059669;color:white;padding:10px;text-align:center;font-weight:700;font-size:13px;">💶 Impôt sur le Revenu</div>
+            <div style="padding:10px;font-size:12px;color:#475569;">
+                <p style="margin:0 0 6px;">Estimation de l'IR :</p>
+                <ul style="margin:0;padding-left:14px;line-height:1.8;">
+                    <li>Régime BNC</li>
+                    <li>Abattement 2035</li>
+                    <li>Barème progressif</li>
+                </ul>
+                <div style="margin-top:8px;background:#f1f5f9;border-radius:4px;padding:6px;font-size:11px;color:#64748b;">Résultat indicatif</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#92400e;">⚠️ Déclaration 2035 :</strong>
+        <p style="color:#92400e;font-size:13px;margin:4px 0 0;">L'onglet <strong>"2035 / 2042"</strong> pré-remplit votre déclaration BNC annuelle à partir des transactions saisies. Vérifiez toujours avec votre expert-comptable avant de déclarer.</p>
+    </div>
+</div>
+
+<!-- ══ CHAPITRE 10 ═══════════════════════════════════════════════════════ -->
+<div class="card" id="aide-10" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">
+        <div style="background:#475569;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">10</div>
+        <h2 style="margin:0;font-size:18px;color:#1e293b;">Sauvegarde &amp; Export</h2>
+    </div>
+
+    <p style="color:#475569;margin-bottom:14px;">Sauvegardez régulièrement vos données. La sauvegarde inclut toutes vos transactions, patients, cabinets et passages en un seul fichier JSON.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
+            <div style="font-size:24px;text-align:center;margin-bottom:8px;">📦</div>
+            <div style="font-weight:700;font-size:13px;text-align:center;margin-bottom:8px;">Sauvegarde globale</div>
+            <ol style="margin:0;padding-left:14px;font-size:12px;color:#475569;line-height:1.8;">
+                <li>Allez dans <strong>Paramétrage → Sauvegarde</strong></li>
+                <li>Cliquez <strong>"📦 Télécharger la Sauvegarde"</strong></li>
+                <li>Fichier <code>.json</code> téléchargé sur votre appareil</li>
+                <li>Conservez-le dans un dossier sécurisé</li>
+            </ol>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
+            <div style="font-size:24px;text-align:center;margin-bottom:8px;">📤</div>
+            <div style="font-weight:700;font-size:13px;text-align:center;margin-bottom:8px;">Expert-comptable</div>
+            <ul style="margin:0;padding-left:14px;font-size:12px;color:#475569;line-height:1.8;">
+                <li>Export CSV des transactions</li>
+                <li>Rapport bilan / CE</li>
+                <li>Déclaration 2035 pré-remplie</li>
+                <li>Grand Livre et Balance</li>
+            </ul>
+        </div>
+    </div>
+
+    <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px;border-radius:0 8px 8px 0;margin-bottom:12px;">
+        <strong style="color:#991b1b;">🔴 Recommandation :</strong>
+        <p style="color:#991b1b;font-size:13px;margin:4px 0 0;">Effectuez une sauvegarde <strong>au moins une fois par semaine</strong>, et systématiquement avant toute mise à jour de l'application. Conservez plusieurs versions datées.</p>
+    </div>
+
+    <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px;border-radius:0 8px 8px 0;">
+        <strong style="color:#166534;">💡 Vos données sont sécurisées :</strong>
+        <p style="color:#166534;font-size:13px;margin:4px 0 0;">Toutes vos données sont stockées dans votre base Supabase personnelle, accessible uniquement avec votre identifiant. L'application ne partage aucune donnée avec des tiers.</p>
+    </div>
+</div>
+
+<!-- ══ FOOTER ════════════════════════════════════════════════════════════ -->
+<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0;margin-top:8px;">
+    <div style="font-size:24px;margin-bottom:6px;">🩺</div>
+    <div>Comptabilité Infirmière — Application dédiée aux infirmières libérales</div>
+    <div style="margin-top:4px;">Pour toute question : <a href="mailto:support@exemple.fr" style="color:#2563eb;">support@exemple.fr</a></div>
+</div>
+
+</div>
+</section>
 
 </body>
 </html>
