@@ -24,17 +24,46 @@ var COMPTES_TIERS = [
 
 // ── Charger les tiers depuis Supabase ─────────────────────────────────────────
 async function tiersCharger() {
-    var sc = window.supabaseClient; if (!sc) return;
-    var r = await sc.from('tiers').select('*').eq('actif', true).order('compte').order('nom');
-    TIERS_DATA = r.data || [];
-    tiersRenduSelect();
-    tiersRenduListe();
+    var sc = window.supabaseClient;
+    if (!sc) {
+        // Réessayer dans 1 seconde
+        setTimeout(tiersCharger, 1000);
+        return;
+    }
+    try {
+        var r = await sc.from('tiers').select('*').eq('actif', true).order('compte').order('nom');
+        if (r.error) { console.error('tiers.js:', r.error); return; }
+        TIERS_DATA = r.data || [];
+        console.log('[tiers] chargés:', TIERS_DATA.length);
+
+        // Ajouter les patients comme tiers 411200 automatiquement
+        if (window.PT && PT.patients && PT.patients.length) {
+            PT.patients.filter(function(p){ return p.actif; }).forEach(function(p) {
+                var nom = (p.nom||'').toUpperCase() + ' ' + (p.prenom||'');
+                // Vérifier qu'il n'est pas déjà dans TIERS_DATA
+                var existe = TIERS_DATA.some(function(t){ return t.nom === nom && t.compte === '411200'; });
+                if (!existe) {
+                    TIERS_DATA.push({
+                        id: 'patient_' + p.id,
+                        compte: '411200',
+                        nom: nom + (p.ald ? ' [ALD]' : ''),
+                        _patient: true
+                    });
+                }
+            });
+        }
+
+        tiersRenduSelect();
+        tiersRenduListe();
+    } catch(e) {
+        console.error('[tiers] exception:', e);
+    }
 }
 
 // ── Remplir le select du Journal de Banque ────────────────────────────────────
 function tiersRenduSelect() {
     var sel = document.getElementById('pay-tiers-id');
-    if (!sel) return;
+    if (!sel) { console.warn('[tiers] pay-tiers-id introuvable'); return; }
     var val = sel.value;
 
     // Grouper par compte
@@ -45,11 +74,32 @@ function tiersRenduSelect() {
     });
 
     sel.innerHTML = '<option value="">-- Sélectionner un tiers --</option>';
+
+    // Afficher d'abord les comptes définis dans COMPTES_TIERS (avec leur label)
+    var comptesMontres = {};
     COMPTES_TIERS.forEach(function(c) {
-        if (!groupes[c.compte] || !groupes[c.compte].length) return;
+        var liste = groupes[c.compte];
+        if (!liste || !liste.length) return;
+        comptesMontres[c.compte] = true;
         var grp = document.createElement('optgroup');
         grp.label = c.label;
-        groupes[c.compte].forEach(function(t) {
+        liste.forEach(function(t) {
+            var opt = document.createElement('option');
+            opt.value = t.id;
+            opt.dataset.compte = t.compte;
+            opt.dataset.nom = t.nom;
+            opt.textContent = t.nom;
+            grp.appendChild(opt);
+        });
+        sel.appendChild(grp);
+    });
+
+    // Afficher les autres comptes non définis dans COMPTES_TIERS
+    Object.keys(groupes).sort().forEach(function(compte) {
+        if (comptesMontres[compte]) return;
+        var grp = document.createElement('optgroup');
+        grp.label = compte;
+        groupes[compte].forEach(function(t) {
             var opt = document.createElement('option');
             opt.value = t.id;
             opt.dataset.compte = t.compte;
@@ -61,6 +111,7 @@ function tiersRenduSelect() {
     });
 
     if (val) sel.value = val;
+    console.log('[tiers] select rempli:', TIERS_DATA.length, 'tiers');
 }
 
 // ── Sélection d'un tiers → auto-remplissage ───────────────────────────────────
@@ -226,5 +277,19 @@ window.tiersSupprimer = async function(id) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.initTiers = async function() {
+    // Charger les patients d'abord si disponibles
+    if (typeof window.initPatients === 'function' && !(window.PT && PT.patients && PT.patients.length)) {
+        await window.initPatients();
+    }
     await tiersCharger();
 };
+
+// Auto-init dès que Supabase est prêt
+document.addEventListener('DOMContentLoaded', function() {
+    var check = setInterval(function() {
+        if (window.supabaseClient) {
+            clearInterval(check);
+            tiersCharger();
+        }
+    }, 500);
+});
