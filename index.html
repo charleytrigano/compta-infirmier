@@ -54,149 +54,100 @@
 <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <div id="app-content" style="display:none;">
+    <!-- ════ NAVBAR HORIZONTALE ════════════════════════════════ -->
+    <nav id="main-nav">
 
-    <!-- SIDEBAR -->
-    <aside id="sidebar">
-        <!-- Bouton toggle sidebar -->
-        <button id="btn-toggle-sidebar" onclick="toggleSidebarCollapse()" title="Réduire/Agrandir le menu">
-            <span id="sidebar-toggle-icon">◀</span>
-            <span class="nav-label" id="sidebar-toggle-label" style="font-size:12px;">Réduire</span>
+        <!-- Logo -->
+        <div id="nav-logo">🩺 Comptabilité Infirmière <span>/ Gestion libérale</span></div>
+
+        <!-- Tableau de bord -->
+        <button class="nav-btn-home active" data-tab="vue-dashboard" onclick="goTo('vue-dashboard',this)">
+            🏠 Tableau de bord
         </button>
 
-        <div id="sidebar-logo">
-            <h1>🩺 Comptabilité<br>Infirmière</h1>
-            <div class="subtitle">Gestion libérale</div>
-        </div>
-        <div id="sidebar-user">
-            <div class="avatar" id="sidebar-avatar">?</div>
-            <div class="user-info">
-                <span class="user-email" id="auth-user-email">—</span>
-                <span style="font-size:10px;color:#22c55e;" id="sidebar-conn">● Connecté</span>
+        <!-- PATIENTÈLE -->
+        <div class="nav-dropdown" id="dd-patientele">
+            <button class="nav-dropdown-btn" onclick="toggleDropdown('dd-patientele')">
+                👥 Patientèle <span class="arrow">▼</span>
+            </button>
+            <div class="nav-dropdown-panel">
+                <div class="dd-item" data-tab="vue-patients" onclick="goTo('vue-patients',this)"><span class="dd-icon">👥</span>Patients &amp; Cabinets</div>
+                <div class="dd-item" data-tab="vue-agenda" onclick="goTo('vue-agenda',this)"><span class="dd-icon">📅</span>Agenda &amp; RDV</div>
+                <div class="dd-item" data-tab="vue-passages" onclick="goTo('vue-passages',this)"><span class="dd-icon">🩺</span>Passages du jour</div>
+                <div class="dd-sep"></div>
+                <div class="dd-item" data-tab="vue-recap-remplacant" onclick="goTo('vue-recap-remplacant',this)"><span class="dd-icon">📋</span>Récap. Rétrocession</div>
+                <div class="dd-item" data-tab="vue-export-cpam" onclick="goTo('vue-export-cpam',this)"><span class="dd-icon">📤</span>Export CPAM</div>
+                <div class="dd-sep"></div>
+                <div class="dd-item" data-tab="vue-ngap" onclick="goTo('vue-ngap',this)"><span class="dd-icon">💊</span>Nomenclature NGAP</div>
             </div>
         </div>
-        <nav id="sidebar-nav">
 
-            <!-- MON PROFIL EN PREMIER -->
-            <div class="nav-group">
-                <div class="nav-item" data-tab="vue-profil" onclick="goTo('vue-profil',this)">
-                    <span class="nav-icon">👤</span><span class="nav-label">Mon Profil</span>
-                </div>
+        <!-- IMPÔTS & CHARGES -->
+        <div class="nav-dropdown" id="dd-impots">
+            <button class="nav-dropdown-btn" onclick="toggleDropdown('dd-impots')">
+                🏛️ Impôts &amp; Charges <span class="arrow">▼</span>
+            </button>
+            <div class="nav-dropdown-panel">
+                <div class="dd-item" data-tab="vue-profil" onclick="goTo('vue-profil',this)"><span class="dd-icon">👤</span>Mon Profil</div>
+                <div class="dd-sep"></div>
+                <div class="dd-item" data-tab="vue-urssaf" onclick="goTo('vue-urssaf',this)"><span class="dd-icon">🏛️</span>URSSAF</div>
+                <div class="dd-item" data-tab="vue-bareme-urssaf" onclick="goTo('vue-bareme-urssaf',this)" style="padding-left:28px;font-size:12px;"><span class="dd-icon" style="font-size:11px;">⚙️</span>Barème URSSAF</div>
+                <div class="dd-item" data-tab="vue-carpimko" onclick="goTo('vue-carpimko',this)"><span class="dd-icon">🏥</span>CARPIMKO</div>
+                <div class="dd-item" data-tab="vue-bareme-carpimko" onclick="goTo('vue-bareme-carpimko',this)" style="padding-left:28px;font-size:12px;"><span class="dd-icon" style="font-size:11px;">⚙️</span>Barème CARPIMKO</div>
+                <div class="dd-item" data-tab="vue-ir" onclick="goTo('vue-ir',this)"><span class="dd-icon">💶</span>Calcul IR</div>
+                <div class="dd-item" data-tab="vue-bareme-ir" onclick="goTo('vue-bareme-ir',this)" style="padding-left:28px;font-size:12px;"><span class="dd-icon" style="font-size:11px;">⚙️</span>Barème IR</div>
+                <div class="dd-sep"></div>
+                <div class="dd-item" data-tab="vue-2035" onclick="goTo('vue-2035',this)"><span class="dd-icon">📑</span>Déclaration 2035</div>
             </div>
-
-            <!-- TABLEAU DE BORD -->
-            <div class="nav-group">
-                <div class="nav-item active" data-tab="vue-dashboard" onclick="goTo('vue-dashboard',this)">
-                    <span class="nav-icon">🏠</span><span class="nav-label">Tableau de bord</span>
-                </div>
-            </div>
-
-            <!-- PATIENTÈLE -->
-            <div class="nav-group">
-                <div class="nav-group-title">Patientèle</div>
-                <div class="nav-item" data-tab="vue-patients" onclick="goTo('vue-patients',this)">
-                    <span class="nav-icon">👥</span><span class="nav-label">Patients & Cabinets</span>
-                </div>
-                <div class="nav-item" data-tab="vue-agenda" onclick="goTo('vue-agenda',this)">
-                    <span class="nav-icon">📅</span><span class="nav-label">Agenda & RDV</span>
-                </div>
-                <div class="nav-item" data-tab="vue-passages" onclick="goTo('vue-passages',this)">
-                    <span class="nav-icon">🩺</span><span class="nav-label">Passages du jour</span>
-                </div>
-                <div class="nav-item" data-tab="vue-recap-remplacant" onclick="goTo('vue-recap-remplacant',this)">
-                    <span class="nav-icon">📋</span><span class="nav-label">Récap. Rétrocession</span>
-                </div>
-                <div class="nav-item" data-tab="vue-export-cpam" onclick="goTo('vue-export-cpam',this)">
-                    <span class="nav-icon">📤</span><span class="nav-label">Export CPAM</span>
-                </div>
-                <div class="nav-item" data-tab="vue-ngap" onclick="goTo('vue-ngap',this)">
-                    <span class="nav-icon">💊</span><span class="nav-label">Nomenclature NGAP</span>
-                </div>
-            </div>
-
-            <!-- IMPÔTS & CHARGES SOCIALES -->
-            <div class="nav-group">
-                <div class="nav-group-title">Impôts & Charges Sociales</div>
-                <div class="nav-item" data-tab="vue-urssaf" onclick="goTo('vue-urssaf',this)">
-                    <span class="nav-icon">🏛️</span><span class="nav-label">URSSAF</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bareme-urssaf" onclick="goTo('vue-bareme-urssaf',this)" style="padding-left:28px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:11px;">⚙️</span><span class="nav-label">Barème URSSAF</span>
-                </div>
-                <div class="nav-item" data-tab="vue-carpimko" onclick="goTo('vue-carpimko',this)">
-                    <span class="nav-icon">🏥</span><span class="nav-label">CARPIMKO</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bareme-carpimko" onclick="goTo('vue-bareme-carpimko',this)" style="padding-left:28px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:11px;">⚙️</span><span class="nav-label">Barème CARPIMKO</span>
-                </div>
-                <div class="nav-item" data-tab="vue-ir" onclick="goTo('vue-ir',this)">
-                    <span class="nav-icon">💶</span><span class="nav-label">Calcul IR</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bareme-ir" onclick="goTo('vue-bareme-ir',this)" style="padding-left:28px;font-size:12px;">
-                    <span class="nav-icon" style="font-size:11px;">⚙️</span><span class="nav-label">Barème IR</span>
-                </div>
-                <div class="nav-item" data-tab="vue-2035" onclick="goTo('vue-2035',this)">
-                    <span class="nav-icon">📑</span><span class="nav-label">2035 / 2042</span>
-                </div>
-            </div>
-
-            <!-- COMPTABILITÉ -->
-            <div class="nav-group">
-                <div class="nav-group-title">Comptabilité</div>
-                <div class="nav-item" data-tab="vue-banque" onclick="goTo('vue-banque',this)">
-                    <span class="nav-icon">🏦</span><span class="nav-label">Journal de Banque</span>
-                </div>
-                <div class="nav-item" data-tab="vue-od" onclick="goTo('vue-od',this)">
-                    <span class="nav-icon">📝</span><span class="nav-label">Journal OD</span>
-                </div>
-                <div class="nav-item" data-tab="vue-transactions" onclick="goTo('vue-transactions',this)">
-                    <span class="nav-icon">📄</span><span class="nav-label">Transactions</span>
-                </div>
-                <div class="nav-item" data-tab="vue-bilan" onclick="goTo('vue-bilan',this)">
-                    <span class="nav-icon">📈</span><span class="nav-label">Bilan / CE</span>
-                </div>
-                <div class="nav-item" data-tab="vue-balance" onclick="goTo('vue-balance',this)">
-                    <span class="nav-icon">⚖️</span><span class="nav-label">Balance des Comptes</span>
-                </div>
-                <div class="nav-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)">
-                    <span class="nav-icon">📚</span><span class="nav-label">Grand Livre</span>
-                </div>
-                <div class="nav-item" data-tab="vue-journal" onclick="goTo('vue-journal',this)">
-                    <span class="nav-icon">📖</span><span class="nav-label">Journal Général</span>
-                </div>
-                <div class="nav-item" data-tab="vue-plan" onclick="goTo('vue-plan',this)">
-                    <span class="nav-icon">📊</span><span class="nav-label">Plan Comptable</span>
-                </div>
-                <div class="nav-item" data-tab="vue-stats" onclick="goTo('vue-stats',this)">
-                    <span class="nav-icon">📊</span><span class="nav-label">Statistiques</span>
-                </div>
-            </div>
-
-            <!-- PARAMÉTRAGE -->
-            <div class="nav-group">
-                <div class="nav-group-title">Paramétrage</div>
-                <div class="nav-item" data-tab="vue-export" onclick="goTo('vue-export',this)">
-                    <span class="nav-icon">📁</span><span class="nav-label">Sauvegarde & Expert</span>
-                </div>
-                <div class="nav-item" data-tab="vue-aide" onclick="goTo('vue-aide',this)">
-                    <span class="nav-icon">📖</span><span class="nav-label">Mode d'emploi</span>
-                </div>
-            </div>
-
-        </nav>
-        <div id="sidebar-footer">
-            <button id="btn-deconnexion" onclick="deconnexionInfirmier()">🚪 Déconnexion</button>
-        </div>
-    </aside>
-
-    <!-- CONTENU PRINCIPAL -->
-    <main id="main-content">
-        <div id="topbar">
-            <button id="menu-toggle" onclick="toggleSidebar()">☰</button>
-            <h2 id="page-title">🏠 Tableau de bord</h2>
-            <span id="status-supabase" class="status-pill ok">Connecté à Supabase</span>
         </div>
 
-        <div id="page-body">
+        <!-- COMPTABILITÉ -->
+        <div class="nav-dropdown" id="dd-compta">
+            <button class="nav-dropdown-btn" onclick="toggleDropdown('dd-compta')">
+                📊 Comptabilité <span class="arrow">▼</span>
+            </button>
+            <div class="nav-dropdown-panel">
+                <div class="dd-group-title">Saisie</div>
+                <div class="dd-item" data-tab="vue-banque" onclick="goTo('vue-banque',this)"><span class="dd-icon">🏦</span>Journal de Banque</div>
+                <div class="dd-item" data-tab="vue-od" onclick="goTo('vue-od',this)"><span class="dd-icon">📝</span>Journal OD</div>
+                <div class="dd-item" data-tab="vue-transactions" onclick="goTo('vue-transactions',this)"><span class="dd-icon">📄</span>Transactions</div>
+                <div class="dd-sep"></div>
+                <div class="dd-group-title">Analyses</div>
+                <div class="dd-item" data-tab="vue-bilan" onclick="goTo('vue-bilan',this)"><span class="dd-icon">📈</span>Bilan / CE</div>
+                <div class="dd-item" data-tab="vue-stats" onclick="goTo('vue-stats',this)"><span class="dd-icon">📊</span>Statistiques</div>
+                <div class="dd-sep"></div>
+                <div class="dd-group-title">Livres</div>
+                <div class="dd-item" data-tab="vue-balance" onclick="goTo('vue-balance',this)"><span class="dd-icon">⚖️</span>Balance des Comptes</div>
+                <div class="dd-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)"><span class="dd-icon">📚</span>Grand Livre</div>
+                <div class="dd-item" data-tab="vue-journal" onclick="goTo('vue-journal',this)"><span class="dd-icon">📖</span>Journal Général</div>
+                <div class="dd-item" data-tab="vue-plan" onclick="goTo('vue-plan',this)"><span class="dd-icon">📗</span>Plan Comptable</div>
+            </div>
+        </div>
+
+        <!-- PARAMÉTRAGE -->
+        <div class="nav-dropdown" id="dd-params">
+            <button class="nav-dropdown-btn" onclick="toggleDropdown('dd-params')">
+                ⚙️ Paramétrage <span class="arrow">▼</span>
+            </button>
+            <div class="nav-dropdown-panel">
+                <div class="dd-item" data-tab="vue-export" onclick="goTo('vue-export',this)"><span class="dd-icon">📁</span>Sauvegarde &amp; Expert</div>
+                <div class="dd-item" data-tab="vue-aide" onclick="goTo('vue-aide',this)"><span class="dd-icon">📖</span>Mode d'emploi</div>
+            </div>
+        </div>
+
+        <div id="nav-spacer"></div>
+
+        <!-- Statut + user -->
+        <div id="nav-user">
+            <div class="dot"></div>
+            <span id="status-supabase" class="status-pill ok" style="font-size:11px;">Connecté</span>
+            <span id="auth-user-email" style="font-size:11px;color:#94a3b8;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        </div>
+        <button id="nav-logout" onclick="deconnexionInfirmier()">🚪 Déconnexion</button>
+    </nav>
+
+    <!-- ════ CONTENU ════════════════════════════════════════════ -->
+    <div id="page-body">
 
             <!-- TABLEAU DE BORD -->
             <section id="vue-dashboard" class="view-section active">
@@ -1111,17 +1062,44 @@ var PAGE_INITS = {
     'vue-dashboard':    dashboardInit
 };
 
+// ── Gestion des dropdowns ─────────────────────────────────
+window.toggleDropdown = function(ddId) {
+    var all = document.querySelectorAll('.nav-dropdown');
+    all.forEach(function(dd) {
+        if (dd.id !== ddId) {
+            dd.querySelector('.nav-dropdown-btn').classList.remove('open');
+            dd.querySelector('.nav-dropdown-panel').classList.remove('open');
+        }
+    });
+    var dd = document.getElementById(ddId);
+    if (!dd) return;
+    dd.querySelector('.nav-dropdown-btn').classList.toggle('open');
+    dd.querySelector('.nav-dropdown-panel').classList.toggle('open');
+};
+
+// Fermer les dropdowns en cliquant ailleurs
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.nav-dropdown')) {
+        document.querySelectorAll('.nav-dropdown-btn').forEach(function(b){ b.classList.remove('open'); });
+        document.querySelectorAll('.nav-dropdown-panel').forEach(function(p){ p.classList.remove('open'); });
+    }
+});
+
 window.goTo = function(tabId, navEl) {
     document.querySelectorAll('.view-section').forEach(function(s){ s.classList.remove('active'); });
     var target = document.getElementById(tabId);
     if (target) target.classList.add('active');
 
-    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+    // Gérer les items actifs dans les dropdowns et boutons
+    document.querySelectorAll('.dd-item, .nav-btn-home').forEach(function(n){ n.classList.remove('active'); });
     if (navEl) navEl.classList.add('active');
     else {
-        var found = document.querySelector('.nav-item[data-tab="'+tabId+'"]');
+        var found = document.querySelector('[data-tab="'+tabId+'"]');
         if (found) found.classList.add('active');
     }
+    // Fermer tous les dropdowns
+    document.querySelectorAll('.nav-dropdown-btn').forEach(function(b){ b.classList.remove('open'); });
+    document.querySelectorAll('.nav-dropdown-panel').forEach(function(p){ p.classList.remove('open'); });
 
     var titles = {
         'vue-dashboard':'🏠 Tableau de bord','vue-transactions':'📄 Transactions',
@@ -1152,7 +1130,8 @@ window.goTo = function(tabId, navEl) {
 // Rétrocompatibilité
 window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
-function applySidebarState(collapsed) {
+function applySidebarState(collapsed) { return; // Sidebar supprimée
+//
     var sidebar = document.getElementById('sidebar');
     var icon    = document.getElementById('sidebar-toggle-icon');
     var label   = document.getElementById('sidebar-toggle-label');
