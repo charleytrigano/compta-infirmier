@@ -1023,7 +1023,7 @@ window.transactions=window.transactions||[];
 
 var PAGE_INITS = {
     'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
-    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); },
+    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); if(typeof window.initTiersOnNav==='function') window.initTiersOnNav(); },
     'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); },
     'vue-plan':         function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
     'vue-urssaf':       function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
@@ -1488,6 +1488,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <script src="agenda.js"></script>
+    <script src="tiers.js"></script>
 
 <section id="vue-aide" class="view-section">
 <div style="max-width:860px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
