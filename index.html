@@ -124,7 +124,8 @@
                 <div class="dd-group-title">Livres</div>
                 <div class="dd-item" data-tab="vue-balance" onclick="goTo('vue-balance',this)"><span class="dd-icon">⚖️</span>Balance Générale</div>
                 <div class="dd-item" data-tab="vue-balance-tiers" onclick="goTo('vue-balance-tiers',this)"><span class="dd-icon">👥</span>Balance Auxiliaire Tiers</div>
-                <div class="dd-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)"><span class="dd-icon">📚</span>Grand Livre</div>
+                <div class="dd-item" data-tab="vue-grandlivre" onclick="goTo('vue-grandlivre',this)"><span class="dd-icon">📚</span>Grand Livre Général</div>
+                <div class="dd-item" data-tab="vue-gl-aux" onclick="goTo('vue-gl-aux',this)"><span class="dd-icon">📒</span>Grand Livre Auxiliaire</div>
                 <div class="dd-item" data-tab="vue-journal" onclick="goTo('vue-journal',this)"><span class="dd-icon">📖</span>Journal Général</div>
                 <div class="dd-item" data-tab="vue-plan" onclick="goTo('vue-plan',this)"><span class="dd-icon">📗</span>Plan Comptable</div>
             </div>
@@ -536,6 +537,15 @@
         <section id="vue-balance-tiers" class="view-section">
             <h2>👥 Balance Auxiliaire des Tiers</h2>
             <div id="balance-tiers-contenu">
+                <p style="color:#64748b;padding:20px;text-align:center;">Chargement...</p>
+            </div>
+        </section>
+
+
+        <!-- VUE : GRAND LIVRE AUXILIAIRE -->
+        <section id="vue-gl-aux" class="view-section">
+            <h2>📒 Grand Livre Auxiliaire des Tiers</h2>
+            <div id="gl-aux-contenu">
                 <p style="color:#64748b;padding:20px;text-align:center;">Chargement...</p>
             </div>
         </section>
@@ -1062,6 +1072,7 @@ var PAGE_INITS = {
     'vue-stats':        function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
     'vue-2035':         function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
     'vue-journal':      function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
+    'vue-gl-aux':        function(){ if(typeof window.initGLAuxModule==='function') window.initGLAuxModule(); },
     'vue-grandlivre': function(){
         var fn = function() {
             if (typeof window.chargerEtAfficherGrandLivre === 'function') {
@@ -1196,7 +1207,9 @@ window.goTo = function(tabId, navEl) {
         'vue-bareme-ir':'⚙️ Barème IR','vue-export':'📁 Sauvegarde & Expert',
         'vue-bilan':'📈 Bilan / CE','vue-stats':'📊 Statistiques',
         'vue-2035':'📑 2035 / 2042','vue-journal':'📖 Journal Général',
-        'vue-grandlivre':'📚 Grand Livre','vue-balance':'⚖️ Balance Générale des Comptes',
+        'vue-gl-aux':        function(){ if(typeof window.initGLAuxModule==='function') window.initGLAuxModule(); },
+    'vue-grandlivre':'📚 Grand Livre Général',
+        'vue-gl-aux':'📒 Grand Livre Auxiliaire des Tiers','vue-balance':'⚖️ Balance Générale des Comptes',
         'vue-balance-tiers':'👥 Balance Auxiliaire des Tiers',
         'vue-profil':'👤 Mon Profil','vue-patients':'👥 Patients & Cabinets',
         'vue-ngap':'💊 Nomenclature NGAP',
@@ -1461,6 +1474,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="grand-livre.js"></script>
 <script src="balance.js"></script>
     <script src="balance-tiers.js"></script>
+    <script src="grand-livre-auxiliaire.js"></script>
 <script src="profil.js"></script>
 <script src="patients.js"></script>
 <script src="passages.js"></script>
