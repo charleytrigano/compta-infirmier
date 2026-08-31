@@ -297,10 +297,46 @@
                     </select>
                 </div>
 
-                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
-                    <label for="pay-description" class="text-xs font-semibold text-slate-600">Libellé / Tiers *</label>
-                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: Virement CPAM..." required>
+                <div class="flex-1 min-w-[200px] flex flex-col gap-1">
+                    <label for="pay-tiers-code" class="text-xs font-semibold text-slate-600">Compte Tiers *</label>
+                    <select id="pay-tiers-code" class="form-control" required onchange="bankTiersChange()">
+                        <option value="">-- Sélectionner un tiers --</option>
+                        <optgroup label="── Clients & Organismes payeurs ──">
+                            <option value="411000">411000 — CPAM / Sécurité Sociale</option>
+                            <option value="411100">411100 — Mutuelle / Complémentaire</option>
+                            <option value="411200">411200 — Patient (part patient)</option>
+                            <option value="411300">411300 — Tiers payant complémentaire</option>
+                        </optgroup>
+                        <optgroup label="── Organismes sociaux ──">
+                            <option value="431000">431000 — URSSAF</option>
+                            <option value="437100">437100 — CARPIMKO Retraite</option>
+                            <option value="437200">437200 — CARPIMKO Prévoyance santé</option>
+                            <option value="437300">437300 — CARPIMKO Invalidité-décès</option>
+                        </optgroup>
+                        <optgroup label="── État & Impôts ──">
+                            <option value="441000">441000 — État (Impôt sur le Revenu)</option>
+                            <option value="443000">443000 — Taxes diverses</option>
+                        </optgroup>
+                        <optgroup label="── Fournisseurs ──">
+                            <option value="401000">401000 — Fournisseur matériel médical</option>
+                            <option value="401100">401100 — Laboratoire / Analyses</option>
+                            <option value="401200">401200 — Pharmacie</option>
+                            <option value="401300">401300 — Informatique / Logiciel</option>
+                            <option value="401400">401400 — Expert-comptable</option>
+                            <option value="401500">401500 — Ordre Infirmier</option>
+                        </optgroup>
+                        <optgroup label="── Divers ──">
+                            <option value="421000">421000 — Rétrocession Titulaire</option>
+                            <option value="455000">455000 — Exploitant (prélèvement perso.)</option>
+                        </optgroup>
+                    </select>
                 </div>
+
+                <div class="flex-1 min-w-[180px] flex flex-col gap-1">
+                    <label for="pay-description" class="text-xs font-semibold text-slate-600">Libellé / Nom tiers *</label>
+                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: URSSAF Côte d'Azur..." required>
+                </div>
+                <input type="hidden" id="pay-compte-code" value="">
 
                 <div class="w-32 flex flex-col gap-1">
                     <label for="pay-montant" class="text-xs font-semibold text-slate-600">Montant (€) *</label>
@@ -1068,6 +1104,52 @@ var PAGE_INITS = {
 };
 
 // ── Gestion des dropdowns ─────────────────────────────────
+// ── Gestion du compte tiers dans le Journal de Banque ─────────
+window.bankTiersChange = function() {
+    var sel   = document.getElementById('pay-tiers-code');
+    var desc  = document.getElementById('pay-description');
+    var code  = document.getElementById('pay-compte-code');
+    var cat   = document.getElementById('pay-categorie');
+    var type  = document.getElementById('pay-type');
+    if (!sel) return;
+
+    var val     = sel.value;
+    var txt     = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    var codePur = txt.split('—')[0].trim();
+
+    // Mettre à jour le compte de contrepartie caché (utilisé par transactions.js)
+    if (code) code.value = val;
+
+    // Remplir automatiquement la catégorie et le type selon le tiers
+    var autoData = {
+        '411000': {type:'Recette', cat:'Soins infirmiers',      desc:'Virement CPAM'},
+        '411100': {type:'Recette', cat:'Soins infirmiers',      desc:'Virement Mutuelle'},
+        '411200': {type:'Recette', cat:'Soins infirmiers',      desc:'Part patient'},
+        '411300': {type:'Recette', cat:'Soins infirmiers',      desc:'Tiers payant complémentaire'},
+        '431000': {type:'Dépense', cat:'URSSAF',                desc:'Cotisations URSSAF'},
+        '437100': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Retraite'},
+        '437200': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Prévoyance'},
+        '437300': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Invalidité'},
+        '441000': {type:'Dépense', cat:'Autre',                 desc:'Impôt sur le Revenu'},
+        '443000': {type:'Dépense', cat:'Autre',                 desc:'Taxes'},
+        '401000': {type:'Dépense', cat:'Achats matériel',       desc:'Achat fournisseur'},
+        '401100': {type:'Dépense', cat:'Achats matériel',       desc:'Laboratoire'},
+        '401200': {type:'Dépense', cat:'Achats matériel',       desc:'Pharmacie'},
+        '401300': {type:'Dépense', cat:'Autre',                 desc:'Prestataire informatique'},
+        '401400': {type:'Dépense', cat:'Autre',                 desc:'Expert-comptable'},
+        '401500': {type:'Dépense', cat:'Autre',                 desc:'Ordre Infirmier'},
+        '421000': {type:'Dépense', cat:'Autre',                 desc:'Rétrocession titulaire'},
+        '455000': {type:'Dépense', cat:'Autre',                 desc:'Prélèvement personnel'},
+    };
+
+    if (val && autoData[val]) {
+        var d = autoData[val];
+        if (type) { for(var i=0;i<type.options.length;i++) { if(type.options[i].value===d.type){type.selectedIndex=i;break;} } }
+        if (cat)  { for(var i=0;i<cat.options.length;i++)  { if(cat.options[i].value===d.cat) {cat.selectedIndex=i;break;}  } }
+        if (desc && !desc.value) desc.value = d.desc;
+    }
+};
+
 window.toggleDropdown = function(ddId) {
     var all = document.querySelectorAll('.nav-dropdown');
     all.forEach(function(dd) {
