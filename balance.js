@@ -15,59 +15,87 @@
         return m ? parseInt(m[1]) : null;
     }
 
-    // ── Compte gestion + tiers pour une transaction ───────────────────────────
-    function getComptes(t, tiersParId) {
-        var montant    = Math.abs(parseFloat(t.amount || t.montant || 0));
-        var estRecette = (t.type||'').toLowerCase() === 'recette';
-        var cat        = (t.category || t.categorie || '').toLowerCase();
-        var lignes     = [];
+    // ── Compte gestion (6xx/7xx) ──────────────────────────────────────────────
+    function codeGestion(type, cat) {
+        if ((type||'').toLowerCase()==='recette') return {code:'706000', lib:'Honoraires / Soins infirmiers'};
+        if      (cat.includes('carpimko'))     return {code:'646200', lib:'Cotisations CARPIMKO'};
+        else if (cat.includes('urssaf'))       return {code:'646100', lib:'Cotisations URSSAF'};
+        else if (cat.includes('rétrocession')) return {code:'621000', lib:'Rétrocession'};
+        else if (cat.includes('impôt'))        return {code:'695000', lib:'Impôt sur le revenu'};
+        else if (cat.includes('matériel') || cat.includes('achat')) return {code:'606000', lib:'Achats matériel'};
+        else if (cat.includes('assurance'))    return {code:'616000', lib:'Assurances'};
+        else if (cat.includes('loyer'))        return {code:'613200', lib:'Loyers'};
+        else if (cat.includes('kilométri'))    return {code:'625100', lib:'Frais kilométriques'};
+        else if (cat.includes('formation'))    return {code:'625600', lib:'Formations'};
+        else if (cat.includes('bancaire'))     return {code:'627000', lib:'Frais bancaires'};
+        else                                   return {code:'628000', lib:'Charges diverses'};
+    }
 
-        // Compte gestion (6xx/7xx)
-        var codeG, libG;
-        if (estRecette) {
-            codeG = t.compte_code || '706000';
-            libG  = t.compte_libelle || 'Honoraires / Soins infirmiers';
-        } else {
-            if      (cat.includes('carpimko'))     { codeG='646200'; libG='Cotisations CARPIMKO'; }
-            else if (cat.includes('urssaf'))       { codeG='646100'; libG='Cotisations URSSAF'; }
-            else if (cat.includes('rétrocession')) { codeG='621000'; libG='Rétrocession'; }
-            else if (cat.includes('impôt'))        { codeG='695000'; libG='Impôt sur le revenu'; }
-            else if (cat.includes('matériel') || cat.includes('achat')) { codeG='606000'; libG='Achats matériel'; }
-            else if (cat.includes('assurance'))    { codeG='616000'; libG='Assurances'; }
-            else if (cat.includes('loyer'))        { codeG='613200'; libG='Loyers'; }
-            else if (cat.includes('kilométri'))    { codeG='625100'; libG='Frais kilométriques'; }
-            else if (cat.includes('formation'))    { codeG='625600'; libG='Formations'; }
-            else if (cat.includes('bancaire'))     { codeG='627000'; libG='Frais bancaires'; }
-            else                                   { codeG='628000'; libG='Charges diverses'; }
-        }
-        lignes.push({code:codeG, lib:libG, debit:estRecette?0:montant, credit:estRecette?montant:0});
-
-        // Compte tiers (4xx)
-        var codeT = null, libT = null;
+    // ── Compte tiers (4xx) ────────────────────────────────────────────────────
+    function codeTiers(t, cat, tiersParId) {
+        // Priorité 1 : tiers_id → vrai compte (ex: 411Abadie, 411St-André)
         if (t.tiers_id && tiersParId && tiersParId[t.tiers_id]) {
-            codeT = tiersParId[t.tiers_id].compte;
-            libT  = tiersParId[t.tiers_id].nom;
-        } else if (t.compte_tiers_code) {
-            codeT = t.compte_tiers_code;
-            libT  = t.nom_tiers || t.compte_tiers_libelle || codeT;
-        } else if (estRecette) {
-            codeT = '411000'; libT = 'Clients / Patients / CPAM';
-        } else if (cat.includes('carpimko')) {
-            if   (cat.includes('prévoyance')) { codeT='437200'; libT='CARPIMKO Prévoyance'; }
-            else if (cat.includes('invalidité')) { codeT='437300'; libT='CARPIMKO Invalidité'; }
-            else { codeT='437100'; libT='CARPIMKO Retraite'; }
-        } else if (cat.includes('urssaf'))        { codeT='431000'; libT='URSSAF'; }
-        else if   (cat.includes('rétrocession')) { codeT='421000'; libT='Rétrocession Titulaire'; }
-        else if   (cat.includes('impôt'))        { codeT='441000'; libT='DGFiP'; }
-        else if   (cat.includes('matériel') || cat.includes('achat') || cat.includes('assurance')) { codeT='401000'; libT='Fournisseurs'; }
-
-        if (codeT) {
-            lignes.push({code:codeT, lib:libT, debit:estRecette?0:montant, credit:estRecette?montant:0});
+            return {code: tiersParId[t.tiers_id].compte, lib: tiersParId[t.tiers_id].nom};
         }
+        // Priorité 2 : compte_tiers_code stocké sur la transaction
+        if (t.compte_tiers_code) {
+            return {code: t.compte_tiers_code, lib: t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers_code};
+        }
+        // Priorité 3 : déduction par catégorie — PAS de 411000 générique par défaut
+        var estRecette = (t.type||'').toLowerCase()==='recette';
+        if      (cat.includes('carpimko') && cat.includes('prévoyance')) return {code:'437200', lib:'CARPIMKO Prévoyance'};
+        else if (cat.includes('carpimko') && cat.includes('invalidité')) return {code:'437300', lib:'CARPIMKO Invalidité'};
+        else if (cat.includes('carpimko'))    return {code:'437100', lib:'CARPIMKO Retraite'};
+        else if (cat.includes('urssaf'))      return {code:'431000', lib:'URSSAF'};
+        else if (cat.includes('rétrocession'))return {code:'421000', lib:'Rétrocession Titulaire'};
+        else if (cat.includes('impôt'))       return {code:'441000', lib:'DGFiP'};
+        // Pour les recettes et achats sans tiers explicite : pas de compte tiers
+        return null;
+    }
 
-        // Banque 512000
-        lignes.push({code:'512000', lib:'Banque / Compte Courant', debit:estRecette?montant:0, credit:estRecette?0:montant});
+    // ── Générer les écritures double-entrée d'une transaction ────────────────
+    // Règle : chaque tiers est TOUJOURS soldé (facture + règlement simultanés)
+    //
+    //  RECETTE :
+    //    1. Facture  : DÉBIT  411xxx / CRÉDIT 706000
+    //    2. Règlement: DÉBIT  512000 / CRÉDIT 411xxx
+    //    → 411xxx soldé, net = DÉBIT 512000 / CRÉDIT 706000
+    //
+    //  DÉPENSE :
+    //    1. Facture  : DÉBIT  646xxx / CRÉDIT 401xxx (ou 431xxx etc.)
+    //    2. Règlement: DÉBIT  401xxx / CRÉDIT 512000
+    //    → 4xxxx soldé, net = DÉBIT 646xxx / CRÉDIT 512000
 
+    function getComptes(t, tiersParId) {
+        var m    = Math.abs(parseFloat(t.amount || t.montant || 0));
+        var isR  = (t.type||'').toLowerCase()==='recette';
+        var cat  = (t.category || t.categorie || '').toLowerCase();
+        var g    = codeGestion(t.type, cat);
+        var tier = codeTiers(t, cat, tiersParId);
+        var lignes = [];
+
+        if (tier) {
+            // Écriture avec tiers : 2 passes → le tiers est soldé
+            if (isR) {
+                // 1. Facture client : D/411xxx — C/706000
+                lignes.push({code:tier.code, lib:tier.lib,    debit:m, credit:0});
+                lignes.push({code:g.code,    lib:g.lib,       debit:0, credit:m});
+                // 2. Règlement     : D/512000 — C/411xxx
+                lignes.push({code:'512000',  lib:'Banque',    debit:m, credit:0});
+                lignes.push({code:tier.code, lib:tier.lib,    debit:0, credit:m});
+            } else {
+                // 1. Facture fourn : D/646xxx — C/401xxx
+                lignes.push({code:g.code,    lib:g.lib,       debit:m, credit:0});
+                lignes.push({code:tier.code, lib:tier.lib,    debit:0, credit:m});
+                // 2. Règlement     : D/401xxx — C/512000
+                lignes.push({code:tier.code, lib:tier.lib,    debit:m, credit:0});
+                lignes.push({code:'512000',  lib:'Banque',    debit:0, credit:m});
+            }
+        } else {
+            // Sans tiers : écriture simple gestion ↔ banque
+            lignes.push({code:g.code,   lib:g.lib,    debit:isR?0:m, credit:isR?m:0});
+            lignes.push({code:'512000', lib:'Banque',  debit:isR?m:0, credit:isR?0:m});
+        }
         return lignes;
     }
 
