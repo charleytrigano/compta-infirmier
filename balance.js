@@ -16,40 +16,63 @@
     }
 
     // ── Compte gestion (6xx/7xx) ──────────────────────────────────────────────
-    function codeGestion(type, cat) {
+    function codeGestion(type, cat, desc) {
         if ((type||'').toLowerCase()==='recette') return {code:'706000', lib:'Honoraires / Soins infirmiers'};
-        if      (cat.includes('carpimko'))     return {code:'646200', lib:'Cotisations CARPIMKO'};
-        else if (cat.includes('urssaf'))       return {code:'646100', lib:'Cotisations URSSAF'};
-        else if (cat.includes('rétrocession')) return {code:'621000', lib:'Rétrocession'};
-        else if (cat.includes('impôt'))        return {code:'695000', lib:'Impôt sur le revenu'};
-        else if (cat.includes('matériel') || cat.includes('achat')) return {code:'606000', lib:'Achats matériel'};
-        else if (cat.includes('assurance'))    return {code:'616000', lib:'Assurances'};
-        else if (cat.includes('loyer'))        return {code:'613200', lib:'Loyers'};
-        else if (cat.includes('kilométri'))    return {code:'625100', lib:'Frais kilométriques'};
-        else if (cat.includes('formation'))    return {code:'625600', lib:'Formations'};
-        else if (cat.includes('bancaire'))     return {code:'627000', lib:'Frais bancaires'};
-        else                                   return {code:'628000', lib:'Charges diverses'};
+        var d = (desc||'').toLowerCase();
+        // Cotisations sociales
+        if (cat.includes('carpimko') || d.includes('carpimko')) return {code:'646200', lib:'Cotisations CARPIMKO'};
+        if (cat.includes('urssaf')   || d.includes('urssaf'))   return {code:'646100', lib:'Cotisations URSSAF'};
+        // Honoraires reversés
+        if (cat.includes('rétrocession') || d.includes('rétrocession')) return {code:'621000', lib:'Rétrocession'};
+        // Impôts
+        if (cat.includes('impôt')  || d.includes('impôt')  || d.includes('irpp') || d.includes('ir ')) return {code:'695000', lib:'Impôt sur le revenu'};
+        // Achats et matériel
+        if (cat.includes('matériel') || cat.includes('achat') || cat.includes('fourniture') || d.includes('pharmacie') || d.includes('matériel')) return {code:'606000', lib:'Achats matériel'};
+        // Assurances
+        if (cat.includes('assurance') || d.includes('assurance') || d.includes('matmut') || d.includes('macsf') || d.includes('mma ')) return {code:'616000', lib:'Assurances professionnelles'};
+        // Loyers / local
+        if (cat.includes('loyer') || d.includes('loyer') || d.includes('local')) return {code:'613200', lib:'Loyers'};
+        // Frais kilométriques
+        if (cat.includes('kilométri') || cat.includes('déplacement') || d.includes('kilomét') || d.includes('carburant')) return {code:'625100', lib:'Frais kilométriques'};
+        // Formation / DPC
+        if (cat.includes('formation') || d.includes('formation') || d.includes(' dpc') || d.includes('cognitia')) return {code:'625600', lib:'Formations / DPC'};
+        // Frais bancaires
+        if (cat.includes('bancaire') || d.includes('frais bancaire') || d.includes('virement') || d.includes('abonnement')) return {code:'627000', lib:'Frais bancaires'};
+        // Ordre / cotisations professionnelles
+        if (d.includes('ordre') || d.includes('syndicat') || d.includes('cotisation')) return {code:'625800', lib:'Cotisations professionnelles'};
+        // Fournitures bureau / téléphone
+        if (d.includes('téléphone') || d.includes('internet') || d.includes('sfr') || d.includes('orange') || d.includes('bouygue')) return {code:'626000', lib:'Frais téléphone / internet'};
+        // Honoraires expert-comptable
+        if (d.includes('expert') || d.includes('comptable') || d.includes('honoraires')) return {code:'622000', lib:'Honoraires expert-comptable'};
+        return {code:'628000', lib:'Charges diverses'};
     }
 
     // ── Compte tiers (4xx) ────────────────────────────────────────────────────
     function codeTiers(t, cat, tiersParId) {
-        // Priorité 1 : tiers_id → vrai compte (ex: 411Abadie, 411St-André)
+        var isR = (t.type||'').toLowerCase()==='recette';
+
+        // Priorité 1 : tiers_id → vrai compte individuel (411Abadie, 411St-André…)
         if (t.tiers_id && tiersParId && tiersParId[t.tiers_id]) {
             return {code: tiersParId[t.tiers_id].compte, lib: tiersParId[t.tiers_id].nom};
         }
-        // Priorité 2 : compte_tiers_code stocké sur la transaction
+        // Priorité 2 : compte_tiers_code stocké directement
         if (t.compte_tiers_code) {
             return {code: t.compte_tiers_code, lib: t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers_code};
         }
-        // Priorité 3 : déduction par catégorie — PAS de 411000 générique par défaut
-        var estRecette = (t.type||'').toLowerCase()==='recette';
-        if      (cat.includes('carpimko') && cat.includes('prévoyance')) return {code:'437200', lib:'CARPIMKO Prévoyance'};
-        else if (cat.includes('carpimko') && cat.includes('invalidité')) return {code:'437300', lib:'CARPIMKO Invalidité'};
-        else if (cat.includes('carpimko'))    return {code:'437100', lib:'CARPIMKO Retraite'};
-        else if (cat.includes('urssaf'))      return {code:'431000', lib:'URSSAF'};
-        else if (cat.includes('rétrocession'))return {code:'421000', lib:'Rétrocession Titulaire'};
-        else if (cat.includes('impôt'))       return {code:'441000', lib:'DGFiP'};
-        // Pour les recettes et achats sans tiers explicite : pas de compte tiers
+        // Priorité 3 : déduction par catégorie
+        if (cat.includes('carpimko') && cat.includes('prévoyance')) return {code:'437200', lib:'CARPIMKO Prévoyance'};
+        if (cat.includes('carpimko') && cat.includes('invalidité')) return {code:'437300', lib:'CARPIMKO Invalidité'};
+        if (cat.includes('carpimko'))    return {code:'437100', lib:'CARPIMKO Retraite'};
+        if (cat.includes('urssaf'))      return {code:'431000', lib:'URSSAF'};
+        if (cat.includes('rétrocession'))return {code:'421000', lib:'Rétrocession Titulaire'};
+        if (cat.includes('impôt'))       return {code:'441000', lib:'DGFiP'};
+        if (cat.includes('matériel') || cat.includes('achat') || cat.includes('fourniture')) return {code:'401000', lib:'Fournisseurs matériel'};
+        if (cat.includes('assurance'))   return {code:'401000', lib:'Fournisseurs — Assurance'};
+        if (cat.includes('loyer'))       return {code:'401000', lib:'Fournisseurs — Loyer'};
+        if (cat.includes('formation'))   return {code:'401000', lib:'Fournisseurs — Formation'};
+        // Recettes sans tiers explicite → 411000 par défaut (soldé car double entrée)
+        if (isR)   return {code:'411000', lib:'Clients / Patients / CPAM'};
+        // Dépenses diverses sans tiers → pas de compte tiers (frais IK, bancaires…)
         return null;
     }
 
@@ -70,7 +93,7 @@
         var m    = Math.abs(parseFloat(t.amount || t.montant || 0));
         var isR  = (t.type||'').toLowerCase()==='recette';
         var cat  = (t.category || t.categorie || '').toLowerCase();
-        var g    = codeGestion(t.type, cat);
+        var g    = codeGestion(t.type, cat, t.description);
         var tier = codeTiers(t, cat, tiersParId);
         var lignes = [];
 
