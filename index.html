@@ -1196,28 +1196,13 @@ window.goTo = function(tabId, navEl) {
     var titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[tabId] || tabId;
 
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebar-overlay').classList.remove('open');
-
     if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
 };
 
 // Rétrocompatibilité
 window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
-function applySidebarState(collapsed) { return; // Sidebar supprimée
-//
-    var sidebar = document.getElementById('sidebar');
-    var icon    = document.getElementById('sidebar-toggle-icon');
-    var label   = document.getElementById('sidebar-toggle-label');
-    if (!sidebar) return;
-    // Flexbox : seule la WIDTH de la sidebar change, le contenu s'adapte seul
-    if (collapsed) {
-        sidebar.classList.add('collapsed');
-        sidebar.style.width = '56px';
-        if (icon)  icon.textContent  = '▶';
-        if (label) label.textContent = '';
-    } else {
+function applySidebarState(collapsed) { /* sidebar supprimée */ } else {
         sidebar.classList.remove('collapsed');
         sidebar.style.width = '240px';
         if (icon)  icon.textContent  = '◀';
@@ -1225,12 +1210,7 @@ function applySidebarState(collapsed) { return; // Sidebar supprimée
     }
 }
 
-window.toggleSidebarCollapse = function() {
-    var sidebar   = document.getElementById('sidebar');
-    var collapsed = !sidebar.classList.contains('collapsed');
-    applySidebarState(collapsed);
-    localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
-};
+window.toggleSidebarCollapse = function() { /* sidebar supprimée */ };
 
 // Restaurer l'état au chargement
 document.addEventListener('DOMContentLoaded', function() {
@@ -1238,10 +1218,7 @@ document.addEventListener('DOMContentLoaded', function() {
     applySidebarState(collapsed);
 });
 
-window.toggleSidebar = function() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebar-overlay').classList.toggle('open');
-};
+window.toggleSidebar = function() { /* sidebar supprimée */ };
 
 window.chargerHistoriquePatientActif = function() {
     var ptId = window._ptFicheId;
