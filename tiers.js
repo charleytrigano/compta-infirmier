@@ -1,213 +1,230 @@
 // ============================================================================
-// tiers.js — Gestion des comptes tiers dans le Journal de Banque
+// tiers.js — Gestion des comptes de tiers individuels
 // ============================================================================
 
-// ── Référentiel des comptes tiers (Plan Comptable BNC infirmier) ─────────────
-var TIERS_COMPTES = [
-    // Classe 4 — Comptes de tiers
-    { groupe: '--- Clients & Organismes payeurs ---' },
-    { code: '411000', libelle: '411000 — CPAM / Sécurité Sociale', type: 'recette' },
-    { code: '411100', libelle: '411100 — Mutuelle / Complémentaire santé', type: 'recette' },
-    { code: '411200', libelle: '411200 — Patient (part patient)', type: 'recette' },
-    { code: '411300', libelle: '411300 — Tiers payant complémentaire', type: 'recette' },
+var TIERS_DATA = [];
 
-    { groupe: '--- Organismes sociaux ---' },
-    { code: '431000', libelle: '431000 — URSSAF', type: 'depense' },
-    { code: '437100', libelle: '437100 — CARPIMKO (retraite)', type: 'depense' },
-    { code: '437200', libelle: '437200 — CARPIMKO (prévoyance santé)', type: 'depense' },
-    { code: '437300', libelle: '437300 — CARPIMKO (invalidité-décès)', type: 'depense' },
-
-    { groupe: '--- Fournisseurs & Prestataires ---' },
-    { code: '401000', libelle: '401000 — Fournisseur (matériel médical)', type: 'depense' },
-    { code: '401100', libelle: '401100 — Laboratoire / Analyses', type: 'depense' },
-    { code: '401200', libelle: '401200 — Pharmacie', type: 'depense' },
-    { code: '401300', libelle: '401300 — Prestataire informatique / Logiciel', type: 'depense' },
-    { code: '401400', libelle: '401400 — Expert-comptable / Honoraires', type: 'depense' },
-    { code: '401500', libelle: '401500 — Ordre Infirmier (cotisation)', type: 'depense' },
-
-    { groupe: '--- État & Impôts ---' },
-    { code: '441000', libelle: '441000 — État (Impôt sur le Revenu)', type: 'depense' },
-    { code: '443000', libelle: '443000 — Taxes diverses', type: 'depense' },
-
-    { groupe: '--- Titulaire (remplaçante) ---' },
-    { code: '421000', libelle: '421000 — Rétrocession titulaire', type: 'depense' },
-    { code: '455000', libelle: '455000 — Exploitant (prélèvement personnel)', type: 'both' },
+var COMPTES_TIERS = [
+    {compte:'411000', label:'411 — Clients / CPAM / Patients'},
+    {compte:'411100', label:'411 — Mutuelle / Complémentaire'},
+    {compte:'421000', label:'421 — Rétrocession Titulaire'},
+    {compte:'431000', label:'431 — URSSAF'},
+    {compte:'437100', label:'437 — CARPIMKO Retraite'},
+    {compte:'437200', label:'437 — CARPIMKO Prévoyance'},
+    {compte:'437300', label:'437 — CARPIMKO Invalidité-décès'},
+    {compte:'441000', label:'441 — État / Impôts'},
+    {compte:'401000', label:'401 — Fournisseurs matériel'},
+    {compte:'401100', label:'401 — Laboratoire'},
+    {compte:'401200', label:'401 — Pharmacie'},
+    {compte:'401300', label:'401 — Informatique / Logiciel'},
+    {compte:'401400', label:'401 — Expert-comptable / Honoraires'},
+    {compte:'401500', label:'401 — Ordre National Infirmiers'},
+    {compte:'455000', label:'455 — Exploitant (prélèvement perso)'},
 ];
 
-// ── Injecter les champs tiers dans le formulaire Journal de Banque ───────────
-window.initTiersJournalBanque = function() {
-    // Trouver le formulaire du journal de banque
-    var form = document.querySelector('#vue-banque form') || document.getElementById('form-journal-banque');
-    if (!form || document.getElementById('pay-tiers-bloc')) return;
+// ── Charger les tiers depuis Supabase ─────────────────────────────────────────
+async function tiersCharger() {
+    var sc = window.supabaseClient; if (!sc) return;
+    var r = await sc.from('tiers').select('*').eq('actif', true).order('compte').order('nom');
+    TIERS_DATA = r.data || [];
+    tiersRenduSelect();
+    tiersRenduListe();
+}
 
-    // Chercher le champ description/libellé pour insérer après
-    var descParent = (document.getElementById('pay-description') || document.getElementById('pay-libelle') || {}).parentElement;
-    if (!descParent) return;
+// ── Remplir le select du Journal de Banque ────────────────────────────────────
+function tiersRenduSelect() {
+    var sel = document.getElementById('pay-tiers-id');
+    if (!sel) return;
+    var val = sel.value;
 
-    var bloc = document.createElement('div');
-    bloc.id = 'pay-tiers-bloc';
-    bloc.style.cssText = 'margin-top:10px;';
-    bloc.innerHTML = tiersHtml();
-    descParent.parentElement.insertBefore(bloc, descParent.nextSibling);
+    // Grouper par compte
+    var groupes = {};
+    TIERS_DATA.forEach(function(t) {
+        if (!groupes[t.compte]) groupes[t.compte] = [];
+        groupes[t.compte].push(t);
+    });
 
-    // Écouter changement de type (recette/dépense) pour filtrer les tiers
-    var typeSelect = document.getElementById('pay-type') || document.querySelector('#vue-banque select');
-    if (typeSelect) {
-        typeSelect.addEventListener('change', function() {
-            tiersMAJFiltreType(this.value);
+    sel.innerHTML = '<option value="">-- Sélectionner un tiers --</option>';
+    COMPTES_TIERS.forEach(function(c) {
+        if (!groupes[c.compte] || !groupes[c.compte].length) return;
+        var grp = document.createElement('optgroup');
+        grp.label = c.label;
+        groupes[c.compte].forEach(function(t) {
+            var opt = document.createElement('option');
+            opt.value = t.id;
+            opt.dataset.compte = t.compte;
+            opt.dataset.nom = t.nom;
+            opt.textContent = t.nom;
+            grp.appendChild(opt);
         });
-    }
-};
-
-function tiersHtml() {
-    var opts = '<option value="">-- Aucun tiers --</option>';
-    TIERS_COMPTES.forEach(function(t) {
-        if (t.groupe) {
-            opts += '<optgroup label="' + t.groupe + '"></optgroup>';
-        } else {
-            opts += '<option value="' + t.code + '" data-type="' + t.type + '">'
-                + t.libelle + '</option>';
-        }
+        sel.appendChild(grp);
     });
 
-    return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-        + '<div>'
-        + '<label style="display:block;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Compte Tiers (optionnel)</label>'
-        + '<select id="pay-tiers-code" onchange="tiersMAJNom()" style="width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:white;">'
-        + opts + '</select>'
-        + '</div>'
-        + '<div>'
-        + '<label style="display:block;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Nom du Tiers</label>'
-        + '<input type="text" id="pay-nom-tiers" placeholder="Ex: URSSAF Côte d\'Azur, CPAM 06..." '
-        + 'style="width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">'
-        + '</div>'
-        + '</div>'
-        + '<div id="pay-tiers-info" style="display:none;margin-top:6px;padding:7px 12px;background:#eff6ff;border-radius:6px;font-size:12px;color:#1d4ed8;border-left:3px solid #2563eb;">'
-        + '</div>';
+    if (val) sel.value = val;
 }
 
-window.tiersMAJNom = function() {
-    var sel = document.getElementById('pay-tiers-code');
-    var nomEl = document.getElementById('pay-nom-tiers');
-    var infoEl = document.getElementById('pay-tiers-info');
-    if (!sel) return;
-    var code = sel.value;
-    var libelle = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+// ── Sélection d'un tiers → auto-remplissage ───────────────────────────────────
+window.bankTiersChange = function() {
+    var sel  = document.getElementById('pay-tiers-id');
+    var desc = document.getElementById('pay-description');
+    var code = document.getElementById('pay-compte-code');
+    var typeS = document.getElementById('pay-type');
+    var catS  = document.getElementById('pay-categorie');
+    if (!sel || !sel.value) return;
 
-    if (!code) {
-        if (infoEl) infoEl.style.display = 'none';
-        return;
-    }
+    var opt = sel.options[sel.selectedIndex];
+    var compte = opt ? opt.dataset.compte : '';
+    var nom    = opt ? opt.dataset.nom    : '';
 
-    // Info comptable sur l'écriture
-    var info = tiersGetInfo(code);
-    if (infoEl && info) {
-        infoEl.style.display = 'block';
-        infoEl.innerHTML = '📒 <strong>Écriture :</strong> ' + info;
-    } else if (infoEl) {
-        infoEl.style.display = 'none';
-    }
-};
+    if (code) code.value = compte;
+    if (desc && !desc.value) desc.value = nom;
 
-function tiersGetInfo(code) {
-    var map = {
-        '411000': 'Débit 512000 (Banque) / Crédit 706000 (Honoraires) + Crédit 411000 (CPAM)',
-        '411100': 'Débit 512000 (Banque) / Crédit 706000 (Honoraires) + Crédit 411100 (Mutuelle)',
-        '411200': 'Débit 512000 (Banque) / Crédit 411200 (Patient)',
-        '431000': 'Débit 646100 (Cotis. URSSAF) / Crédit 431000 (URSSAF) + Crédit 512000 (Banque)',
-        '437100': 'Débit 646200 (Cotis. CARPIMKO) / Crédit 437100 (CARPIMKO) + Crédit 512000',
-        '437200': 'Débit 646200 (Prévoyance) / Crédit 437200 (CARPIMKO Prév.) + Crédit 512000',
-        '401000': 'Débit 606000 (Fournitures) / Crédit 401000 (Fournisseur) + Crédit 512000',
-        '401400': 'Débit 628000 (Honoraires expert) / Crédit 401400 (Expert-comptable)',
-        '441000': 'Débit 695000 (IR) / Crédit 441000 (État) + Crédit 512000 (Banque)',
-        '421000': 'Débit 621000 (Rétrocession) / Crédit 421000 (Titulaire) + Crédit 512000',
-        '455000': 'Débit 455000 (Exploitant) / Crédit 512000 (Banque)',
+    // Auto Sens et Catégorie
+    var auto = {
+        '411000': {type:'Recette', cat:'Soins infirmiers'},
+        '411100': {type:'Recette', cat:'Soins infirmiers'},
+        '411200': {type:'Recette', cat:'Soins infirmiers'},
+        '431000': {type:'Dépense', cat:'URSSAF'},
+        '437100': {type:'Dépense', cat:'Cotisations CARPIMKO'},
+        '437200': {type:'Dépense', cat:'Cotisations CARPIMKO'},
+        '437300': {type:'Dépense', cat:'Cotisations CARPIMKO'},
+        '441000': {type:'Dépense', cat:'Autre'},
+        '401400': {type:'Dépense', cat:'Autre'},
+        '421000': {type:'Dépense', cat:'Autre'},
+        '455000': {type:'Dépense', cat:'Autre'},
     };
-    return map[code] || null;
-}
+    if (auto[compte]) {
+        if (typeS) { for(var i=0;i<typeS.options.length;i++) { if(typeS.options[i].value===auto[compte].type){typeS.selectedIndex=i;break;} } }
+        if (catS)  { for(var i=0;i<catS.options.length;i++)  { if(catS.options[i].value===auto[compte].cat) {catS.selectedIndex=i;break;}  } }
+    }
 
-window.tiersMAJFiltreType = function(typeVal) {
-    var sel = document.getElementById('pay-tiers-code');
-    if (!sel) return;
-    var type = (typeVal || '').toLowerCase();
-    Array.from(sel.options).forEach(function(opt) {
-        if (!opt.value) return;
-        var t = opt.getAttribute('data-type');
-        if (t === 'both' || !t) return;
-        if (type.includes('recette') && t === 'depense') {
-            opt.style.display = 'none';
-        } else if (type.includes('dépense') || type.includes('depense')) {
-            if (t === 'recette') opt.style.display = 'none';
-            else opt.style.display = '';
-        } else {
-            opt.style.display = '';
-        }
-    });
+    // Bulle d'info
+    var info = document.getElementById('pay-tiers-info');
+    if (info) {
+        info.style.display = 'block';
+        info.innerHTML = '<strong>' + compte + '</strong> — ' + nom;
+    }
 };
 
-// ── Patch de enregistrerPaiementBanque pour sauvegarder le tiers ─────────────
+// ── Sauvegarder le tiers_id avec la transaction ───────────────────────────────
+var _origAjouterPaiement = null;
 window.addEventListener('load', function() {
-    // Attendre que transactions.js soit chargé
     setTimeout(function() {
-        patcherEnregistrementBanque();
-    }, 800);
+        if (typeof window.ajouterPaiement === 'function' && !window._tiersPatch) {
+            window._tiersPatch = true;
+            _origAjouterPaiement = window.ajouterPaiement;
+            window.ajouterPaiement = async function() {
+                var tiersId = (document.getElementById('pay-tiers-id') || {}).value || null;
+                await _origAjouterPaiement.apply(this, arguments);
+                if (tiersId) {
+                    var sc = window.supabaseClient;
+                    if (sc) {
+                        var r = await sc.from('transactions').select('id').order('created_at',{ascending:false}).limit(1);
+                        if (r.data && r.data.length) {
+                            var t = TIERS_DATA.find(function(x){return x.id===tiersId;});
+                            await sc.from('transactions').update({
+                                tiers_id: tiersId,
+                                compte_tiers_code: t ? t.compte : null,
+                                nom_tiers: t ? t.nom : null
+                            }).eq('id', r.data[0].id);
+                        }
+                    }
+                    // Reset
+                    var sel = document.getElementById('pay-tiers-id');
+                    var inf = document.getElementById('pay-tiers-info');
+                    if (sel) sel.value = '';
+                    if (inf) inf.style.display = 'none';
+                }
+            };
+        }
+    }, 1000);
 });
 
-function patcherEnregistrementBanque() {
-    var origFn = window.enregistrerPaiementBanque;
-    if (!origFn) return;
-
-    window.enregistrerPaiementBanque = async function() {
-        // Récupérer les données tiers avant l'enregistrement original
-        var tiersCode  = (document.getElementById('pay-tiers-code') || {}).value || null;
-        var tiersNom   = (document.getElementById('pay-nom-tiers') || {}).value || null;
-        var tiersLib   = tiersCode
-            ? ((document.getElementById('pay-tiers-code') || {}).options
-                ? (document.getElementById('pay-tiers-code').options[document.getElementById('pay-tiers-code').selectedIndex] || {}).text
-                : null)
-            : null;
-
-        // Appeler la fonction originale
-        await origFn.apply(this, arguments);
-
-        // Mettre à jour la dernière transaction avec les infos tiers
-        if (tiersCode || tiersNom) {
-            var sc = window.supabaseClient;
-            if (!sc) return;
-            // Récupérer la dernière transaction insérée
-            var r = await sc.from('transactions')
-                .select('id').order('created_at', {ascending:false}).limit(1);
-            if (r.data && r.data.length) {
-                await sc.from('transactions').update({
-                    compte_tiers_code:    tiersCode,
-                    compte_tiers_libelle: tiersLib,
-                    nom_tiers:            tiersNom
-                }).eq('id', r.data[0].id);
-            }
-            // Réinitialiser les champs tiers
-            var tc = document.getElementById('pay-tiers-code');
-            var tn = document.getElementById('pay-nom-tiers');
-            var ti = document.getElementById('pay-tiers-info');
-            if (tc) tc.value = '';
-            if (tn) tn.value = '';
-            if (ti) ti.style.display = 'none';
-        }
-    };
+// ── GESTION DES TIERS (CRUD) ──────────────────────────────────────────────────
+function tiersRenduListe() {
+    var el = document.getElementById('tiersListe'); if (!el) return;
+    if (!TIERS_DATA.length) {
+        el.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:15px;">Aucun tiers. Cliquez "+ Nouveau tiers".</p>';
+        return;
+    }
+    var groupes = {};
+    TIERS_DATA.forEach(function(t) {
+        if (!groupes[t.compte]) groupes[t.compte] = [];
+        groupes[t.compte].push(t);
+    });
+    var html = '';
+    Object.keys(groupes).sort().forEach(function(compte) {
+        var labelCompte = (COMPTES_TIERS.find(function(c){return c.compte===compte;})||{label:compte}).label;
+        html += '<div style="margin-bottom:12px;">'
+            + '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:4px 0;border-bottom:1px solid #e2e8f0;margin-bottom:6px;">' + labelCompte + '</div>'
+            + groupes[compte].map(function(t) {
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:4px;">'
+                    + '<div>'
+                    + '<span style="font-weight:600;font-size:13px;">' + t.nom + '</span>'
+                    + (t.siret ? '<span style="font-size:11px;color:#64748b;margin-left:8px;">SIRET: ' + t.siret + '</span>' : '')
+                    + (t.iban  ? '<span style="font-size:11px;color:#64748b;margin-left:8px;">IBAN: ' + t.iban + '</span>'  : '')
+                    + '</div>'
+                    + '<div style="display:flex;gap:6px;">'
+                    + '<button onclick="tiersEditer(\'' + t.id + '\')" style="background:#f8fafc;border:1px solid #e2e8f0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:12px;">✏️</button>'
+                    + '<button onclick="tiersSupprimer(\'' + t.id + '\')" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:12px;">🗑️</button>'
+                    + '</div>'
+                    + '</div>';
+            }).join('') + '</div>';
+    });
+    el.innerHTML = html;
 }
 
-// ── Afficher le tiers dans le tableau des transactions ───────────────────────
-// Override du rendu pour afficher le tiers si présent
-window.tiersFormatCellule = function(t) {
-    if (!t.compte_tiers_code && !t.nom_tiers) return '';
-    return '<br><span style="font-size:11px;color:#64748b;">'
-        + (t.compte_tiers_code ? '<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px;">'
-            + t.compte_tiers_code + '</code> ' : '')
-        + (t.nom_tiers || '')
-        + '</span>';
+window.tiersOuvrirModal = function(id) {
+    var m = document.getElementById('tiersModal'); if (!m) return;
+    var f = document.getElementById('tiersForm'); if (f) f.reset();
+    window._tiersEditeId = null;
+    if (id) {
+        var t = TIERS_DATA.find(function(x){return x.id===id;});
+        if (t) {
+            window._tiersEditeId = id;
+            var champs = {tiersCompte:t.compte, tiersNom:t.nom,
+                          tiersSiret:t.siret, tiersIban:t.iban, tiersNotes:t.notes};
+            Object.keys(champs).forEach(function(k){
+                var e=document.getElementById(k); if(e) e.value=champs[k]||'';
+            });
+        }
+    }
+    m.style.display = 'flex';
 };
 
-// ── Init automatique ──────────────────────────────────────────────────────────
-// S'appelle quand on navigue vers vue-banque
-window.initTiersOnNav = function() {
-    setTimeout(window.initTiersJournalBanque, 400);
+window.tiersFermerModal = function() {
+    var m = document.getElementById('tiersModal'); if (m) m.style.display = 'none';
+};
+
+window.tiersSauvegarder = async function(e) {
+    if (e) e.preventDefault();
+    var sc = window.supabaseClient; if (!sc) return;
+    var data = {
+        compte: (document.getElementById('tiersCompte')||{}).value,
+        nom:    (document.getElementById('tiersNom')||{}).value.trim(),
+        siret:  (document.getElementById('tiersSiret')||{}).value.trim() || null,
+        iban:   (document.getElementById('tiersIban')||{}).value.trim()  || null,
+        notes:  (document.getElementById('tiersNotes')||{}).value.trim() || null,
+        actif:  true
+    };
+    if (!data.compte || !data.nom) { alert('Compte et nom obligatoires'); return; }
+    var r = window._tiersEditeId
+        ? await sc.from('tiers').update(data).eq('id', window._tiersEditeId)
+        : await sc.from('tiers').insert([data]);
+    if (r.error) { alert('Erreur : ' + r.error.message); return; }
+    window.tiersFermerModal();
+    await tiersCharger();
+};
+
+window.tiersEditer    = function(id) { window.tiersOuvrirModal(id); };
+window.tiersSupprimer = async function(id) {
+    if (!confirm('Supprimer ce tiers ?')) return;
+    var sc = window.supabaseClient; if (!sc) return;
+    await sc.from('tiers').update({actif:false}).eq('id', id);
+    await tiersCharger();
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.initTiers = async function() {
+    await tiersCharger();
 };
