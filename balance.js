@@ -1,190 +1,183 @@
-
 /**
- * balance.js - Lecture directe de la table ecritures_comptables
+ * balance.js - Balance des comptes depuis transactions
  */
- 
 (function () {
-  window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
- 
-  function parseMontant(val) {
-    if (val === null || val === undefined) return 0;
-    if (typeof val === 'number') return isNaN(val) ? 0 : Math.abs(val);
-    if (typeof val === 'string') {
-      const propre = val.replace(/\s/g, '').replace('€', '').replace(',', '.').trim();
-      const num = parseFloat(propre);
-      return isNaN(num) ? 0 : Math.abs(num);
+    window.anneeBalanceSelectionnee = window.anneeBalanceSelectionnee || new Date().getFullYear();
+
+    function fmt(n) {
+        if (!n || Math.abs(n) < 0.001) return '-';
+        return Number(n).toLocaleString('fr-FR', {style:'currency', currency:'EUR', minimumFractionDigits:2});
     }
-    return 0;
-  }
- 
-  function formatEuro(valeur) {
-    if (!valeur || Math.abs(valeur) < 0.001) return '-';
-    return Number(valeur).toLocaleString('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  }
- 
-  function extraireAnnee(dateVal) {
-    if (!dateVal) return null;
-    if (typeof dateVal === 'number') return dateVal;
-    if (typeof dateVal === 'string') {
-      const match = dateVal.match(/(19|20)\d{2}/);
-      if (match) return parseInt(match[0], 10);
+
+    function annee(d) {
+        if (!d) return null;
+        var m = String(d).match(/(20\d{2})/);
+        return m ? parseInt(m[1]) : null;
     }
-    const d = new Date(dateVal);
-    return isNaN(d.getTime()) ? null : d.getFullYear();
-  }
- 
-  async function recupererToutesLesEcritures() {
-    // 1. Regarder en mémoire locale
-    let ecritures = window.listeEcritures || window.ecrituresComptables || [];
-    if (!Array.isArray(ecritures) || ecritures.length === 0) {
-      try {
-        const local = localStorage.getItem('ecritures_comptables') || localStorage.getItem('ecritures');
-        if (local) ecritures = JSON.parse(local);
-      } catch (e) {}
-    }
- 
-    // 2. Interroger directement Supabase (table ecritures_comptables)
-    if ((!ecritures || ecritures.length === 0) && window.supabaseClient) {
-      try {
-        const { data, error } = await window.supabaseClient.from('ecritures_comptables').select('*');
-        if (!error && data && data.length > 0) {
-          ecritures = data;
-          window.listeEcritures = data;
+
+    // ── Compte gestion + tiers pour une transaction ───────────────────────────
+    function getComptes(t, tiersParId) {
+        var montant    = Math.abs(parseFloat(t.amount || t.montant || 0));
+        var estRecette = (t.type||'').toLowerCase() === 'recette';
+        var cat        = (t.category || t.categorie || '').toLowerCase();
+        var lignes     = [];
+
+        // Compte gestion (6xx/7xx)
+        var codeG, libG;
+        if (estRecette) {
+            codeG = t.compte_code || '706000';
+            libG  = t.compte_libelle || 'Honoraires / Soins infirmiers';
+        } else {
+            if      (cat.includes('carpimko'))     { codeG='646200'; libG='Cotisations CARPIMKO'; }
+            else if (cat.includes('urssaf'))       { codeG='646100'; libG='Cotisations URSSAF'; }
+            else if (cat.includes('rétrocession')) { codeG='621000'; libG='Rétrocession'; }
+            else if (cat.includes('impôt'))        { codeG='695000'; libG='Impôt sur le revenu'; }
+            else if (cat.includes('matériel') || cat.includes('achat')) { codeG='606000'; libG='Achats matériel'; }
+            else if (cat.includes('assurance'))    { codeG='616000'; libG='Assurances'; }
+            else if (cat.includes('loyer'))        { codeG='613200'; libG='Loyers'; }
+            else if (cat.includes('kilométri'))    { codeG='625100'; libG='Frais kilométriques'; }
+            else if (cat.includes('formation'))    { codeG='625600'; libG='Formations'; }
+            else if (cat.includes('bancaire'))     { codeG='627000'; libG='Frais bancaires'; }
+            else                                   { codeG='628000'; libG='Charges diverses'; }
         }
-      } catch (e) {}
-    }
- 
-    return Array.isArray(ecritures) ? ecritures : [];
-  }
- 
-  function calculerBalanceComptable(ecritures = [], anneeCible = new Date().getFullYear()) {
-    const comptes = {};
- 
-    ecritures.forEach(e => {
-      const eAnnee = extraireAnnee(e.date) || anneeCible;
- 
-      if (eAnnee === anneeCible) {
-        const code = e.compte_code || '471000';
-        const libelle = e.compte_libelle || e.description || `Compte ${code}`;
-        const debit = parseMontant(e.debit);
-        const credit = parseMontant(e.credit);
- 
-        if (!comptes[code]) {
-          comptes[code] = { num: code, libelle: libelle, debit: 0, credit: 0 };
+        lignes.push({code:codeG, lib:libG, debit:estRecette?0:montant, credit:estRecette?montant:0});
+
+        // Compte tiers (4xx)
+        var codeT = null, libT = null;
+        if (t.tiers_id && tiersParId && tiersParId[t.tiers_id]) {
+            codeT = tiersParId[t.tiers_id].compte;
+            libT  = tiersParId[t.tiers_id].nom;
+        } else if (t.compte_tiers_code) {
+            codeT = t.compte_tiers_code;
+            libT  = t.nom_tiers || t.compte_tiers_libelle || codeT;
+        } else if (estRecette) {
+            codeT = '411000'; libT = 'Clients / Patients / CPAM';
+        } else if (cat.includes('carpimko')) {
+            if   (cat.includes('prévoyance')) { codeT='437200'; libT='CARPIMKO Prévoyance'; }
+            else if (cat.includes('invalidité')) { codeT='437300'; libT='CARPIMKO Invalidité'; }
+            else { codeT='437100'; libT='CARPIMKO Retraite'; }
+        } else if (cat.includes('urssaf'))        { codeT='431000'; libT='URSSAF'; }
+        else if   (cat.includes('rétrocession')) { codeT='421000'; libT='Rétrocession Titulaire'; }
+        else if   (cat.includes('impôt'))        { codeT='441000'; libT='DGFiP'; }
+        else if   (cat.includes('matériel') || cat.includes('achat') || cat.includes('assurance')) { codeT='401000'; libT='Fournisseurs'; }
+
+        if (codeT) {
+            lignes.push({code:codeT, lib:libT, debit:estRecette?0:montant, credit:estRecette?montant:0});
         }
- 
-        comptes[code].debit += debit;
-        comptes[code].credit += credit;
-      }
-    });
- 
-    let totaux = { debit: 0, credit: 0, soldeDebit: 0, soldeCredit: 0 };
- 
-    const listeComptes = Object.values(comptes).map(c => {
-      const diff = c.debit - c.credit;
-      const soldeDebit = diff > 0 ? diff : 0;
-      const soldeCredit = diff < 0 ? Math.abs(diff) : 0;
- 
-      totaux.debit += c.debit;
-      totaux.credit += c.credit;
-      totaux.soldeDebit += soldeDebit;
-      totaux.soldeCredit += soldeCredit;
- 
-      return { ...c, soldeDebit, soldeCredit };
-    }).sort((a, b) => a.num.localeCompare(b.num, undefined, { numeric: true }));
- 
-    return { comptes: listeComptes, totaux };
-  }
- 
-  async function afficherBalanceFinale() {
-    let conteneur = document.getElementById('vue-balance') || 
-                    document.getElementById('balance-container') ||
-                    document.getElementById('balance');
- 
-    if (!conteneur) {
-      const main = document.querySelector('main') || document.querySelector('.content') || document.body;
-      conteneur = main;
+
+        // Banque 512000
+        lignes.push({code:'512000', lib:'Banque / Compte Courant', debit:estRecette?montant:0, credit:estRecette?0:montant});
+
+        return lignes;
     }
- 
-    const ecritures = await recupererToutesLesEcritures();
-    const annees = Array.from(new Set([new Date().getFullYear(), ...ecritures.map(e => extraireAnnee(e.date)).filter(Boolean)])).sort((a,b)=>b-a);
-    const anneeActive = parseInt(window.anneeBalanceSelectionnee, 10);
-    const { comptes, totaux } = calculerBalanceComptable(ecritures, anneeActive);
- 
-    conteneur.innerHTML = `
-      <div class="space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 max-w-6xl mx-auto my-4">
-        <div class="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-slate-100">
-          <h2 class="text-base font-semibold text-slate-700 flex items-center gap-2">
-            ⚖️ Balance Générale des Comptes
-          </h2>
-          <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-            <label for="select-annee-balance" class="text-xs font-bold text-slate-600">Exercice :</label>
-            <select id="select-annee-balance" onchange="changerAnneeBalance(this.value)" class="bg-white border border-slate-300 text-slate-900 text-xs rounded font-bold px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-              ${annees.map(a => `<option value="${a}" ${a === anneeActive ? 'selected' : ''}>${a}</option>`).join('')}
-            </select>
-          </div>
-        </div>
- 
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <th class="py-3 px-4 w-24">Numéro</th>
-                <th class="py-3 px-4">Intitulé du compte</th>
-                <th class="py-3 px-4 text-right text-red-600 font-semibold w-36">Total Débit (€)</th>
-                <th class="py-3 px-4 text-right text-emerald-600 font-semibold w-36">Total Crédit (€)</th>
-                <th class="py-3 px-4 text-right text-blue-600 font-semibold w-36">Solde Débiteurs (€)</th>
-                <th class="py-3 px-4 text-right text-emerald-600 font-semibold w-36">Solde Créditeurs (€)</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              ${comptes.length === 0 ? `
-                <tr>
-                  <td colspan="6" class="py-8 text-center text-slate-400 italic">
-                    Aucune écriture enregistrée dans le Grand Livre pour l'exercice ${anneeActive}.
-                  </td>
-                </tr>
-              ` : comptes.map(c => `
-                <tr class="hover:bg-slate-50/50 transition">
-                  <td class="py-3 px-4 font-bold text-slate-800">${escapeHtml(c.num)}</td>
-                  <td class="py-3 px-4 text-slate-600">${escapeHtml(c.libelle)}</td>
-                  <td class="py-3 px-4 text-right font-medium text-red-600">${formatEuro(c.debit)}</td>
-                  <td class="py-3 px-4 text-right font-medium text-emerald-600">${formatEuro(c.credit)}</td>
-                  <td class="py-3 px-4 text-right font-bold text-blue-600">${formatEuro(c.soldeDebit)}</td>
-                  <td class="py-3 px-4 text-right font-bold text-emerald-600">${formatEuro(c.soldeCredit)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-            <tfoot>
-              <tr class="bg-slate-50 text-slate-800 font-bold border-t-2 border-slate-200">
-                <td colspan="2" class="py-3.5 px-4 text-right uppercase tracking-wider text-slate-700">TOTAUX :</td>
-                <td class="py-3.5 px-4 text-right text-red-600 font-extrabold text-sm">${formatEuro(totaux.debit)}</td>
-                <td class="py-3.5 px-4 text-right text-emerald-600 font-extrabold text-sm">${formatEuro(totaux.credit)}</td>
-                <td class="py-3.5 px-4 text-right text-blue-600 font-extrabold text-sm">${formatEuro(totaux.soldeDebit)}</td>
-                <td class="py-3.5 px-4 text-right text-emerald-600 font-extrabold text-sm">${formatEuro(totaux.soldeCredit)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    `;
-  }
- 
-  window.changerAnneeBalance = function(annee) {
-    window.anneeBalanceSelectionnee = parseInt(annee, 10);
-    afficherBalanceFinale();
-  };
- 
-  window.initBalanceModule = afficherBalanceFinale;
- 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', afficherBalanceFinale);
-  } else {
-    afficherBalanceFinale();
-  }
+
+    // ── Affichage principal ───────────────────────────────────────────────────
+    async function afficherBalance() {
+        var el = document.getElementById('balance-contenu');
+        if (!el) return;
+        el.innerHTML = '<p style="padding:20px;text-align:center;color:#64748b;">⏳ Chargement...</p>';
+
+        // Attendre Supabase
+        var sc = window.supabaseClient;
+        if (!sc) { setTimeout(afficherBalance, 500); return; }
+
+        try {
+            // Charger transactions
+            var rTx = await sc.from('transactions').select('*').order('date', {ascending:true});
+            if (rTx.error) throw new Error(rTx.error.message);
+
+            // Charger tiers (optionnel — ne bloque pas si erreur)
+            var tiersParId = {};
+            try {
+                var rT = await sc.from('tiers').select('id,compte,nom').eq('actif',true);
+                if (!rT.error && rT.data) rT.data.forEach(function(t){ tiersParId[t.id]=t; });
+            } catch(e) {}
+
+            var transactions = rTx.data || [];
+
+            // Années disponibles
+            var anneesSet = {};
+            transactions.forEach(function(t){ var a=annee(t.date); if(a) anneesSet[a]=true; });
+            var annees = Object.keys(anneesSet).map(Number).sort(function(a,b){return b-a;});
+            if (!annees.length) annees = [new Date().getFullYear()];
+
+            var anneeActive = parseInt(window.anneeBalanceSelectionnee);
+            if (!anneesSet[anneeActive]) anneeActive = annees[0];
+
+            // Construire les comptes
+            var comptes = {};
+            transactions.forEach(function(t) {
+                if (annee(t.date) !== anneeActive) return;
+                getComptes(t, tiersParId).forEach(function(l) {
+                    if (!comptes[l.code]) comptes[l.code] = {num:l.code, lib:l.lib, debit:0, credit:0};
+                    comptes[l.code].debit  += l.debit;
+                    comptes[l.code].credit += l.credit;
+                });
+            });
+
+            var totD=0, totC=0, totSD=0, totSC=0;
+            var liste = Object.values(comptes).map(function(c) {
+                var diff = c.debit - c.credit;
+                var sd = diff > 0 ? diff : 0;
+                var sc2 = diff < 0 ? -diff : 0;
+                totD+=c.debit; totC+=c.credit; totSD+=sd; totSC+=sc2;
+                return {num:c.num, lib:c.lib, debit:c.debit, credit:c.credit, sd:sd, sc:sc2};
+            }).sort(function(a,b){ return a.num.localeCompare(b.num, undefined, {numeric:true}); });
+
+            var optAnnees = annees.map(function(a){
+                return '<option value="'+a+'"'+(a===anneeActive?' selected':'')+'>'+a+'</option>';
+            }).join('');
+
+            var rows = !liste.length
+                ? '<tr><td colspan="6" style="padding:30px;text-align:center;color:#94a3b8;">Aucune transaction pour '+anneeActive+'</td></tr>'
+                : liste.map(function(c){
+                    return '<tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'white\'">'
+                        +'<td style="padding:9px 14px;font-weight:700;color:#1e293b;">'+c.num+'</td>'
+                        +'<td style="padding:9px 14px;color:#475569;">'+c.lib+'</td>'
+                        +'<td style="padding:9px 14px;text-align:right;color:#dc2626;font-weight:600;">'+fmt(c.debit)+'</td>'
+                        +'<td style="padding:9px 14px;text-align:right;color:#16a34a;font-weight:600;">'+fmt(c.credit)+'</td>'
+                        +'<td style="padding:9px 14px;text-align:right;color:#2563eb;font-weight:700;">'+fmt(c.sd)+'</td>'
+                        +'<td style="padding:9px 14px;text-align:right;color:#16a34a;font-weight:700;">'+fmt(c.sc)+'</td>'
+                        +'</tr>';
+                }).join('');
+
+            el.innerHTML =
+                '<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:20px;">'
+                +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;margin-bottom:14px;">'
+                +'<h2 style="margin:0;font-size:15px;font-weight:700;color:#1e293b;">⚖️ Balance Générale — '+anneeActive
+                +' <small style="color:#64748b;font-weight:400;">('+transactions.filter(function(t){return annee(t.date)===anneeActive;}).length+' transactions)</small></h2>'
+                +'<div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;padding:6px 12px;border-radius:8px;">'
+                +'<label style="font-size:12px;font-weight:700;color:#64748b;">Exercice :</label>'
+                +'<select onchange="window.changerAnneeBalance(this.value)" style="background:white;border:1px solid #cbd5e1;border-radius:4px;padding:3px 8px;font-weight:700;font-size:12px;cursor:pointer;">'
+                +optAnnees+'</select></div></div>'
+                +'<div style="overflow-x:auto;">'
+                +'<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+                +'<thead><tr style="background:#f1f5f9;">'
+                +'<th style="padding:10px 14px;text-align:left;font-weight:700;">Numéro</th>'
+                +'<th style="padding:10px 14px;text-align:left;font-weight:700;">Intitulé</th>'
+                +'<th style="padding:10px 14px;text-align:right;color:#dc2626;font-weight:700;white-space:nowrap;">Total Débit</th>'
+                +'<th style="padding:10px 14px;text-align:right;color:#16a34a;font-weight:700;white-space:nowrap;">Total Crédit</th>'
+                +'<th style="padding:10px 14px;text-align:right;color:#2563eb;font-weight:700;white-space:nowrap;">Solde Débiteur</th>'
+                +'<th style="padding:10px 14px;text-align:right;color:#16a34a;font-weight:700;white-space:nowrap;">Solde Créditeur</th>'
+                +'</tr></thead><tbody>'+rows+'</tbody>'
+                +'<tfoot><tr style="background:#1e293b;color:white;font-weight:700;">'
+                +'<td colspan="2" style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">TOTAUX</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(totD)+'</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(totC)+'</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(totSD)+'</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(totSC)+'</td>'
+                +'</tr></tfoot></table></div></div>';
+
+        } catch(err) {
+            el.innerHTML = '<div style="padding:20px;background:#fef2f2;border-radius:8px;color:#dc2626;">'
+                +'❌ Erreur : '+err.message+'</div>';
+        }
+    }
+
+    window.changerAnneeBalance = function(a) {
+        window.anneeBalanceSelectionnee = parseInt(a);
+        afficherBalance();
+    };
+
+    window.initBalanceModule = afficherBalance;
 })();
