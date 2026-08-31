@@ -1,5 +1,5 @@
 // ============================================================================
-// tiers.js — Comptes de tiers depuis plan_comptable (type = 'Tiers')
+// tiers.js — Comptes de tiers depuis la table 'tiers'
 // ============================================================================
 
 var TIERS_DATA = [];
@@ -18,39 +18,29 @@ var COMPTES_TIERS_LABELS = {
 
 function tiersGroupeLabel(code) {
     if (!code) return 'Autres';
-    var prefix = String(code).substring(0, 3);
-    return COMPTES_TIERS_LABELS[prefix] || (prefix + ' — Autres comptes');
+    // Prendre les 3 premiers caractères numériques
+    var m = String(code).match(/^(\d{3})/);
+    var prefix = m ? m[1] : code.substring(0,3);
+    return COMPTES_TIERS_LABELS[prefix] || (prefix + ' — Autres');
 }
 
-// ── Charger depuis plan_comptable ─────────────────────────────────────────────
+// ── Charger depuis la table tiers ─────────────────────────────────────────────
 async function tiersCharger() {
     var sc = window.supabaseClient;
     if (!sc) { setTimeout(tiersCharger, 500); return; }
     try {
-        var r = await sc.from('plan_comptable')
+        var r = await sc.from('tiers')
             .select('*')
-            .eq('type', 'Tiers')
-            .order('code');
-
-        if (r.error) {
-            console.error('[tiers] erreur plan_comptable:', r.error.message);
-            return;
-        }
-        TIERS_DATA = (r.data || []).map(function(row) {
-            return {
-                id:     row.id,
-                compte: row.code      || '',
-                nom:    row.intitule  || row.libelle || row.nom || '',
-                siret:  row.siret     || null,
-                iban:   row.iban      || null,
-                notes:  row.notes     || null,
-            };
-        });
-        console.log('[tiers] chargés:', TIERS_DATA.length, TIERS_DATA.map(function(t){return t.compte+' '+t.nom;}));
+            .eq('actif', true)
+            .order('compte')
+            .order('nom');
+        if (r.error) { console.error('[tiers]', r.error.message); return; }
+        TIERS_DATA = r.data || [];
+        console.log('[tiers] chargés depuis table tiers:', TIERS_DATA.length);
         tiersRenduSelect();
         tiersRenduListe();
     } catch(e) {
-        console.error('[tiers] exception:', e);
+        console.error('[tiers]', e);
     }
 }
 
@@ -58,12 +48,15 @@ async function tiersCharger() {
 function tiersRenduSelect() {
     var sel = document.getElementById('pay-tiers-id');
     if (!sel) return;
+
+    // Grouper par compte
     var groupes = {};
     TIERS_DATA.forEach(function(t) {
         var g = tiersGroupeLabel(t.compte);
         if (!groupes[g]) groupes[g] = [];
         groupes[g].push(t);
     });
+
     sel.innerHTML = '<option value="">-- Sélectionner un tiers --</option>';
     Object.keys(groupes).sort().forEach(function(grpLabel) {
         var grp = document.createElement('optgroup');
@@ -73,12 +66,12 @@ function tiersRenduSelect() {
             opt.value = t.id;
             opt.dataset.compte = t.compte;
             opt.dataset.nom    = t.nom;
-            opt.textContent    = t.nom + ' (' + t.compte + ')';
+            opt.textContent    = t.nom + '  (' + t.compte + ')';
             grp.appendChild(opt);
         });
         sel.appendChild(grp);
     });
-    console.log('[tiers] select rempli, options:', sel.options.length);
+    console.log('[tiers] select rempli:', sel.options.length, 'options');
 }
 
 // ── Sélection → auto-remplissage ─────────────────────────────────────────────
@@ -89,29 +82,27 @@ window.bankTiersChange = function() {
     var typeS = document.getElementById('pay-type');
     var catS  = document.getElementById('pay-categorie');
     var info  = document.getElementById('pay-tiers-info');
-    if (!sel || !sel.value) { if (info) info.style.display = 'none'; return; }
+    if (!sel || !sel.value) { if (info) info.style.display='none'; return; }
 
     var opt    = sel.options[sel.selectedIndex];
     var compte = opt ? opt.dataset.compte : '';
     var nom    = opt ? opt.dataset.nom    : '';
-    var prefix = compte ? compte.substring(0, 3) : '';
+    var m      = String(compte).match(/^(\d{3})/);
+    var prefix = m ? m[1] : '';
 
     if (code) code.value = compte;
     if (desc && !desc.value) desc.value = nom;
 
-    // Info bulle
     if (info) {
         info.style.display = 'block';
         info.innerHTML = '<code style="background:#e0e7ff;padding:1px 6px;border-radius:3px;">'
             + compte + '</code> — <strong>' + nom + '</strong>';
     }
 
-    // Auto Sens + Catégorie selon la classe de compte
     var autoMap = {
         '411': {type:'Recette', cat:'Soins infirmiers'},
         '431': {type:'Dépense', cat:'URSSAF'},
         '437': {type:'Dépense', cat:'Cotisations CARPIMKO'},
-        '438': {type:'Dépense', cat:'Autre'},
         '401': {type:'Dépense', cat:'Achats matériel'},
         '441': {type:'Dépense', cat:'Autre'},
         '421': {type:'Dépense', cat:'Autre'},
@@ -124,7 +115,7 @@ window.bankTiersChange = function() {
     }
 };
 
-// ── Patch ajouterPaiement pour sauvegarder le tiers ───────────────────────────
+// ── Patch ajouterPaiement ─────────────────────────────────────────────────────
 window.addEventListener('load', function() {
     setTimeout(function() {
         if (typeof window.ajouterPaiement === 'function' && !window._tiersPatch) {
@@ -142,6 +133,7 @@ window.addEventListener('load', function() {
                         if (r.data && r.data.length) {
                             var t = TIERS_DATA.find(function(x){ return String(x.id)===String(tiersId); });
                             await sc.from('transactions').update({
+                                tiers_id:             tiersId,
                                 compte_tiers_code:    t ? t.compte : null,
                                 compte_tiers_libelle: t ? t.compte+' — '+t.nom : null,
                                 nom_tiers:            t ? t.nom : null,
@@ -161,7 +153,7 @@ window.addEventListener('load', function() {
 function tiersRenduListe() {
     var el = document.getElementById('tiersListe'); if (!el) return;
     if (!TIERS_DATA.length) {
-        el.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:15px;">Aucun tiers dans le plan comptable.</p>';
+        el.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:15px;">Aucun tiers.</p>';
         return;
     }
     var groupes = {};
@@ -172,21 +164,18 @@ function tiersRenduListe() {
     });
     var html = '';
     Object.keys(groupes).sort().forEach(function(g) {
-        html += '<div style="margin-bottom:12px;">'
-            + '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:4px 0;border-bottom:1px solid #e2e8f0;margin-bottom:6px;">' + g + '</div>'
+        html += '<div style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding:4px 0;border-bottom:1px solid #e2e8f0;margin-bottom:6px;">' + g + '</div>'
             + groupes[g].map(function(t) {
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:4px;">'
                     + '<div><code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;font-size:11px;">' + t.compte + '</code>'
-                    + ' <strong style="font-size:13px;">' + t.nom + '</strong>'
-                    + (t.siret ? '<span style="font-size:11px;color:#64748b;margin-left:8px;">SIRET: '+t.siret+'</span>' : '')
-                    + (t.iban  ? '<span style="font-size:11px;color:#64748b;margin-left:8px;">IBAN: '+t.iban+'</span>'  : '')
+                    + ' <strong>' + t.nom + '</strong>'
+                    + (t.siret ? ' <span style="font-size:11px;color:#64748b;">SIRET: '+t.siret+'</span>' : '')
                     + '</div>'
                     + '<div style="display:flex;gap:6px;">'
                     + '<button onclick="tiersEditer(\''+t.id+'\')" style="background:#f8fafc;border:1px solid #e2e8f0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:12px;">✏️</button>'
                     + '<button onclick="tiersSupprimer(\''+t.id+'\')" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:12px;">🗑️</button>'
                     + '</div></div>';
-            }).join('')
-            + '</div>';
+            }).join('') + '</div>';
     });
     el.innerHTML = html;
 }
@@ -206,47 +195,43 @@ window.tiersEditer = function(id) {
     window._tiersEditeId = id;
     var m = document.getElementById('tiersModal'); if (!m) return;
     var f = document.getElementById('tiersForm'); if (f) f.reset();
-    ['tiersCompte','tiersNom','tiersSiret','tiersIban','tiersNotes'].forEach(function(k) {
-        var e = document.getElementById(k); if (!e) return;
-        var map = {tiersCompte:t.compte,tiersNom:t.nom,tiersSiret:t.siret,tiersIban:t.iban,tiersNotes:t.notes};
-        e.value = map[k] || '';
-    });
+    var map = {tiersCompte:t.compte, tiersNom:t.nom, tiersSiret:t.siret||'', tiersIban:t.iban||'', tiersNotes:t.notes||''};
+    Object.keys(map).forEach(function(k){ var e=document.getElementById(k); if(e) e.value=map[k]; });
     m.style.display = 'flex';
 };
 window.tiersSauvegarder = async function(e) {
     if (e) e.preventDefault();
     var sc = window.supabaseClient; if (!sc) return;
     var data = {
-        code:     (document.getElementById('tiersCompte')||{}).value,
-        intitule: ((document.getElementById('tiersNom')||{}).value||'').trim(),
-        type:     'Tiers',
-        siret:    ((document.getElementById('tiersSiret')||{}).value||'').trim() || null,
-        iban:     ((document.getElementById('tiersIban')||{}).value||'').trim()  || null,
-        notes:    ((document.getElementById('tiersNotes')||{}).value||'').trim() || null,
+        compte:    (document.getElementById('tiersCompte')||{}).value,
+        nom:       ((document.getElementById('tiersNom')||{}).value||'').trim(),
+        categorie: 'tiers',
+        siret:     ((document.getElementById('tiersSiret')||{}).value||'').trim() || null,
+        iban:      ((document.getElementById('tiersIban')||{}).value||'').trim()  || null,
+        notes:     ((document.getElementById('tiersNotes')||{}).value||'').trim() || null,
+        actif:     true,
     };
-    if (!data.code || !data.intitule) { alert('Compte et nom obligatoires'); return; }
+    if (!data.compte || !data.nom) { alert('Compte et nom obligatoires'); return; }
     var r = window._tiersEditeId
-        ? await sc.from('plan_comptable').update(data).eq('id', window._tiersEditeId)
-        : await sc.from('plan_comptable').insert([data]);
-    if (r.error) { alert('Erreur : ' + r.error.message); return; }
+        ? await sc.from('tiers').update(data).eq('id', window._tiersEditeId)
+        : await sc.from('tiers').insert([data]);
+    if (r.error) { alert('Erreur : '+r.error.message); return; }
     window.tiersFermerModal();
     await tiersCharger();
 };
 window.tiersSupprimer = async function(id) {
     if (!confirm('Supprimer ce tiers ?')) return;
     var sc = window.supabaseClient; if (!sc) return;
-    await sc.from('plan_comptable').delete().eq('id', id);
+    await sc.from('tiers').update({actif:false}).eq('id', id);
     await tiersCharger();
 };
-
-// ── Init ──────────────────────────────────────────────────────────────────────
 window.initTiers = async function() { await tiersCharger(); };
 
+// Démarrage auto
 document.addEventListener('DOMContentLoaded', function() {
-    var n = 0;
-    var iv = setInterval(function() {
+    var n=0, iv=setInterval(function(){
         n++;
         if (window.supabaseClient) { clearInterval(iv); tiersCharger(); }
-        if (n > 20) clearInterval(iv);
+        if (n>20) clearInterval(iv);
     }, 500);
 });

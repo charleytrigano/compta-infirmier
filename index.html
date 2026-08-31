@@ -1052,7 +1052,16 @@ var PAGE_INITS = {
     'vue-stats':        function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
     'vue-2035':         function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
     'vue-journal':      function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
-    'vue-grandlivre':   function(){ if(typeof window.chargerEtAfficherGrandLivre==='function') window.chargerEtAfficherGrandLivre(); },
+    'vue-grandlivre': function(){
+        var fn = function() {
+            if (typeof window.chargerEtAfficherGrandLivre === 'function') {
+                window.chargerEtAfficherGrandLivre();
+            } else {
+                setTimeout(fn, 400);
+            }
+        };
+        fn();
+    },
     'vue-balance':      function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
     'vue-profil':       function(){ if(typeof window.initProfil==='function') window.initProfil(); },
     'vue-patients':     function(){ if(typeof window.initPatients==='function') window.initPatients(); },
