@@ -1202,21 +1202,8 @@ window.goTo = function(tabId, navEl) {
 // Rétrocompatibilité
 window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
 
-function applySidebarState(collapsed) { /* sidebar supprimée */ } else {
-        sidebar.classList.remove('collapsed');
-        sidebar.style.width = '240px';
-        if (icon)  icon.textContent  = '◀';
-        if (label) label.textContent = 'Réduire';
-    }
-}
-
+function applySidebarState(collapsed) { /* sidebar supprimée - navbar horizontale */ }
 window.toggleSidebarCollapse = function() { /* sidebar supprimée */ };
-
-// Restaurer l'état au chargement
-document.addEventListener('DOMContentLoaded', function() {
-    var collapsed = localStorage.getItem('sidebar_collapsed') === '1';
-    applySidebarState(collapsed);
-});
 
 window.toggleSidebar = function() { /* sidebar supprimée */ };
 
