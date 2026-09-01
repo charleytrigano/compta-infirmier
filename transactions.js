@@ -440,7 +440,8 @@ async function chargerTransactionsListe() {
             .from('transactions')
             .select('*')
             .neq('category', 'Opération Diverse')
-            .order('date', { ascending: false });
+            .order('date', { ascending: true })
+            .order('created_at', { ascending: true });
         if (data && data.length > 0) list = data;
     }
 
@@ -520,7 +521,8 @@ async function chargerJournalBanque() {
             .from('transactions')
             .select('*')
             .neq('category', 'Opération Diverse')
-            .order('date', { ascending: false });
+            .order('date', { ascending: true })
+            .order('created_at', { ascending: true });
 
         if (error || !transactions || transactions.length === 0) {
             tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Aucun mouvement bancaire enregistré.</td></tr>`;

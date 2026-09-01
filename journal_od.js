@@ -288,7 +288,8 @@
                 .from('ecritures_comptables')
                 .select('*')
                 .eq('category', 'Opération Diverse')
-                .order('date', { ascending: false });
+                .order('date', { ascending: true })
+                .order('created_at', { ascending: true });
 
             if (error) {
                 console.error("Erreur récupération OD :", error.message);
