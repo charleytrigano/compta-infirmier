@@ -2903,9 +2903,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             <option value="">-- Aucun tiers --</option>
                         </select>
                     </div>
-                    <div style="margin-top:8px;font-size:11px;color:#1d4ed8;background:#dbeafe;padding:8px;border-radius:4px;">
-                        💡 <strong>Recette :</strong> Débit = 512000 (Banque) / Crédit = 706000 (Honoraires)<br>
-                        💡 <strong>Dépense :</strong> Débit = 646xxx (Charge) / Crédit = 512000 (Banque)
+                    <div id="edit-info-comptes" style="margin-top:8px;font-size:11px;color:#1d4ed8;background:#dbeafe;padding:8px;border-radius:4px;"></div>
+                    <div style="margin-top:6px;font-size:11px;color:#64748b;">
+                        💡 <strong>Recette :</strong> Débit = 512000 Banque / Crédit = 706000 Honoraires<br>
+                        💡 <strong>Dépense :</strong> Débit = 6xxxxx Charge / Crédit = 512000 Banque
                     </div>
                 </div>
 
@@ -2919,24 +2920,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     <script src="comptes-selector.js"></script>
 
-    <script>
-    // Patcher le bouton ✏️ pour ouvrir notre modal d'édition comptable
-    document.addEventListener('DOMContentLoaded', function() {
-        var iv = setInterval(function() {
-            if (window.supabaseClient && typeof window.chargerPlanComptableSelectors === 'function') {
-                clearInterval(iv);
-                window.chargerPlanComptableSelectors();
 
-                // Surcharger ouvrirModalModificationBanque si elle existe
-                var _orig = window.ouvrirModalModificationBanque;
-                window.ouvrirModalModificationBanque = function(id) {
-                    // Ouvrir notre modal enrichi
-                    window.ouvrirEditTransaction(id);
-                };
-            }
-        }, 400);
-    });
-    </script>
 
 
 </body>
