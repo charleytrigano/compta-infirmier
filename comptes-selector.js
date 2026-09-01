@@ -1,42 +1,89 @@
 /**
- * comptes-selector.js — Plan comptable dans les selects débit/crédit
+ * comptes-selector.js — Sélecteurs débit/crédit avec plan comptable
  */
 (function() {
-    var PLAN = [];
+    // Comptes de base intégrés (fallback si plan_comptable vide)
+    var PLAN_BASE = [
+        // Tiers
+        {code:'401000',nom:'Fournisseurs et dettes à régler',type:'Tiers'},
+        {code:'401001',nom:'Matmut — Assurance Professionnelle',type:'Tiers'},
+        {code:'411000',nom:'Patients & Caisses (Compte Collectif)',type:'Tiers'},
+        {code:'411001',nom:'Abadie',type:'Tiers'},
+        {code:'411002',nom:'Saint-André',type:'Tiers'},
+        {code:'411100',nom:'Patients — Règlements Directs',type:'Tiers'},
+        {code:'411200',nom:'CPAM / Assurance Maladie',type:'Tiers'},
+        {code:'411300',nom:'Mutuelles / Complémentaires',type:'Tiers'},
+        {code:'421000',nom:'Rétrocession Titulaire',type:'Tiers'},
+        {code:'431000',nom:'URSSAF',type:'Tiers'},
+        {code:'437000',nom:'CARPIMKO',type:'Tiers'},
+        {code:'437100',nom:'CARPIMKO — Retraite de base',type:'Tiers'},
+        {code:'437200',nom:'CARPIMKO — Prévoyance santé',type:'Tiers'},
+        {code:'437300',nom:'CARPIMKO — Invalidité-décès',type:'Tiers'},
+        {code:'441000',nom:'État — Impôt sur le Revenu',type:'Tiers'},
+        // Financiers
+        {code:'512000',nom:'Banque / Compte Courant',type:'Actif'},
+        // Charges
+        {code:'606000',nom:'Achats matériel médical',type:'Charge'},
+        {code:'613200',nom:'Loyers',type:'Charge'},
+        {code:'616000',nom:'Assurances professionnelles',type:'Charge'},
+        {code:'621000',nom:'Rétrocession honoraires',type:'Charge'},
+        {code:'622000',nom:'Honoraires expert-comptable',type:'Charge'},
+        {code:'625100',nom:'Frais kilométriques',type:'Charge'},
+        {code:'625600',nom:'Formations / DPC',type:'Charge'},
+        {code:'625800',nom:'Cotisations professionnelles',type:'Charge'},
+        {code:'626000',nom:'Téléphone / Internet',type:'Charge'},
+        {code:'627000',nom:'Frais bancaires',type:'Charge'},
+        {code:'646100',nom:'Cotisations URSSAF',type:'Charge'},
+        {code:'646200',nom:'Cotisations CARPIMKO',type:'Charge'},
+        {code:'695000',nom:'Impôt sur le Revenu',type:'Charge'},
+        // Produits
+        {code:'706000',nom:'Honoraires / Soins infirmiers',type:'Produit'},
+    ];
+
+    var PLAN = PLAN_BASE.slice(); // commence avec les comptes de base
     var planCharge = false;
-    var planEnCours = false;
-    var callbacksEnAttente = [];
 
-    // ── Charger le plan comptable (une seule fois) ──────────────────────────
-    async function chargerPlan(callback) {
-        if (planCharge) { if (callback) callback(); return; }
-        if (callback) callbacksEnAttente.push(callback);
-        if (planEnCours) return;
-        planEnCours = true;
-
+    // Charger le plan depuis Supabase et fusionner
+    async function chargerDepuisSupabase() {
         var sc = window.supabaseClient;
-        if (!sc) {
-            setTimeout(function(){ planEnCours=false; chargerPlan(null); }, 500);
-            return;
-        }
-        var r = await sc.from('plan_comptable').select('code,nom,type').order('code');
-        if (!r.error && r.data) {
-            PLAN = r.data;
-            planCharge = true;
-        }
-        planEnCours = false;
-        callbacksEnAttente.forEach(function(cb){ cb(); });
-        callbacksEnAttente = [];
+        if (!sc) { setTimeout(chargerDepuisSupabase, 500); return; }
+        try {
+            var r = await sc.from('plan_comptable').select('code,nom,type').order('code');
+            if (!r.error && r.data && r.data.length > 0) {
+                // Fusionner : plan Supabase prioritaire sur plan_base
+                var codesBase = {};
+                PLAN_BASE.forEach(function(c){ codesBase[c.code] = true; });
+                r.data.forEach(function(c) {
+                    if (!codesBase[c.code]) PLAN.push(c);
+                    else {
+                        var idx = PLAN.findIndex(function(x){ return x.code === c.code; });
+                        if (idx >= 0) PLAN[idx] = c;
+                    }
+                });
+            }
+        } catch(e) {}
+        planCharge = true;
+        // Remplir les selects ouverts
+        ['edit-compte-debit','edit-compte-credit','pay-compte-debit','pay-compte-credit','od-compte-debit','od-compte-credit'].forEach(function(id) {
+            var sel = document.getElementById(id);
+            if (sel) remplirSelect(id, sel.value);
+        });
     }
 
-    // ── Remplir un select à partir du plan ────────────────────────────────────
+    // Remplir un select
     function remplirSelect(id, valeurActuelle) {
         var sel = document.getElementById(id);
         if (!sel) return;
+        var old = sel.value;
         sel.innerHTML = '<option value="">-- Choisir un compte --</option>';
-        var groupes = {'4':'Comptes de Tiers (4xx)','5':'Comptes Financiers (5xx)','6':'Charges (6xx)','7':'Produits (7xx)'};
+        var groupes = {
+            '4': 'Comptes de Tiers (4xx)',
+            '5': 'Comptes Financiers (5xx)',
+            '6': 'Charges (6xx)',
+            '7': 'Produits (7xx)',
+        };
         Object.keys(groupes).forEach(function(p) {
-            var liste = PLAN.filter(function(c){ return c.code.charAt(0)===p; });
+            var liste = PLAN.filter(function(c){ return c.code.charAt(0) === p; });
             if (!liste.length) return;
             var grp = document.createElement('optgroup');
             grp.label = groupes[p];
@@ -48,201 +95,164 @@
             });
             sel.appendChild(grp);
         });
-        if (valeurActuelle) sel.value = valeurActuelle;
+        var v = valeurActuelle || old;
+        if (v) sel.value = v;
     }
 
-    // ── Remplir les selects du formulaire de saisie ────────────────────────
-    function remplirFormulaires() {
-        remplirSelect('pay-compte-debit',  '512000');
-        remplirSelect('pay-compte-credit', '706000');
-        remplirSelect('od-compte-debit',  '');
-        remplirSelect('od-compte-credit', '');
-    }
-
-    // ── Auto-remplir selon le sens ─────────────────────────────────────────
-    window.autoComptesSens = function(sens, idDebit, idCredit) {
-        var selD = document.getElementById(idDebit);
-        var selC = document.getElementById(idCredit);
+    // Auto-complétion selon le sens
+    window.autoComptesSens = function(sens, idD, idC) {
+        var selD = document.getElementById(idD);
+        var selC = document.getElementById(idC);
         if (sens === 'Recette') {
-            if (selD) selD.value = '512000';
-            if (selC) selC.value = '706000';
+            if (selD) { if (!selD.value) selD.value = '512000'; }
+            if (selC) { if (!selC.value) selC.value = '706000'; }
         } else {
-            if (selD) selD.value = '';
-            if (selC) selC.value = '512000';
+            if (selC) { if (!selC.value) selC.value = '512000'; }
         }
     };
-
-    // ── MODAL ÉDITION ─────────────────────────────────────────────────────
-    window.ouvrirEditTransaction = function(id) {
-        // Charger le plan si nécessaire, puis ouvrir le modal
-        chargerPlan(function() { _ouvrirModalAvecDonnees(id); });
+    window.modalEditTypeChange = function(sens) {
+        window.autoComptesSens(sens, 'edit-compte-debit', 'edit-compte-credit');
     };
 
-    async function _ouvrirModalAvecDonnees(id) {
-        var sc = window.supabaseClient; if (!sc) return;
-        var r = await sc.from('transactions').select('*').eq('id', id).single();
-        if (r.error || !r.data) { alert('Transaction introuvable'); return; }
-        var t = r.data;
+    // Enrichir le modal ouvert avec les données de la transaction
+    window.enrichirModalComptes = function(id) {
+        // Remplir immédiatement avec PLAN_BASE (toujours dispo)
+        remplirSelect('edit-compte-debit',  '');
+        remplirSelect('edit-compte-credit', '');
 
-        // Afficher le modal AVANT de remplir pour qu'il soit dans le DOM
-        var modal = document.getElementById('editTransactionModal');
-        if (!modal) return;
-        modal.style.display = 'flex';
-
-        // Champs texte
-        document.getElementById('edit-tx-id').value     = id;
-        document.getElementById('edit-tx-date').value   = t.date || '';
-        document.getElementById('edit-tx-desc').value   = t.description || '';
-        document.getElementById('edit-tx-montant').value= t.amount || t.montant || '';
-        var typeEl = document.getElementById('edit-tx-type');
-        if (typeEl) typeEl.value = t.type || 'Recette';
-
-        // Déterminer les comptes débit/crédit
-        var isR = (t.type||'').toLowerCase() === 'recette';
-        var cDebit, cCredit;
-
-        if (t.compte_code && t.compte_tiers_code) {
-            // Données déjà imputées
-            cDebit  = isR ? '512000'       : t.compte_code;
-            cCredit = isR ? t.compte_tiers_code !== t.compte_code ? '706000' : '706000' : '512000';
-            // Si tiers 4xx : on le met dans le bon sens
-            if (t.compte_tiers_code && t.compte_tiers_code.charAt(0)==='4') {
-                cDebit  = isR ? t.compte_tiers_code : t.compte_code;
-                cCredit = isR ? t.compte_code       : t.compte_tiers_code;
-                // En réalité pour recette : D=512000 C=706000 (le tiers est auxiliaire)
-                cDebit  = isR ? '512000'       : t.compte_code;
-                cCredit = isR ? '706000'       : t.compte_tiers_code;
-            }
-        } else if (t.compte_code) {
-            cDebit  = isR ? '512000'     : t.compte_code;
-            cCredit = isR ? t.compte_code: '512000';
-        } else {
-            // Pas encore imputé : valeurs par défaut selon le sens
-            cDebit  = isR ? '512000' : '';
-            cCredit = isR ? '706000' : '512000';
-        }
-
-        // Remplir les selects avec les vraies valeurs
-        remplirSelect('edit-compte-debit',  cDebit);
-        remplirSelect('edit-compte-credit', cCredit);
-
-        // Tiers
-        var selTiers = document.getElementById('edit-tiers-id');
-        if (selTiers) {
-            selTiers.innerHTML = '<option value="">-- Aucun tiers --</option>';
+        // Remplir tiers
+        var selT = document.getElementById('edit-tiers-id');
+        if (selT) {
+            selT.innerHTML = '<option value="">-- Aucun tiers --</option>';
             PLAN.filter(function(c){ return c.code.charAt(0)==='4'; }).forEach(function(c) {
                 var opt = document.createElement('option');
                 opt.value = c.code;
                 opt.textContent = c.code + ' — ' + c.nom;
-                if (c.code === t.compte_tiers_code) opt.selected = true;
-                selTiers.appendChild(opt);
+                selT.appendChild(opt);
             });
-            // Aussi les tiers individuels depuis TIERS_DATA
             if (window.TIERS_DATA && window.TIERS_DATA.length) {
-                var grpT = document.createElement('optgroup');
-                grpT.label = '── Tiers individuels (table tiers) ──';
+                var grp = document.createElement('optgroup');
+                grp.label = '── Tiers individuels ──';
                 window.TIERS_DATA.forEach(function(ti) {
                     var opt = document.createElement('option');
                     opt.value = 'tiers:'+ti.id;
                     opt.textContent = ti.compte + ' — ' + ti.nom;
-                    if (t.tiers_id && ti.id === t.tiers_id) opt.selected = true;
-                    grpT.appendChild(opt);
+                    grp.appendChild(opt);
                 });
-                selTiers.appendChild(grpT);
+                selT.appendChild(grp);
             }
         }
 
-        // Info visuelle
-        var info = document.getElementById('edit-info-comptes');
-        if (info) {
-            info.innerHTML = t.compte_code
-                ? '✅ Déjà imputé : ' + (t.compte_code||'') + ' / ' + (t.compte_tiers_code||'512000')
-                : '⚠️ Pas encore imputé — choisissez les comptes';
+        // Pré-remplir avec les valeurs de la transaction
+        var sc = window.supabaseClient;
+        if (!sc || !id) return;
+        sc.from('transactions').select('*').eq('id', id).single().then(function(r) {
+            if (r.error || !r.data) return;
+            var t = r.data;
+            var isR = (t.type||'').toLowerCase() === 'recette';
+            var cD = isR ? '512000' : (t.compte_code || '');
+            var cC = isR ? (t.compte_code || '706000') : '512000';
+            if (t.compte_code && t.compte_code.charAt(0) === '6') cD = t.compte_code;
+
+            var selD = document.getElementById('edit-compte-debit');
+            var selC = document.getElementById('edit-compte-credit');
+            var selT2 = document.getElementById('edit-tiers-id');
+            var statut = document.getElementById('edit-imputation-statut');
+
+            if (selD) selD.value = cD;
+            if (selC) selC.value = cC;
+            if (selT2) {
+                if (t.tiers_id) {
+                    for (var i=0;i<selT2.options.length;i++) {
+                        if (selT2.options[i].value==='tiers:'+t.tiers_id){ selT2.selectedIndex=i; break; }
+                    }
+                } else if (t.compte_tiers_code) {
+                    selT2.value = t.compte_tiers_code;
+                }
+            }
+            if (statut) {
+                statut.innerHTML = t.compte_code
+                    ? '<span style="color:#16a34a;font-weight:600;">✅ Déjà imputé : '+t.compte_code+(t.compte_tiers_code?' / '+t.compte_tiers_code:'')+'</span>'
+                    : '<span style="color:#f59e0b;">⚠️ Non imputé</span>';
+            }
+        });
+    };
+
+    // Patch ouvrirModalModificationBanque
+    function patcherModal() {
+        if (typeof window.ouvrirModalModificationBanque === 'function' && !window._modalPatch) {
+            window._modalPatch = true;
+            var origFn = window.ouvrirModalModificationBanque;
+            window.ouvrirModalModificationBanque = async function(id) {
+                window._editTxId = id;
+                await origFn(id);
+                window.enrichirModalComptes(id);
+            };
+        } else if (!window._modalPatch) {
+            setTimeout(patcherModal, 300);
         }
     }
 
-    window.fermerEditTransaction = function() {
-        var m = document.getElementById('editTransactionModal');
-        if (m) m.style.display = 'none';
-    };
+    // Patch enregistrerModificationOD pour sauvegarder les comptes
+    function patcherSauvegarde() {
+        if (typeof window.enregistrerModificationOD === 'function' && !window._savePatch) {
+            window._savePatch = true;
+            var origSave = window.enregistrerModificationOD;
+            window.enregistrerModificationOD = async function(e) {
+                await origSave(e);
+                var id = window._editTxId || (document.getElementById('edit-transaction-id')||{}).value;
+                if (!id) return;
+                var cD   = (document.getElementById('edit-compte-debit')||{}).value || '';
+                var cC   = (document.getElementById('edit-compte-credit')||{}).value || '';
+                var tvS  = (document.getElementById('edit-tiers-id')||{}).value || '';
+                if (!cD && !cC) return;
 
-    window.sauvegarderEditTransaction = async function(e) {
-        if (e) e.preventDefault();
-        var sc = window.supabaseClient; if (!sc) return;
+                var type = ((document.getElementById('edit-type')||{}).value||'').toLowerCase();
+                var isR  = type === 'recette';
+                var compteG = isR ? (cC||'706000') : (cD||'');
+                if (cD && cD.charAt(0)==='6') compteG = cD;
+                if (cC && cC.charAt(0)==='7') compteG = cC;
 
-        var id      = document.getElementById('edit-tx-id').value;
-        var cDebit  = document.getElementById('edit-compte-debit').value;
-        var cCredit = document.getElementById('edit-compte-credit').value;
-        var desc    = document.getElementById('edit-tx-desc').value;
-        var date    = document.getElementById('edit-tx-date').value;
-        var montant = parseFloat(document.getElementById('edit-tx-montant').value);
-        var type    = (document.getElementById('edit-tx-type')||{}).value || 'Recette';
+                var compteTiers = null, tiersId = null, nomTiers = null;
+                if (tvS.startsWith('tiers:')) {
+                    tiersId = tvS.replace('tiers:','');
+                    if (window.TIERS_DATA){ var ti=window.TIERS_DATA.find(function(x){return x.id===tiersId;}); if(ti){nomTiers=ti.nom;compteTiers=ti.compte;} }
+                } else if (tvS && tvS.charAt(0)==='4') {
+                    compteTiers = tvS;
+                    var pC = PLAN.find(function(c){return c.code===tvS;}); if(pC) nomTiers=pC.nom;
+                }
 
-        if (!cDebit || !cCredit) { alert('Sélectionnez le compte débité ET le compte crédité'); return; }
-
-        // Identifier le compte gestion (6xx/7xx) et le compte tiers (4xx)
-        var compteGestion = null, compteTiers = null;
-        [cDebit, cCredit].forEach(function(c) {
-            if (c.charAt(0)==='4' || c.charAt(0)==='5') {
-                if (c !== '512000') compteTiers = c;
-            }
-            if (c.charAt(0)==='6' || c.charAt(0)==='7') compteGestion = c;
-            if (c === '512000' && !compteGestion) {} // banque = neutre
-        });
-        // Si pas de compte gestion trouvé, prendre le non-banque
-        if (!compteGestion) compteGestion = cDebit !== '512000' ? cDebit : cCredit;
-
-        // Tiers sélectionné
-        var selTiers = document.getElementById('edit-tiers-id');
-        var tiersVal = selTiers ? selTiers.value : '';
-        var tiersId = null, nomTiers = null;
-        if (tiersVal.startsWith('tiers:')) {
-            tiersId = tiersVal.replace('tiers:','');
-            if (window.TIERS_DATA) {
-                var ti = window.TIERS_DATA.find(function(x){return x.id===tiersId;});
-                if (ti) { nomTiers = ti.nom; compteTiers = ti.compte; }
-            }
-        } else if (tiersVal) {
-            compteTiers = tiersVal;
-            var cPlan = PLAN.find(function(c){return c.code===tiersVal;});
-            if (cPlan) nomTiers = cPlan.nom;
+                var libG = PLAN.find(function(c){return c.code===compteG;});
+                var libT = compteTiers ? PLAN.find(function(c){return c.code===compteTiers;}) : null;
+                var sc = window.supabaseClient;
+                if (sc) {
+                    await sc.from('transactions').update({
+                        compte_code:          compteG||null,
+                        compte_libelle:       libG?libG.nom:null,
+                        compte_tiers_code:    compteTiers||null,
+                        compte_tiers_libelle: libT?libT.nom:null,
+                        nom_tiers:            nomTiers,
+                        tiers_id:             tiersId,
+                    }).eq('id', id);
+                }
+            };
+        } else if (!window._savePatch) {
+            setTimeout(patcherSauvegarde, 400);
         }
+    }
 
-        var libG   = PLAN.find(function(c){return c.code===compteGestion;});
-        var libT   = PLAN.find(function(c){return c.code===compteTiers;});
+    // Remplir les selects du formulaire de saisie
+    function remplirFormulaires() {
+        remplirSelect('pay-compte-debit',  '512000');
+        remplirSelect('pay-compte-credit', '706000');
+    }
 
-        var update = {
-            date:                 date,
-            type:                 type,
-            description:          desc,
-            amount:               montant,
-            compte_code:          compteGestion,
-            compte_libelle:       libG ? libG.nom : null,
-            compte_tiers_code:    compteTiers || null,
-            compte_tiers_libelle: libT ? libT.nom : null,
-            nom_tiers:            nomTiers,
-            tiers_id:             tiersId,
-        };
-
-        var r = await sc.from('transactions').update(update).eq('id', id);
-        if (r.error) { alert('Erreur : ' + r.error.message); return; }
-
-        window.fermerEditTransaction();
-        if (typeof window.chargerJournalBanque === 'function') window.chargerJournalBanque();
-        if (typeof window.chargerJournalOD === 'function') window.chargerJournalOD();
-    };
-
-    // ── Init ──────────────────────────────────────────────────────────────────
-    window.chargerPlanComptableSelectors = function() { chargerPlan(remplirFormulaires); };
-
-    // Patch du bouton ✏️ de transactions.js
     document.addEventListener('DOMContentLoaded', function() {
-        chargerPlan(remplirFormulaires);
-        var iv = setInterval(function() {
-            if (window.ouvrirModalModificationBanque !== window.ouvrirEditTransaction) {
-                window.ouvrirModalModificationBanque = window.ouvrirEditTransaction;
-            }
-        }, 800);
-        setTimeout(function(){ clearInterval(iv); }, 10000);
+        remplirFormulaires(); // immédiat avec PLAN_BASE
+        chargerDepuisSupabase(); // enrichir depuis Supabase
+        setTimeout(patcherModal,    600);
+        setTimeout(patcherSauvegarde, 1200);
     });
+
+    window.chargerPlanComptableSelectors = function(){ chargerDepuisSupabase(); };
 })();
