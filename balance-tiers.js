@@ -167,8 +167,38 @@
                         +'</tr>'
                         +'<tbody id="'+uid+'" style="display:none;">'+detailRows+'</tbody>';
                 });
+                // Ligne totaux du groupe
+                var totD=0, totC=0, totSD=0, totSC=0;
+                liste.forEach(function(c){
+                    var s=c.debit-c.credit;
+                    totD+=c.debit; totC+=c.credit;
+                    totSD+=(s>0?s:0); totSC+=(s<0?-s:0);
+                });
+                html += '<tr style="background:#f1f5f9;font-weight:700;border-top:2px solid #e2e8f0;">'
+                    +'<td colspan="2" style="padding:9px 12px;text-align:right;color:#475569;font-size:12px;text-transform:uppercase;">Total :</td>'
+                    +'<td style="padding:9px 12px;text-align:right;color:#dc2626;">'+fmt(totD)+'</td>'
+                    +'<td style="padding:9px 12px;text-align:right;color:#16a34a;">'+fmt(totC)+'</td>'
+                    +'<td style="padding:9px 12px;text-align:right;color:#dc2626;">'+fmt(totSD)+'</td>'
+                    +'<td style="padding:9px 12px;text-align:right;color:#16a34a;">'+fmt(totSC)+'</td>'
+                    +'</tr>';
                 html += '</tbody></table></div>';
             });
+
+            // Grand total général
+            var gtD=0, gtC=0, gtSD=0, gtSC=0;
+            Object.values(comptes).forEach(function(c){
+                var s=c.debit-c.credit;
+                gtD+=c.debit; gtC+=c.credit;
+                gtSD+=(s>0?s:0); gtSC+=(s<0?-s:0);
+            });
+            html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;border:2px solid #1e293b;border-radius:6px;">'
+                +'<tr style="background:#1e293b;color:white;font-weight:700;">'
+                +'<td colspan="2" style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">TOTAUX GÉNÉRAUX</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(gtD)+'</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(gtC)+'</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(gtSD)+'</td>'
+                +'<td style="padding:10px 14px;text-align:right;font-size:14px;">'+fmt(gtSC)+'</td>'
+                +'</tr></table>';
 
             html += '</div>';
             el.innerHTML = html;
