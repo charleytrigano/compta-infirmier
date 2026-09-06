@@ -579,7 +579,6 @@
                 <p style="color: #64748b;">Chargement du profil...</p>
             </div>
         </section>
-    </div>
 
     <!-- MODALE MODIFICATION -->
     <div id="modal-modifier" class="modal-overlay" style="display:none;">
@@ -1075,299 +1074,11 @@
         </div>
     </div>
 
-    </div>
+    
     </main>
-</div>
 
-<!-- SCRIPTS -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
-<script src="auth.js"></script>
 
-<script>
-window.exporterSauvegardeGlobale = async function() {
-    var sc = window.supabaseClient || (window.supabase && typeof window.supabase.from==='function'?window.supabase:null);
-    if (!sc){alert("Connexion Supabase indisponible.");return;}
-    var tables=['attachments','declarations','ecritures_comptables','plan_comptable','profile','transactions','cabinets','patients','passages'];
-    var save={date_export:new Date().toISOString(),tables:{}};
-    for(var t of tables){try{var r=await sc.from(t).select('*');save.tables[t]=r.error?[]:(r.data||[]);}catch(e){save.tables[t]=[];}}
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([JSON.stringify(save,null,2)],{type:'application/json'}));
-    a.download='sauvegarde_compta_'+new Date().toISOString().split('T')[0]+'.json';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-};
-
-window.transactions=window.transactions||[];
-
-var PAGE_INITS = {
-    'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
-    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); if(typeof window.initTiers==='function') window.initTiers(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
-    'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
-    'vue-plan':         function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
-    'vue-urssaf':       function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
-    'vue-bareme-urssaf':function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
-    'vue-carpimko':     function(){ if(typeof window.initCarpimkoModule==='function') window.initCarpimkoModule(); },
-    'vue-bareme-carpimko':function(){ if(typeof window.initBaremeCarpimkoModule==='function') window.initBaremeCarpimkoModule(); },
-    'vue-ir':           function(){ if(typeof window.initIRModule==='function') window.initIRModule(); },
-    'vue-bareme-ir':    function(){ if(typeof window.initBaremeIRModule==='function') window.initBaremeIRModule(); },
-    'vue-export':       function(){ if(typeof window.initExportModule==='function') window.initExportModule(); },
-    'vue-bilan':        function(){ if(typeof window.chargerBilanEtCE==='function') window.chargerBilanEtCE(); },
-    'vue-stats':        function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
-    'vue-2035':         function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
-    'vue-journal':      function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
-    'vue-gl-aux':        function(){ if(typeof window.initGLAuxModule==='function') window.initGLAuxModule(); },
-    'vue-grandlivre': function(){
-        var fn = function() {
-            if (typeof window.chargerEtAfficherGrandLivre === 'function') {
-                window.chargerEtAfficherGrandLivre();
-            } else {
-                setTimeout(fn, 400);
-            }
-        };
-        fn();
-    },
-    'vue-balance-tiers': function(){ if(typeof window.initBalanceTiersModule==='function') window.initBalanceTiersModule(); },
-    'vue-balance':      function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
-    'vue-profil':       function(){ if(typeof window.initProfil==='function') window.initProfil(); },
-    'vue-patients':     function(){ if(typeof window.initPatients==='function') window.initPatients(); },
-    'vue-agenda':       function(){ if(typeof window.initAgenda==='function') window.initAgenda(); },
-    'vue-passages':     function(){ if(typeof window.chargerDashboardPassages==='function') window.chargerDashboardPassages(); if(typeof window.chargerRdvsDuJour==='function') window.chargerRdvsDuJour(); },
-    'vue-recap-remplacant': function(){
-        // Pré-remplir les dates si vides
-        var today = new Date();
-        var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
-        var fin   = today.toISOString().split('T')[0];
-        var d1=document.getElementById('recapDebut'); if(d1&&!d1.value) d1.value=debut;
-        var d2=document.getElementById('recapFin');   if(d2&&!d2.value) d2.value=fin;
-        // Pré-remplir les selects cabinets
-        var sel=document.getElementById('recapCabinet');
-        if(sel && window.PT && PT.cabinets) {
-            sel.innerHTML='<option value="">Tous les cabinets</option>';
-            PT.cabinets.forEach(function(c){ sel.innerHTML+='<option value="'+c.id+'">'+c.nom+'</option>'; });
-        }
-        chargerRecapitulatifRemplacant();
-    },
-    'vue-export-cpam':  function(){
-        var d = new Date(); var m = ('0'+(d.getMonth()+1)).slice(-2);
-        var e1=document.getElementById('cpamDebut'); if(e1) e1.value=d.getFullYear()+'-'+m+'-01';
-        var e2=document.getElementById('cpamFin'); if(e2) e2.value=d.toISOString().split('T')[0];
-    },
-    'vue-ngap':         function(){ if(typeof window.initNGAP==='function') window.initNGAP(); },
-    'vue-dashboard':    dashboardInit
-};
-
-// ── Gestion des dropdowns ─────────────────────────────────
-// ── Gestion du compte tiers dans le Journal de Banque ─────────
-window.bankTiersChange = function() {
-    var sel   = document.getElementById('pay-tiers-code');
-    var desc  = document.getElementById('pay-description');
-    var code  = document.getElementById('pay-compte-code');
-    var cat   = document.getElementById('pay-categorie');
-    var type  = document.getElementById('pay-type');
-    if (!sel) return;
-
-    var val     = sel.value;
-    var txt     = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
-    var codePur = txt.split('—')[0].trim();
-
-    // Mettre à jour le compte de contrepartie caché (utilisé par transactions.js)
-    if (code) code.value = val;
-
-    // Remplir automatiquement la catégorie et le type selon le tiers
-    var autoData = {
-        '411000': {type:'Recette', cat:'Soins infirmiers',      desc:'Virement CPAM'},
-        '411100': {type:'Recette', cat:'Soins infirmiers',      desc:'Virement Mutuelle'},
-        '411200': {type:'Recette', cat:'Soins infirmiers',      desc:'Part patient'},
-        '411300': {type:'Recette', cat:'Soins infirmiers',      desc:'Tiers payant complémentaire'},
-        '431000': {type:'Dépense', cat:'URSSAF',                desc:'Cotisations URSSAF'},
-        '437100': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Retraite'},
-        '437200': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Prévoyance'},
-        '437300': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Invalidité'},
-        '441000': {type:'Dépense', cat:'Autre',                 desc:'Impôt sur le Revenu'},
-        '443000': {type:'Dépense', cat:'Autre',                 desc:'Taxes'},
-        '401000': {type:'Dépense', cat:'Achats matériel',       desc:'Achat fournisseur'},
-        '401100': {type:'Dépense', cat:'Achats matériel',       desc:'Laboratoire'},
-        '401200': {type:'Dépense', cat:'Achats matériel',       desc:'Pharmacie'},
-        '401300': {type:'Dépense', cat:'Autre',                 desc:'Prestataire informatique'},
-        '401400': {type:'Dépense', cat:'Autre',                 desc:'Expert-comptable'},
-        '401500': {type:'Dépense', cat:'Autre',                 desc:'Ordre Infirmier'},
-        '421000': {type:'Dépense', cat:'Autre',                 desc:'Rétrocession titulaire'},
-        '455000': {type:'Dépense', cat:'Autre',                 desc:'Prélèvement personnel'},
-    };
-
-    if (val && autoData[val]) {
-        var d = autoData[val];
-        if (type) { for(var i=0;i<type.options.length;i++) { if(type.options[i].value===d.type){type.selectedIndex=i;break;} } }
-        if (cat)  { for(var i=0;i<cat.options.length;i++)  { if(cat.options[i].value===d.cat) {cat.selectedIndex=i;break;}  } }
-        if (desc && !desc.value) desc.value = d.desc;
-    }
-};
-
-window.toggleDropdown = function(ddId) {
-    var all = document.querySelectorAll('.nav-dropdown');
-    all.forEach(function(dd) {
-        if (dd.id !== ddId) {
-            dd.querySelector('.nav-dropdown-btn').classList.remove('open');
-            dd.querySelector('.nav-dropdown-panel').classList.remove('open');
-        }
-    });
-    var dd = document.getElementById(ddId);
-    if (!dd) return;
-    dd.querySelector('.nav-dropdown-btn').classList.toggle('open');
-    dd.querySelector('.nav-dropdown-panel').classList.toggle('open');
-};
-
-// Fermer les dropdowns en cliquant ailleurs
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('.nav-dropdown')) {
-        document.querySelectorAll('.nav-dropdown-btn').forEach(function(b){ b.classList.remove('open'); });
-        document.querySelectorAll('.nav-dropdown-panel').forEach(function(p){ p.classList.remove('open'); });
-    }
-});
-
-window.goTo = function(tabId, navEl) {
-    document.querySelectorAll('.view-section').forEach(function(s){ s.classList.remove('active'); });
-    var target = document.getElementById(tabId);
-    if (target) target.classList.add('active');
-
-    // Gérer les items actifs dans les dropdowns et boutons
-    document.querySelectorAll('.dd-item, .nav-btn-home').forEach(function(n){ n.classList.remove('active'); });
-    if (navEl) navEl.classList.add('active');
-    else {
-        var found = document.querySelector('[data-tab="'+tabId+'"]');
-        if (found) found.classList.add('active');
-    }
-    // Fermer tous les dropdowns
-    document.querySelectorAll('.nav-dropdown-btn').forEach(function(b){ b.classList.remove('open'); });
-    document.querySelectorAll('.nav-dropdown-panel').forEach(function(p){ p.classList.remove('open'); });
-
-    var titles = {
-        'vue-dashboard':'🏠 Tableau de bord','vue-transactions':'📄 Transactions',
-        'vue-banque':'🏦 Journal de Banque','vue-od':'📝 Journal OD',
-        'vue-plan':'📊 Plan Comptable','vue-urssaf':'🏛️ URSSAF',
-        'vue-bareme-urssaf':'⚙️ Barème URSSAF','vue-carpimko':'🏥 CARPIMKO',
-        'vue-bareme-carpimko':'⚙️ Barème CARPIMKO','vue-ir':'💶 Calcul IR',
-        'vue-bareme-ir':'⚙️ Barème IR','vue-export':'📁 Sauvegarde & Expert',
-        'vue-bilan':'📈 Bilan / CE','vue-stats':'📊 Statistiques',
-        'vue-2035':'📑 2035 / 2042','vue-journal':'📖 Journal Général',
-        'vue-gl-aux':        function(){ if(typeof window.initGLAuxModule==='function') window.initGLAuxModule(); },
-    'vue-grandlivre':'📚 Grand Livre Général',
-        'vue-gl-aux':'📒 Grand Livre Auxiliaire des Tiers','vue-balance':'⚖️ Balance Générale des Comptes',
-        'vue-balance-tiers':'👥 Balance Auxiliaire des Tiers',
-        'vue-profil':'👤 Mon Profil','vue-patients':'👥 Patients & Cabinets',
-        'vue-ngap':'💊 Nomenclature NGAP',
-        'vue-passages':'🩺 Passages du jour',
-        'vue-export-cpam':'📤 Export CPAM',
-        'vue-aide':'📖 Mode d\'emploi',
-        'vue-recap-remplacant':'📋 Récapitulatif Rétrocession'
-    };
-    var titleEl = document.getElementById('page-title');
-    if (titleEl) titleEl.textContent = titles[tabId] || tabId;
-
-    window.scrollTo(0,0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    if (target) target.scrollIntoView({behavior:'instant', block:'start'});
-    if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
-};
-
-// Rétrocompatibilité
-window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
-
-function applySidebarState(collapsed) { /* sidebar supprimée - navbar horizontale */ }
-window.toggleSidebarCollapse = function() { /* sidebar supprimée */ };
-
-window.toggleSidebar = function() { /* sidebar supprimée */ };
-
-window.chargerHistoriquePatientActif = function() {
-    var ptId = window._ptFicheId;
-    if (!ptId) { alert('Ouvrez d\'abord une fiche patient'); return; }
-    if (typeof window.chargerHistoriquePassages === 'function')
-        window.chargerHistoriquePassages(ptId, 'passHistoriquePatient');
-};
-
-window.toggleRecapLibre = function() {
-    // Les dates sont toujours visibles - pré-remplir si vides
-    var today = new Date();
-    var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
-    var fin   = today.toISOString().split('T')[0];
-    var d1 = document.getElementById('recapDebut');
-    var d2 = document.getElementById('recapFin');
-    if (d1 && !d1.value) d1.value = debut;
-    if (d2 && !d2.value) d2.value = fin;
-};
-
-window._ptFicheId = null;
-
-window.fermerModal = function() {
-    var m = document.getElementById('modal-modifier');
-    if (m) { m.style.display='none'; }
-};
-
-function dashboardInit() {
-    var sc = window.supabaseClient;
-    if (!sc) return;
-    sc.from('transactions').select('type,amount').then(function(r){
-        if (r.error) return;
-        var data = r.data||[];
-        var rec = data.filter(function(t){ return (t.type||'').toLowerCase().includes('recette'); })
-                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); },0);
-        var dep = data.filter(function(t){ return (t.type||'').toLowerCase().includes('d'); })
-                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); },0);
-        var fmt = function(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2})+' €'; };
-        var el = function(id,v){ var e=document.getElementById(id);if(e)e.textContent=v; };
-        el('dash-recettes',fmt(rec));
-        el('dash-depenses',fmt(dep));
-        el('dash-balance',fmt(rec-dep));
-        el('dash-nb',data.length);
-        sc.from('transactions').select('*').order('date',{ascending:false}).limit(6).then(function(r2){
-            var der=document.getElementById('dash-dernieres');
-            if(!der)return;
-            if(!r2.data||!r2.data.length){der.innerHTML='<p style="color:#94a3b8;">Aucune transaction.</p>';return;}
-            var isRec=function(t){return (t.type||'').toLowerCase().includes('recette');};
-            der.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th style="text-align:right;">Montant</th></tr></thead><tbody>'
-                +r2.data.map(function(t){
-                    return '<tr><td>'+t.date+'</td>'
-                        +'<td><span class="badge '+(isRec(t)?'badge-green':'badge-red')+'">'+(isRec(t)?'Recette':'Dépense')+'</span></td>'
-                        +'<td>'+(t.description||'')+'</td>'
-                        +'<td style="text-align:right;font-weight:600;color:'+(isRec(t)?'#16a34a':'#dc2626')+';">'
-                        +(isRec(t)?'+':'-')+(parseFloat(t.amount)||0).toLocaleString('fr-FR',{minimumFractionDigits:2})+' €</td></tr>';
-                }).join('')+'</tbody></table>';
-        });
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
-    var iv = setInterval(function(){
-        var em=document.getElementById('auth-user-email');
-        var av=document.getElementById('sidebar-avatar');
-        if(em&&em.textContent&&em.textContent!=='—'){
-            if(av)av.textContent=em.textContent.charAt(0).toUpperCase();
-            clearInterval(iv);
-        }
-    },500);
-});
-</script>
-
-<script src="transactions.js"></script>
-<script src="exercice.js"></script>
-<script src="journal_od.js"></script>
-<script src="bilan.js"></script>
-<script src="declaration2035.js"></script>
-<script src="plan_comptable.js"></script>
-<script src="bareme_urssaf.js"></script>
-<script src="urssaf.js"></script>
-<script src="bareme_carpimko.js"></script>
-<script src="carpimko.js"></script>
-<script src="bareme_ir.js"></script>
-<script src="ir.js"></script>
-<script src="statistiques.js"></script>
-<script src="export_comptable.js"></script>
-<script src="journal.js"></script>
-
-    <!-- VUE PASSAGES DU JOUR -->
-    <section id="vue-passages" class="view-section">
+<section id="vue-passages" class="view-section">
         <div class="dashboard-grid" style="margin-bottom:20px;">
             <div class="kpi-card blue"><div class="kpi-label">Passages aujourd'hui</div><div class="kpi-value" id="dashPassagesJour">—</div></div>
             <div class="kpi-card green"><div class="kpi-label">CA du jour</div><div class="kpi-value" id="dashCAJour">—</div></div>
@@ -1386,8 +1097,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </section>
 
-    <!-- VUE RÉCAPITULATIF REMPLAÇANT -->
-    <section id="vue-recap-remplacant" class="view-section">
+<section id="vue-recap-remplacant" class="view-section">
 
         <!-- Filtres -->
         <div class="card" style="margin-bottom:16px;">
@@ -1495,8 +1205,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </p>
     </section>
 
-    <!-- VUE EXPORT CPAM -->
-    <section id="vue-export-cpam" class="view-section">
+<section id="vue-export-cpam" class="view-section">
         <div class="card">
             <h3>📤 Export des passages pour la CPAM</h3>
             <p style="color:#64748b;margin-bottom:20px;font-size:13px;">Exportez vos passages sous forme de fichier CSV. Chaque ligne = un passage facturé avec le détail NGAP complet.</p>
@@ -1518,18 +1227,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </section>
 
-<script src="grand-livre.js"></script>
-<script src="balance.js"></script>
-    <script src="balance-tiers.js"></script>
-    <script src="grand-livre-auxiliaire.js"></script>
-<script src="profil.js"></script>
-<script src="patients.js"></script>
-<script src="passages.js"></script>
-<script src="ngap.js"></script>
-
-
-    <!-- VUE AGENDA -->
-    <section id="vue-agenda" class="view-section">
+<section id="vue-agenda" class="view-section">
         <div class="card" style="padding:16px;margin-bottom:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                 <div style="display:flex;align-items:center;gap:10px;">
@@ -1554,115 +1252,6 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
     </section>
-
-    <!-- MODAL RDV -->
-    <div id="agModal" class="modal-overlay" style="display:none;">
-        <div class="modal-content" style="width:560px;max-height:90vh;overflow-y:auto;">
-            <h3 style="margin:0 0 18px;">&#128197; Rendez-vous</h3>
-            <form id="agFormRdv" onsubmit="agSauvegarderRdv(event)">
-                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:15px;">
-                    <label class="form-label" style="color:#92400e;">Patient *</label>
-                    <select id="agRdvPatient" class="form-control" required>
-                        <option value="">-- Selectionnez un patient --</option>
-                    </select>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
-                    <div class="form-group"><label class="form-label">Date *</label>
-                        <input type="date" id="agRdvDate" class="form-control" required></div>
-                    <div class="form-group"><label class="form-label">Heure *</label>
-                        <input type="time" id="agRdvHeure" class="form-control" value="08:00" required></div>
-                    <div class="form-group"><label class="form-label">Duree</label>
-                        <select id="agRdvDuree" class="form-control">
-                            <option value="15">15 min</option>
-                            <option value="30" selected>30 min</option>
-                            <option value="45">45 min</option>
-                            <option value="60">1 heure</option>
-                        </select></div>
-                </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Actes prevus</label>
-                    <input type="text" id="agRdvActes" class="form-control" placeholder="AMI 4, pansement...">
-                </div>
-                <div class="form-group" style="margin-bottom:18px;">
-                    <label class="form-label">Notes</label>
-                    <textarea id="agRdvNotes" class="form-control" rows="2"></textarea>
-                </div>
-                <div style="display:flex;justify-content:space-between;">
-                    <button type="button" onclick="agFermerModal()" class="btn-secondary" style="padding:9px 18px;">Annuler</button>
-                    <button type="submit" class="btn-primary" style="padding:9px 24px;">Enregistrer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script src="agenda.js"></script>
-
-    <!-- SECTION GESTION DES TIERS (insérée dans vue-banque) -->
-    <!-- MODAL TIERS -->
-    <div id="tiersModal" class="modal-overlay" style="display:none;">
-        <div class="modal-content" style="width:560px;">
-            <h3 style="margin:0 0 16px;">👤 Fiche Tiers</h3>
-            <form id="tiersForm" onsubmit="tiersSauvegarder(event)">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-                    <div class="form-group">
-                        <label class="form-label">Compte comptable *</label>
-                        <select id="tiersCompte" class="form-control" required>
-                            <option value="">-- Sélectionner --</option>
-                            <optgroup label="Clients & Organismes payeurs">
-                                <option value="411000">411000 — CPAM / Sécurité Sociale</option>
-                                <option value="411100">411100 — Mutuelle</option>
-                                <option value="411200">411200 — Patient</option>
-                            </optgroup>
-                            <optgroup label="Organismes sociaux">
-                                <option value="431000">431000 — URSSAF</option>
-                                <option value="437100">437100 — CARPIMKO Retraite</option>
-                                <option value="437200">437200 — CARPIMKO Prévoyance</option>
-                                <option value="437300">437300 — CARPIMKO Invalidité</option>
-                            </optgroup>
-                            <optgroup label="État & Impôts">
-                                <option value="441000">441000 — État / IR</option>
-                                <option value="443000">443000 — Taxes</option>
-                            </optgroup>
-                            <optgroup label="Fournisseurs">
-                                <option value="401000">401000 — Fournisseur matériel</option>
-                                <option value="401100">401100 — Laboratoire</option>
-                                <option value="401200">401200 — Pharmacie</option>
-                                <option value="401300">401300 — Informatique</option>
-                                <option value="401400">401400 — Expert-comptable</option>
-                                <option value="401500">401500 — Ordre Infirmier</option>
-                            </optgroup>
-                            <optgroup label="Divers">
-                                <option value="421000">421000 — Rétrocession Titulaire</option>
-                                <option value="455000">455000 — Exploitant</option>
-                            </optgroup>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Nom du tiers *</label>
-                        <input type="text" id="tiersNom" class="form-control" placeholder="Ex: URSSAF Côte d'Azur" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">SIRET</label>
-                        <input type="text" id="tiersSiret" class="form-control" placeholder="00000000000000">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">IBAN</label>
-                        <input type="text" id="tiersIban" class="form-control" placeholder="FR76...">
-                    </div>
-                    <div class="form-group" style="grid-column:1/-1;">
-                        <label class="form-label">Notes</label>
-                        <textarea id="tiersNotes" class="form-control" rows="2"></textarea>
-                    </div>
-                </div>
-                <div style="display:flex;justify-content:space-between;">
-                    <button type="button" onclick="tiersFermerModal()" class="btn-secondary" style="padding:8px 18px;">Annuler</button>
-                    <button type="submit" class="btn-primary" style="padding:8px 22px;">💾 Enregistrer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script src="tiers.js"></script>
 
 <section id="vue-aide" class="view-section">
 <div style="max-width:860px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -2879,6 +2468,430 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </div>
 </section>
+
+</div>
+
+<!-- SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+
+<script>
+window.exporterSauvegardeGlobale = async function() {
+    var sc = window.supabaseClient || (window.supabase && typeof window.supabase.from==='function'?window.supabase:null);
+    if (!sc){alert("Connexion Supabase indisponible.");return;}
+    var tables=['attachments','declarations','ecritures_comptables','plan_comptable','profile','transactions','cabinets','patients','passages'];
+    var save={date_export:new Date().toISOString(),tables:{}};
+    for(var t of tables){try{var r=await sc.from(t).select('*');save.tables[t]=r.error?[]:(r.data||[]);}catch(e){save.tables[t]=[];}}
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(save,null,2)],{type:'application/json'}));
+    a.download='sauvegarde_compta_'+new Date().toISOString().split('T')[0]+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+};
+
+window.transactions=window.transactions||[];
+
+var PAGE_INITS = {
+    'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
+    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); if(typeof window.initTiers==='function') window.initTiers(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
+    'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
+    'vue-plan':         function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
+    'vue-urssaf':       function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
+    'vue-bareme-urssaf':function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
+    'vue-carpimko':     function(){ if(typeof window.initCarpimkoModule==='function') window.initCarpimkoModule(); },
+    'vue-bareme-carpimko':function(){ if(typeof window.initBaremeCarpimkoModule==='function') window.initBaremeCarpimkoModule(); },
+    'vue-ir':           function(){ if(typeof window.initIRModule==='function') window.initIRModule(); },
+    'vue-bareme-ir':    function(){ if(typeof window.initBaremeIRModule==='function') window.initBaremeIRModule(); },
+    'vue-export':       function(){ if(typeof window.initExportModule==='function') window.initExportModule(); },
+    'vue-bilan':        function(){ if(typeof window.chargerBilanEtCE==='function') window.chargerBilanEtCE(); },
+    'vue-stats':        function(){ if(typeof window.initStatsModule==='function') window.initStatsModule(); },
+    'vue-2035':         function(){ if(typeof window.chargerDeclaration2035==='function') window.chargerDeclaration2035(); },
+    'vue-journal':      function(){ if(typeof window.chargerJournalGeneral==='function') window.chargerJournalGeneral(); },
+    'vue-gl-aux':        function(){ if(typeof window.initGLAuxModule==='function') window.initGLAuxModule(); },
+    'vue-grandlivre': function(){
+        var fn = function() {
+            if (typeof window.chargerEtAfficherGrandLivre === 'function') {
+                window.chargerEtAfficherGrandLivre();
+            } else {
+                setTimeout(fn, 400);
+            }
+        };
+        fn();
+    },
+    'vue-balance-tiers': function(){ if(typeof window.initBalanceTiersModule==='function') window.initBalanceTiersModule(); },
+    'vue-balance':      function(){ if(typeof window.initBalanceModule==='function') window.initBalanceModule(); },
+    'vue-profil':       function(){ if(typeof window.initProfil==='function') window.initProfil(); },
+    'vue-patients':     function(){ if(typeof window.initPatients==='function') window.initPatients(); },
+    'vue-agenda':       function(){ if(typeof window.initAgenda==='function') window.initAgenda(); },
+    'vue-passages':     function(){ if(typeof window.chargerDashboardPassages==='function') window.chargerDashboardPassages(); if(typeof window.chargerRdvsDuJour==='function') window.chargerRdvsDuJour(); },
+    'vue-recap-remplacant': function(){
+        // Pré-remplir les dates si vides
+        var today = new Date();
+        var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
+        var fin   = today.toISOString().split('T')[0];
+        var d1=document.getElementById('recapDebut'); if(d1&&!d1.value) d1.value=debut;
+        var d2=document.getElementById('recapFin');   if(d2&&!d2.value) d2.value=fin;
+        // Pré-remplir les selects cabinets
+        var sel=document.getElementById('recapCabinet');
+        if(sel && window.PT && PT.cabinets) {
+            sel.innerHTML='<option value="">Tous les cabinets</option>';
+            PT.cabinets.forEach(function(c){ sel.innerHTML+='<option value="'+c.id+'">'+c.nom+'</option>'; });
+        }
+        chargerRecapitulatifRemplacant();
+    },
+    'vue-export-cpam':  function(){
+        var d = new Date(); var m = ('0'+(d.getMonth()+1)).slice(-2);
+        var e1=document.getElementById('cpamDebut'); if(e1) e1.value=d.getFullYear()+'-'+m+'-01';
+        var e2=document.getElementById('cpamFin'); if(e2) e2.value=d.toISOString().split('T')[0];
+    },
+    'vue-ngap':         function(){ if(typeof window.initNGAP==='function') window.initNGAP(); },
+    'vue-dashboard':    dashboardInit
+};
+
+// ── Gestion des dropdowns ─────────────────────────────────
+// ── Gestion du compte tiers dans le Journal de Banque ─────────
+window.bankTiersChange = function() {
+    var sel   = document.getElementById('pay-tiers-code');
+    var desc  = document.getElementById('pay-description');
+    var code  = document.getElementById('pay-compte-code');
+    var cat   = document.getElementById('pay-categorie');
+    var type  = document.getElementById('pay-type');
+    if (!sel) return;
+
+    var val     = sel.value;
+    var txt     = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    var codePur = txt.split('—')[0].trim();
+
+    // Mettre à jour le compte de contrepartie caché (utilisé par transactions.js)
+    if (code) code.value = val;
+
+    // Remplir automatiquement la catégorie et le type selon le tiers
+    var autoData = {
+        '411000': {type:'Recette', cat:'Soins infirmiers',      desc:'Virement CPAM'},
+        '411100': {type:'Recette', cat:'Soins infirmiers',      desc:'Virement Mutuelle'},
+        '411200': {type:'Recette', cat:'Soins infirmiers',      desc:'Part patient'},
+        '411300': {type:'Recette', cat:'Soins infirmiers',      desc:'Tiers payant complémentaire'},
+        '431000': {type:'Dépense', cat:'URSSAF',                desc:'Cotisations URSSAF'},
+        '437100': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Retraite'},
+        '437200': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Prévoyance'},
+        '437300': {type:'Dépense', cat:'Cotisations CARPIMKO',  desc:'CARPIMKO Invalidité'},
+        '441000': {type:'Dépense', cat:'Autre',                 desc:'Impôt sur le Revenu'},
+        '443000': {type:'Dépense', cat:'Autre',                 desc:'Taxes'},
+        '401000': {type:'Dépense', cat:'Achats matériel',       desc:'Achat fournisseur'},
+        '401100': {type:'Dépense', cat:'Achats matériel',       desc:'Laboratoire'},
+        '401200': {type:'Dépense', cat:'Achats matériel',       desc:'Pharmacie'},
+        '401300': {type:'Dépense', cat:'Autre',                 desc:'Prestataire informatique'},
+        '401400': {type:'Dépense', cat:'Autre',                 desc:'Expert-comptable'},
+        '401500': {type:'Dépense', cat:'Autre',                 desc:'Ordre Infirmier'},
+        '421000': {type:'Dépense', cat:'Autre',                 desc:'Rétrocession titulaire'},
+        '455000': {type:'Dépense', cat:'Autre',                 desc:'Prélèvement personnel'},
+    };
+
+    if (val && autoData[val]) {
+        var d = autoData[val];
+        if (type) { for(var i=0;i<type.options.length;i++) { if(type.options[i].value===d.type){type.selectedIndex=i;break;} } }
+        if (cat)  { for(var i=0;i<cat.options.length;i++)  { if(cat.options[i].value===d.cat) {cat.selectedIndex=i;break;}  } }
+        if (desc && !desc.value) desc.value = d.desc;
+    }
+};
+
+window.toggleDropdown = function(ddId) {
+    var all = document.querySelectorAll('.nav-dropdown');
+    all.forEach(function(dd) {
+        if (dd.id !== ddId) {
+            dd.querySelector('.nav-dropdown-btn').classList.remove('open');
+            dd.querySelector('.nav-dropdown-panel').classList.remove('open');
+        }
+    });
+    var dd = document.getElementById(ddId);
+    if (!dd) return;
+    dd.querySelector('.nav-dropdown-btn').classList.toggle('open');
+    dd.querySelector('.nav-dropdown-panel').classList.toggle('open');
+};
+
+// Fermer les dropdowns en cliquant ailleurs
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.nav-dropdown')) {
+        document.querySelectorAll('.nav-dropdown-btn').forEach(function(b){ b.classList.remove('open'); });
+        document.querySelectorAll('.nav-dropdown-panel').forEach(function(p){ p.classList.remove('open'); });
+    }
+});
+
+window.goTo = function(tabId, navEl) {
+    document.querySelectorAll('.view-section').forEach(function(s){ s.classList.remove('active'); });
+    var target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
+
+    // Gérer les items actifs dans les dropdowns et boutons
+    document.querySelectorAll('.dd-item, .nav-btn-home').forEach(function(n){ n.classList.remove('active'); });
+    if (navEl) navEl.classList.add('active');
+    else {
+        var found = document.querySelector('[data-tab="'+tabId+'"]');
+        if (found) found.classList.add('active');
+    }
+    // Fermer tous les dropdowns
+    document.querySelectorAll('.nav-dropdown-btn').forEach(function(b){ b.classList.remove('open'); });
+    document.querySelectorAll('.nav-dropdown-panel').forEach(function(p){ p.classList.remove('open'); });
+
+    var titles = {
+        'vue-dashboard':'🏠 Tableau de bord','vue-transactions':'📄 Transactions',
+        'vue-banque':'🏦 Journal de Banque','vue-od':'📝 Journal OD',
+        'vue-plan':'📊 Plan Comptable','vue-urssaf':'🏛️ URSSAF',
+        'vue-bareme-urssaf':'⚙️ Barème URSSAF','vue-carpimko':'🏥 CARPIMKO',
+        'vue-bareme-carpimko':'⚙️ Barème CARPIMKO','vue-ir':'💶 Calcul IR',
+        'vue-bareme-ir':'⚙️ Barème IR','vue-export':'📁 Sauvegarde & Expert',
+        'vue-bilan':'📈 Bilan / CE','vue-stats':'📊 Statistiques',
+        'vue-2035':'📑 2035 / 2042','vue-journal':'📖 Journal Général',
+        'vue-gl-aux':        function(){ if(typeof window.initGLAuxModule==='function') window.initGLAuxModule(); },
+    'vue-grandlivre':'📚 Grand Livre Général',
+        'vue-gl-aux':'📒 Grand Livre Auxiliaire des Tiers','vue-balance':'⚖️ Balance Générale des Comptes',
+        'vue-balance-tiers':'👥 Balance Auxiliaire des Tiers',
+        'vue-profil':'👤 Mon Profil','vue-patients':'👥 Patients & Cabinets',
+        'vue-ngap':'💊 Nomenclature NGAP',
+        'vue-passages':'🩺 Passages du jour',
+        'vue-export-cpam':'📤 Export CPAM',
+        'vue-aide':'📖 Mode d\'emploi',
+        'vue-recap-remplacant':'📋 Récapitulatif Rétrocession'
+    };
+    var titleEl = document.getElementById('page-title');
+    if (titleEl) titleEl.textContent = titles[tabId] || tabId;
+
+    window.scrollTo(0,0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    if (target) target.scrollIntoView({behavior:'instant', block:'start'});
+    if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
+};
+
+// Rétrocompatibilité
+window.switchTab = function(tabId, btn) { window.goTo(tabId, btn); };
+
+function applySidebarState(collapsed) { /* sidebar supprimée - navbar horizontale */ }
+window.toggleSidebarCollapse = function() { /* sidebar supprimée */ };
+
+window.toggleSidebar = function() { /* sidebar supprimée */ };
+
+window.chargerHistoriquePatientActif = function() {
+    var ptId = window._ptFicheId;
+    if (!ptId) { alert('Ouvrez d\'abord une fiche patient'); return; }
+    if (typeof window.chargerHistoriquePassages === 'function')
+        window.chargerHistoriquePassages(ptId, 'passHistoriquePatient');
+};
+
+window.toggleRecapLibre = function() {
+    // Les dates sont toujours visibles - pré-remplir si vides
+    var today = new Date();
+    var debut = today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-01';
+    var fin   = today.toISOString().split('T')[0];
+    var d1 = document.getElementById('recapDebut');
+    var d2 = document.getElementById('recapFin');
+    if (d1 && !d1.value) d1.value = debut;
+    if (d2 && !d2.value) d2.value = fin;
+};
+
+window._ptFicheId = null;
+
+window.fermerModal = function() {
+    var m = document.getElementById('modal-modifier');
+    if (m) { m.style.display='none'; }
+};
+
+function dashboardInit() {
+    var sc = window.supabaseClient;
+    if (!sc) return;
+    sc.from('transactions').select('type,amount').then(function(r){
+        if (r.error) return;
+        var data = r.data||[];
+        var rec = data.filter(function(t){ return (t.type||'').toLowerCase().includes('recette'); })
+                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); },0);
+        var dep = data.filter(function(t){ return (t.type||'').toLowerCase().includes('d'); })
+                      .reduce(function(s,t){ return s+(parseFloat(t.amount)||0); },0);
+        var fmt = function(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2})+' €'; };
+        var el = function(id,v){ var e=document.getElementById(id);if(e)e.textContent=v; };
+        el('dash-recettes',fmt(rec));
+        el('dash-depenses',fmt(dep));
+        el('dash-balance',fmt(rec-dep));
+        el('dash-nb',data.length);
+        sc.from('transactions').select('*').order('date',{ascending:false}).limit(6).then(function(r2){
+            var der=document.getElementById('dash-dernieres');
+            if(!der)return;
+            if(!r2.data||!r2.data.length){der.innerHTML='<p style="color:#94a3b8;">Aucune transaction.</p>';return;}
+            var isRec=function(t){return (t.type||'').toLowerCase().includes('recette');};
+            der.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th style="text-align:right;">Montant</th></tr></thead><tbody>'
+                +r2.data.map(function(t){
+                    return '<tr><td>'+t.date+'</td>'
+                        +'<td><span class="badge '+(isRec(t)?'badge-green':'badge-red')+'">'+(isRec(t)?'Recette':'Dépense')+'</span></td>'
+                        +'<td>'+(t.description||'')+'</td>'
+                        +'<td style="text-align:right;font-weight:600;color:'+(isRec(t)?'#16a34a':'#dc2626')+';">'
+                        +(isRec(t)?'+':'-')+(parseFloat(t.amount)||0).toLocaleString('fr-FR',{minimumFractionDigits:2})+' €</td></tr>';
+                }).join('')+'</tbody></table>';
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.chargerTransactions === 'function') window.chargerTransactions();
+    var iv = setInterval(function(){
+        var em=document.getElementById('auth-user-email');
+        var av=document.getElementById('sidebar-avatar');
+        if(em&&em.textContent&&em.textContent!=='—'){
+            if(av)av.textContent=em.textContent.charAt(0).toUpperCase();
+            clearInterval(iv);
+        }
+    },500);
+});
+</script>
+
+<script src="transactions.js"></script>
+<script src="exercice.js"></script>
+<script src="journal_od.js"></script>
+<script src="bilan.js"></script>
+<script src="declaration2035.js"></script>
+<script src="plan_comptable.js"></script>
+<script src="bareme_urssaf.js"></script>
+<script src="urssaf.js"></script>
+<script src="bareme_carpimko.js"></script>
+<script src="carpimko.js"></script>
+<script src="bareme_ir.js"></script>
+<script src="ir.js"></script>
+<script src="statistiques.js"></script>
+<script src="export_comptable.js"></script>
+<script src="journal.js"></script>
+
+    <!-- VUE PASSAGES DU JOUR -->
+    
+
+    <!-- VUE RÉCAPITULATIF REMPLAÇANT -->
+    
+
+    <!-- VUE EXPORT CPAM -->
+    
+
+<script src="grand-livre.js"></script>
+<script src="balance.js"></script>
+    <script src="balance-tiers.js"></script>
+    <script src="grand-livre-auxiliaire.js"></script>
+<script src="profil.js"></script>
+<script src="patients.js"></script>
+<script src="passages.js"></script>
+<script src="ngap.js"></script>
+
+
+    <!-- VUE AGENDA -->
+    
+
+    <!-- MODAL RDV -->
+    <div id="agModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="width:560px;max-height:90vh;overflow-y:auto;">
+            <h3 style="margin:0 0 18px;">&#128197; Rendez-vous</h3>
+            <form id="agFormRdv" onsubmit="agSauvegarderRdv(event)">
+                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:15px;">
+                    <label class="form-label" style="color:#92400e;">Patient *</label>
+                    <select id="agRdvPatient" class="form-control" required>
+                        <option value="">-- Selectionnez un patient --</option>
+                    </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+                    <div class="form-group"><label class="form-label">Date *</label>
+                        <input type="date" id="agRdvDate" class="form-control" required></div>
+                    <div class="form-group"><label class="form-label">Heure *</label>
+                        <input type="time" id="agRdvHeure" class="form-control" value="08:00" required></div>
+                    <div class="form-group"><label class="form-label">Duree</label>
+                        <select id="agRdvDuree" class="form-control">
+                            <option value="15">15 min</option>
+                            <option value="30" selected>30 min</option>
+                            <option value="45">45 min</option>
+                            <option value="60">1 heure</option>
+                        </select></div>
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Actes prevus</label>
+                    <input type="text" id="agRdvActes" class="form-control" placeholder="AMI 4, pansement...">
+                </div>
+                <div class="form-group" style="margin-bottom:18px;">
+                    <label class="form-label">Notes</label>
+                    <textarea id="agRdvNotes" class="form-control" rows="2"></textarea>
+                </div>
+                <div style="display:flex;justify-content:space-between;">
+                    <button type="button" onclick="agFermerModal()" class="btn-secondary" style="padding:9px 18px;">Annuler</button>
+                    <button type="submit" class="btn-primary" style="padding:9px 24px;">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="agenda.js"></script>
+
+    <!-- SECTION GESTION DES TIERS (insérée dans vue-banque) -->
+    <!-- MODAL TIERS -->
+    <div id="tiersModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="width:560px;">
+            <h3 style="margin:0 0 16px;">👤 Fiche Tiers</h3>
+            <form id="tiersForm" onsubmit="tiersSauvegarder(event)">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                    <div class="form-group">
+                        <label class="form-label">Compte comptable *</label>
+                        <select id="tiersCompte" class="form-control" required>
+                            <option value="">-- Sélectionner --</option>
+                            <optgroup label="Clients & Organismes payeurs">
+                                <option value="411000">411000 — CPAM / Sécurité Sociale</option>
+                                <option value="411100">411100 — Mutuelle</option>
+                                <option value="411200">411200 — Patient</option>
+                            </optgroup>
+                            <optgroup label="Organismes sociaux">
+                                <option value="431000">431000 — URSSAF</option>
+                                <option value="437100">437100 — CARPIMKO Retraite</option>
+                                <option value="437200">437200 — CARPIMKO Prévoyance</option>
+                                <option value="437300">437300 — CARPIMKO Invalidité</option>
+                            </optgroup>
+                            <optgroup label="État & Impôts">
+                                <option value="441000">441000 — État / IR</option>
+                                <option value="443000">443000 — Taxes</option>
+                            </optgroup>
+                            <optgroup label="Fournisseurs">
+                                <option value="401000">401000 — Fournisseur matériel</option>
+                                <option value="401100">401100 — Laboratoire</option>
+                                <option value="401200">401200 — Pharmacie</option>
+                                <option value="401300">401300 — Informatique</option>
+                                <option value="401400">401400 — Expert-comptable</option>
+                                <option value="401500">401500 — Ordre Infirmier</option>
+                            </optgroup>
+                            <optgroup label="Divers">
+                                <option value="421000">421000 — Rétrocession Titulaire</option>
+                                <option value="455000">455000 — Exploitant</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nom du tiers *</label>
+                        <input type="text" id="tiersNom" class="form-control" placeholder="Ex: URSSAF Côte d'Azur" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">SIRET</label>
+                        <input type="text" id="tiersSiret" class="form-control" placeholder="00000000000000">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">IBAN</label>
+                        <input type="text" id="tiersIban" class="form-control" placeholder="FR76...">
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label class="form-label">Notes</label>
+                        <textarea id="tiersNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;">
+                    <button type="button" onclick="tiersFermerModal()" class="btn-secondary" style="padding:8px 18px;">Annuler</button>
+                    <button type="submit" class="btn-primary" style="padding:8px 22px;">💾 Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="tiers.js"></script>
+
+
+
+    </div><!-- /page-body fin -->
 
 
     <!-- MODAL ÉDITION TRANSACTION -->
