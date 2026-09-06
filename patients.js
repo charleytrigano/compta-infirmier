@@ -326,6 +326,13 @@ function ptAjouterPassage(patientId) {
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 window.initPatients = async function() {
+    // Toujours repartir sur la liste (pas la fiche)
+    var fiche = document.getElementById('ptSectionFiche');
+    var liste = document.getElementById('ptSectionPatients');
+    if (fiche) fiche.style.display = 'none';
+    if (liste) liste.style.display = 'block';
+    window.scrollTo(0, 0);
+
     // Attendre Supabase si nécessaire
     if (!ptSC()) {
         var el = document.getElementById('ptListePatients');
