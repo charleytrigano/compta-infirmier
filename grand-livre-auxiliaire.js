@@ -24,11 +24,11 @@
             code: tiersParId[t.tiers_id].compte,
             nom:  tiersParId[t.tiers_id].nom
         };
-        if (t.compte_tiers_code) return {
-            code: t.compte_tiers_code,
-            nom:  t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers_code
+        if (t.compte_tiers||t.compte_tiers_code) return {
+            code: t.compte_tiers||t.compte_tiers_code,
+            nom:  t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers||t.compte_tiers_code
         };
-        var c=(t.category||t.categorie||'').toLowerCase(), d=(t.description||'').toLowerCase();
+        var c=(t.libelle||t.category||t.categorie||'').toLowerCase(), d=(t.description||'').toLowerCase();
         var isR=(t.type||'').toLowerCase()==='recette';
         if (isR)                                               return {code:'411000',nom:'Clients / CPAM (collectif)'};
         if (c.includes('carpimko')&&(c.includes('prévoyance')||d.includes('prévoyance'))) return {code:'437200',nom:'CARPIMKO — Prévoyance'};
@@ -64,17 +64,18 @@
 
         try {
             var res = await Promise.all([
-                sc.from('transactions').select('*').order('date',{ascending:true}),
+                sc.from('journal_banque').select('*').order('date',{ascending:true}).order('created_at',{ascending:true}),
+                sc.from('journal_od').select('*').order('date',{ascending:true}).order('created_at',{ascending:true}),
                 sc.from('tiers').select('*').eq('actif',true),
                 sc.from('plan_comptable').select('code,nom').eq('type','Tiers')
             ]);
             if (res[0].error) throw new Error(res[0].error.message);
 
-            var transactions = res[0].data || [];
+            var transactions = (res[0].data||[]).concat(res[3].data||[]);
             var tiersParId   = {};
-            (res[1].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
+            (res[3].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
             var planTiers = {};
-            (res[2].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
+            (res[3].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
 
             // Années
             var anneesSet={};
@@ -88,7 +89,7 @@
             var comptes = {};
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
-                var m    = Math.abs(parseFloat(t.amount||t.montant||0));
+                var m    = Math.abs(parseFloat(t.montant||t.amount||0));
                 var isR  = (t.type||'').toLowerCase()==='recette';
                 var ct   = getTiers(t, tiersParId);
                 if (!ct) return;

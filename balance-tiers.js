@@ -22,9 +22,9 @@
             nom:  tiersParId[t.tiers_id].nom
         };
         // 2. compte_tiers_code explicit
-        if (t.compte_tiers_code) return {
-            code: t.compte_tiers_code,
-            nom:  t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers_code
+        if (t.compte_tiers||t.compte_tiers_code) return {
+            code: t.compte_tiers||t.compte_tiers_code,
+            nom:  t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers||t.compte_tiers_code
         };
         // 3. Déduction catégorie
         var c = (cat||'').toLowerCase(), d = (t.description||'').toLowerCase();
@@ -52,17 +52,18 @@
 
         try {
             var res = await Promise.all([
-                sc.from('transactions').select('*').order('date',{ascending:true}),
+                sc.from('journal_banque').select('*').order('date',{ascending:true}).order('created_at',{ascending:true}),
+                sc.from('journal_od').select('*').order('date',{ascending:true}).order('created_at',{ascending:true}),
                 sc.from('tiers').select('*').eq('actif',true),
                 sc.from('plan_comptable').select('code,nom').eq('type','Tiers')
             ]);
             if (res[0].error) throw new Error(res[0].error.message);
 
-            var transactions = res[0].data || [];
+            var transactions = (res[0].data||[]).concat(res[3].data||[]);
             var tiersParId   = {};
-            (res[1].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
+            (res[3].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
             var planTiers = {};
-            (res[2].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
+            (res[3].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
 
             // Années
             var anneesSet={};
@@ -76,9 +77,9 @@
             var comptes = {};
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
-                var m    = Math.abs(parseFloat(t.amount||t.montant||0));
+                var m    = Math.abs(parseFloat(t.montant||t.amount||0));
                 var isR  = (t.type||'').toLowerCase()==='recette';
-                var cat  = t.category||t.categorie||'';
+                var cat  = t.libelle||t.category||t.categorie||'';
                 var ct   = getCodeTiers(t, tiersParId, cat);
                 if (!ct) return;
 
@@ -102,7 +103,7 @@
 
                 comptes[code].detail.push({
                     date:t.date,
-                    desc:t.description||'—',
+                    desc:t.libelle||t.description||'—',
                     cat: cat||'—',
                     isR: isR,
                     montant: m
