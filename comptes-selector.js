@@ -40,7 +40,8 @@
         {code:'706000',nom:'Honoraires / Soins infirmiers',type:'Produit'},
     ];
 
-    var PLAN = PLAN_BASE.slice(); // commence avec les comptes de base
+    var PLAN = PLAN_BASE.slice();
+    window.PLAN_BASE_DATA = PLAN_BASE; // accès immédiat sans Supabase // commence avec les comptes de base
     var planCharge = false;
 
     // Charger le plan depuis Supabase et fusionner
@@ -255,4 +256,5 @@
     });
 
     window.chargerPlanComptableSelectors = function(){ chargerDepuisSupabase(); };
+    window.PLAN_SELECTOR = PLAN; // exposer pour autres modules
 })();
