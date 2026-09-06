@@ -144,6 +144,9 @@ async function ptChargerPatients() {
     ptRenduPatients();
     ptRenduCabinets();
     ptMAJCompteurs();
+    window.scrollTo(0, 0);
+    var body = document.getElementById('page-body');
+    if (body) body.scrollTop = 0;
 }
 
 function ptMAJCompteurs() {
