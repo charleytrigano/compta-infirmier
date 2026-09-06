@@ -272,7 +272,7 @@
             </div>
 
             <h3>Saisir un règlement / paiement bancaire</h3>
-            <form id="form-ajouter-paiement" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="event.preventDefault(); window.ajouterPaiement();">
+            <form id="form-ajouter-paiement" class="flex flex-wrap items-end gap-3 mb-8" onsubmit="ajouterEcritureBanque(event);">
                 <div class="flex-1 min-w-[140px] flex flex-col gap-1">
                     <label for="pay-date" class="text-xs font-semibold text-slate-600">Date de valeur *</label>
                     <input type="date" id="pay-date" class="form-control" required>
@@ -371,7 +371,7 @@
         <section id="vue-od" class="view-section">
             <h2>📝 Journal des Opérations Diverses (OD)</h2>
 
-            <form onsubmit="window.enregistrerEcritureOD(event)" class="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-200">
+            <form onsubmit="ajouterEcritureOD(event);" class="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-200">
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Date *</label>
