@@ -1264,7 +1264,7 @@ window.goTo = function(tabId, navEl) {
     var titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[tabId] || tabId;
 
-    var pb=document.getElementById('page-body'); if(pb) pb.scrollTop=0;
+    window.scrollTo(0, 0);
     if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
 };
 

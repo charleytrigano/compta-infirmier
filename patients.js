@@ -127,7 +127,7 @@ function ptFiltrerParCabinet(cabinetId) {
     ptRenduPatients();
     // Scroll vers la liste patients
     var el = document.getElementById('ptSectionPatients');
-    if (el) el.scrollIntoView({behavior:'smooth'});
+    window.scrollTo(0, 0);
 }
 
 // ── PATIENTS ─────────────────────────────────────────────────────────────────
@@ -144,8 +144,7 @@ async function ptChargerPatients() {
     ptRenduPatients();
     ptRenduCabinets();
     ptMAJCompteurs();
-    var pb = document.getElementById('page-body');
-    if (pb) pb.scrollTop = 0;
+    window.scrollTo(0, 0);
 }
 
 function ptMAJCompteurs() {
@@ -287,15 +286,13 @@ function ptOuvrirFiche(id) {
         + '</div>';
     document.getElementById('ptSectionFiche').style.display = 'block';
     document.getElementById('ptSectionPatients').style.display = 'none';
-    var pb = document.getElementById('page-body');
-    if (pb) pb.scrollTop = 0; else window.scrollTo(0,0);
+    window.scrollTo(0, 0);
 }
 
 function ptFermerFiche() {
     document.getElementById('ptSectionFiche').style.display = 'none';
     document.getElementById('ptSectionPatients').style.display = 'block';
-    var pb = document.getElementById('page-body');
-    if (pb) pb.scrollTop = 0; else window.scrollTo(0,0);
+    window.scrollTo(0, 0);
 }
 
 function ptEditerPatient(id) {
@@ -333,7 +330,7 @@ window.initPatients = async function() {
     if (!ptSC()) {
         var el = document.getElementById('ptListePatients');
         if (el) el.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px;">⏳ Connexion en cours...</p>';
-        var pb=document.getElementById('page-body');if(pb)pb.scrollTop=0;
+        window.scrollTo(0, 0);
         setTimeout(window.initPatients, 600);
         return;
     }
