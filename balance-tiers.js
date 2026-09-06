@@ -92,18 +92,17 @@
                 var nom  = planTiers[code] || ct.nom;
                 if (!comptes[code]) comptes[code]={code:code,nom:nom,debit:0,credit:0,detail:[]};
 
-                // Double entrée tiers :
-                // Recette  : D tiers / C tiers  (soldé) → mouvement = crédit net
-                // Dépense  : D tiers / C tiers  (soldé) → mouvement = débit net
-                // Pour la balance auxiliaire on affiche le mvt "net" du tiers
-                if (isR) {
-                    // Tiers client : créancier → crédit
+                // Nouvelles tables : compte_debit/compte_credit direct
+                if (t.compte_debit && t.compte_debit === code) {
+                    comptes[code].debit += m;
+                } else if (t.compte_credit && t.compte_credit === code) {
                     comptes[code].credit += m;
-                    comptes[code].debit  += m; // soldé
+                } else if (isR) {
+                    // Ancien mode : tiers client → crédit
+                    comptes[code].credit += m;
                 } else {
-                    // Tiers fournisseur : débiteur → débit
-                    comptes[code].debit  += m;
-                    comptes[code].credit += m; // soldé
+                    // Ancien mode : tiers fournisseur → débit
+                    comptes[code].debit += m;
                 }
 
                 comptes[code].detail.push({

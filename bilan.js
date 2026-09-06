@@ -48,6 +48,7 @@
 
             let totalRecettes = 0;
             let totalDepenses = 0;
+            let soldeBanque = 0;  // Solde réel du compte 512000
             const recMap = new Map();
             const depMap = new Map();
 
@@ -55,13 +56,18 @@
                 const montant = Math.abs(parseFloat(row.montant || 0));
                 const cD = row.compte_debit || '';
                 const cC = row.compte_credit || '';
-                // Débit = compte de charge (6xx) ou actif (5xx) → dépense
-                // Crédit = compte de produit (7xx) → recette
+
+                // Solde 512000 (trésorerie réelle)
+                if (cD.startsWith('512')) soldeBanque += montant;   // entrée banque
+                if (cC.startsWith('512')) soldeBanque -= montant;   // sortie banque
+
+                // Produits (7xx) → recettes
                 if (cC && cC.charAt(0) === '7') {
                     totalRecettes += montant;
-                    const lib = cC + (row.libelle ? ' - ' + row.libelle : '');
                     recMap.set(cC, (recMap.get(cC)||0) + montant);
-                } else if (cD && cD.charAt(0) === '6') {
+                }
+                // Charges (6xx) → dépenses
+                if (cD && cD.charAt(0) === '6') {
                     totalDepenses += montant;
                     depMap.set(cD, (depMap.get(cD)||0) + montant);
                 }
@@ -181,7 +187,7 @@
                                 <h4 style="margin: 0 0 10px 0; color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 4px;">ACTIF</h4>
                                 <div style="display: flex; justify-content: space-between; padding: 6px 0; color: #334155;">
                                     <span>Trésorerie / Compte Banque (512)</span>
-                                    <span style="font-weight: 600;">${formatEuro(resultat)}</span>
+                                    <span style="font-weight: 600;">${formatEuro(soldeBanque)}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 10px; border-top: 1px solid #cbd5e1; font-weight: 700; color: #1e293b;">
                                     <span>TOTAL ACTIF</span>
