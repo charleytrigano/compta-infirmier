@@ -76,9 +76,9 @@
             ]);
             if (res[0].error) throw new Error(res[0].error.message);
 
-            var transactions = (res[0].data||[]).concat(res[3].data||[]);
+            var transactions = (res[0].data||[]).concat(res[1].data||[]);
             var tiersParId   = {};
-            (res[3].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
+            (res[2].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
             var planTiers = {};
             (res[3].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
 
