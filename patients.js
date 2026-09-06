@@ -33,6 +33,8 @@ async function ptChargerCabinets() {
     if (!r.error) {
         PT.cabinets = r.data || [];
         ptRenouvellerSelectCabinets();
+    } else {
+        console.error('Erreur cabinets :', r.error.message);
     }
 }
 
@@ -132,13 +134,16 @@ function ptFiltrerParCabinet(cabinetId) {
 
 async function ptChargerPatients() {
     if (!ptSC()) return;
+    var el = document.getElementById('ptListePatients');
     var r = await ptSC().from('patients').select('*, cabinets(nom, ville)').order('nom');
-    if (!r.error) {
-        PT.patients = r.data || [];
-        ptRenduPatients();
-        ptRenduCabinets();
-        ptMAJCompteurs();
+    if (r.error) {
+        if (el) el.innerHTML = '<p style="color:#dc2626;padding:20px;">❌ Erreur patients : ' + r.error.message + '</p>';
+        return;
     }
+    PT.patients = r.data || [];
+    ptRenduPatients();
+    ptRenduCabinets();
+    ptMAJCompteurs();
 }
 
 function ptMAJCompteurs() {
@@ -279,13 +284,13 @@ function ptOuvrirFiche(id) {
         + '<button onclick="ptFermerFiche()" style="background:#f8fafc;border:1px solid #e2e8f0;padding:8px 16px;border-radius:6px;cursor:pointer;">← Retour</button>'
         + '</div>';
     document.getElementById('ptSectionFiche').style.display = 'block';
-    document.getElementById('ptSectionListe').style.display = 'none';
+    document.getElementById('ptSectionPatients').style.display = 'none';
     el.scrollIntoView({behavior:'smooth'});
 }
 
 function ptFermerFiche() {
     document.getElementById('ptSectionFiche').style.display = 'none';
-    document.getElementById('ptSectionListe').style.display = 'block';
+    document.getElementById('ptSectionPatients').style.display = 'block';
 }
 
 function ptEditerPatient(id) {
@@ -319,16 +324,29 @@ function ptAjouterPassage(patientId) {
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 window.initPatients = async function() {
+    // Attendre Supabase si nécessaire
+    if (!ptSC()) {
+        var el = document.getElementById('ptListePatients');
+        if (el) el.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px;">⏳ Connexion en cours...</p>';
+        setTimeout(window.initPatients, 600);
+        return;
+    }
     // Filtres
     ['ptRecherchePatient','ptFiltreCABINET','ptFiltreALD'].forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) {
+        if (el && !el._ptBound) {
+            el._ptBound = true;
             el.addEventListener('input', ptRenduPatients);
             el.addEventListener('change', ptRenduPatients);
         }
     });
-    await ptChargerCabinets();
-    await ptChargerPatients();
+    try {
+        await ptChargerCabinets();
+        await ptChargerPatients();
+    } catch(err) {
+        var el = document.getElementById('ptListePatients');
+        if (el) el.innerHTML = '<p style="color:#dc2626;padding:20px;">❌ Erreur : ' + err.message + '</p>';
+    }
 };
 
 // Expose
