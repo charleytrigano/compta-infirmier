@@ -58,14 +58,17 @@ async function ptSauvegarderCabinet(e) {
     if (e) e.preventDefault();
     if (!ptSC()) return;
     var data = {
-        nom:         document.getElementById('ptCabNom').value.trim(),
-        adresse:     document.getElementById('ptCabAdresse').value.trim(),
-        code_postal: document.getElementById('ptCabCP').value.trim(),
-        ville:       document.getElementById('ptCabVille').value.trim(),
-        telephone:   document.getElementById('ptCabTel').value.trim(),
-        email:       document.getElementById('ptCabEmail').value.trim(),
-        siret:       document.getElementById('ptCabSiret').value.trim(),
-        responsable: document.getElementById('ptCabResponsable').value.trim(),
+        nom:             document.getElementById('ptCabNom').value.trim(),
+        adresse:         document.getElementById('ptCabAdresse').value.trim(),
+        code_postal:     document.getElementById('ptCabCP').value.trim(),
+        ville:           document.getElementById('ptCabVille').value.trim(),
+        telephone:       document.getElementById('ptCabTel').value.trim(),
+        email:           document.getElementById('ptCabEmail').value.trim(),
+        siret:           document.getElementById('ptCabSiret').value.trim(),
+        responsable:     document.getElementById('ptCabResponsable').value.trim(),
+        nom_titulaire:   (document.getElementById('ptCabTitulaire')||{value:''}).value.trim() || null,
+        taux_retrocession: parseFloat((document.getElementById('ptCabRetrocession')||{value:''}).value) || null,
+        iban:            (document.getElementById('ptCabIban')||{value:''}).value.trim() || null,
         actif: true
     };
     if (!data.nom) { alert('Le nom du cabinet est obligatoire'); return; }
@@ -95,9 +98,14 @@ function ptRenduCabinets() {
         var nbPt = PT.patients.filter(function(p){ return p.cabinet_id === c.id; }).length;
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;background:white;cursor:pointer;" onclick="ptFiltrerParCabinet(\'' + c.id + '\')">'
             + '<div>'
-            + '<div style="font-weight:600;color:#1e293b;">' + c.nom + '</div>'
+            + '<div style="font-weight:600;color:#1e293b;">' + c.nom + (c.nom_titulaire ? ' <span style=\"font-size:12px;color:#64748b;font-weight:400;\">— ' + c.nom_titulaire + '</span>' : '') + '</div>'
             + '<div style="font-size:13px;color:#64748b;">' + [c.adresse, c.code_postal, c.ville].filter(Boolean).join(', ') + '</div>'
-            + '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + (c.responsable ? 'Dr/IDE ' + c.responsable + ' — ' : '') + (c.telephone || '') + '</div>'
+            + '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">'
+            + (c.responsable ? 'Responsable : ' + c.responsable + ' — ' : '')
+            + (c.telephone || '')
+            + (c.taux_retrocession ? ' · <strong style=\"color:#16a34a;\">' + c.taux_retrocession + '% rétrocession</strong>' : '')
+            + (c.iban ? ' · IBAN : ' + c.iban.substring(0,8) + '...' : '')
+            + '</div>'
             + '</div>'
             + '<div style="display:flex;gap:8px;align-items:center;">'
             + '<span style="background:#eff6ff;color:#2563eb;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;">' + nbPt + ' patient' + (nbPt > 1 ? 's' : '') + '</span>'
@@ -113,7 +121,8 @@ function ptEditerCabinet(id) {
     PT.cabinetEdite = id;
     var champs = {ptCabNom:c.nom, ptCabAdresse:c.adresse, ptCabCP:c.code_postal,
                   ptCabVille:c.ville, ptCabTel:c.telephone, ptCabEmail:c.email,
-                  ptCabSiret:c.siret, ptCabResponsable:c.responsable};
+                  ptCabSiret:c.siret, ptCabResponsable:c.responsable,
+                  ptCabTitulaire:c.nom_titulaire, ptCabRetrocession:c.taux_retrocession, ptCabIban:c.iban};
     Object.keys(champs).forEach(function(k) {
         var el = document.getElementById(k);
         if (el) el.value = champs[k] || '';
