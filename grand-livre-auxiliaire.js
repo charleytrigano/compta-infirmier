@@ -106,12 +106,29 @@
                 // Pour le GL auxiliaire : on montre le mouvement NET du tiers
                 // Recette  → le tiers (client) est crédité (il nous payait)
                 // Dépense  → le tiers (fournisseur) est débité (on lui payait)
+                // Déterminer le sens pour ce compte tiers
+                var cD = t.compte_debit || '';
+                var cC = t.compte_credit || '';
+                var ligDebit, ligCredit;
+                if (cD === code) {
+                    ligDebit = m; ligCredit = 0;
+                } else if (cC === code) {
+                    ligDebit = 0; ligCredit = m;
+                } else if (cD.startsWith('512')) {
+                    ligDebit = 0; ligCredit = m; // encaissement → crédit tiers
+                } else if (cC.startsWith('512')) {
+                    ligDebit = m; ligCredit = 0; // décaissement → débit tiers
+                } else {
+                    ligDebit = isR ? 0 : m;
+                    ligCredit = isR ? m : 0;
+                }
+
                 comptes[code].lignes.push({
                     date:  t.date,
-                    desc:  t.description || '—',
-                    ref:   t.facture_numero || '—',
-                    debit: isR ? 0 : m,
-                    credit:isR ? m : 0,
+                    desc:  t.libelle || t.description || '—',
+                    ref:   t.reference || t.facture_numero || '—',
+                    debit: ligDebit,
+                    credit:ligCredit,
                 });
             });
 

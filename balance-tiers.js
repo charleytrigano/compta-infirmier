@@ -92,16 +92,25 @@
                 var nom  = planTiers[code] || ct.nom;
                 if (!comptes[code]) comptes[code]={code:code,nom:nom,debit:0,credit:0,detail:[]};
 
-                // Nouvelles tables : compte_debit/compte_credit direct
-                if (t.compte_debit && t.compte_debit === code) {
+                // Déterminer le sens pour le compte tiers
+                var cD = t.compte_debit || '';
+                var cC = t.compte_credit || '';
+
+                if (cD === code) {
+                    // Le tiers est au débit → il nous doit quelque chose (créance)
                     comptes[code].debit += m;
-                } else if (t.compte_credit && t.compte_credit === code) {
+                } else if (cC === code) {
+                    // Le tiers est au crédit → il a payé (règlement)
                     comptes[code].credit += m;
+                } else if (cD.startsWith('512')) {
+                    // Encaissement banque → le tiers (client) est crédité
+                    comptes[code].credit += m;
+                } else if (cC.startsWith('512')) {
+                    // Décaissement banque → le tiers (fournisseur) est débité
+                    comptes[code].debit += m;
                 } else if (isR) {
-                    // Ancien mode : tiers client → crédit
                     comptes[code].credit += m;
                 } else {
-                    // Ancien mode : tiers fournisseur → débit
                     comptes[code].debit += m;
                 }
 
