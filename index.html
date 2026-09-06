@@ -393,7 +393,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Compte Débit *</label>
-                        <input type="text" id="od-compte-debit" class="form-control" placeholder="Ex: 626" required>
+                        <div style="display:flex;gap:6px;align-items:center;"><input type="text" id="od-compte-debit" class="form-control" placeholder="Ex: 512000" required style="flex:1;"><button type="button" onclick="ouvrirPlanComptable('od-compte-debit')" style="padding:8px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;">🔍</button></div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Libellé Débit</label>
@@ -401,7 +401,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Compte Crédit *</label>
-                        <input type="text" id="od-compte-credit" class="form-control" placeholder="Ex: 401" required>
+                        <div style="display:flex;gap:6px;align-items:center;"><input type="text" id="od-compte-credit" class="form-control" placeholder="Ex: 706000" required style="flex:1;"><button type="button" onclick="ouvrirPlanComptable('od-compte-credit')" style="padding:8px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;">🔍</button></div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Libellé Crédit</label>
@@ -422,7 +422,7 @@
                         <label class="block text-xs font-semibold text-slate-600 mb-1">📷 Scan / Justificatif</label>
                         <input type="file" id="od-file" accept="image/*,application/pdf" capture="environment" class="form-control text-xs">
                     </div>
-                    <button type="submit" class="btn-primary h-[38px] whitespace-nowrap">
+                    <button type="button" onclick="event.preventDefault();ajouterEcritureOD(event);" class="btn-primary h-[38px] whitespace-nowrap">
                         + Valider l'OD
                     </button>
                 </div>
