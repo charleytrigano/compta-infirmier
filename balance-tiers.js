@@ -16,6 +16,11 @@
 
     // Déterminer le compte tiers d'une transaction
     function getCodeTiers(t, tiersParId, cat) {
+        // 0. Nouvelles tables : compte_debit ou compte_credit directement 4xx
+        if (t.compte_debit && t.compte_debit.charAt(0)==="4")
+            return { code:t.compte_debit, nom:t.nom_tiers||t.compte_tiers||t.compte_debit };
+        if (t.compte_credit && t.compte_credit.charAt(0)==="4")
+            return { code:t.compte_credit, nom:t.nom_tiers||t.compte_tiers||t.compte_credit };
         // 1. tiers_id → compte exact depuis table tiers
         if (t.tiers_id && tiersParId[t.tiers_id]) return {
             code: tiersParId[t.tiers_id].compte,
@@ -103,7 +108,7 @@
 
                 comptes[code].detail.push({
                     date:t.date,
-                    desc:t.libelle||t.description||'—',
+                    desc:t.libelle||t.libelle||t.description||'—',
                     cat: cat||'—',
                     isR: isR,
                     montant: m
