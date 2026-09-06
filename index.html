@@ -311,7 +311,11 @@
 
                 <div class="flex-1 min-w-[180px] flex flex-col gap-1">
                     <label for="pay-description" class="text-xs font-semibold text-slate-600">Libellé / Nom tiers *</label>
-                    <input type="text" id="pay-description" class="form-control" placeholder="Ex: URSSAF Côte d'Azur..." required>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <input type="text" id="pay-description" class="form-control" placeholder="Ex: URSSAF Côte d'Azur..." required style="flex:1;">
+                        <button type="button" onclick="ouvrirPlanComptable()" title="Rechercher dans le plan comptable"
+                            style="padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;font-size:1rem;white-space:nowrap;">🔍 Plan</button>
+                    </div>
                 </div>
                 <input type="hidden" id="pay-compte-code" value="">
 
@@ -2992,6 +2996,94 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
+
+
+    <!-- MODAL PLAN COMPTABLE -->
+    <div id="modal-plan-comptable" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:12px;width:90%;max-width:560px;padding:24px;box-shadow:0 20px 25px rgba(0,0,0,.15);max-height:85vh;display:flex;flex-direction:column;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;font-size:1.15rem;color:#0f172a;">📖 Plan Comptable</h3>
+                <button onclick="document.getElementById('modal-plan-comptable').style.display='none'"
+                    style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#64748b;">&times;</button>
+            </div>
+            <input type="text" id="recherche-plan-comptable" placeholder="Rechercher un numéro ou libellé..."
+                oninput="filtrerPlanComptable(this.value)"
+                style="padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:12px;font-size:0.95rem;width:100%;box-sizing:border-box;">
+            <div id="liste-plan-comptable" style="overflow-y:auto;flex:1;border:1px solid #e2e8f0;border-radius:8px;min-height:200px;">
+                <p style="padding:20px;text-align:center;color:#94a3b8;">Chargement...</p>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+    var _planModalCache = null;
+
+    window.ouvrirPlanComptable = function(cibleId) {
+        window._planCible = cibleId || null;
+        var modal = document.getElementById('modal-plan-comptable');
+        modal.style.display = 'flex';
+        document.getElementById('recherche-plan-comptable').value = '';
+
+        // Charger depuis Supabase
+        var sc = window.supabaseClient;
+        if (!sc) { alert('Supabase non connecté'); return; }
+
+        if (_planModalCache && _planModalCache.length > 0) {
+            renderPlanModal(_planModalCache, '');
+            return;
+        }
+
+        document.getElementById('liste-plan-comptable').innerHTML =
+            '<p style="padding:20px;text-align:center;color:#64748b;">⏳ Chargement...</p>';
+
+        sc.from('plan_comptable').select('code,nom').order('code').then(function(r) {
+            if (!r.error && r.data && r.data.length > 0) {
+                _planModalCache = r.data;
+            } else {
+                // Fallback PLAN_BASE de comptes-selector
+                _planModalCache = (window.PLAN_BASE_DATA || []).map(function(c){return {code:c.code,nom:c.nom||c.libelle};});
+            }
+            renderPlanModal(_planModalCache, '');
+        });
+    };
+
+    window.filtrerPlanComptable = function(term) {
+        if (_planModalCache) renderPlanModal(_planModalCache, term);
+    };
+
+    function renderPlanModal(plan, filtre) {
+        var el = document.getElementById('liste-plan-comptable');
+        if (!el) return;
+        var term = (filtre||'').toLowerCase();
+        var filtres = plan.filter(function(c){
+            return (c.code||'').toLowerCase().includes(term) ||
+                   (c.nom||'').toLowerCase().includes(term);
+        });
+        if (!filtres.length) {
+            el.innerHTML = '<p style="padding:16px;text-align:center;color:#94a3b8;">Aucun compte trouvé.</p>';
+            return;
+        }
+        el.innerHTML = filtres.map(function(c){
+            return '<div onclick="choisirCompte(''+c.code+'',''+c.nom.replace(/'/g,"\'")+'')" '
+                +'style="padding:11px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" '
+                +'onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">'
+                +'<span><strong style="color:#1e293b;">'+c.code+'</strong>'
+                +' <span style="color:#475569;">— '+c.nom+'</span></span>'
+                +'<span style="color:#2563eb;font-size:13px;">Choisir ➔</span>'
+                +'</div>';
+        }).join('');
+    }
+
+    window.choisirCompte = function(code, nom) {
+        // Si appelé depuis un select spécifique
+        if (window._planCible) {
+            var el = document.getElementById(window._planCible);
+            if (el) el.value = code;
+        }
+        document.getElementById('modal-plan-comptable').style.display = 'none';
+    };
+    </script>
 
 </body>
 </html>
