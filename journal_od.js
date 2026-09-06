@@ -152,4 +152,15 @@
 
     window.chargerJournalOD = chargerJournalOD;
     window.anneeJournalOD   = new Date().getFullYear();
+
+    window.changerAnneeOD = function(annee) {
+        window.anneeJournalOD = parseInt(annee);
+        chargerJournalOD();
+    };
+
+    // Init : synchroniser le select si présent et charger l'année courante
+    document.addEventListener('DOMContentLoaded', function() {
+        var sel = document.getElementById('select-annee-od');
+        if (sel) sel.value = String(window.anneeJournalOD);
+    });
 })();

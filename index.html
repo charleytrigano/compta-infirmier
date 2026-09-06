@@ -357,7 +357,7 @@
                             <option value="">Toutes</option>
                             <option value="2024">2024</option>
                             <option value="2025">2025</option>
-                            <option value="2026" selected>2026</option>
+                            <option value="2026">2026</option>
                         </select>
                     </div>
                 <button onclick="tiersOuvrirModal()" class="btn-secondary" style="padding:6px 14px;font-size:12px;">👤 Gérer mes tiers</button>
@@ -428,7 +428,18 @@
                 </div>
             </form>
 
-            <h3>Écritures enregistrées</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                <h3 style="margin:0;">Écritures enregistrées</h3>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <label style="font-size:12px;font-weight:600;color:#64748b;">Année :</label>
+                    <select id="select-annee-od" onchange="changerAnneeOD(this.value)"
+                        style="padding:4px 8px;border-radius:6px;border:1px solid #cbd5e1;font-weight:700;font-size:12px;">
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                    </select>
+                </div>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -974,8 +985,8 @@
                     <option value="2022">2022</option>
                     <option value="2023">2023</option>
                     <option value="2024">2024</option>
-                    <option value="2025">2025</option>
-                    <option value="2026" selected>2026</option>
+                    <option value="2025" selected>2025</option>
+                    <option value="2026">2026</option>
                 </select>
                 <input type="text" id="ngapSearch" placeholder="🔍 Rechercher un acte..." class="form-control" style="width:220px;">
                 <select id="ngapCategorie" class="form-control" style="width:190px;">
@@ -2524,7 +2535,7 @@ window.transactions=window.transactions||[];
 var PAGE_INITS = {
     'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
     'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); if(typeof window.initTiers==='function') window.initTiers(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
-    'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
+    'vue-od':           function(){ window.anneeJournalOD = parseInt((document.getElementById('select-annee-od')||{value:'2025'}).value)||2025; if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
     'vue-plan':         function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
     'vue-urssaf':       function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
     'vue-bareme-urssaf':function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
