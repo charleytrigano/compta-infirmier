@@ -558,7 +558,7 @@ async function chargerJournalBanque() {
             .order('date', { ascending: false });
 
         if (error || !transactions || transactions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Aucun mouvement bancaire enregistré.</td></tr>`;
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">Aucun mouvement bancaire — Exécutez le SQL migration_banque.sql dans Supabase pour importer les données existantes, ou saisissez une nouvelle écriture.</td></tr>';
             if (soldeEl) soldeEl.textContent = "0,00 €";
             return;
         }
