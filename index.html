@@ -1106,8 +1106,8 @@ window.transactions=window.transactions||[];
 
 var PAGE_INITS = {
     'vue-transactions': function(){ if(typeof window.chargerHistoriqueTransactions==='function') window.chargerHistoriqueTransactions(); },
-    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); if(typeof window.initTiers==='function') window.initTiers(); },
-    'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); },
+    'vue-banque':       function(){ if(typeof window.chargerJournalBanque==='function') window.chargerJournalBanque(); if(typeof window.initTiers==='function') window.initTiers(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
+    'vue-od':           function(){ if(typeof window.chargerJournalOD==='function') window.chargerJournalOD(); if(typeof window.chargerPlanComptableSelectors==='function') window.chargerPlanComptableSelectors(); },
     'vue-plan':         function(){ if(typeof window.afficherPlanComptable==='function') window.afficherPlanComptable(); },
     'vue-urssaf':       function(){ if(typeof window.initUrssafModule==='function') window.initUrssafModule(); },
     'vue-bareme-urssaf':function(){ if(typeof window.initBaremeUrssafModule==='function') window.initBaremeUrssafModule(); },
@@ -1269,6 +1269,8 @@ window.goTo = function(tabId, navEl) {
     var titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[tabId] || tabId;
 
+    window.scrollTo(0, 0);
+    document.getElementById('page-body').scrollTop = 0;
     if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
 };
 
