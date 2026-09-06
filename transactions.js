@@ -107,6 +107,7 @@ function ouvrirModalPlanComptable(targetCodeInputId, targetLibelleInputId) {
 
     modal.style.display = 'flex';
     document.getElementById('recherche-plan-comptable').value = '';
+    _planCache = null; // forcer rechargement depuis Supabase à chaque ouverture
     afficherListePlanComptable('');
 }
 
@@ -118,53 +119,34 @@ function fermerModalPlanComptable() {
 // Cache du plan comptable
 var _planCache = null;
 
-function getPlanComptable() {
-    // 1. PLAN_BASE_DATA de comptes-selector.js (disponible immédiatement au chargement)
-    if (window.PLAN_BASE_DATA && window.PLAN_BASE_DATA.length > 0) {
-        return window.PLAN_BASE_DATA.slice().sort(function(a,b){
-            return a.code.localeCompare(b.code,undefined,{numeric:true});
-        });
-    }
-    // 2. _PLAN_GL chargé depuis Supabase
-    if (window._PLAN_GL && Object.keys(window._PLAN_GL).length > 0) {
-        return Object.keys(window._PLAN_GL).map(function(code){
-            return {code:code, nom:window._PLAN_GL[code]};
-        }).sort(function(a,b){ return a.code.localeCompare(b.code,undefined,{numeric:true}); });
-    }
-    // 3. PLAN_SELECTOR
-    if (window.PLAN_SELECTOR && window.PLAN_SELECTOR.length) {
-        return window.PLAN_SELECTOR;
-    }
-    // 4. Fallback liste codée en dur
-    return PLAN_COMPTABLE_LIST.map(function(c){return {code:c.code,nom:c.libelle};});
-}
-
 function chargerEtAfficher(filtre) {
     var conteneur = document.getElementById('liste-plan-comptable');
     if (!conteneur) return;
 
-    // Essayer d'abord les sources déjà en mémoire
-    var planEnMemoire = getPlanComptable();
-    if (planEnMemoire.length > 16) {
-        // Plus que la liste de base → données réelles disponibles
-        renderPlan(planEnMemoire, filtre, conteneur);
+    // Si cache dispo → afficher directement
+    if (_planCache && _planCache.length > 0) {
+        renderPlan(_planCache, filtre, conteneur);
         return;
     }
 
-    // Charger depuis Supabase
-    var supabase = getSupabase();
-    if (!supabase) { renderPlan(planEnMemoire, filtre, conteneur); return; }
-    if (_planCache) { renderPlan(_planCache, filtre, conteneur); return; }
+    conteneur.innerHTML = '<div style="padding:12px;text-align:center;color:#94a3b8;">⏳ Chargement du plan comptable...</div>';
 
-    conteneur.innerHTML = '<div style="padding:12px;text-align:center;color:#94a3b8;">⏳ Chargement...</div>';
+    var supabase = getSupabase();
+    if (!supabase) {
+        _planCache = PLAN_COMPTABLE_LIST.map(function(c){return {code:c.code,nom:c.libelle};});
+        renderPlan(_planCache, filtre, conteneur);
+        return;
+    }
+
+    // Requête directe Supabase
     supabase.from('plan_comptable').select('code,nom').order('code').then(function(r) {
         if (!r.error && r.data && r.data.length > 0) {
             _planCache = r.data;
-            // Aussi exposer pour _PLAN_GL
-            if (!window._PLAN_GL) window._PLAN_GL = {};
-            r.data.forEach(function(c){ window._PLAN_GL[c.code] = c.nom; });
         } else {
-            _planCache = planEnMemoire;
+            // Fallback : liste codée en dur + PLAN_BASE si dispo
+            _planCache = (window.PLAN_BASE_DATA && window.PLAN_BASE_DATA.length)
+                ? window.PLAN_BASE_DATA
+                : PLAN_COMPTABLE_LIST.map(function(c){return {code:c.code,nom:c.libelle};});
         }
         renderPlan(_planCache, filtre, conteneur);
     });
