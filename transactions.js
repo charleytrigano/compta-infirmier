@@ -115,29 +115,52 @@ function fermerModalPlanComptable() {
     if (modal) modal.style.display = 'none';
 }
 
-function afficherListePlanComptable(filtre) {
-    const conteneur = document.getElementById('liste-plan-comptable');
+// Cache du plan comptable Supabase
+var _planCache = null;
+
+function chargerEtAfficher(filtre) {
+    var conteneur = document.getElementById('liste-plan-comptable');
     if (!conteneur) return;
+    var supabase = getSupabase();
+    if (!supabase) { renderPlan(PLAN_COMPTABLE_LIST.map(function(c){return {code:c.code,nom:c.libelle};}), filtre, conteneur); return; }
+    if (_planCache) { renderPlan(_planCache, filtre, conteneur); return; }
+    conteneur.innerHTML = '<div style="padding:12px;text-align:center;color:#94a3b8;">Chargement...</div>';
+    supabase.from('plan_comptable').select('code,nom').order('code').then(function(r) {
+        if (!r.error && r.data && r.data.length > 0) {
+            _planCache = r.data;
+        } else {
+            _planCache = PLAN_COMPTABLE_LIST.map(function(c){return {code:c.code,nom:c.libelle};});
+        }
+        renderPlan(_planCache, filtre, conteneur);
+    });
+}
 
-    const term = (filtre || '').toLowerCase();
-    const filtrés = PLAN_COMPTABLE_LIST.filter(c => 
-        c.code.toLowerCase().includes(term) || c.libelle.toLowerCase().includes(term)
-    );
-
-    if (filtrés.length === 0) {
-        conteneur.innerHTML = `<div style="padding: 16px; text-align: center; color: #94a3b8;">Aucun compte trouvé.</div>`;
+function renderPlan(plan, filtre, conteneur) {
+    var term = (filtre||'').toLowerCase();
+    var filtres = plan.filter(function(c){
+        return (c.code||'').toLowerCase().includes(term) || (c.nom||c.libelle||'').toLowerCase().includes(term);
+    });
+    if (!filtres.length) {
+        conteneur.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;">Aucun compte trouvé.</div>';
         return;
     }
-
-    conteneur.innerHTML = filtrés.map(item => `
-        <div onclick="selectionnerCompteComptable('${item.code}', '${item.libelle.replace(/'/g, "\\'")}')" 
-             style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;"
-             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-            <span style="font-weight: 600; color: #1e293b;">${item.libelle}</span>
-            <span style="font-size: 0.85rem; color: #2563eb; font-weight: 500;">Choisir ➔</span>
-        </div>
-    `).join('');
+    conteneur.innerHTML = filtres.map(function(item){
+        var lib = item.nom||item.libelle||item.code;
+        var libEsc = lib.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<div onclick="selectionnerCompteComptable(\''+item.code+'\',\''+libEsc+'\' )" '
+            +'style="padding:10px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" '
+            +'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'transparent\'">'
+            +'<div><strong style="color:#1e293b;">'+item.code+'</strong>'
+            +' <span style="color:#475569;font-size:13px;">— '+lib+'</span></div>'
+            +'<span style="font-size:0.85rem;color:#2563eb;">Choisir ➔</span>'
+            +'</div>';
+    }).join('');
 }
+
+function afficherListePlanComptable(filtre) {
+    chargerEtAfficher(filtre);
+}
+
 
 function selectionnerCompteComptable(code, libelle) {
     if (cibleCompteCodeId) {
