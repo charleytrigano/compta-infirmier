@@ -172,7 +172,7 @@
                 var s = san[code];
                 var solde = s.d - s.c;
                 if (Math.abs(solde) < 0.005) return;
-                if (!comptes[code]) comptes[code] = {code:code, lib:libelle(code), debit:0, credit:0, detail:[]};
+                if (!comptes[code]) comptes[code] = {code:code, lib:lib(code), debit:0, credit:0, detail:[]};
                 if (solde > 0) {
                     comptes[code].debit += solde;
                     comptes[code].detail.unshift({date:'01/01/'+anneeActive, desc:'★ Solde à Nouveau', cat:'SAN', debit:solde, credit:0});
