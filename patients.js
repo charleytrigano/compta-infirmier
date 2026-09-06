@@ -144,7 +144,11 @@ async function ptChargerPatients() {
     ptRenduPatients();
     ptRenduCabinets();
     ptMAJCompteurs();
-    window.scrollTo(0, 0);
+    setTimeout(function() {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+    }, 0);
 }
 
 function ptMAJCompteurs() {
@@ -331,7 +335,8 @@ window.initPatients = async function() {
     var liste = document.getElementById('ptSectionPatients');
     if (fiche) fiche.style.display = 'none';
     if (liste) liste.style.display = 'block';
-    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
 
     // Attendre Supabase si nécessaire
     if (!ptSC()) {

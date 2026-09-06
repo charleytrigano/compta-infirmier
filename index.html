@@ -1264,7 +1264,10 @@ window.goTo = function(tabId, navEl) {
     var titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[tabId] || tabId;
 
+    // Scroll universel (window + html + body + page-body)
     window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
 };
 
