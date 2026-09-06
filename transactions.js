@@ -515,17 +515,26 @@ async function chargerJournalBanque() {
     const supabase = getSupabase();
     if (!supabase) return;
 
-    // Lire journal_banque en priorité
+    // Lire journal_banque en priorité (toutes les années disponibles)
     try {
-        var annee = window.anneeJournalBanque || new Date().getFullYear();
-        var debut = annee + '-01-01', fin = annee + '-12-31';
         const rBQ = await supabase.from('journal_banque').select('*')
-            .gte('date', debut).lte('date', fin)
             .order('date',{ascending:true}).order('created_at',{ascending:true});
         if (!rBQ.error && rBQ.data && rBQ.data.length > 0) {
             const lignes = rBQ.data;
             let totD=0, totC=0;
-            tbody.innerHTML = lignes.map(row => {
+            // Filtrer par année si sélecteur présent
+            var anneeFiltre = (document.getElementById('select-annee-banque')||{}).value;
+            var lignesFiltrees = anneeFiltre
+                ? lignes.filter(function(r){ return r.date && r.date.startsWith(anneeFiltre); })
+                : lignes;
+
+            if (!lignesFiltrees.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">Aucun mouvement pour '+(anneeFiltre||'cette période')+'.</td></tr>';
+                if (soldeEl) soldeEl.textContent = formatEuro(0);
+                return;
+            }
+
+            tbody.innerHTML = lignesFiltrees.map(row => {
                 const est = row.compte_debit === '512000';
                 const m = parseFloat(row.montant||0);
                 if(est) totD+=m; else totC+=m;
@@ -727,6 +736,7 @@ window.supprimerBQ = async function(id) {
 
 // Exports globaux
 window.getSupabase = getSupabase;
+window.filtrerJournalBanque = function() { chargerJournalBanque(); };
 window.ajouterTransaction = ajouterTransaction;
 window.chargerTransactionsListe = chargerTransactionsListe;
 window.supprimerTransaction = supprimerTransaction;

@@ -346,6 +346,16 @@
 
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <h3 style="margin:0;">Mouvements bancaires enregistrés</h3>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="font-size:12px;font-weight:600;color:#64748b;">Année :</label>
+                        <select id="select-annee-banque" onchange="filtrerJournalBanque(this.value)"
+                            style="padding:4px 8px;border-radius:6px;border:1px solid #cbd5e1;font-weight:700;font-size:12px;">
+                            <option value="">Toutes</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                    </div>
                 <button onclick="tiersOuvrirModal()" class="btn-secondary" style="padding:6px 14px;font-size:12px;">👤 Gérer mes tiers</button>
             </div>
             <table>
