@@ -440,8 +440,7 @@ async function chargerTransactionsListe() {
             .from('transactions')
             .select('*')
             .neq('category', 'Opération Diverse')
-            .order('date', { ascending: true })
-            .order('created_at', { ascending: true });
+            .order('date', { ascending: false });
         if (data && data.length > 0) list = data;
     }
 
@@ -516,13 +515,47 @@ async function chargerJournalBanque() {
     const supabase = getSupabase();
     if (!supabase) return;
 
+    // Lire journal_banque en priorité
+    try {
+        var annee = window.anneeJournalBanque || new Date().getFullYear();
+        var debut = annee + '-01-01', fin = annee + '-12-31';
+        const rBQ = await supabase.from('journal_banque').select('*')
+            .gte('date', debut).lte('date', fin)
+            .order('date',{ascending:true}).order('created_at',{ascending:true});
+        if (!rBQ.error && rBQ.data && rBQ.data.length > 0) {
+            const lignes = rBQ.data;
+            let totD=0, totC=0;
+            tbody.innerHTML = lignes.map(row => {
+                const est = row.compte_debit === '512000';
+                const m = parseFloat(row.montant||0);
+                if(est) totD+=m; else totC+=m;
+                const badge = est
+                    ? '<span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:4px;font-weight:600;font-size:0.8rem;">Encaissement</span>'
+                    : '<span style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:4px;font-weight:600;font-size:0.8rem;">Décaissement</span>';
+                return '<tr style="border-bottom:1px solid #f1f5f9;">'
+                    +'<td style="padding:10px;">'+(row.date||'-')+'</td>'
+                    +'<td style="padding:10px;">'+badge+'</td>'
+                    +'<td style="padding:10px;color:#475569;">'+row.compte_debit+' / '+row.compte_credit+'</td>'
+                    +'<td style="padding:10px;font-weight:500;">'+(row.libelle||'-')+'</td>'
+                    +'<td style="padding:10px;color:#dc2626;font-weight:600;text-align:right;">'+(!est?formatEuro(m):'-')+'</td>'
+                    +'<td style="padding:10px;color:#16a34a;font-weight:600;text-align:right;">'+(est?formatEuro(m):'-')+'</td>'
+                    +'<td style="padding:10px;text-align:center;">'+(row.piece?'<a href="'+row.piece+'" target="_blank">📎</a>':'-')+'</td>'
+                    +'<td style="padding:10px;text-align:center;white-space:nowrap;">'
+                    +'<button onclick="window.ouvrirModalModificationBanque(&quot;'+row.id+'&quot;)" style="background:none;border:none;cursor:pointer;font-size:1.1rem;margin-right:6px;">✏️</button>'
+                    +'<button onclick="window.supprimerBQ(&quot;'+row.id+'&quot;)" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.1rem;">🗑️</button>'
+                    +'</td></tr>';
+            }).join('');
+            if (soldeEl) soldeEl.textContent = formatEuro(totD - totC);
+            return;
+        }
+    } catch(eBQ) { console.warn('journal_banque non disponible:', eBQ.message); }
+
     try {
         const { data: transactions, error } = await supabase
             .from('transactions')
             .select('*')
             .neq('category', 'Opération Diverse')
-            .order('date', { ascending: true })
-            .order('created_at', { ascending: true });
+            .order('date', { ascending: false });
 
         if (error || !transactions || transactions.length === 0) {
             tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Aucun mouvement bancaire enregistré.</td></tr>`;
@@ -633,6 +666,64 @@ async function supprimerMouvementBanque(id, transactionId) {
     }
     window.dispatchEvent(new CustomEvent('ecritureAjoutee'));
 }
+
+// ── NOUVELLE ARCHITECTURE : écriture dans journal_banque ─────────────────────
+window.ajouterEcritureBanque = async function(e) {
+    if (e) e.preventDefault();
+    const supabase = getSupabase();
+    if (!supabase) { alert('Supabase non connecté'); return; }
+
+    const date    = (document.getElementById('pay-date')||{}).value;
+    const libelle = (document.getElementById('pay-description')||{}).value;
+    const montant = parseFloat((document.getElementById('pay-montant')||{}).value||0);
+    const sens    = (document.getElementById('pay-type')||{}).value || 'Recette';
+    const tiersId = (document.getElementById('pay-tiers-id')||{}).value || null;
+
+    let cD = (document.getElementById('pay-compte-debit')||{}).value;
+    let cC = (document.getElementById('pay-compte-credit')||{}).value;
+
+    // Valeurs par défaut si comptes non sélectionnés
+    const isRecette = sens.toLowerCase().includes('recette') || sens.toLowerCase().includes('encaissement');
+    if (!cD || !cC) {
+        if (isRecette) { cD = cD||'512000'; cC = cC||'706000'; }
+        else           { cD = cD||'628000'; cC = cC||'512000'; }
+    }
+
+    if (!date || !libelle || !montant || montant <= 0) {
+        alert('Remplissez : date, libellé et montant'); return;
+    }
+
+    // Récupérer info tiers
+    let nomTiers = null, compteTiers = null;
+    if (tiersId && window.TIERS_DATA) {
+        const ti = window.TIERS_DATA.find(x => x.id === tiersId);
+        if (ti) { nomTiers = ti.nom; compteTiers = ti.compte; }
+    }
+    if (!compteTiers) {
+        if (cD && cD.charAt(0) === '4') compteTiers = cD;
+        else if (cC && cC.charAt(0) === '4') compteTiers = cC;
+    }
+
+    const payload = { date, libelle, montant, compte_debit:cD, compte_credit:cC, nom_tiers:nomTiers, compte_tiers:compteTiers };
+    if (tiersId) payload.tiers_id = tiersId;
+
+    const r = await supabase.from('journal_banque').insert([payload]);
+    if (r.error) { alert('Erreur Supabase : ' + r.error.message); console.error(r.error); return; }
+
+    // Reset formulaire
+    ['pay-date','pay-description','pay-montant','pay-tiers-id','pay-compte-debit','pay-compte-credit'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    await chargerJournalBanque();
+    alert('✅ Écriture enregistrée dans journal_banque');
+};
+
+window.supprimerBQ = async function(id) {
+    if (!confirm('Supprimer cette écriture ?')) return;
+    const supabase = getSupabase(); if (!supabase) return;
+    await supabase.from('journal_banque').delete().eq('id', id);
+    await chargerJournalBanque();
+};
 
 // Exports globaux
 window.getSupabase = getSupabase;
