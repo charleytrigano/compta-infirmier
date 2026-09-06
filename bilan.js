@@ -36,34 +36,34 @@
             const dateDebut = `${anneeSelectionnee}-01-01`;
             const dateFin = `${anneeSelectionnee}-12-31`;
 
-            const { data, error } = await supabase
-                .from('ecritures_comptables')
-                .select('*')
-                .or('compte_code.eq.512000,compte_code.like.512%')
-                .gte('date', dateDebut)
-                .lte('date', dateFin);
+            // Charger journal_banque + journal_od
+            const [rBQ, rOD] = await Promise.all([
+                supabase.from('journal_banque').select('*').gte('date',dateDebut).lte('date',dateFin),
+                supabase.from('journal_od').select('*').gte('date',dateDebut).lte('date',dateFin)
+            ]);
+            if (rBQ.error) { console.error('Erreur journal_banque:', rBQ.error); return; }
 
-            if (error) {
-                console.error("Erreur Supabase Bilan:", error);
-                return;
-            }
+            // Fusionner les deux journaux
+            const allLignes = (rBQ.data||[]).concat(rOD.data||[]);
 
             let totalRecettes = 0;
             let totalDepenses = 0;
             const recMap = new Map();
             const depMap = new Map();
 
-            (data || []).forEach(row => {
-                const debit = parseFloat(row.debit || 0);
-                const credit = parseFloat(row.credit || 0);
-                const cat = row.category || 'Autres';
-
-                if (debit > 0) {
-                    totalRecettes += debit;
-                    recMap.set(cat, (recMap.get(cat) || 0) + debit);
-                } else if (credit > 0) {
-                    totalDepenses += credit;
-                    depMap.set(cat, (depMap.get(cat) || 0) + credit);
+            allLignes.forEach(row => {
+                const montant = Math.abs(parseFloat(row.montant || 0));
+                const cD = row.compte_debit || '';
+                const cC = row.compte_credit || '';
+                // Débit = compte de charge (6xx) ou actif (5xx) → dépense
+                // Crédit = compte de produit (7xx) → recette
+                if (cC && cC.charAt(0) === '7') {
+                    totalRecettes += montant;
+                    const lib = cC + (row.libelle ? ' - ' + row.libelle : '');
+                    recMap.set(cC, (recMap.get(cC)||0) + montant);
+                } else if (cD && cD.charAt(0) === '6') {
+                    totalDepenses += montant;
+                    depMap.set(cD, (depMap.get(cD)||0) + montant);
                 }
             });
 

@@ -67,7 +67,18 @@
     // Dépense :  D/646xxx → C/431xxx  puis  D/431xxx → C/512000  → 431xxx soldé
     // Sans tiers (IK, frais banc.) : D/625xxx → C/512000  (2 écritures seulement)
     function getEcritures(t) {
-        var m    = Math.abs(parseFloat(t.amount || t.montant || 0));
+        var m = Math.abs(parseFloat(t.montant || t.amount || 0));
+
+        // ── Mode direct : journal_banque / journal_od ─────────────────────
+        // compte_debit et compte_credit sont directement disponibles
+        if (t.compte_debit && t.compte_credit) {
+            return [
+                {code:t.compte_debit,  debit:m, credit:0},
+                {code:t.compte_credit, debit:0, credit:m},
+            ];
+        }
+
+        // ── Mode héritage : table transactions (ancienne architecture) ────
         var isR  = (t.type||'').toLowerCase() === 'recette';
         var cat  = t.category || t.categorie || '';
         var desc = t.description || '';
@@ -106,19 +117,21 @@
 
         try {
             var res = await Promise.all([
-                sc.from('transactions').select('*').order('date',{ascending:true}),
+                sc.from('journal_banque').select('*').order('date',{ascending:true}).order('created_at',{ascending:true}),
+                sc.from('journal_od').select('*').order('date',{ascending:true}).order('created_at',{ascending:true}),
                 sc.from('plan_comptable').select('code, nom')
             ]);
             if (res[0].error) throw new Error(res[0].error.message);
 
             // Indexer le plan comptable
-            (res[1].data || []).forEach(function(r){ PLAN[r.code] = r.nom; });
+            (res[2].data || []).forEach(function(r){ PLAN[r.code] = r.nom; });
 
-            var transactions = res[0].data || [];
+            // Fusionner banque + OD comme source unifiée
+            var transactions = (res[0].data || []).concat(res[1].data || []);
 
             // Années
             var anneesSet = {};
-            transactions.forEach(function(t){ var a=anneeOf(t.date); if(a) anneesSet[a]=true; });
+            transactions.forEach(function(t){ var a=anneeOf(t.date||t.created_at); if(a) anneesSet[a]=true; });
             var annees = Object.keys(anneesSet).map(Number).sort(function(a,b){return b-a;});
             if (!annees.length) annees = [new Date().getFullYear()];
             var anneeActive = parseInt(window.anneeBalanceSelectionnee);
@@ -153,7 +166,7 @@
                 return {code:c.code,lib:c.lib,debit:c.debit,credit:c.credit,sd:sd,sc:sc2,detail:c.detail};
             }).sort(function(a,b){ return a.code.localeCompare(b.code,undefined,{numeric:true}); });
 
-            var nbTx = transactions.filter(function(t){return anneeOf(t.date)===anneeActive;}).length;
+            var nbTx = transactions.filter(function(t){return anneeOf(t.date||t.created_at)===anneeActive;}).length;
             var optAnnees = annees.map(function(a){
                 return '<option value="'+a+'"'+(a===anneeActive?' selected':'')+'>'+a+'</option>';
             }).join('');
