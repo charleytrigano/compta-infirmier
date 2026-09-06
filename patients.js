@@ -144,16 +144,8 @@ async function ptChargerPatients() {
     ptRenduPatients();
     ptRenduCabinets();
     ptMAJCompteurs();
-    // Scroller en haut - cibler tous les conteneurs possibles
-    setTimeout(function() {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-        var pb = document.getElementById('page-body');
-        if (pb) pb.scrollTop = 0;
-        var section = document.getElementById('vue-patients');
-        if (section) section.scrollIntoView({behavior:'instant', block:'start'});
-    }, 50);
+    var pb = document.getElementById('page-body');
+    if (pb) pb.scrollTop = 0;
 }
 
 function ptMAJCompteurs() {
@@ -338,7 +330,7 @@ window.initPatients = async function() {
     if (!ptSC()) {
         var el = document.getElementById('ptListePatients');
         if (el) el.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px;">⏳ Connexion en cours...</p>';
-        window.scrollTo(0,0); document.documentElement.scrollTop=0;
+        var pb=document.getElementById('page-body');if(pb)pb.scrollTop=0;
         setTimeout(window.initPatients, 600);
         return;
     }

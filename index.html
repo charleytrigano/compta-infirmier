@@ -15,8 +15,7 @@
         /* FORCER flex sur #app-content dès que visible
            auth.js met display:block → on override en flex
            auth.js met display:none  → le sélecteur [style*="none"] reprend le dessus */
-        #app-content                 { display: flex !important; min-height: 100vh; }
-        #app-content[style*="none"]  { display: none !important; }
+        /* layout géré dans style.css */
 
         #main-content  { box-sizing: border-box; }
         #page-body     { box-sizing: border-box; padding: 24px; }
@@ -1269,8 +1268,7 @@ window.goTo = function(tabId, navEl) {
     var titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[tabId] || tabId;
 
-    window.scrollTo(0, 0);
-    document.getElementById('page-body').scrollTop = 0;
+    var pb=document.getElementById('page-body'); if(pb) pb.scrollTop=0;
     if (PAGE_INITS[tabId]) PAGE_INITS[tabId]();
 };
 
