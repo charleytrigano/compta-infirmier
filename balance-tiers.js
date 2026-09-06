@@ -1,6 +1,6 @@
 /**
- * balance-tiers.js — Balance Auxiliaire Clients / Fournisseurs / Organismes
- * Affiche le détail par tiers individuel depuis les transactions
+ * balance-tiers.js — Balance Auxiliaire des Tiers
+ * Colonnes : Débit / Crédit / Solde Débiteur / Solde Créditeur
  */
 (function () {
     window.anneeBTiers = window.anneeBTiers || new Date().getFullYear();
@@ -9,49 +9,42 @@
         if (!n || Math.abs(n) < 0.001) return '—';
         return Number(n).toLocaleString('fr-FR', {style:'currency', currency:'EUR', minimumFractionDigits:2});
     }
-    function anneeOf(d) {
-        var m = String(d||'').match(/(20\d{2})/);
-        return m ? parseInt(m[1]) : null;
-    }
+    function anneeOf(d) { var m=String(d||'').match(/(20\d{2})/); return m?parseInt(m[1]):null; }
 
-    // Déterminer le compte tiers d'une transaction
-    function getCodeTiers(t, tiersParId, cat) {
-        // 0. Nouvelles tables : compte_debit ou compte_credit directement 4xx
-        if (t.compte_debit && t.compte_debit.charAt(0)==="4")
-            return { code:t.compte_debit, nom:t.nom_tiers||t.compte_tiers||t.compte_debit };
-        if (t.compte_credit && t.compte_credit.charAt(0)==="4")
-            return { code:t.compte_credit, nom:t.nom_tiers||t.compte_tiers||t.compte_credit };
-        // 1. tiers_id → compte exact depuis table tiers
-        if (t.tiers_id && tiersParId[t.tiers_id]) return {
-            code: tiersParId[t.tiers_id].compte,
-            nom:  tiersParId[t.tiers_id].nom
-        };
-        // 2. compte_tiers_code explicit
-        if (t.compte_tiers||t.compte_tiers_code) return {
-            code: t.compte_tiers||t.compte_tiers_code,
-            nom:  t.nom_tiers || t.compte_tiers_libelle || t.compte_tiers||t.compte_tiers_code
-        };
-        // 3. Déduction catégorie
-        var c = (cat||'').toLowerCase(), d = (t.description||'').toLowerCase();
-        var isR = (t.type||'').toLowerCase()==='recette';
-        if (isR) return {code:'411000', nom:'Clients / CPAM (collectif)'};
-        if (c.includes('carpimko') && (c.includes('prévoyance')||d.includes('prévoyance'))) return {code:'437200', nom:'CARPIMKO — Prévoyance'};
-        if (c.includes('carpimko') && (c.includes('invalidité')||d.includes('invalidité'))) return {code:'437300', nom:'CARPIMKO — Invalidité'};
-        if (c.includes('carpimko')||d.includes('carpimko')) return {code:'437100', nom:'CARPIMKO — Retraite'};
-        if (c.includes('urssaf')  ||d.includes('urssaf'))   return {code:'431000', nom:'URSSAF'};
-        if (c.includes('rétrocession'))                      return {code:'421000', nom:'Rétrocession Titulaire'};
-        if (c.includes('impôt')   ||d.includes('impôt'))    return {code:'441000', nom:'État — Impôts'};
-        if (c.includes('assurance')||d.includes('matmut')||d.includes('macsf')) return {code:'401001', nom:'Assurance professionnelle'};
-        if (c.includes('matériel')||c.includes('achat'))    return {code:'401000', nom:'Fournisseurs matériel'};
-        if (c.includes('loyer')   ||c.includes('formation')) return {code:'401000', nom:'Fournisseurs'};
+    function getCodeTiers(t, tiersParId) {
+        var cD = t.compte_debit||'', cC = t.compte_credit||'';
+        if (cD && cD.charAt(0)==='4') return { code:cD, nom:t.nom_tiers||t.compte_tiers||cD };
+        if (cC && cC.charAt(0)==='4') return { code:cC, nom:t.nom_tiers||t.compte_tiers||cC };
+        if (t.tiers_id && tiersParId[t.tiers_id]) return { code:tiersParId[t.tiers_id].compte, nom:tiersParId[t.tiers_id].nom };
+        if (t.compte_tiers) return { code:t.compte_tiers, nom:t.nom_tiers||t.compte_tiers };
+        if (t.compte_tiers_code) return { code:t.compte_tiers_code, nom:t.nom_tiers||t.compte_tiers_code };
+        var c=(t.category||t.categorie||'').toLowerCase(), d=(t.description||'').toLowerCase();
+        var isR=(t.type||'').toLowerCase()==='recette';
+        if (isR)                                                 return {code:'411000',nom:'Clients / CPAM'};
+        if (c.includes('carpimko')&&c.includes('prévoyance'))    return {code:'437200',nom:'CARPIMKO Prévoyance'};
+        if (c.includes('carpimko')&&c.includes('invalidité'))    return {code:'437300',nom:'CARPIMKO Invalidité'};
+        if (c.includes('carpimko')||d.includes('carpimko'))      return {code:'437100',nom:'CARPIMKO Retraite'};
+        if (c.includes('urssaf')  ||d.includes('urssaf'))        return {code:'431000',nom:'URSSAF'};
+        if (c.includes('rétrocession'))                          return {code:'421000',nom:'Rétrocession'};
+        if (c.includes('impôt')   ||d.includes('impôt'))         return {code:'441000',nom:'DGFiP'};
+        if (c.includes('assurance')||d.includes('matmut'))       return {code:'401001',nom:'Assurance'};
+        if (c.includes('matériel')||c.includes('achat'))         return {code:'401000',nom:'Fournisseurs'};
         return null;
     }
+
+    var GROUPES = {
+        '411':'🧑‍⚕️ Clients — Patients & Caisses',
+        '421':'🔄 Rétrocession Titulaire',
+        '431':'🏛️ URSSAF',
+        '437':'🏥 CARPIMKO',
+        '441':'🏦 État & Impôts',
+        '401':'📦 Fournisseurs',
+    };
 
     async function afficherBalanceTiers() {
         var el = document.getElementById('balance-tiers-contenu');
         if (!el) return;
         el.innerHTML = '<p style="padding:20px;text-align:center;color:#64748b;">⏳ Chargement...</p>';
-
         var sc = window.supabaseClient;
         if (!sc) { setTimeout(afficherBalanceTiers, 500); return; }
 
@@ -65,75 +58,47 @@
             if (res[0].error) throw new Error(res[0].error.message);
 
             var transactions = (res[0].data||[]).concat(res[1].data||[]);
-            var tiersParId   = {};
-            (res[2].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
-            var planTiers = {};
-            (res[3].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
+            var tiersParId = {}; (res[2].data||[]).forEach(function(t){ tiersParId[t.id]=t; });
+            var planTiers  = {}; (res[3].data||[]).forEach(function(r){ planTiers[r.code]=r.nom; });
 
-            // Années
             var anneesSet={};
-            transactions.forEach(function(t){var a=anneeOf(t.date);if(a)anneesSet[a]=true;});
+            transactions.forEach(function(t){ var a=anneeOf(t.date); if(a) anneesSet[a]=true; });
             var annees=Object.keys(anneesSet).map(Number).sort(function(a,b){return b-a;});
             if (!annees.length) annees=[new Date().getFullYear()];
             var anneeActive=parseInt(window.anneeBTiers);
             if (!anneesSet[anneeActive]) anneeActive=annees[0];
 
-            // Construire les comptes tiers
             var comptes = {};
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
-                var m    = Math.abs(parseFloat(t.montant||t.amount||0));
-                var isR  = (t.type||'').toLowerCase()==='recette';
-                var cat  = t.libelle||t.category||t.categorie||'';
-                var ct   = getCodeTiers(t, tiersParId, cat);
+                var m   = Math.abs(parseFloat(t.montant||t.amount||0));
+                var ct  = getCodeTiers(t, tiersParId);
                 if (!ct) return;
 
-                var code = ct.code;
-                var nom  = planTiers[code] || ct.nom;
+                var cD  = t.compte_debit||'', cC = t.compte_credit||'';
+                var isR = (t.type||'').toLowerCase()==='recette';
+                var code= ct.code;
+                var nom = planTiers[code]||ct.nom;
                 if (!comptes[code]) comptes[code]={code:code,nom:nom,debit:0,credit:0,detail:[]};
 
-                // Déterminer le sens pour le compte tiers
-                var cD = t.compte_debit || '';
-                var cC = t.compte_credit || '';
+                // Sens du mouvement pour ce compte tiers
+                var mvtDebit=0, mvtCredit=0;
+                if      (cD===code)           { mvtDebit=m; }
+                else if (cC===code)           { mvtCredit=m; }
+                else if (cD.startsWith('512')){ mvtCredit=m; } // encaissement → crédit tiers
+                else if (cC.startsWith('512')){ mvtDebit=m;  } // décaissement → débit tiers
+                else if (isR)                 { mvtCredit=m; }
+                else                          { mvtDebit=m;  }
 
-                if (cD === code) {
-                    // Le tiers est au débit → il nous doit quelque chose (créance)
-                    comptes[code].debit += m;
-                } else if (cC === code) {
-                    // Le tiers est au crédit → il a payé (règlement)
-                    comptes[code].credit += m;
-                } else if (cD.startsWith('512')) {
-                    // Encaissement banque → le tiers (client) est crédité
-                    comptes[code].credit += m;
-                } else if (cC.startsWith('512')) {
-                    // Décaissement banque → le tiers (fournisseur) est débité
-                    comptes[code].debit += m;
-                } else if (isR) {
-                    comptes[code].credit += m;
-                } else {
-                    comptes[code].debit += m;
-                }
-
+                comptes[code].debit  += mvtDebit;
+                comptes[code].credit += mvtCredit;
                 comptes[code].detail.push({
-                    date:t.date,
-                    desc:t.libelle||t.libelle||t.description||'—',
-                    cat: cat||'—',
-                    isR: isR,
-                    montant: m
+                    date:  t.date||'—',
+                    desc:  t.libelle||t.description||'—',
+                    debit: mvtDebit,
+                    credit:mvtCredit
                 });
             });
-
-            // Regrouper par classe
-            var groupes = {
-                '411':'🧑‍⚕️ Clients — Patients & Caisses',
-                '421':'🔄 Rétrocession Titulaire',
-                '431':'🏛️ URSSAF',
-                '437':'🏥 CARPIMKO',
-                '441':'🏦 État & Impôts',
-                '401':'📦 Fournisseurs',
-                '438':'📋 Charges à payer',
-                '445':'💶 TVA',
-            };
 
             var optAnnees=annees.map(function(a){
                 return '<option value="'+a+'"'+(a===anneeActive?' selected':'')+'>'+a+'</option>';
@@ -148,57 +113,57 @@
                 +optAnnees+'</select></div></div>';
 
             if (!Object.keys(comptes).length) {
-                html += '<p style="text-align:center;color:#94a3b8;padding:20px;">Aucun mouvement de tiers pour '+anneeActive+'.</p></div>';
-                el.innerHTML = html;
-                return;
+                html += '<p style="text-align:center;color:#94a3b8;padding:30px;">Aucun mouvement pour '+anneeActive+'.</p></div>';
+                el.innerHTML = html; return;
             }
 
-            // Afficher par groupe
-            Object.keys(groupes).forEach(function(prefix) {
+            Object.keys(GROUPES).forEach(function(prefix) {
                 var liste = Object.values(comptes)
-                    .filter(function(c){ return c.code.substring(0,3)===prefix; })
+                    .filter(function(c){ return String(c.code).substring(0,3)===prefix; })
                     .sort(function(a,b){ return a.code.localeCompare(b.code,undefined,{numeric:true}); });
                 if (!liste.length) return;
 
                 html += '<div style="margin-bottom:20px;">'
-                    +'<div style="font-size:12px;font-weight:800;color:#1e293b;text-transform:uppercase;'
-                    +'letter-spacing:.06em;padding:8px 12px;background:#f1f5f9;border-radius:6px;margin-bottom:8px;">'
-                    +groupes[prefix]+'</div>'
-                    +'<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-                    +'<thead><tr style="background:#f8fafc;color:#475569;">'
-                    +'<th style="padding:8px 12px;text-align:left;">Compte</th>'
-                    +'<th style="padding:8px 12px;text-align:left;">Nom</th>'
-                    +'<th style="padding:8px 12px;text-align:center;">Nb mvts</th>'
-                    +'<th style="padding:8px 12px;text-align:right;white-space:nowrap;">Total mouvements</th>'
-                    +'<th style="padding:8px 12px;text-align:center;">Solde</th>'
+                    +'<div style="font-size:12px;font-weight:800;color:white;text-transform:uppercase;'
+                    +'letter-spacing:.06em;padding:8px 14px;background:#1e293b;border-radius:6px 6px 0 0;margin-bottom:0;">'
+                    +GROUPES[prefix]+'</div>'
+                    +'<table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e2e8f0;">'
+                    +'<thead><tr style="background:#f1f5f9;color:#475569;">'
+                    +'<th style="padding:9px 12px;text-align:left;">Compte</th>'
+                    +'<th style="padding:9px 12px;text-align:left;">Intitulé</th>'
+                    +'<th style="padding:9px 12px;text-align:right;color:#dc2626;white-space:nowrap;">Total Débit</th>'
+                    +'<th style="padding:9px 12px;text-align:right;color:#16a34a;white-space:nowrap;">Total Crédit</th>'
+                    +'<th style="padding:9px 12px;text-align:right;color:#dc2626;white-space:nowrap;">Solde Débiteur</th>'
+                    +'<th style="padding:9px 12px;text-align:right;color:#16a34a;white-space:nowrap;">Solde Créditeur</th>'
                     +'</tr></thead><tbody>';
 
                 liste.forEach(function(c) {
-                    var uid='bt_'+c.code.replace(/\W/g,'_');
-                    var total=Math.max(c.debit,c.credit); // montant net mouvementé
-                    var solde=c.debit-c.credit;
-                    var soldeTxt=Math.abs(solde)<0.005
-                        ?'<span style="color:#16a34a;font-weight:600;">✓ Soldé</span>'
-                        :'<span style="color:#dc2626;font-weight:600;">'+fmt(Math.abs(solde))+(solde>0?' D':' C')+'</span>';
+                    var uid   = 'bt_'+c.code.replace(/\W/g,'_');
+                    var solde = c.debit - c.credit;
+                    var sd    = solde > 0 ? solde : 0;
+                    var sc2   = solde < 0 ? -solde : 0;
+                    var soldé = Math.abs(solde) < 0.005;
+                    var bgRow = soldé ? 'white' : '#fffbeb';
 
-                    var detailRows=c.detail.map(function(d){
+                    var detailRows = c.detail.map(function(d){
                         return '<tr style="background:#f8fafc;font-size:11px;">'
-                            +'<td style="padding:3px 12px 3px 30px;color:#64748b;">'+d.date+'</td>'
-                            +'<td style="padding:3px 12px;color:#94a3b8;font-style:italic;">'+d.cat+'</td>'
-                            +'<td colspan="2" style="padding:3px 12px;color:#475569;">'+d.desc+'</td>'
-                            +'<td style="padding:3px 12px;text-align:center;color:'+(d.isR?'#16a34a':'#dc2626')+';font-weight:600;">'
-                            +(d.isR?'+ ':'-')+fmt(d.montant)+'</td>'
+                            +'<td style="padding:3px 12px 3px 28px;color:#64748b;white-space:nowrap;">'+d.date+'</td>'
+                            +'<td style="padding:3px 12px;color:#475569;" colspan="3">'+d.desc+'</td>'
+                            +'<td style="padding:3px 12px;text-align:right;color:#dc2626;">'+(d.debit>0.001?fmt(d.debit):'—')+'</td>'
+                            +'<td style="padding:3px 12px;text-align:right;color:#16a34a;">'+(d.credit>0.001?fmt(d.credit):'—')+'</td>'
                             +'</tr>';
                     }).join('');
 
-                    html += '<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;" '
+                    html += '<tr style="border-bottom:1px solid #f1f5f9;background:'+bgRow+';cursor:pointer;" '
                         +'onclick="var d=document.getElementById(\''+uid+'\');if(d)d.style.display=d.style.display===\'none\'?\'table-row-group\':\'none\'">'
                         +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;">'+c.code+'</td>'
                         +'<td style="padding:9px 12px;color:#334155;">'+c.nom
-                        +' <span style="font-size:10px;color:#94a3b8;">('+c.detail.length+' mvts)</span></td>'
-                        +'<td style="padding:9px 12px;text-align:center;color:#64748b;">'+c.detail.length+'</td>'
-                        +'<td style="padding:9px 12px;text-align:right;font-weight:600;color:#2563eb;">'+fmt(total)+'</td>'
-                        +'<td style="padding:9px 12px;text-align:center;">'+soldeTxt+'</td>'
+                        +' <span style="font-size:10px;color:#94a3b8;">('+c.detail.length+')</span>'
+                        +(soldé?' <span style="color:#16a34a;font-size:10px;font-weight:600;">✓ Soldé</span>':'')+'</td>'
+                        +'<td style="padding:9px 12px;text-align:right;color:#dc2626;font-weight:600;">'+(c.debit>0.001?fmt(c.debit):'—')+'</td>'
+                        +'<td style="padding:9px 12px;text-align:right;color:#16a34a;font-weight:600;">'+(c.credit>0.001?fmt(c.credit):'—')+'</td>'
+                        +'<td style="padding:9px 12px;text-align:right;font-weight:700;color:#dc2626;">'+(sd>0.001?fmt(sd):'—')+'</td>'
+                        +'<td style="padding:9px 12px;text-align:right;font-weight:700;color:#16a34a;">'+(sc2>0.001?fmt(sc2):'—')+'</td>'
                         +'</tr>'
                         +'<tbody id="'+uid+'" style="display:none;">'+detailRows+'</tbody>';
                 });
