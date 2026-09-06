@@ -148,6 +148,40 @@
             }
 
             var nonClassees = [];
+            // ── Soldes à nouveau : comptes 1-5 des années antérieures ──────────
+            var resH = await Promise.all([
+                sc.from('journal_banque').select('compte_debit,compte_credit,montant')
+                    .lt('date', anneeActive+'-01-01'),
+                sc.from('journal_od').select('compte_debit,compte_credit,montant')
+                    .lt('date', anneeActive+'-01-01')
+            ]);
+            var san = {};
+            (resH[0].data||[]).concat(resH[1].data||[]).forEach(function(l) {
+                var m = Math.abs(parseFloat(l.montant||0));
+                [['d',l.compte_debit],['c',l.compte_credit]].forEach(function(pair) {
+                    var side=pair[0], code=pair[1];
+                    if (!code || !['1','2','3','4','5'].includes(code.charAt(0))) return;
+                    if (!san[code]) san[code]={d:0,c:0};
+                    if (side==='d') san[code].d+=m; else san[code].c+=m;
+                });
+            });
+
+
+            // Injecter les SAN dans les comptes bilan
+            Object.keys(san).forEach(function(code) {
+                var s = san[code];
+                var solde = s.d - s.c;
+                if (Math.abs(solde) < 0.005) return;
+                if (!comptes[code]) comptes[code] = {code:code, lib:libelle(code), debit:0, credit:0, detail:[]};
+                if (solde > 0) {
+                    comptes[code].debit += solde;
+                    comptes[code].detail.unshift({date:'01/01/'+anneeActive, desc:'★ Solde à Nouveau', cat:'SAN', debit:solde, credit:0});
+                } else {
+                    comptes[code].credit += Math.abs(solde);
+                    comptes[code].detail.unshift({date:'01/01/'+anneeActive, desc:'★ Solde à Nouveau', cat:'SAN', debit:0, credit:Math.abs(solde)});
+                }
+            });
+
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
                 var ecr = getEcritures(t);

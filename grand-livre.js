@@ -74,6 +74,36 @@
 
             // Construire les comptes directement depuis compte_debit/compte_credit
             var comptes = {};
+
+            // ── Soldes à nouveau (comptes 1-5) ───────────────────────────────────
+            var resHGL = await Promise.all([
+                supabase.from('journal_banque').select('compte_debit,compte_credit,montant')
+                    .lt('date', anneeActive+'-01-01'),
+                supabase.from('journal_od').select('compte_debit,compte_credit,montant')
+                    .lt('date', anneeActive+'-01-01')
+            ]);
+            var sanGL = {};
+            (resHGL[0].data||[]).concat(resHGL[1].data||[]).forEach(function(l) {
+                var m = Math.abs(parseFloat(l.montant||0));
+                [['d',l.compte_debit],['c',l.compte_credit]].forEach(function(p) {
+                    var code=p[1];
+                    if (!code || !['1','2','3','4','5'].includes(code.charAt(0))) return;
+                    if (!sanGL[code]) sanGL[code]={d:0,c:0};
+                    if (p[0]==='d') sanGL[code].d+=m; else sanGL[code].c+=m;
+                });
+            });
+            // Créer les lignes SAN
+            Object.keys(sanGL).forEach(function(code) {
+                var s=sanGL[code], solde=s.d-s.c;
+                if (Math.abs(solde)<0.005) return;
+                var lib = plan[code]||code;
+                ajouterLigne(comptes, code, lib, {
+                    date:'01/01/'+anneeActive, journal:'SAN',
+                    desc:'★ Solde à Nouveau',  tiers:'',
+                    debit: solde>0?solde:0, credit:solde<0?-solde:0
+                });
+            });
+
             lignes.forEach(function(l) {
                 var m = Math.abs(parseFloat(l.montant||0));
                 var cD = l.compte_debit, cC = l.compte_credit;
