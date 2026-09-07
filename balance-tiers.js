@@ -68,6 +68,37 @@
             var anneeActive=parseInt(window.anneeBTiers);
             if (!anneesSet[anneeActive]) anneeActive=annees[0];
 
+            // ── Soldes à nouveau comptes 4xx ─────────────────────────────────────
+            var resH = await Promise.all([
+                sc.from('journal_banque').select('compte_debit,compte_credit,montant')
+                    .lt('date', anneeActive+'-01-01'),
+                sc.from('journal_od').select('compte_debit,compte_credit,montant')
+                    .lt('date', anneeActive+'-01-01')
+            ]);
+            var san = {};
+            (resH[0].data||[]).concat(resH[1].data||[]).forEach(function(l) {
+                var m = Math.abs(parseFloat(l.montant||0));
+                var cD=l.compte_debit||'', cC=l.compte_credit||'';
+                if (cD && cD.charAt(0)==='4') { if(!san[cD])san[cD]={d:0,c:0}; san[cD].d+=m; }
+                if (cC && cC.charAt(0)==='4') { if(!san[cC])san[cC]={d:0,c:0}; san[cC].c+=m; }
+                // Encaissement banque → crédit tiers
+                if (cD.startsWith('512') && cC && cC.charAt(0)==='4') { if(!san[cC])san[cC]={d:0,c:0}; san[cC].c+=m; }
+                if (cC.startsWith('512') && cD && cD.charAt(0)==='4') { if(!san[cD])san[cD]={d:0,c:0}; san[cD].d+=m; }
+            });
+            Object.keys(san).forEach(function(code) {
+                var s=san[code], solde=s.d-s.c;
+                if (Math.abs(solde)<0.005) return;
+                var nom = planTiers[code]||code;
+                if (!comptes[code]) comptes[code]={code:code,nom:nom,debit:0,credit:0,detail:[]};
+                if (solde>0) {
+                    comptes[code].debit += solde;
+                    comptes[code].detail.unshift({date:'01/01/'+anneeActive, desc:'★ Solde à Nouveau', debit:solde, credit:0});
+                } else {
+                    comptes[code].credit += -solde;
+                    comptes[code].detail.unshift({date:'01/01/'+anneeActive, desc:'★ Solde à Nouveau', debit:0, credit:-solde});
+                }
+            });
+
             var comptes = {};
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;

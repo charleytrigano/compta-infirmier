@@ -91,6 +91,41 @@
             if (!anneesSet[anneeActive]) anneeActive=annees[0];
 
             // Regrouper les transactions par compte tiers
+            // ── Soldes à nouveau (comptes 4xx des années antérieures) ──────────
+            var resH = await Promise.all([
+                sc.from('journal_banque').select('compte_debit,compte_credit,montant,date,nom_tiers,compte_tiers')
+                    .lt('date', anneeActive+'-01-01'),
+                sc.from('journal_od').select('compte_debit,compte_credit,montant,date,nom_tiers,compte_tiers')
+                    .lt('date', anneeActive+'-01-01')
+            ]);
+            var sanLignes = (resH[0].data||[]).concat(resH[1].data||[]);
+            var san = {}; // solde cumulé par compte tiers histo
+            sanLignes.forEach(function(l) {
+                var m = Math.abs(parseFloat(l.montant||0));
+                var cD = l.compte_debit||'', cC = l.compte_credit||'';
+                [cD, cC].forEach(function(code, idx) {
+                    if (!code || code.charAt(0) !== '4') return;
+                    if (!san[code]) san[code] = {d:0, c:0, nom: l.nom_tiers||l.compte_tiers||code};
+                    if (idx===0) san[code].d += m; else san[code].c += m;
+                });
+            });
+
+            // Créer les entrées SAN dans comptes
+            Object.keys(san).forEach(function(code) {
+                var s = san[code];
+                var solde = s.d - s.c;
+                if (Math.abs(solde) < 0.005) return; // soldé → pas de SAN
+                var nom = planTiers[code] || tiersParId[code] && tiersParId[code].nom || s.nom;
+                if (!comptes[code]) comptes[code] = {code:code, nom:nom, lignes:[]};
+                comptes[code].lignes.push({
+                    date: '01/01/'+anneeActive,
+                    desc: '★ Solde à Nouveau',
+                    ref:  'SAN',
+                    debit:  solde > 0 ? solde : 0,
+                    credit: solde < 0 ? -solde : 0
+                });
+            });
+
             var comptes = {};
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
