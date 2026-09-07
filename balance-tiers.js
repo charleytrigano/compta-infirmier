@@ -85,6 +85,7 @@
                 if (cD.startsWith('512') && cC && cC.charAt(0)==='4') { if(!san[cC])san[cC]={d:0,c:0}; san[cC].c+=m; }
                 if (cC.startsWith('512') && cD && cD.charAt(0)==='4') { if(!san[cD])san[cD]={d:0,c:0}; san[cD].d+=m; }
             });
+            var comptes = {};
             Object.keys(san).forEach(function(code) {
                 var s=san[code], solde=s.d-s.c;
                 if (Math.abs(solde)<0.005) return;
@@ -99,7 +100,7 @@
                 }
             });
 
-            var comptes = {};
+
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
                 var m   = Math.abs(parseFloat(t.montant||t.amount||0));

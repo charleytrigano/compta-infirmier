@@ -110,6 +110,7 @@
                 });
             });
 
+            var comptes = {};
             // Créer les entrées SAN dans comptes
             Object.keys(san).forEach(function(code) {
                 var s = san[code];
@@ -126,7 +127,7 @@
                 });
             });
 
-            var comptes = {};
+
             transactions.forEach(function(t) {
                 if (anneeOf(t.date) !== anneeActive) return;
                 var m    = Math.abs(parseFloat(t.montant||t.amount||0));
